@@ -292,6 +292,7 @@ impl std::ops::Drop for PaxChassisWeb {
 #[wasm_bindgen]
 pub struct InterruptResult {
     pub prevent_default: bool,
+    pub wheel_cancellable: bool,
 }
 
 #[derive(pax_message::serde::Serialize)]
@@ -772,6 +773,7 @@ impl PaxChassisWeb {
             // is held during the opt-in bootstrap; native scroll feedback still flows.
             return InterruptResult {
                 prevent_default: true,
+                wheel_cancellable: false,
             };
         }
         self.dispatch_interrupt(x, additional_payload)
@@ -790,6 +792,7 @@ impl PaxChassisWeb {
                 .get_expanded_node(id)
                 .filter(|node| ctx.accepts_startup_input(node))
         };
+        let mut wheel_cancellable = false;
         let prevent_default = match &x {
             NativeInterrupt::Focus(_args) => engine.global_dispatch_focus(Focus {}),
             NativeInterrupt::DropFile(args) => {
@@ -1423,6 +1426,7 @@ impl PaxChassisWeb {
                         delta_y: args.delta_y,
                         modifiers,
                     };
+                    wheel_cancellable = topmost_node.allows_wheel_cancellation();
                     let mut prevented = topmost_node.dispatch_wheel(
                         Event::new(args_wheel),
                         &globals,
@@ -1576,7 +1580,7 @@ impl PaxChassisWeb {
             }
         };
 
-        InterruptResult { prevent_default }
+        InterruptResult { prevent_default, wheel_cancellable }
     }
 
     pub fn tick(&mut self) -> JsValue {

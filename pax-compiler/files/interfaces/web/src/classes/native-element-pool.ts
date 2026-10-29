@@ -1,4 +1,5 @@
 import {InitialTextPresentation} from "./initial-text-presentation";
+import {WheelRegions, WheelRegionsPatch} from './wheel-regions';
 import {BUTTON_CLASS, BUTTON_TEXT_CONTAINER_CLASS,
     NATIVE_LEAF_CLASS, CHECKBOX_CLASS, RADIO_LIST_CLASS, SCROLLER_CONTAINER,
     CANVAS_CLASS, NATIVE_OVERLAY_CLASS, INNER_PANE} from "../utils/constants";
@@ -87,6 +88,7 @@ export class NativeElementPool {
     private layerCanvasBasisCache = new Map<number, string>();
     layers: RenderLayerManager;
     private nodesLookup = new Map<number, HTMLElement>();
+    private wheelRegions?: WheelRegions;
     private scrollerHosts = new Map<number, ScrollerDomHosts>();
     private scrollerMeasurementStates = new Map<number, ScrollerMeasurementState>();
     private presentationRecords = new Map<number, PresentationRecord>();
@@ -223,6 +225,8 @@ export class NativeElementPool {
     }
 
     dispose() {
+        this.wheelRegions?.dispose();
+        this.wheelRegions = undefined;
         if (this.activePageScrollScrollerId != null) {
             let leaf = this.nodesLookup.get(this.activePageScrollScrollerId);
             let state = this.scrollerMeasurementStates.get(this.activePageScrollScrollerId);
@@ -338,6 +342,13 @@ export class NativeElementPool {
             if (state.stableFrames >= 2) {
                 state.active = false;
             }
+        });
+    }
+
+    wheelRegionsUpdate(patch: WheelRegionsPatch) {
+        this.wheelRegions ??= new WheelRegions();
+        this.wheelRegions.update(patch, id => this.nodesLookup.get(id), (element, parent) => {
+            this.layers.addElement(element, parent, 0);
         });
     }
 

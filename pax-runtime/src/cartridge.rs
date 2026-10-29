@@ -5392,6 +5392,7 @@ pub fn create_new_common_properties_from_columns(
         transform: resolve_property("transform", property_columns, stack_frame),
         opacity: resolve_property("opacity", property_columns, stack_frame),
         layout_role: resolve_property("layout_role", property_columns, stack_frame),
+        wheel_events: resolve_property("wheel_events", property_columns, stack_frame),
         anchor_x: resolve_property("anchor_x", property_columns, stack_frame),
         anchor_y: resolve_property("anchor_y", property_columns, stack_frame),
         unclippable: resolve_property("unclippable", property_columns, stack_frame),
@@ -5562,6 +5563,14 @@ fn update_common_properties(
     bind_common_setting(
         &cp.layout_role,
         "layout_role",
+        property_columns,
+        stack_frame,
+        node,
+        mode,
+    );
+    bind_common_setting(
+        &cp.wheel_events,
+        "wheel_events",
         property_columns,
         stack_frame,
         node,

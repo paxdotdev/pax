@@ -22,7 +22,18 @@
                 <Text class="hero_copy" width=100%
                     text="Write application logic in Rust, alongside Pax: a declarative language for making UIs powerful, expressive, and fun."/>
                 <Text class="hero_copy" width=100% text="Ship to native macOS, iOS, iPadOS, and the web."/>
-                <Text class="hero_copy" width=100% text="This website is built in Pax."/>
+                <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter={@viewport.width < 600 ? 4px : 6px}
+                    direction={@viewport.width < 600 ? StackerDirection::Vertical : StackerDirection::Horizontal}
+                    sizes={@viewport.width < 600 ? [] : (self.compact ? [Some(178px), None] : [Some(199px), None])}>
+                    <Text class="hero_copy" width=100% text="Free and open source." style={
+                        font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::SemiBold)
+                        font_size: {self.compact ? 16px : 18px}
+                        fill: {SiteTheme::muted()}
+                        align_horizontal: TextAlignHorizontal::Left
+                        align_multiline: TextAlignHorizontal::Left
+                    }/>
+                    <Text class="hero_copy" width=100% text="This website was built in Pax."/>
+                </Stacker>
             </Stacker>
             <Stacker width=100% height=48px direction=StackerDirection::Horizontal gutter=10px>
                 <Link width=100% height=100% url="https://docs.pax.dev/getting-started/" target=Target::New>

@@ -15,6 +15,7 @@ impl CommonPropertyValue for Option<Rotation> {}
 impl CommonPropertyValue for Option<Transform2D> {}
 impl CommonPropertyValue for Option<Opacity> {}
 impl CommonPropertyValue for Option<LayoutRole> {}
+impl CommonPropertyValue for Option<WheelEvents> {}
 impl CommonPropertyValue for Option<bool> {}
 
 #[cfg(test)]

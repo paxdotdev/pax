@@ -120,6 +120,7 @@ pub struct RuntimeContext {
     last_topmost_element: RefCell<Weak<ExpandedNode>>,
     active_touch_targets: RefCell<HashMap<i64, ExpandedNodeIdentifier>>,
     pub(crate) mouse_input: RefCell<crate::mouse_input::MouseInput>,
+    pub(crate) wheel_regions: RefCell<crate::wheel_input::WheelRegions>,
     queued_custom_events: RefCell<Vec<(Rc<ExpandedNode>, &'static str)>>,
     queued_renders: RefCell<Vec<Rc<ExpandedNode>>>,
     pub layer_count: Cell<usize>,
@@ -272,6 +273,7 @@ impl RuntimeContext {
             node_cache: RefCell::new(NodeCache::new()),
             active_touch_targets: Default::default(),
             mouse_input: Default::default(),
+            wheel_regions: Default::default(),
             queued_custom_events: Default::default(),
             queued_renders: Default::default(),
             layer_count: Cell::default(),
@@ -329,6 +331,7 @@ impl RuntimeContext {
             node_cache: RefCell::new(NodeCache::new()),
             active_touch_targets: Default::default(),
             mouse_input: Default::default(),
+            wheel_regions: Default::default(),
             queued_custom_events: Default::default(),
             queued_renders: Default::default(),
             layer_count: Cell::default(),
@@ -376,6 +379,7 @@ impl RuntimeContext {
             property_graph: application.property_graph(),
             startup: Default::default(),
             replaying_startup_input: Default::default(),
+            wheel_regions: Default::default(),
             application,
             next_uid: Cell::new(ExpandedNodeIdentifier(0)),
             messages: RefCell::new(Vec::new()),
@@ -460,6 +464,7 @@ impl RuntimeContext {
 
     /// Remove a node from runtime lookup caches.
     pub fn remove_from_cache(&self, node: &Rc<ExpandedNode>) {
+        self.remove_wheel_region(node.id.to_u32());
         borrow_mut!(self.node_cache).remove_from_cache(node);
         // Render work belongs to a mounted instance. A stale ID otherwise makes
         // every filtered traversal fall back to the whole tree indefinitely.

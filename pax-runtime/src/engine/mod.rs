@@ -675,6 +675,7 @@ impl PaxEngine {
         completed("geometry_after_occlusion");
         occlusion::update_native_culling(ctx, self.scroller_tiling_policy);
         completed("native_culling");
+        ctx.update_wheel_regions();
         let native_messages = ctx.take_native_messages();
         native_messages
     }

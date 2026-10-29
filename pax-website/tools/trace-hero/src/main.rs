@@ -81,11 +81,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     for letter in ACROSTIC_ALPHABET.chars() {
         let run = font.shape_line(&letter.to_string())?;
         assert_eq!(run.clusters.len(), 1);
-        writeln!(
-            output,
-            "    BakedGlyph {{ letter: {letter:?}, advance: {:?}, commands: &[",
-            run.advance
-        )?;
+        writeln!(output, "    BakedGlyph {{ letter: {letter:?}, commands: &[")?;
         for command in &run.clusters[0].outline {
             writeln!(output, "        Command::{command:?},")?;
         }

@@ -13,34 +13,25 @@ pub struct HomePage {
     pub source_sheets_mounted: Property<usize>,
     pub compact_sources: Property<bool>,
     pub hero_source_selected: Property<usize>,
-    pub hero_source_light: Property<bool>,
+    // All source presentations explicitly share this page-scoped preference.
+    pub source_light: Property<bool>,
     pub runtime_source_open: Property<bool>,
     pub runtime_source_selected: Property<usize>,
-    pub runtime_source_light: Property<bool>,
     pub framework_source_open: Property<bool>,
     pub framework_source_selected: Property<usize>,
-    pub framework_source_light: Property<bool>,
-    pub authoring_source_open: Property<bool>,
-    pub authoring_source_selected: Property<usize>,
-    pub authoring_source_light: Property<bool>,
     pub gallery_source_open: Property<bool>,
     pub gallery_source_selected: Property<usize>,
-    pub gallery_source_light: Property<bool>,
     pub open_source_source_open: Property<bool>,
     pub open_source_source_selected: Property<usize>,
-    pub open_source_source_light: Property<bool>,
     pub resource_source_open: Property<bool>,
     pub resource_source_selected: Property<usize>,
-    pub resource_source_light: Property<bool>,
     pub hero_height: Property<f64>,
     pub framework_height: Property<f64>,
-    pub authoring_height: Property<f64>,
     pub runtime_height: Property<f64>,
     pub gallery_height: Property<f64>,
     pub open_source_height: Property<f64>,
     pub resource_height: Property<f64>,
     pub hero_sources: Property<Vec<ExampleSource>>,
-    pub authoring_sources: Property<Vec<ExampleSource>>,
     pub framework_sources: Property<Vec<ExampleSource>>,
     pub runtime_sources: Property<Vec<ExampleSource>>,
     pub feature_gallery_sources: Property<Vec<ExampleSource>>,
@@ -50,6 +41,7 @@ pub struct HomePage {
 
 impl HomePage {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
+        self.source_light.set(true);
         let bounds = ctx.bounds_self.clone();
         let compact = self.compact_sources.local();
         let overlay_open = self.source_overlay_open.local();
@@ -58,7 +50,6 @@ impl HomePage {
             self.hero_source_open.local(),
             self.runtime_source_open.local(),
             self.framework_source_open.local(),
-            self.authoring_source_open.local(),
             self.gallery_source_open.local(),
             self.open_source_source_open.local(),
             self.resource_source_open.local(),
@@ -242,24 +233,6 @@ impl HomePage {
             });
         }
         self.resource_sources.set(resource_sources);
-        let mut authoring_sources = section_sources(
-            "src/authoring_section.pax",
-            include_str!("authoring_section.pax"),
-            "src/authoring_section.rs",
-            include_str!("authoring_section.rs"),
-        );
-        authoring_sources.extend(section_sources(
-            "src/shared_definition_demo.pax",
-            include_str!("shared_definition_demo.pax"),
-            "src/shared_definition_demo.rs",
-            include_str!("shared_definition_demo.rs"),
-        ));
-        authoring_sources.push(ExampleSource {
-            label: "src/relationship_preview.pax".into(),
-            language: "pax".into(),
-            code: include_str!("relationship_preview.pax").into(),
-        });
-        self.authoring_sources.set(authoring_sources);
         self.framework_sources.set(section_sources(
             "framework_section.pax",
             include_str!("framework_section.pax"),
@@ -467,34 +440,6 @@ impl HomePage {
                 code: include_str!("feature_gallery/mod.rs").to_string(),
             },
         ]);
-        self.authoring_sources.update(|files| {
-            files.extend(section_sources(
-                "device_frame.pax",
-                include_str!("device_frame.pax"),
-                "device_frame.rs",
-                include_str!("device_frame.rs"),
-            ));
-            for (label, code) in [
-                ("path_study.pax", include_str!("path_study.pax")),
-                ("material_study.pax", include_str!("material_study.pax")),
-                (
-                    "native_scroll_study.pax",
-                    include_str!("native_scroll_study.pax"),
-                ),
-                ("demo_studies.rs", include_str!("demo_studies.rs")),
-            ] {
-                files.push(ExampleSource {
-                    label: label.into(),
-                    language: if label.ends_with(".rs") {
-                        "rust"
-                    } else {
-                        "pax"
-                    }
-                    .into(),
-                    code: code.into(),
-                });
-            }
-        });
     }
 }
 

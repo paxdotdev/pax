@@ -65,6 +65,25 @@ impl CoercionRules for LayoutRole {
     }
 }
 
+impl CoercionRules for crate::WheelEvents {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Enum(contents) => {
+                let (_, variant, args) = *contents;
+                match (variant.as_str(), args.is_empty()) {
+                    ("Passive", true) => Ok(Self::Passive),
+                    ("Cancellable", true) => Ok(Self::Cancellable),
+                    _ => Err(format!("invalid WheelEvents variant or arguments: {variant}")),
+                }
+            }
+            PaxValue::Option(value) => value
+                .ok_or_else(|| "WheelEvents cannot be None".to_string())
+                .and_then(Self::try_coerce),
+            _ => Err("failed to coerce WheelEvents".into()),
+        }
+    }
+}
+
 /// Attempts to coerce a dynamic `PaxValue` into a concrete Rust type.
 ///
 /// Coercion is intentionally broader than exact `ToPaxValue` conversion; for

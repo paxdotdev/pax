@@ -175,6 +175,25 @@ pub enum LayoutRole {
 impl Interpolatable for LayoutRole {}
 impl HelperFunctions for LayoutRole {}
 
+/// Declares whether wheel handlers in a subtree may cancel native scrolling.
+///
+/// On web, `Cancellable` installs blocking listeners only on the subtree's hit
+/// surfaces. A handler must still call `Event::prevent_default()` to consume an
+/// event. This does not capture touch input or stop Pax event propagation.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
+#[serde(crate = "crate::serde")]
+pub enum WheelEvents {
+    /// Do not introduce a cancellable region. An enclosing cancellable scope
+    /// or mount-wide web policy may still allow default prevention.
+    #[default]
+    Passive,
+    /// Allow wheel handlers to prevent the native default in this subtree.
+    Cancellable,
+}
+
+impl Interpolatable for WheelEvents {}
+impl HelperFunctions for WheelEvents {}
+
 impl Size {
     /// Evaluate a Size in the context of `bounds` and a target `axis`.
     /// Returns a `Pixel` value as a simple f64; calculates `Percent` with respect to `bounds` & `axis`
@@ -247,6 +266,8 @@ pub struct CommonProperties {
     pub opacity: LocalProperty<Option<Opacity>>,
     /// Controls whether this node participates in parent layout measurement and flow.
     pub layout_role: LocalProperty<Option<LayoutRole>>,
+    /// Wheel cancellation capability for this node's event subtree.
+    pub wheel_events: LocalProperty<Option<WheelEvents>>,
     /// Allows a node to render outside an ancestor clipping frame.
     pub unclippable: LocalProperty<Option<bool>>,
     // Internal hit-testing override, used by generated components and tooling.
@@ -313,6 +334,7 @@ impl CommonProperties {
             transform,
             opacity,
             layout_role,
+            wheel_events,
             unclippable,
             _raycastable,
             _suspended,
@@ -379,6 +401,10 @@ impl CommonProperties {
             (
                 "layout_role".to_string(),
                 Variable::new_from_common_property(layout_role.clone()),
+            ),
+            (
+                "wheel_events".to_string(),
+                Variable::new_from_common_property(wheel_events.clone()),
             ),
             (
                 "width".to_string(),

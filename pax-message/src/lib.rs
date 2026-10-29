@@ -61,9 +61,32 @@ pub enum NativeMessage {
     ShrinkLayersTo(u32),
     NativeMaskUpdate(NativeMaskPatch),
     NativeCullUpdate(NativeCullPatch),
+    WheelRegionsUpdate(WheelRegionsPatch),
     Navigate(NavigationPatch),
     SetCursor(SetCursorPatch),
     Screenshot(ScreenshotPatch),
+}
+
+/// Retained web input projections. They do not paint or allocate render surfaces.
+#[derive(Serialize, Default)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct WheelRegionsPatch {
+    pub upsert: Vec<WheelRegion>,
+    pub remove: Vec<u32>,
+}
+
+/// Geometry for one raycastable node within a cancellable wheel scope.
+#[derive(Clone, PartialEq, Serialize)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct WheelRegion {
+    pub id: u32,
+    pub parent_frame: Option<u32>,
+    pub z_index: i32,
+    pub transform: [f64; 6],
+    pub size_x: f64,
+    pub size_y: f64,
+    /// Existing native leaves receive a listener rather than an input overlay.
+    pub native: bool,
 }
 
 #[derive(Deserialize)]

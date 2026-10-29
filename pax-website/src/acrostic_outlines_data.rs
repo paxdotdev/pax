@@ -4,7 +4,7 @@
 
 #[rustfmt::skip]
 const ACROSTIC_GLYPHS: &[BakedGlyph] = &[
-    BakedGlyph { letter: 'A', advance: 0.683, commands: &[
+    BakedGlyph { letter: 'A', commands: &[
         Command::Move(0.02, -0.0),
         Command::Line(0.24, -0.72),
         Command::Line(0.443, -0.72),
@@ -20,7 +20,7 @@ const ACROSTIC_GLYPHS: &[BakedGlyph] = &[
         Command::Line(0.532, -0.15),
         Command::Close,
     ] },
-    BakedGlyph { letter: 'C', advance: 0.746, commands: &[
+    BakedGlyph { letter: 'C', commands: &[
         Command::Move(0.379, 0.015),
         Command::Quad(0.271, 0.015, 0.19275, -0.032),
         Command::Quad(0.1145, -0.079, 0.07225, -0.1635),
@@ -46,7 +46,7 @@ const ACROSTIC_GLYPHS: &[BakedGlyph] = &[
         Command::Quad(0.503, 0.015, 0.379, 0.015),
         Command::Close,
     ] },
-    BakedGlyph { letter: 'D', advance: 0.71, commands: &[
+    BakedGlyph { letter: 'D', commands: &[
         Command::Move(0.07, -0.0),
         Command::Line(0.07, -0.72),
         Command::Line(0.303, -0.72),
@@ -76,7 +76,7 @@ const ACROSTIC_GLYPHS: &[BakedGlyph] = &[
         Command::Line(0.208, -0.592),
         Command::Close,
     ] },
-    BakedGlyph { letter: 'E', advance: 0.59, commands: &[
+    BakedGlyph { letter: 'E', commands: &[
         Command::Move(0.07, -0.0),
         Command::Line(0.07, -0.72),
         Command::Line(0.54, -0.72),
@@ -91,7 +91,7 @@ const ACROSTIC_GLYPHS: &[BakedGlyph] = &[
         Command::Line(0.54, -0.0),
         Command::Close,
     ] },
-    BakedGlyph { letter: 'F', advance: 0.53, commands: &[
+    BakedGlyph { letter: 'F', commands: &[
         Command::Move(0.07, -0.0),
         Command::Line(0.07, -0.72),
         Command::Line(0.51, -0.72),
@@ -104,7 +104,7 @@ const ACROSTIC_GLYPHS: &[BakedGlyph] = &[
         Command::Line(0.206, -0.0),
         Command::Close,
     ] },
-    BakedGlyph { letter: 'K', advance: 0.665, commands: &[
+    BakedGlyph { letter: 'K', commands: &[
         Command::Move(0.07, -0.0),
         Command::Line(0.07, -0.72),
         Command::Line(0.206, -0.72),
@@ -118,7 +118,7 @@ const ACROSTIC_GLYPHS: &[BakedGlyph] = &[
         Command::Line(0.206, -0.0),
         Command::Close,
     ] },
-    BakedGlyph { letter: 'L', advance: 0.541, commands: &[
+    BakedGlyph { letter: 'L', commands: &[
         Command::Move(0.08, -0.0),
         Command::Line(0.08, -0.72),
         Command::Line(0.216, -0.72),
@@ -127,7 +127,7 @@ const ACROSTIC_GLYPHS: &[BakedGlyph] = &[
         Command::Line(0.526, -0.0),
         Command::Close,
     ] },
-    BakedGlyph { letter: 'M', advance: 0.86, commands: &[
+    BakedGlyph { letter: 'M', commands: &[
         Command::Move(0.07, -0.0),
         Command::Line(0.07, -0.72),
         Command::Line(0.192, -0.72),
@@ -143,7 +143,7 @@ const ACROSTIC_GLYPHS: &[BakedGlyph] = &[
         Command::Line(0.197, -0.0),
         Command::Close,
     ] },
-    BakedGlyph { letter: 'N', advance: 0.729, commands: &[
+    BakedGlyph { letter: 'N', commands: &[
         Command::Move(0.07, -0.0),
         Command::Line(0.07, -0.72),
         Command::Line(0.208, -0.72),
@@ -156,7 +156,7 @@ const ACROSTIC_GLYPHS: &[BakedGlyph] = &[
         Command::Line(0.208, -0.0),
         Command::Close,
     ] },
-    BakedGlyph { letter: 'O', advance: 0.758, commands: &[
+    BakedGlyph { letter: 'O', commands: &[
         Command::Move(0.379, 0.015),
         Command::Quad(0.271, 0.015, 0.19275, -0.032),
         Command::Quad(0.1145, -0.079, 0.07225, -0.1635),
@@ -186,7 +186,7 @@ const ACROSTIC_GLYPHS: &[BakedGlyph] = &[
         Command::Quad(0.3105, -0.114, 0.379, -0.113),
         Command::Close,
     ] },
-    BakedGlyph { letter: 'P', advance: 0.65, commands: &[
+    BakedGlyph { letter: 'P', commands: &[
         Command::Move(0.07, -0.0),
         Command::Line(0.07, -0.72),
         Command::Line(0.374, -0.72),
@@ -218,7 +218,7 @@ const ACROSTIC_GLYPHS: &[BakedGlyph] = &[
         Command::Line(0.206, -0.593),
         Command::Close,
     ] },
-    BakedGlyph { letter: 'R', advance: 0.67, commands: &[
+    BakedGlyph { letter: 'R', commands: &[
         Command::Move(0.07, -0.0),
         Command::Line(0.07, -0.72),
         Command::Line(0.374, -0.72),
@@ -253,7 +253,7 @@ const ACROSTIC_GLYPHS: &[BakedGlyph] = &[
         Command::Line(0.206, -0.593),
         Command::Close,
     ] },
-    BakedGlyph { letter: 'Y', advance: 0.63, commands: &[
+    BakedGlyph { letter: 'Y', commands: &[
         Command::Move(0.246, -0.0),
         Command::Line(0.246, -0.293),
         Command::Line(0.0, -0.72),

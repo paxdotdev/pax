@@ -15,6 +15,18 @@ export type WheelInputSample = {
 
 type WheelOptions = {passive?: boolean; record?: (sample: WheelInputSample) => void};
 
+// The mount's passive capture listener dispatches into Pax exactly once. A
+// descendant's non-passive listener only applies that dispatch's decision.
+const scopedWheelDecisions = new WeakMap<Event, boolean>();
+
+export function attachScopedWheelListener(element: HTMLElement): () => void {
+    const cancel = (event: WheelEvent) => {
+        if (scopedWheelDecisions.get(event) && event.cancelable) event.preventDefault();
+    };
+    element.addEventListener('wheel', cancel, {passive: false});
+    return () => element.removeEventListener('wheel', cancel);
+}
+
 // Older hosts can report epoch timestamps. Reject missing/incompatible clocks
 // rather than presenting a fabricated queue delay as a measurement.
 export function wheelDeliveryDelay(timestamp: number, enteredAt: number, timeOrigin: number): number | null {
@@ -186,23 +198,33 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
             }
         };
         let res = chassis.interrupt(event, []);
+        scopedWheelDecisions.set(evt, res.prevent_default && res.wheel_cancellable);
         if (res.prevent_default && !wheelPassive && evt.cancelable) {
             evt.preventDefault();
         }
         if (wheelOptions.record) {
             const handlerMs = performance.now() - enteredAt;
-            wheelOptions.record({
+            const sample = {
                 enteredAt,
                 deliveryDelayMs: wheelDeliveryDelay(evt.timeStamp, enteredAt, performance.timeOrigin),
                 handlerMs,
-                passive: wheelPassive,
+                passive: wheelPassive && !res.wheel_cancellable,
                 trusted: evt.isTrusted,
                 cancelable: evt.cancelable,
                 cancellationRequested: res.prevent_default,
                 defaultPrevented: evt.defaultPrevented,
                 deltaX: evt.deltaX,
                 deltaY: evt.deltaY,
-            });
+            };
+            if (res.wheel_cancellable && wheelPassive) {
+                // Local listeners run later in the same DOM dispatch.
+                queueMicrotask(() => {
+                    sample.defaultPrevented = evt.defaultPrevented;
+                    wheelOptions.record?.(sample);
+                });
+            } else {
+                wheelOptions.record(sample);
+            }
         }
     }, {"passive": wheelPassive, "capture": true});
     addWindowListener('mousedown', (evt) => {

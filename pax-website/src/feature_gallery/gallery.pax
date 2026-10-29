@@ -1,362 +1,369 @@
 <Group width=100% height=100%>
     <Stacker id=gallery_content y=80px width=100% autosize=true gutter=30px>
         <Stacker x=50% width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=18px anchor_x=50%>
-            <Text class="gallery_eyebrow" width=100% text="EXPLORE / CURRENT CAPABILITIES"/>
-            <Text class="gallery_title" width=100% text="Meet your creative toolkit"/>
-            <Text class="gallery_copy" width={self.compact ? 100% : 78%}
-                text="From the language to the renderer to the tools: explore what you can build with Pax. Hover or touch to pause; scroll horizontally or swipe to explore."/>
+            <Text class="gallery_eyebrow" width=100% text="A love poem to the pixel"/>
+            <Text class="gallery_title" width=100% text="Meet Pax's creative toolkit:"/>
         </Stacker>
-        <MarqueeCarousel width=100% height={self.compact ? 546px : 522px} card_width_px={self.card_width_px} gap_px=24
-            hover_paused=bind:marquee_hovered touch_paused=bind:marquee_touch_active outer_scroll_y={self.outer_scroll_y}>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="DEV TOOLING" title="Template Hot Reload"
-                summary="Reload Pax templates in debug CLI sessions on supported targets while keeping the app running. Rust logic changes require a rebuild and restart."
-                proof="LIVE PAX TEMPLATES" docs_label="HOT RELOADING"
-                docs_url="https://docs.pax.dev/getting-started.html#hot-reloading">
-                <FeatureStudy width=100% height=100% kind="hot"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="ANIMATION" title="Path Drawing Animations"
-                summary="Animate a path's visible stroke range for signatures, diagrams, handwriting, and line art that draws itself into the interface."
-                proof="DRAW RANGE / BÉZIER" docs_label="PATH API" docs_url="https://docs.pax.dev/api/pax-std/drawing/path.html">
-                <FeatureStudy width=100% height=100% kind="path"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="RENDERING" title="Layered Paint"
-                summary="Combine fills and gradient outlines on one shape, each with its own material and opacity. Reveal layered strokes without stretching their paint."
-                proof="ONE PATH / THREE STROKES" docs_label="PAINT LAYERS"
-                docs_url="https://docs.pax.dev/drawing-styling.html#paint-layers">
-                <FeaturePaintDemo width=100% height=100%/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="RENDERING" title="Dynamic Vector Masks"
-                summary="Turn a vector component into a live reveal. Handwriting, animation, and reactive shapes can expose moving paint through GPU alpha masks."
-                proof="HANDWRITER / GPU ALPHA" docs_label="PAINTED ALPHA MASKS"
-                docs_url="https://docs.pax.dev/compositing-effects.html#painted-alpha-masks">
-                <FeaturePaintDemo width=100% height=100% mask=true/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="LANGUAGE" title="Runtime Themes"
-                summary="Layer color, typography, and shape systems as live settings providers, then swap those axes independently without rebuilding the component tree."
-                proof="COLOR / TYPE / SHAPE" docs_label="IMPORT SETTINGS"
-                docs_url="https://docs.pax.dev/api/pax-std/core/import_settings.html">
-                <FeatureStudy width=100% height=100% kind="theme"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="NATIVE / PLATFORM" title="Native Scrolling"
-                summary="Move Pax-rendered scenes and projected native content through one- or two-axis platform scroll regions with clipping and rounded masks."
-                proof="PLATFORM SCROLLER" docs_label="SCROLLER API" docs_url="https://docs.pax.dev/api/pax-std/core/scroller.html">
-                <FeatureStudy width=100% height=100% kind="scroll"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="RENDERING" title="Vector Materials"
-                summary="Give vector fills authored matte, glossy, metallic, emissive, or coefficient-based light response on WGPU and WebGPU renderers."
-                proof="AUTHORED SURFACES" docs_label="MATERIAL API"
-                docs_url="https://docs.pax.dev/api/pax-runtime-api/drawing.html#material">
-                <FeatureStudy width=100% height=100% kind="materials"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="NATIVE / PLATFORM" title="Accelerometer & Gyro"
-                summary="Bind device orientation and acceleration directly into reactive expressions; mobile WebKit permission remains an app-owned user gesture."
-                proof="@GYRO / @ACCEL" docs_label="BUILT-IN GLOBALS"
-                docs_url="https://docs.pax.dev/data-binding-expressions.html#built-in-globals">
-                <FeatureStudy width=100% height=100% kind="gyro"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="ANIMATION" title="Enter & Exit Transitions"
-                summary="Attach named @in and @out timelines to declarative branches so elements animate as they mount and leave the interface."
-                proof="MOUNT / UNMOUNT" docs_label="TRANSITIONS" docs_url="https://docs.pax.dev/animation-motion.html#in-transitions">
-                <FeatureStudy width=100% height=100% kind="enter"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="ANIMATION" title="Animated Reflow"
-                summary="Let Stacker ghost departing children and ease surviving items into newly measured frames when collections change, reorder, or collapse."
-                proof="CONTAINER-OWNED MOTION" docs_label="REFLOW MOTION"
-                docs_url="https://docs.pax.dev/animation-motion.html#container-owned-motion">
-                <FeatureStudy width=100% height=100% kind="reflow"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="LANGUAGE" title="Dynamic Classes"
-                summary="Bind a class name or ordered class list to runtime state and rematch settings without imperative bookkeeping or subtree reconstruction."
-                proof="RUNTIME SELECTOR MATCHING" docs_label="IDS AND CLASSES"
-                docs_url="https://docs.pax.dev/template-language.html#ids-and-classes">
-                <FeatureStudy width=100% height=100% kind="classes"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="RENDERING" title="Flexible Gradients"
-                summary="Author linear and radial gradients in inline settings, reusable classes, and reactive expressions with explicit stops and opacity."
-                proof="INLINE / SETTINGS / PAXEL" docs_label="GRADIENT LITERALS"
-                docs_url="https://docs.pax.dev/data-binding-expressions.html#literals">
-                <FeatureStudy width=100% height=100% kind="gradient"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="NATIVE / PLATFORM" title="Native Element Compositing"
-                summary="Transform, mask, and occlude selectable text and platform controls in the same scene-space composition as Pax vectors and images."
-                proof="ONE COORDINATE SPACE" docs_label="NATIVE CONTROLS" docs_url="https://docs.pax.dev/input-native-controls.html">
-                <FeatureStudy width=100% height=100% kind="composite"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="DEV TOOLING" title="Screenshot Sequences"
-                summary="Capture timed frame sequences from a running session to inspect animation and interaction without manually recording the screen."
-                proof="CLI FRAME CAPTURE" docs_label="DEV CLI SOURCE"
-                docs_url="https://github.com/paxdotdev/pax/blob/dev/pax-cli/src/dev.rs">
-                <FeatureStudy width=100% height=100% kind="capture"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="LANGUAGE" title="Mixed Units"
-                summary="Combine pixels, percentages, angles, and time values directly in expressions such as a full-width region minus a fixed inset."
-                proof="{100% - 25PX}" docs_label="UNIT LITERALS" docs_url="https://docs.pax.dev/data-binding-expressions.html#literals">
-                <FeatureStudy width=100% height=100% kind="units"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="LAYOUT" title="Content Autosizing"
-                summary="Measure descendant content bottom-up so containers grow around dynamic text, nested layouts, and transformed children without manual height bookkeeping."
-                proof="MEASURED CONTENT HULLS" docs_label="AUTOSIZE" docs_url="https://docs.pax.dev/layout-responsiveness.html#autosize">
-                <FeatureStudy width=100% height=100% kind="autosize"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="RUNTIME / APPLICATION" title="Declarative Routing"
-                summary="Describe nested routes, parameters, catch-alls, defaults, and route remainders directly in templates while applications retain reactive location state."
-                proof="NESTED ROUTE TREES" docs_label="ROUTING GUIDE" docs_url="https://docs.pax.dev/routing.html">
-                <FeatureStudy width=100% height=100% kind="route"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="ANIMATION" title="Shared Playheads"
-                summary="Bind several timelines to one playhead so nested components can scrub, synchronize, and orchestrate motion from a shared clock."
-                proof="ONE CLOCK / MANY TIMELINES" docs_label="TIMELINES"
-                docs_url="https://docs.pax.dev/animation-motion.html#timelines">
-                <FeatureStudy width=100% height=100% kind="playheads"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="ANIMATION" title="Interruptible Transitions"
-                summary="Reverse an entering or exiting stable instance from its sampled visual state so rapid toggles stay continuous instead of visibly restarting."
-                proof="SAMPLED REVERSAL" docs_label="INTERRUPTED MOTION"
-                docs_url="https://docs.pax.dev/animation-motion.html#interrupted-in-out">
-                <FeatureStudy width=100% height=100% kind="interrupt"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="NATIVE / PLATFORM" title="Scroll Snapping"
-                summary="Declare horizontal or vertical snap anchors that map to native scroll endpoints, with Carousel providing paged composition and keyboard navigation."
-                proof="NATIVE SNAP ANCHORS" docs_label="CAROUSEL API" docs_url="https://docs.pax.dev/api/pax-std/layout/carousel.html">
-                <FeatureStudy width=100% height=100% kind="snap"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="RENDERING" title="SVG Ejection"
-                summary="Convert a supported SVG subset at build time into editable Pax Path source that can be styled, inspected, and animated."
-                proof="SVG → EDITABLE PAX" docs_label="PATH EXAMPLE"
-                docs_url="https://github.com/paxdotdev/pax/tree/dev/examples/fixtures/path-drawing">
-                <FeatureStudy width=100% height=100% kind="svg"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="RENDERING" title="Scoped Lighting"
-                summary="Use LightFrame to keep authored lights inside a reusable component's layer, preventing repeated lit controls from illuminating their neighbors."
-                proof="COMPONENT LIGHT BOUNDARY" docs_label="LIGHTING API"
-                docs_url="https://docs.pax.dev/api/pax-std/drawing/lighting.html">
-                <FeatureStudy width=100% height=100% kind="lighting"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="NATIVE / PLATFORM" title="Photo Picker"
-                summary="Open the platform photo picker from slotted Pax content and receive the selected image through a typed event."
-                proof="PLATFORM PICKER EVENT" docs_label="PHOTO PICKER"
-                docs_url="https://docs.pax.dev/input-native-controls.html#photopicker">
-                <Group class="poster">
-                    <Ellipse class="poster_dot_alt" x=92px y=58px width=22px height=22px anchor=50%/>
-                    <Rectangle class="poster_mountain" x=72px y=88px width=112px height=32px rotate=-8deg/>
-                    <Rectangle class="poster_mountain_alt" x=128px y=80px width=84px height=40px rotate=10deg/>
-                    <Rectangle class="poster_native" x=48px y=24px width=192px height=112px/>
-                </Group>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="DEV TOOLING" title="Scene Ray-Casting"
-                summary="Ask a running app for the z-sorted node stack beneath a screenshot pixel and connect a visual result back to scene structure."
-                proof="PIXEL → NODE STACK" docs_label="DEV CLI SOURCE"
-                docs_url="https://github.com/paxdotdev/pax/blob/dev/pax-cli/src/dev.rs#L216">
-                <Group class="poster">
-                    <Ellipse class="poster_crosshair" x=154px y=76px width=28px height=28px anchor=50%/>
-                    <Rectangle class="poster_axis" x=154px y=42px width=1px height=68px/>
-                    <Rectangle class="poster_axis" x=120px y=76px width=68px height=1px/>
-                    <Rectangle class="poster_panel_accent" x=96px y=48px width=142px height=78px/>
-                    <Rectangle class="poster_panel" x=38px y=28px width=188px height=104px/>
-                </Group>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="DEV TOOLING" title="Inspectable Examples"
-                summary="Ship working examples with an in-app source drawer so visitors can see the Pax templates and Rust logic behind the rendered result."
-                proof="LIVE RESULT + SOURCE" docs_label="EXAMPLE HOST"
-                docs_url="https://docs.pax.dev/api/pax-std/reference/example_host.html">
-                <Group class="poster">
-                    <Rectangle class="poster_code_line_light" x=172px y=48px width=72px height=6px/>
-                    <Rectangle class="poster_code_line_light" x=172px y=70px width=58px height=6px/>
-                    <Rectangle class="poster_code_line_signal" x=172px y=92px width=78px height=6px/>
-                    <Rectangle class="poster_panel_accent" x=24px y=28px width=126px height=104px/>
-                    <Rectangle class="poster_code_panel" x=158px y=28px width=106px height=104px/>
-                </Group>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="LAYOUT" title="Breakout Layout"
-                summary="Opt badges, tooltips, dropdowns, and overlays out of parent measurement while keeping their coordinates, clipping, and hit testing local."
-                proof="LOCAL OVERLAY / NO HULL" docs_label="LAYOUT ROLES"
-                docs_url="https://docs.pax.dev/layout-responsiveness.html#layout-role">
-                <Group class="poster">
-                    <Rectangle class="poster_panel_accent" x=188px y=18px width=76px height=44px/>
-                    <Rectangle class="poster_panel" x=54px y=44px width=180px height=82px/>
-                    <Rectangle class="poster_outline" x=42px y=32px width=204px height=106px/>
-                </Group>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="LANGUAGE" title="Target-Aware Settings"
-                summary="Branch settings on viewport and target globals to make deliberate platform, orientation, and responsive adaptations inside one declarative component."
-                proof="@MOBILE / @LANDSCAPE / @IOS" docs_label="CONDITIONAL SETTINGS"
-                docs_url="https://docs.pax.dev/template-language.html#conditional-settings">
-                <FeatureStudy width=100% height=100% kind="responsive"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="LANGUAGE" title="Relative Property Values"
-                summary="Use @base to derive a value from the previous settings layer, enabling composable offsets and relative animation without duplicating the original expression."
-                proof="@BASE + 12PX" docs_label="RELATIVE VALUES" docs_url="https://docs.pax.dev/data-binding-expressions.html#base">
-                <Group class="poster">
-                    <Text class="poster_code" x=28px y=30px width={100% - 56px} height=24px text="@base + 12px"/>
-                    <Ellipse class="poster_dot_alt" x=42% y=84px width=16px height=16px anchor=50%/>
-                    <Ellipse class="poster_dot" x=62% y=84px width=20px height=20px anchor=50%/>
-                    <Rectangle class="poster_track" x=28px y=84px width=220px height=2px/>
-                </Group>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="RENDERING" title="Path Smoothing"
-                summary="Apply light or strong retained-geometry smoothing to freehand paths while preserving deliberate corners and keeping draw-range animation available."
-                proof="NONE / LIGHT / STRONG" docs_label="SMOOTHING API"
-                docs_url="https://docs.pax.dev/api/pax-runtime-api/drawing/path_smoothing.html">
-                <FeatureStudy width=100% height=100% kind="smoothing"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="RENDERING" title="Masks & Clipping"
-                summary="Use rendered subtrees as masks and combine them with scroller clipping so vectors, images, and native projections remain one composition."
-                proof="RENDERED + NATIVE LAYERS" docs_label="MASK API" docs_url="https://docs.pax.dev/api/pax-std/core/mask.html">
-                <FeatureStudy width=100% height=100% kind="clip"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="RUNTIME / APPLICATION" title="Transform-Aware Coordinates"
-                summary="Convert window-space mouse and touch points into a node's normalized local coordinates through its full transform chain."
-                proof="WINDOW → NODE LOCAL" docs_label="EVENT HANDLING" docs_url="https://docs.pax.dev/event-handling-rust.html">
-                <FeatureStudy width=100% height=100% kind="coordinates"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="DEV TOOLING" title="Pax Formatter"
-                summary="Format one template, a directory, or a project root—and use check mode to keep Pax source deterministic in CI."
-                proof="PAX FMT --CHECK" docs_label="FORMAT SOURCE"
-                docs_url="https://docs.pax.dev/getting-started.html#formatting-pax-source">
-                <FeatureStudy width=100% height=100% kind="format"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="RUNTIME / APPLICATION" title="Computed Properties"
-                summary="Build typed derived state in Rust's reactive property graph when template expressions are not the right ownership boundary."
-                proof="TYPED REACTIVE DAG" docs_label="COMPUTED PROPERTIES"
-                docs_url="https://docs.pax.dev/state-properties.html#computed-properties">
-                <FeatureStudy width=100% height=100% kind="computed"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="NATIVE / PLATFORM" title="Touch Capture"
-                summary="Keep move, end, and cancel events routed through the subtree that won touch start, even when the finger leaves its bounds."
-                proof="STABLE TOUCH STREAM" docs_label="EVENT HANDLING" docs_url="https://docs.pax.dev/event-handling-rust.html">
-                <Group class="poster">
-                    <Ellipse class="poster_dot" x=96px y=74px width=24px height=24px anchor=50%/>
-                    <Ellipse class="poster_dot_alt" x=228px y=116px width=18px height=18px anchor=50%/>
-                    <Rectangle class="poster_outline" x=38px y=26px width=126px height=106px/>
-                    <Rectangle class="poster_track" x=96px y=73px width=132px height=2px rotate=18deg/>
-                </Group>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="TEXT / MEDIA" title="Hosted Fonts"
-                summary="Name a font once, load it from a URL, and use the same declarative font value across template text styles."
-                proof="NAMED FONT + URL" docs_label="FONT VALUES" docs_url="https://docs.pax.dev/text-fonts-images.html#font-values">
-                <Group class="poster">
-                    <Text class="poster_type_large" x=26px y=24px width=236px height=54px text="Aa"/>
-                    <Text class="poster_code" x=28px y=92px width=232px height=24px text="Manrope / system mono"/>
-                </Group>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="TEXT / MEDIA" title="Reactive Image Sources"
-                summary="Bind asset paths or URL-backed image sources to state so rendered imagery can change without imperative host-element management."
-                proof="ASSET / URL / PROPERTY" docs_label="IMAGE SOURCES"
-                docs_url="https://docs.pax.dev/text-fonts-images.html#image-sources">
-                <Group class="poster">
-                    <Text class="poster_arrow" x=119px y=64px width=50px height=28px text="↔"/>
-                    <Rectangle class="poster_native" x=38px y=24px width=94px height=112px/>
-                    <Rectangle class="poster_native" x=156px y=24px width=94px height=112px/>
-                </Group>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="RUNTIME / APPLICATION" title="History-Aware Links"
-                summary="Navigate same-origin routes through browser history while retaining ordinary new-window behavior for external destinations."
-                proof="HISTORY API / TARGET" docs_label="LINK API" docs_url="https://docs.pax.dev/api/pax-std/core/link.html">
-                <Group class="poster">
-                    <Text class="poster_code" x=24px y=28px width=238px height=24px text="/docs  →  /examples"/>
-                    <Text class="poster_arrow" x=122px y=84px width=44px height=24px text="→"/>
-                    <Rectangle class="poster_panel_accent" x=158px y=76px width=104px height=48px/>
-                    <Rectangle class="poster_panel" x=24px y=76px width=104px height=48px/>
-                </Group>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="RUNTIME / APPLICATION" title="Subscriptions & Effects"
-                summary="Subscribe Rust side effects to property changes while keeping ordinary derived values inside Pax's deterministic reactive graph."
-                proof="STATE CHANGE → EFFECT" docs_label="SUBSCRIPTIONS"
-                docs_url="https://docs.pax.dev/state-properties.html#subscriptions-and-effects">
-                <Group class="poster">
-                    <Text class="poster_code" x=82px y=38px width=120px height=22px text="subscribe"/>
-                    <Ellipse class="poster_dot_alt" x=50px y=76px width=20px height=20px anchor=50%/>
-                    <Ellipse class="poster_dot" x=232px y=76px width=26px height=26px anchor=50%/>
-                    <Rectangle class="poster_track" x=60px y=75px width=162px height=2px/>
-                </Group>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="LAYOUT" title="Multi-Axis Properties"
-                summary="Use scalar or list shorthand for anchor, scale, and skew while retaining explicit per-axis control and predictable longhand precedence."
-                proof="X / Y SHORTHANDS" docs_label="COMMON PROPERTIES"
-                docs_url="https://docs.pax.dev/layout-responsiveness.html#multi-axis-common-properties">
-                <Group class="poster">
-                    <Text class="poster_code" x=22px y=24px width=52px height=20px text="x"/>
-                    <Text class="poster_code" x=214px y=112px width=52px height=20px text="y"/>
-                    <Rectangle class="poster_axis" x=144px y=16px width=2px height=126px/>
-                    <Rectangle class="poster_axis" x=70px y=78px width=150px height=2px/>
-                    <Rectangle class="poster_outline" x=76px y=26px width=136px height=104px rotate=-8deg/>
-                </Group>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="RENDERING" title="Stroke Caps & Joins"
-                summary="Choose butt, round, or square caps and miter, round, or bevel joins for precise open-path and line rendering."
-                proof="CAP / JOIN CONTROL" docs_label="STROKE API"
-                docs_url="https://docs.pax.dev/api/pax-runtime-api/drawing.html#strokecap">
-                <FeatureStudy width=100% height=100% kind="caps"/>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="DEV TOOLING" title="Local Docs & Examples"
-                summary="Open the documentation shipped with the current CLI and move from prose into first-party runnable examples from the same repository revision."
-                proof="PAX-CLI DOCS" docs_label="GETTING STARTED" docs_url="https://docs.pax.dev/getting-started.html">
-                <Group class="poster">
-                    <Text class="poster_code_light" x=52px y=44px width=182px height=24px text="$ pax-cli docs"/>
-                    <Rectangle class="poster_code_line_light" x=52px y=82px width=146px height=6px/>
-                    <Rectangle class="poster_code_line_signal" x=52px y=106px width=112px height=6px/>
-                    <Rectangle class="poster_code_panel" x=34px y=24px width=220px height=112px/>
-                </Group>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="NATIVE / PLATFORM" title="Custom Cursors"
-                summary="Select familiar platform cursor shapes declaratively for mouse-capable interfaces while touch-first targets simply ignore the affordance."
-                proof="PLATFORM CURSOR STYLE" docs_label="CURSOR API" docs_url="https://docs.pax.dev/api/pax-runtime-api/cursor.html">
-                <Group class="poster">
-                    <Text class="poster_cursor" x=42px y=22px width=82px height=104px text="↖"/>
-                    <Text class="poster_code_light" x=142px y=68px width=86px height=24px text="pointer"/>
-                    <Rectangle class="poster_panel_accent" x=128px y=58px width=112px height=46px/>
-                </Group>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="RUNTIME / APPLICATION" title="Project Metadata"
-                summary="Set title, icon, favicon, bundle identifier, Apple development team, and Info.plist additions from Cargo package metadata."
-                proof="ONE PROJECT MANIFEST" docs_label="PROJECT METADATA"
-                docs_url="https://docs.pax.dev/getting-started.html#project-metadata">
-                <FeatureStudy width=100% height=100% kind="metadata"/>
-            </FeatureCard>
-        </MarqueeCarousel>
+        <Group width=100% height={self.compact ? 546px : 522px}>
+            // Native image alpha composites across both the scroll island and native text.
+            // Keep these outside the horizontal scroller and transparent to hit testing.
+            <NativeImage x=0px y=0px width={self.compact ? 48px : 12%} height=100% url="/assets/branding/carousel-edge-fade.svg"
+                fit=ImageFit::Stretch _raycastable=false/>
+            <Group x=100% y=0px width={self.compact ? 48px : 12%} height=100%>
+                <NativeImage x=50% y=50% width=100% height=100% rotate=180deg url="/assets/branding/carousel-edge-fade.svg" fit=ImageFit::Stretch
+                    _raycastable=false/>
+            </Group>
+            <MarqueeCarousel width=100% height=100% card_width_px={self.card_width_px} gap_px=24 hover_paused=bind:marquee_hovered
+                touch_paused=bind:marquee_touch_active outer_scroll_y={self.outer_scroll_y}>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="DEV TOOLING" title="Template Hot Reload"
+                    summary="Reload Pax templates in debug CLI sessions on supported targets while keeping the app running. Rust logic changes require a rebuild and restart."
+                    proof="LIVE PAX TEMPLATES" docs_label="HOT RELOADING" docs_url="https://docs.pax.dev/getting-started.html#hot-reloading">
+                    <FeatureStudy width=100% height=100% kind="hot"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="ANIMATION" title="Path Drawing Animations"
+                    summary="Animate a path's visible stroke range for signatures, diagrams, handwriting, and line art that draws itself into the interface."
+                    proof="DRAW RANGE / BÉZIER" docs_label="PATH API" docs_url="https://docs.pax.dev/api/pax-std/drawing/path.html">
+                    <FeatureStudy width=100% height=100% kind="path"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="RENDERING" title="Layered Paint"
+                    summary="Combine fills and gradient outlines on one shape, each with its own material and opacity. Reveal layered strokes without stretching their paint."
+                    proof="ONE PATH / THREE STROKES" docs_label="PAINT LAYERS"
+                    docs_url="https://docs.pax.dev/drawing-styling.html#paint-layers">
+                    <FeaturePaintDemo width=100% height=100%/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="RENDERING" title="Dynamic Vector Masks"
+                    summary="Turn a vector component into a live reveal. Handwriting, animation, and reactive shapes can expose moving paint through GPU alpha masks."
+                    proof="HANDWRITER / GPU ALPHA" docs_label="PAINTED ALPHA MASKS"
+                    docs_url="https://docs.pax.dev/compositing-effects.html#painted-alpha-masks">
+                    <FeaturePaintDemo width=100% height=100% mask=true/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="LANGUAGE" title="Runtime Themes"
+                    summary="Layer color, typography, and shape systems as live settings providers, then swap those axes independently without rebuilding the component tree."
+                    proof="COLOR / TYPE / SHAPE" docs_label="IMPORT SETTINGS"
+                    docs_url="https://docs.pax.dev/api/pax-std/core/import_settings.html">
+                    <FeatureStudy width=100% height=100% kind="theme"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="NATIVE / PLATFORM" title="Native Scrolling"
+                    summary="Move Pax-rendered scenes and projected native content through one- or two-axis platform scroll regions with clipping and rounded masks."
+                    proof="PLATFORM SCROLLER" docs_label="SCROLLER API" docs_url="https://docs.pax.dev/api/pax-std/core/scroller.html">
+                    <FeatureStudy width=100% height=100% kind="scroll"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="RENDERING" title="Vector Materials"
+                    summary="Give vector fills authored matte, glossy, metallic, emissive, or coefficient-based light response on WGPU and WebGPU renderers."
+                    proof="AUTHORED SURFACES" docs_label="MATERIAL API"
+                    docs_url="https://docs.pax.dev/api/pax-runtime-api/drawing.html#material">
+                    <FeatureStudy width=100% height=100% kind="materials"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="NATIVE / PLATFORM" title="Accelerometer & Gyro"
+                    summary="Bind device orientation and acceleration directly into reactive expressions; mobile WebKit permission remains an app-owned user gesture."
+                    proof="@GYRO / @ACCEL" docs_label="BUILT-IN GLOBALS"
+                    docs_url="https://docs.pax.dev/data-binding-expressions.html#built-in-globals">
+                    <FeatureStudy width=100% height=100% kind="gyro"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="ANIMATION" title="Enter & Exit Transitions"
+                    summary="Attach named @in and @out timelines to declarative branches so elements animate as they mount and leave the interface."
+                    proof="MOUNT / UNMOUNT" docs_label="TRANSITIONS" docs_url="https://docs.pax.dev/animation-motion.html#in-transitions">
+                    <FeatureStudy width=100% height=100% kind="enter"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="ANIMATION" title="Animated Reflow"
+                    summary="Let Stacker ghost departing children and ease surviving items into newly measured frames when collections change, reorder, or collapse."
+                    proof="CONTAINER-OWNED MOTION" docs_label="REFLOW MOTION"
+                    docs_url="https://docs.pax.dev/animation-motion.html#container-owned-motion">
+                    <FeatureStudy width=100% height=100% kind="reflow"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="LANGUAGE" title="Dynamic Classes"
+                    summary="Bind a class name or ordered class list to runtime state and rematch settings without imperative bookkeeping or subtree reconstruction."
+                    proof="RUNTIME SELECTOR MATCHING" docs_label="IDS AND CLASSES"
+                    docs_url="https://docs.pax.dev/template-language.html#ids-and-classes">
+                    <FeatureStudy width=100% height=100% kind="classes"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="RENDERING" title="Flexible Gradients"
+                    summary="Author linear and radial gradients in inline settings, reusable classes, and reactive expressions with explicit stops and opacity."
+                    proof="INLINE / SETTINGS / PAXEL" docs_label="GRADIENT LITERALS"
+                    docs_url="https://docs.pax.dev/data-binding-expressions.html#literals">
+                    <FeatureStudy width=100% height=100% kind="gradient"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="NATIVE / PLATFORM" title="Native Element Compositing"
+                    summary="Transform, mask, and occlude selectable text and platform controls in the same scene-space composition as Pax vectors and images."
+                    proof="ONE COORDINATE SPACE" docs_label="NATIVE CONTROLS" docs_url="https://docs.pax.dev/input-native-controls.html">
+                    <FeatureStudy width=100% height=100% kind="composite"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="DEV TOOLING" title="Screenshot Sequences"
+                    summary="Capture timed frame sequences from a running session to inspect animation and interaction without manually recording the screen."
+                    proof="CLI FRAME CAPTURE" docs_label="DEV CLI SOURCE"
+                    docs_url="https://github.com/paxdotdev/pax/blob/dev/pax-cli/src/dev.rs">
+                    <FeatureStudy width=100% height=100% kind="capture"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="LANGUAGE" title="Mixed Units"
+                    summary="Combine pixels, percentages, angles, and time values directly in expressions such as a full-width region minus a fixed inset."
+                    proof="{100% - 25PX}" docs_label="UNIT LITERALS" docs_url="https://docs.pax.dev/data-binding-expressions.html#literals">
+                    <FeatureStudy width=100% height=100% kind="units"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="LAYOUT" title="Content Autosizing"
+                    summary="Measure descendant content bottom-up so containers grow around dynamic text, nested layouts, and transformed children without manual height bookkeeping."
+                    proof="MEASURED CONTENT HULLS" docs_label="AUTOSIZE" docs_url="https://docs.pax.dev/layout-responsiveness.html#autosize">
+                    <FeatureStudy width=100% height=100% kind="autosize"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="RUNTIME / APPLICATION" title="Declarative Routing"
+                    summary="Describe nested routes, parameters, catch-alls, defaults, and route remainders directly in templates while applications retain reactive location state."
+                    proof="NESTED ROUTE TREES" docs_label="ROUTING GUIDE" docs_url="https://docs.pax.dev/routing.html">
+                    <FeatureStudy width=100% height=100% kind="route"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="ANIMATION" title="Shared Playheads"
+                    summary="Bind several timelines to one playhead so nested components can scrub, synchronize, and orchestrate motion from a shared clock."
+                    proof="ONE CLOCK / MANY TIMELINES" docs_label="TIMELINES"
+                    docs_url="https://docs.pax.dev/animation-motion.html#timelines">
+                    <FeatureStudy width=100% height=100% kind="playheads"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="ANIMATION" title="Interruptible Transitions"
+                    summary="Reverse an entering or exiting stable instance from its sampled visual state so rapid toggles stay continuous instead of visibly restarting."
+                    proof="SAMPLED REVERSAL" docs_label="INTERRUPTED MOTION"
+                    docs_url="https://docs.pax.dev/animation-motion.html#interrupted-in-out">
+                    <FeatureStudy width=100% height=100% kind="interrupt"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="NATIVE / PLATFORM" title="Scroll Snapping"
+                    summary="Declare horizontal or vertical snap anchors that map to native scroll endpoints, with Carousel providing paged composition and keyboard navigation."
+                    proof="NATIVE SNAP ANCHORS" docs_label="CAROUSEL API" docs_url="https://docs.pax.dev/api/pax-std/layout/carousel.html">
+                    <FeatureStudy width=100% height=100% kind="snap"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="RENDERING" title="SVG Ejection"
+                    summary="Convert a supported SVG subset at build time into editable Pax Path source that can be styled, inspected, and animated."
+                    proof="SVG → EDITABLE PAX" docs_label="PATH EXAMPLE"
+                    docs_url="https://github.com/paxdotdev/pax/tree/dev/examples/fixtures/path-drawing">
+                    <FeatureStudy width=100% height=100% kind="svg"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="RENDERING" title="Scoped Lighting"
+                    summary="Use LightFrame to keep authored lights inside a reusable component's layer, preventing repeated lit controls from illuminating their neighbors."
+                    proof="COMPONENT LIGHT BOUNDARY" docs_label="LIGHTING API"
+                    docs_url="https://docs.pax.dev/api/pax-std/drawing/lighting.html">
+                    <FeatureStudy width=100% height=100% kind="lighting"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="NATIVE / PLATFORM" title="Photo Picker"
+                    summary="Open the platform photo picker from slotted Pax content and receive the selected image through a typed event."
+                    proof="PLATFORM PICKER EVENT" docs_label="PHOTO PICKER"
+                    docs_url="https://docs.pax.dev/input-native-controls.html#photopicker">
+                    <Group class="poster">
+                        <Ellipse class="poster_dot_alt" x=92px y=58px width=22px height=22px anchor=50%/>
+                        <Rectangle class="poster_mountain" x=72px y=88px width=112px height=32px rotate=-8deg/>
+                        <Rectangle class="poster_mountain_alt" x=128px y=80px width=84px height=40px rotate=10deg/>
+                        <Rectangle class="poster_native" x=48px y=24px width=192px height=112px/>
+                    </Group>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="DEV TOOLING" title="Scene Ray-Casting"
+                    summary="Ask a running app for the z-sorted node stack beneath a screenshot pixel and connect a visual result back to scene structure."
+                    proof="PIXEL → NODE STACK" docs_label="DEV CLI SOURCE"
+                    docs_url="https://github.com/paxdotdev/pax/blob/dev/pax-cli/src/dev.rs#L216">
+                    <Group class="poster">
+                        <Ellipse class="poster_crosshair" x=154px y=76px width=28px height=28px anchor=50%/>
+                        <Rectangle class="poster_axis" x=154px y=42px width=1px height=68px/>
+                        <Rectangle class="poster_axis" x=120px y=76px width=68px height=1px/>
+                        <Rectangle class="poster_panel_accent" x=96px y=48px width=142px height=78px/>
+                        <Rectangle class="poster_panel" x=38px y=28px width=188px height=104px/>
+                    </Group>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="DEV TOOLING" title="Inspectable Examples"
+                    summary="Ship working examples with an in-app source drawer so visitors can see the Pax templates and Rust logic behind the rendered result."
+                    proof="LIVE RESULT + SOURCE" docs_label="EXAMPLE HOST"
+                    docs_url="https://docs.pax.dev/api/pax-std/reference/example_host.html">
+                    <Group class="poster">
+                        <Rectangle class="poster_code_line_light" x=172px y=48px width=72px height=6px/>
+                        <Rectangle class="poster_code_line_light" x=172px y=70px width=58px height=6px/>
+                        <Rectangle class="poster_code_line_signal" x=172px y=92px width=78px height=6px/>
+                        <Rectangle class="poster_panel_accent" x=24px y=28px width=126px height=104px/>
+                        <Rectangle class="poster_code_panel" x=158px y=28px width=106px height=104px/>
+                    </Group>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="LAYOUT" title="Breakout Layout"
+                    summary="Opt badges, tooltips, dropdowns, and overlays out of parent measurement while keeping their coordinates, clipping, and hit testing local."
+                    proof="LOCAL OVERLAY / NO HULL" docs_label="LAYOUT ROLES"
+                    docs_url="https://docs.pax.dev/layout-responsiveness.html#layout-role">
+                    <Group class="poster">
+                        <Rectangle class="poster_panel_accent" x=188px y=18px width=76px height=44px/>
+                        <Rectangle class="poster_panel" x=54px y=44px width=180px height=82px/>
+                        <Rectangle class="poster_outline" x=42px y=32px width=204px height=106px/>
+                    </Group>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="LANGUAGE" title="Target-Aware Settings"
+                    summary="Branch settings on viewport and target globals to make deliberate platform, orientation, and responsive adaptations inside one declarative component."
+                    proof="@MOBILE / @LANDSCAPE / @IOS" docs_label="CONDITIONAL SETTINGS"
+                    docs_url="https://docs.pax.dev/template-language.html#conditional-settings">
+                    <FeatureStudy width=100% height=100% kind="responsive"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="LANGUAGE" title="Relative Property Values"
+                    summary="Use @base to derive a value from the previous settings layer, enabling composable offsets and relative animation without duplicating the original expression."
+                    proof="@BASE + 12PX" docs_label="RELATIVE VALUES" docs_url="https://docs.pax.dev/data-binding-expressions.html#base">
+                    <Group class="poster">
+                        <Text class="poster_code" x=28px y=30px width={100% - 56px} height=24px text="@base + 12px"/>
+                        <Ellipse class="poster_dot_alt" x=42% y=84px width=16px height=16px anchor=50%/>
+                        <Ellipse class="poster_dot" x=62% y=84px width=20px height=20px anchor=50%/>
+                        <Rectangle class="poster_track" x=28px y=84px width=220px height=2px/>
+                    </Group>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="RENDERING" title="Path Smoothing"
+                    summary="Apply light or strong retained-geometry smoothing to freehand paths while preserving deliberate corners and keeping draw-range animation available."
+                    proof="NONE / LIGHT / STRONG" docs_label="SMOOTHING API"
+                    docs_url="https://docs.pax.dev/api/pax-runtime-api/drawing/path_smoothing.html">
+                    <FeatureStudy width=100% height=100% kind="smoothing"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="RENDERING" title="Masks & Clipping"
+                    summary="Use rendered subtrees as masks and combine them with scroller clipping so vectors, images, and native projections remain one composition."
+                    proof="RENDERED + NATIVE LAYERS" docs_label="MASK API" docs_url="https://docs.pax.dev/api/pax-std/core/mask.html">
+                    <FeatureStudy width=100% height=100% kind="clip"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="RUNTIME / APPLICATION" title="Transform-Aware Coordinates"
+                    summary="Convert window-space mouse and touch points into a node's normalized local coordinates through its full transform chain."
+                    proof="WINDOW → NODE LOCAL" docs_label="EVENT HANDLING" docs_url="https://docs.pax.dev/event-handling-rust.html">
+                    <FeatureStudy width=100% height=100% kind="coordinates"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="DEV TOOLING" title="Pax Formatter"
+                    summary="Format one template, a directory, or a project root—and use check mode to keep Pax source deterministic in CI."
+                    proof="PAX FMT --CHECK" docs_label="FORMAT SOURCE"
+                    docs_url="https://docs.pax.dev/getting-started.html#formatting-pax-source">
+                    <FeatureStudy width=100% height=100% kind="format"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="RUNTIME / APPLICATION" title="Computed Properties"
+                    summary="Build typed derived state in Rust's reactive property graph when template expressions are not the right ownership boundary."
+                    proof="TYPED REACTIVE DAG" docs_label="COMPUTED PROPERTIES"
+                    docs_url="https://docs.pax.dev/state-properties.html#computed-properties">
+                    <FeatureStudy width=100% height=100% kind="computed"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="NATIVE / PLATFORM" title="Touch Capture"
+                    summary="Keep move, end, and cancel events routed through the subtree that won touch start, even when the finger leaves its bounds."
+                    proof="STABLE TOUCH STREAM" docs_label="EVENT HANDLING" docs_url="https://docs.pax.dev/event-handling-rust.html">
+                    <Group class="poster">
+                        <Ellipse class="poster_dot" x=96px y=74px width=24px height=24px anchor=50%/>
+                        <Ellipse class="poster_dot_alt" x=228px y=116px width=18px height=18px anchor=50%/>
+                        <Rectangle class="poster_outline" x=38px y=26px width=126px height=106px/>
+                        <Rectangle class="poster_track" x=96px y=73px width=132px height=2px rotate=18deg/>
+                    </Group>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="TEXT / MEDIA" title="Hosted Fonts"
+                    summary="Name a font once, load it from a URL, and use the same declarative font value across template text styles."
+                    proof="NAMED FONT + URL" docs_label="FONT VALUES" docs_url="https://docs.pax.dev/text-fonts-images.html#font-values">
+                    <Group class="poster">
+                        <Text class="poster_type_large" x=26px y=24px width=236px height=54px text="Aa"/>
+                        <Text class="poster_code" x=28px y=92px width=232px height=24px text="Manrope / system mono"/>
+                    </Group>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="TEXT / MEDIA" title="Reactive Image Sources"
+                    summary="Bind asset paths or URL-backed image sources to state so rendered imagery can change without imperative host-element management."
+                    proof="ASSET / URL / PROPERTY" docs_label="IMAGE SOURCES"
+                    docs_url="https://docs.pax.dev/text-fonts-images.html#image-sources">
+                    <Group class="poster">
+                        <Text class="poster_arrow" x=119px y=64px width=50px height=28px text="↔"/>
+                        <Rectangle class="poster_native" x=38px y=24px width=94px height=112px/>
+                        <Rectangle class="poster_native" x=156px y=24px width=94px height=112px/>
+                    </Group>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="RUNTIME / APPLICATION" title="History-Aware Links"
+                    summary="Navigate same-origin routes through browser history while retaining ordinary new-window behavior for external destinations."
+                    proof="HISTORY API / TARGET" docs_label="LINK API" docs_url="https://docs.pax.dev/api/pax-std/core/link.html">
+                    <Group class="poster">
+                        <Text class="poster_code" x=24px y=28px width=238px height=24px text="/docs  →  /examples"/>
+                        <Text class="poster_arrow" x=122px y=84px width=44px height=24px text="→"/>
+                        <Rectangle class="poster_panel_accent" x=158px y=76px width=104px height=48px/>
+                        <Rectangle class="poster_panel" x=24px y=76px width=104px height=48px/>
+                    </Group>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="RUNTIME / APPLICATION" title="Subscriptions & Effects"
+                    summary="Subscribe Rust side effects to property changes while keeping ordinary derived values inside Pax's deterministic reactive graph."
+                    proof="STATE CHANGE → EFFECT" docs_label="SUBSCRIPTIONS"
+                    docs_url="https://docs.pax.dev/state-properties.html#subscriptions-and-effects">
+                    <Group class="poster">
+                        <Text class="poster_code" x=82px y=38px width=120px height=22px text="subscribe"/>
+                        <Ellipse class="poster_dot_alt" x=50px y=76px width=20px height=20px anchor=50%/>
+                        <Ellipse class="poster_dot" x=232px y=76px width=26px height=26px anchor=50%/>
+                        <Rectangle class="poster_track" x=60px y=75px width=162px height=2px/>
+                    </Group>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="LAYOUT" title="Multi-Axis Properties"
+                    summary="Use scalar or list shorthand for anchor, scale, and skew while retaining explicit per-axis control and predictable longhand precedence."
+                    proof="X / Y SHORTHANDS" docs_label="COMMON PROPERTIES"
+                    docs_url="https://docs.pax.dev/layout-responsiveness.html#multi-axis-common-properties">
+                    <Group class="poster">
+                        <Text class="poster_code" x=22px y=24px width=52px height=20px text="x"/>
+                        <Text class="poster_code" x=214px y=112px width=52px height=20px text="y"/>
+                        <Rectangle class="poster_axis" x=144px y=16px width=2px height=126px/>
+                        <Rectangle class="poster_axis" x=70px y=78px width=150px height=2px/>
+                        <Rectangle class="poster_outline" x=76px y=26px width=136px height=104px rotate=-8deg/>
+                    </Group>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="RENDERING" title="Stroke Caps & Joins"
+                    summary="Choose butt, round, or square caps and miter, round, or bevel joins for precise open-path and line rendering."
+                    proof="CAP / JOIN CONTROL" docs_label="STROKE API"
+                    docs_url="https://docs.pax.dev/api/pax-runtime-api/drawing.html#strokecap">
+                    <FeatureStudy width=100% height=100% kind="caps"/>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="DEV TOOLING" title="Local Docs & Examples"
+                    summary="Open the documentation shipped with the current CLI and move from prose into first-party runnable examples from the same repository revision."
+                    proof="PAX-CLI DOCS" docs_label="GETTING STARTED" docs_url="https://docs.pax.dev/getting-started.html">
+                    <Group class="poster">
+                        <Text class="poster_code_light" x=52px y=44px width=182px height=24px text="$ pax-cli docs"/>
+                        <Rectangle class="poster_code_line_light" x=52px y=82px width=146px height=6px/>
+                        <Rectangle class="poster_code_line_signal" x=52px y=106px width=112px height=6px/>
+                        <Rectangle class="poster_code_panel" x=34px y=24px width=220px height=112px/>
+                    </Group>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="NATIVE / PLATFORM" title="Custom Cursors"
+                    summary="Select familiar platform cursor shapes declaratively for mouse-capable interfaces while touch-first targets simply ignore the affordance."
+                    proof="PLATFORM CURSOR STYLE" docs_label="CURSOR API" docs_url="https://docs.pax.dev/api/pax-runtime-api/cursor.html">
+                    <Group class="poster">
+                        <Text class="poster_cursor" x=42px y=22px width=82px height=104px text="↖"/>
+                        <Text class="poster_code_light" x=142px y=68px width=86px height=24px text="pointer"/>
+                        <Rectangle class="poster_panel_accent" x=128px y=58px width=112px height=46px/>
+                    </Group>
+                </FeatureCard>
+                <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                    category="RUNTIME / APPLICATION" title="Project Metadata"
+                    summary="Set title, icon, favicon, bundle identifier, Apple development team, and Info.plist additions from Cargo package metadata."
+                    proof="ONE PROJECT MANIFEST" docs_label="PROJECT METADATA"
+                    docs_url="https://docs.pax.dev/getting-started.html#project-metadata">
+                    <FeatureStudy width=100% height=100% kind="metadata"/>
+                </FeatureCard>
+            </MarqueeCarousel>
+        </Group>
     </Stacker>
     <Rectangle class="gallery_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 40px) : 88%} height=1px anchor_x=50%/>
     <Rectangle class="gallery_bg" width=100% height=100%/>
@@ -373,11 +380,7 @@
     }
     .gallery_eyebrow {
         style: TextStyle {
-            font: Font::Web(
-                "Manrope",
-                "/assets/fonts/Manrope.ttf",
-                FontStyle::Normal,
-                FontWeight::Medium)
+            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Medium)
             font_size: {self.compact ? 9px : 11px}
             fill: {SiteTheme::muted()}
             align_vertical: TextAlignVertical::Center
@@ -387,27 +390,9 @@
     }
     .gallery_title {
         style: TextStyle {
-            font: Font::Web(
-                "Manrope",
-                "/assets/fonts/Manrope.ttf",
-                FontStyle::Normal,
-                FontWeight::ExtraBold)
+            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::ExtraBold)
             font_size: {self.compact ? 34px : 48px}
             fill: {SiteTheme::paper()}
-            align_vertical: TextAlignVertical::Top
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-        }
-    }
-    .gallery_copy {
-        style: TextStyle {
-            font: Font::Web(
-                "Manrope",
-                "/assets/fonts/Manrope.ttf",
-                FontStyle::Normal,
-                FontWeight::Normal)
-            font_size: {self.compact ? 13px : 15px}
-            fill: {SiteTheme::muted()}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -520,11 +505,7 @@
     }
     .poster_code_light {
         style: TextStyle {
-            font: Font::Web(
-                "Manrope",
-                "/assets/fonts/Manrope.ttf",
-                FontStyle::Normal,
-                FontWeight::Medium)
+            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Medium)
             font_size: 11px
             fill: rgba(255, 255, 255, 220)
             align_vertical: TextAlignVertical::Center
@@ -534,11 +515,7 @@
     }
     .poster_arrow {
         style: TextStyle {
-            font: Font::Web(
-                "Manrope",
-                "/assets/fonts/Manrope.ttf",
-                FontStyle::Normal,
-                FontWeight::Medium)
+            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Medium)
             font_size: 20px
             fill: rgb(225, 225, 220)
             align_vertical: TextAlignVertical::Center
@@ -548,11 +525,7 @@
     }
     .poster_type_large {
         style: TextStyle {
-            font: Font::Web(
-                "Manrope",
-                "/assets/fonts/Manrope.ttf",
-                FontStyle::Normal,
-                FontWeight::ExtraBold)
+            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::ExtraBold)
             font_size: 46px
             fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Center
@@ -562,11 +535,7 @@
     }
     .poster_cursor {
         style: TextStyle {
-            font: Font::Web(
-                "Manrope",
-                "/assets/fonts/Manrope.ttf",
-                FontStyle::Normal,
-                FontWeight::Normal)
+            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
             font_size: 68px
             fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Center

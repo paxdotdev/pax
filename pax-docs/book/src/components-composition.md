@@ -315,11 +315,13 @@ ExampleHost's source drawer has a moon/sun pill switch beside the close control.
 The title is top-aligned beside those controls and wraps as needed; the tabs and
 code pane follow its measured height. Filenames are shown in the tabs, without
 a duplicate subheading.
-It switches only the code pane between Solarized Dark (the default) and
-Solarized Light; the surrounding chrome stays black and white. Set
-`source_light_mode=true` on a host to start in Light mode, or use
+It switches only the code pane between Solarized Light (the default) and
+Solarized Dark; the surrounding chrome stays black and white. Set
+`source_light_mode=false` on a host to start in Dark mode, or use
 `source_light_mode=bind:theme_light` when several hosts should deliberately share
-a parent's Boolean property. Otherwise each host keeps its own choice while
+a parent's Boolean property (initialize it to `true` for Light). This updates
+every bound viewer, including separately mounted mobile presentations; it does
+not couple their selected tabs or open state. Otherwise each host keeps its own choice while
 mounted, including closing and reopening the drawer; the choice is not saved
 across page reloads. The palettes use the
 [canonical Solarized colors](https://ethanschoonover.com/solarized/), including

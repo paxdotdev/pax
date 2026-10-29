@@ -16,6 +16,13 @@ Last triaged: 2026-10-05 — [PAX-972](https://linear.app/paxdev/issue/PAX-972/p
 
 ## Untriaged findings
 
+- 2026-10-29, website acrostic outlines: positioning vector letters at the
+  font's cap height clipped rounded O/C overshoot in the top Frame row. Expected
+  complete contours. The website now fits each decorative letter's full control
+  bounds into an inset ink box, reserving space for its heavier outline; the
+  hero retains proportional font shaping. Regression coverage checks normalized
+  bounds and equal gutters in `pax-website/src/acrostic.rs`.
+
 - 2026-10-28, website first-scroll profiling: mounting a frozen
   `AnimatedPaxLogo progress=1` in the revealed navigation adds three Mask clip
   boundaries and falls back to a whole-page occlusion rebuild. At 1800×1043 in
@@ -1232,6 +1239,10 @@ wrap (for example after `width=100%` before a following `text=`). The same happe
 in the existing `home_page.pax`. Reproduce with `target/debug/pax-cli fmt <file>`
 then `git diff --check`; trim trailing spaces after formatting as a workaround.
 No formatter behavior was changed in this content-only task.
+
+Reconfirmed 2026-10-29 on `home_page.pax` and `feature_gallery/gallery.pax`:
+wrapped attributes still fail `git diff --check` after formatting; trimming
+trailing whitespace restores a clean diff.
 
 ## 2026-10-16 — Component data named `anchor` collides with layout shorthand
 

@@ -870,6 +870,8 @@ function processMessage(unwrapped_msg: any, chassis: PaxChassisWeb, objectManage
     }else if (unwrapped_msg["FrameDelete"]) {
         let msg = unwrapped_msg["FrameDelete"];
         nativePool.frameDelete(msg)
+    } else if (unwrapped_msg["WheelRegionsUpdate"]) {
+        nativePool.wheelRegionsUpdate(unwrapped_msg["WheelRegionsUpdate"]);
     } else if(unwrapped_msg["EventBlockerCreate"]) {
         let msg = unwrapped_msg["EventBlockerCreate"]
         let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);

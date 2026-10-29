@@ -8,7 +8,7 @@ A display wrapper for documentation/demo examples.
 
 `ExampleHost` renders every projected child with `slot()` and offers an
 optional source drawer driven by an explicit `sources` manifest.
-The code pane offers Solarized Dark (default) and Light through a moon/sun switch.
+The code pane offers Solarized Light (default) and Dark through a moon/sun switch.
 Theme state is local to the host unless `source_light_mode` is explicitly bound.
 Set `inline_source_viewer=false` to present a separately mounted
 [`ExampleSourceViewer`], binding its open, selection, and theme properties.
@@ -37,7 +37,7 @@ Whether the source drawer is visible.
 ##### `source_light_mode`
 Type: `Property`<`bool`>
 
-Use Solarized Light instead of Dark inside the code pane only.
+Use Solarized Light (default) instead of Dark inside the code pane only.
 The moon/sun switch edits this value; use `bind:` to share it deliberately.
 
 ##### `inline_source_viewer`
@@ -143,7 +143,7 @@ Close control writes false; the caller decides how to dismiss the viewer.
 ##### `source_light_mode`
 Type: `Property`<`bool`>
 
-False selects Solarized Dark; true selects Solarized Light. Chrome stays black/white.
+True (default) selects Solarized Light; false selects Dark. Chrome stays black/white.
 
 #### Implementations
 ##### `source_background`

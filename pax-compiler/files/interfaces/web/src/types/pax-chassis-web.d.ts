@@ -141,6 +141,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InterruptResult {
   readonly prevent_default: boolean;  
+  readonly wheel_cancellable: boolean;
 }
 
 export interface InitOutput {

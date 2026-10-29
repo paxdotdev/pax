@@ -53,7 +53,7 @@ impl SourcePalette {
 ///
 /// `ExampleHost` renders every projected child with `slot()` and offers an
 /// optional source drawer driven by an explicit `sources` manifest.
-/// The code pane offers Solarized Dark (default) and Light through a moon/sun switch.
+/// The code pane offers Solarized Light (default) and Dark through a moon/sun switch.
 /// Theme state is local to the host unless `source_light_mode` is explicitly bound.
 /// Set `inline_source_viewer=false` to present a separately mounted
 /// [`ExampleSourceViewer`], binding its open, selection, and theme properties.
@@ -70,7 +70,7 @@ pub struct ExampleHost {
     pub selected_source: Property<usize>,
     /// Whether the source drawer is visible.
     pub drawer_open: Property<bool>,
-    /// Use Solarized Light instead of Dark inside the code pane only.
+    /// Use Solarized Light (default) instead of Dark inside the code pane only.
     /// The moon/sun switch edits this value; use `bind:` to share it deliberately.
     pub source_light_mode: Property<bool>,
     /// Present the source viewer beside the preview (default true).
@@ -96,7 +96,7 @@ impl Default for ExampleHost {
             sources: Property::new(vec![]),
             selected_source: Property::new(0),
             drawer_open: Property::new(false),
-            source_light_mode: Property::new(false),
+            source_light_mode: Property::new(true),
             inline_source_viewer: Property::new(true),
             _drawer_width_px: Property::new(DESKTOP_DRAWER_WIDTH_PX),
             _drawer_progress: Property::new(0.0),
@@ -226,6 +226,7 @@ impl ExampleHost {
 #[engine_import_path("pax_engine")]
 #[file("reference/example_source_viewer.pax")]
 #[has_helpers]
+#[custom(Default)]
 pub struct ExampleSourceViewer {
     /// Wrapping title beside the controls; its measured height positions the source tabs.
     pub title: Property<String>,
@@ -235,10 +236,24 @@ pub struct ExampleSourceViewer {
     pub selected_source: Property<usize>,
     /// Close control writes false; the caller decides how to dismiss the viewer.
     pub open: Property<bool>,
-    /// False selects Solarized Dark; true selects Solarized Light. Chrome stays black/white.
+    /// True (default) selects Solarized Light; false selects Dark. Chrome stays black/white.
     pub source_light_mode: Property<bool>,
     pub _title_height: Property<f64>,
     pub _active_source_markup: Property<String>,
+}
+
+impl Default for ExampleSourceViewer {
+    fn default() -> Self {
+        Self {
+            title: Property::default(),
+            sources: Property::default(),
+            selected_source: Property::default(),
+            open: Property::default(),
+            source_light_mode: Property::new(true),
+            _title_height: Property::default(),
+            _active_source_markup: Property::default(),
+        }
+    }
 }
 
 impl ExampleSourceViewer {
@@ -454,16 +469,47 @@ mod tests {
     }
 
     #[test]
-    fn theme_state_defaults_dark_and_does_not_leak_between_hosts_or_change_tabs() {
+    fn theme_state_defaults_light_and_does_not_leak_between_hosts_or_change_tabs() {
         let first = ExampleHost::default();
         let sibling = ExampleHost::default();
-        assert!(!first.source_light_mode.get());
+        assert!(first.source_light_mode.get());
+        assert!(ExampleSourceViewer::default().source_light_mode.get());
         first.selected_source.set(3);
-        first.source_light_mode.set(true);
-        assert!(!sibling.source_light_mode.get());
-        assert_eq!(first.selected_source.get(), 3);
         first.source_light_mode.set(false);
+        assert!(sibling.source_light_mode.get());
         assert_eq!(first.selected_source.get(), 3);
+        first.source_light_mode.set(true);
+        assert_eq!(first.selected_source.get(), 3);
+    }
+
+    #[test]
+    fn explicitly_bound_theme_is_shared_without_sharing_selection_or_open_state() {
+        let page_theme = Property::new(true);
+        let first = ExampleHost {
+            source_light_mode: page_theme.clone(),
+            ..Default::default()
+        };
+        let sibling = ExampleHost {
+            source_light_mode: page_theme.clone(),
+            ..Default::default()
+        };
+        let mobile = ExampleSourceViewer {
+            source_light_mode: page_theme.clone(),
+            ..Default::default()
+        };
+        first.selected_source.set(2);
+        first.drawer_open.set(true);
+        first.source_light_mode.set(false);
+        assert!(!page_theme.get());
+        assert!(!sibling.source_light_mode.get());
+        assert!(!mobile.source_light_mode.get());
+        mobile.source_light_mode.set(true);
+        assert!(first.source_light_mode.get());
+        assert!(sibling.source_light_mode.get());
+        assert_eq!(first.selected_source.get(), 2);
+        assert_eq!(sibling.selected_source.get(), 0);
+        assert!(first.drawer_open.get());
+        assert!(!sibling.drawer_open.get());
     }
 }
 

@@ -20,10 +20,12 @@ impl OpenSourceSection {
         let artwork_width = if self.compact.get() {
             width - 48.0
         } else {
-            width * 0.88 * 0.52
+            width * 0.88 * 0.61
         };
-        self.artwork_height
-            .set_if_neq(Acrostic::height(artwork_width));
+        self.artwork_height.set_if_neq(Acrostic::height(
+            artwork_width,
+            if self.compact.get() { 6 } else { 7 },
+        ));
         if !self._height_bound.get() {
             self._height_bound.set(crate::section_layout::bind_height(
                 ctx,

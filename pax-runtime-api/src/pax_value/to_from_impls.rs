@@ -95,6 +95,16 @@ impl ToPaxValue for LayoutRole {
     }
 }
 
+impl ToPaxValue for crate::WheelEvents {
+    fn to_pax_value(self) -> PaxValue {
+        let variant = match self {
+            Self::Passive => "Passive",
+            Self::Cancellable => "Cancellable",
+        };
+        PaxValue::Enum(Box::new(("WheelEvents".into(), variant.into(), vec![])))
+    }
+}
+
 impl ToPaxValue for PathElement {
     fn to_pax_value(self) -> PaxValue {
         PaxValue::PathElement(Box::new(self))

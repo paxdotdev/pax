@@ -141,6 +141,15 @@ position. Hover, touch, and manual-scroll pauses still apply independently.
 Manual horizontal scrolling stays available while the page moves, and resuming
 the march does not catch up for time spent paused.
 
+The full-bleed rail fades into the page ink over twice each content gutter (12% on
+desktop, 48px below 760px). Two non-interactive `NativeImage` overlays reuse
+`assets/branding/carousel-edge-fade.svg`, mirrored on the right, outside the
+horizontal scroll host. On web this preserves per-pixel alpha over both native
+text and rendered scroller content; a canvas gradient's native coverage estimate
+would flatten that fade. The image uses `SiteTheme::ink()`'s `#11110f`; keep the
+asset aligned if the page background changes. These decorations do not change
+scroll capture, card hit targets, or the marquee's mounting policy.
+
 The favicon and social-preview logo use the current signboard artwork from
 `pax-std/src/drawing/pax_logo/pax-logo.svg`, in the site's paper-on-ink palette.
 Their checked-in exports live in `assets/branding/`; the ICO contains 16, 32,
@@ -244,9 +253,11 @@ one output file. Keep these copies and their license aligned.
 
 The shared `ExampleHost` drawer offers canonical Solarized Dark and Light through
 a moon/sun pill switch beside the close control. Solarized applies only to the
-code pane; the surrounding chrome stays black and white. Dark is the default; the choice
-belongs to each mounted host and survives closing/reopening its drawer, without
-browser persistence. Syntax accent colors stay consistent across modes.
+code pane; the surrounding chrome stays black and white. Light is the default.
+Every website host and mobile viewer explicitly binds to HomePage's single
+`source_light` preference, so toggling any viewer updates them all. The choice
+survives closing/reopening drawers but is not persisted across page reloads.
+Source selections and open states remain independent. Syntax accent colors stay consistent across modes.
 The title shares a top-aligned row with the controls and wraps to its measured
 height; the source tabs follow below it. Filenames appear only in the tabs.
 The 160px source tabs stay single-line and scroll horizontally; very long labels
@@ -271,7 +282,8 @@ Content and visual design history are archived in
 
 ## Shared-definition section
 
-`AuthoringSection` sits between creative freedom and the feature gallery. Its
+`AuthoringSection` is parked, not mounted on the homepage; its source remains
+available for a future editorial pass. Its
 “A playground for your mind. And artificial minds.” headline introduces an
 expressive, compact UI definition as a shared, inspectable contract for people
 and coding agents. Compactness refers to directly declaring UI relationships,
@@ -282,8 +294,8 @@ explicitly aspirational. Copy and layout remain open to editorial review.
 (embedded with `include_str!`) with a live instance of that component. The 25%
 and 75% buttons change one state value, updating both the label and bar; they do
 not simulate source editing or an agent interaction. The panels stack below
-900px. No animation clock or additional dependency is introduced. View Source
-includes the section, the demo wrapper, and the preview template.
+900px. No animation clock or additional dependency is introduced. The homepage
+does not allocate source-viewer state or source strings for this parked section.
 
 ## Hero lettering
 
@@ -336,8 +348,8 @@ normal Text nodes determine the paragraph's position.
 ## Free and open source / kinetic acrostic
 
 `OpenSourceSection` follows the feature gallery and precedes the final CTA.
-It connects the freely available language/framework/tooling with the project's
-creative mission; license information lives here rather than repeating in the
+It connects Pax's free-and-open-source identity with the project's
+creative mission; the MIT / Apache-2.0 license and inline GitHub link live here rather than repeating in the
 footer. The maturity and accessibility qualifications remain in the footer.
 The section and its lettering are inspectable through their own ExampleHost.
 
@@ -346,18 +358,24 @@ and CODE. A deterministic solver chooses matching letter occurrences for each
 row's direction, then aligns the word vertically at one of five horizontal
 columns. Rows ease independently over at most 2.3 seconds; the aligned word
 brightens to warm white during a 3.2-second reading hold and dims before travel.
-The field has six visible cells per row and 80 retained individual Path letters,
+The field has seven visible cells per row on desktop, six on narrow layouts,
+and 80 retained individual Path letters,
 including clipped wrap overscan. Letter geometry does not change during playback.
 
-The graphic pauses its clock offscreen, and its native Pause type button freezes
-the exact current pose. A plain-text vocabulary accompanies the decorative
-outlines; this is not selectable vector text or a complete accessibility audit.
+The graphic pauses its clock offscreen. There is no visible vocabulary legend
+or playback control; these are decorative outlines, not selectable vector text
+or a complete accessibility audit.
 System reduced-motion integration remains tracked separately in PAX-1048.
 The grayscale, unlit paints work on GPU and CPU without shader-only illumination.
 Desktop places the field beside the mission copy; narrow layouts stack it above.
 
 The uppercase alphabet uses the same Manrope 800 font and offline extraction as
-the hero. The commands below also regenerate/check `src/acrostic_outlines_data.rs`;
+the hero (800 is the font's maximum supported weight). The decorative grid fits
+each outline's full control bounds into equal ink boxes, including rounded-letter
+overshoot above cap height. A matching 0.025-cell outline adds weight; after that
+stroke, both horizontal and vertical gutters are 0.055 cells. This optical grid
+treatment is separate from the hero's unmodified, proportionally shaped letters.
+The commands below also regenerate/check `src/acrostic_outlines_data.rs`;
 commit that generated source when changing the alphabet. The tape and word list
 are website-local constants in `src/acrostic.rs`, not a general text-rendering API.
 

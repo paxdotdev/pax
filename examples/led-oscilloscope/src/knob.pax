@@ -1,4 +1,4 @@
-<Group width=100% height=100%>
+<Group width=100% height=100% wheel_events=WheelEvents::Cancellable>
     <Rectangle width=100% height=100% fill=TRANSPARENT/>
     <Group y=50% width=100% height={(self.diameter + 70)px}>
         <Text x=50% y=0px width=100% height=18px text={self.label} selectable=false wrap=false

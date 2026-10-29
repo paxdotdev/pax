@@ -28,7 +28,7 @@ pub const TYPE_ID_SLOT: &str = "SLOT";
 pub const TYPE_ID_COMMENT: &str = "COMMENT";
 
 // Property names that every renderable node may accept.
-pub const COMMON_PROPERTIES: [&str; 20] = [
+pub const COMMON_PROPERTIES: [&str; 21] = [
     "id",
     "x",
     "y",
@@ -49,6 +49,7 @@ pub const COMMON_PROPERTIES: [&str; 20] = [
     "height",
     "opacity",
     "layout_role",
+    "wheel_events",
 ];
 
 // Multi-axis common-property aliases expanded into their axis-specific forms.
@@ -101,5 +102,6 @@ pub const COMMON_PROPERTIES_TYPE: &[(&str, &str)] = &[
     ("height", "pax_engine::api::Size"),
     ("opacity", "pax_engine::api::Opacity"),
     ("layout_role", "pax_engine::api::LayoutRole"),
+    ("wheel_events", "pax_engine::api::WheelEvents"),
     ("_raycastable", "bool"),
 ];

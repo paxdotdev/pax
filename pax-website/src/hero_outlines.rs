@@ -64,24 +64,54 @@ include!("hero_outlines_data.rs");
 
 struct BakedGlyph {
     letter: char,
-    advance: f64,
     commands: &'static [Command],
 }
 
 include!("acrostic_outlines_data.rs");
 
-pub fn acrostic_glyphs() -> (f64, Vec<(char, f64, Vec<PathElement>)>) {
-    let glyphs = ACROSTIC_GLYPHS
+pub fn acrostic_glyphs() -> Vec<(char, Vec<PathElement>)> {
+    ACROSTIC_GLYPHS
         .iter()
         .map(|glyph| {
+            // This decorative grid uses equal ink boxes, not proportional text
+            // advances. Include curve overshoot instead of clipping at cap height.
+            let points: Vec<_> = glyph
+                .commands
+                .iter()
+                .flat_map(|command| match *command {
+                    Command::Move(x, y) | Command::Line(x, y) => vec![(x, y)],
+                    Command::Quad(a, b, x, y) => vec![(a, b), (x, y)],
+                    Command::Cubic(a, b, c, d, x, y) => vec![(a, b), (c, d), (x, y)],
+                    Command::Close => vec![],
+                })
+                .collect();
+            let bounds = points.iter().fold(
+                [
+                    f64::INFINITY,
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                    f64::NEG_INFINITY,
+                ],
+                |b, &(x, y)| [b[0].min(x), b[1].min(y), b[2].max(x), b[3].max(y)],
+            );
+            let x = |v: f64| (v - bounds[0]) / (bounds[2] - bounds[0]);
+            let y = |v: f64| (v - bounds[1]) / (bounds[3] - bounds[1]);
             let mut elements = Vec::new();
             for command in glyph.commands {
-                command.append(&mut elements);
+                let normalized = match *command {
+                    Command::Move(a, b) => Command::Move(x(a), y(b)),
+                    Command::Line(a, b) => Command::Line(x(a), y(b)),
+                    Command::Quad(a, b, c, d) => Command::Quad(x(a), y(b), x(c), y(d)),
+                    Command::Cubic(a, b, c, d, e, f) => {
+                        Command::Cubic(x(a), y(b), x(c), y(d), x(e), y(f))
+                    }
+                    Command::Close => Command::Close,
+                };
+                normalized.append(&mut elements);
             }
-            (glyph.letter, glyph.advance, elements)
+            (glyph.letter, elements)
         })
-        .collect();
-    (RUNS[0].cap_height, glyphs)
+        .collect()
 }
 
 pub fn hero_runs() -> [HeroRun; 3] {

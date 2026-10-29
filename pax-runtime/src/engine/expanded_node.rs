@@ -2359,6 +2359,7 @@ impl ExpandedNode {
     }
 
     fn bind_occlusion_listener(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
+        let wheel_events = self.get_common_properties().borrow().wheel_events.clone();
         let instance_node = borrow!(self.instance_node);
         let mut deps: Vec<_> = borrow!(self.properties_scope)
             .iter()
@@ -2374,6 +2375,7 @@ impl ExpandedNode {
             self.computed_opacity.untyped(),
             self.liquid_glass_scope.untyped(),
             self.get_common_properties().borrow().unclippable.untyped(),
+            wheel_events.untyped(),
         ]);
 
         let context = Rc::clone(ctx);
@@ -2381,6 +2383,7 @@ impl ExpandedNode {
         self.occlusion_listener
             .replace_with(LocalProperty::computed_with_name(
                 move || {
+                    context.set_wheel_scope(id, wheel_events.get());
                     context.mark_node_occlusion_dirty(id);
                 },
                 &deps,
