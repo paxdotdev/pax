@@ -1,0 +1,26 @@
+[package]
+publish = false
+name = "spatial-workbench"
+version = "0.39.1"
+edition = "2021"
+default-run = "spatial-workbench"
+
+[package.metadata.pax]
+title = "Spatial Workbench"
+
+[dependencies]
+pax-kit = { version = "0.39.1", path = "../../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "spatial-workbench"
+path = "src/main.rs"
+required-features = ["standalone"]
+

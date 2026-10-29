@@ -110,6 +110,15 @@ pub fn begin_bounded_canvas_node(
         return None;
     }
 
+    rc.set_node_depth_plane(
+        layer_id,
+        node_id,
+        geometry
+            .spatial_geometry
+            .depth_plane(pax_runtime_api::math::Transform2::new(
+                geometry.surface_transform.as_coeffs(),
+            )),
+    );
     let paint_opacity = if rc.supports_subtree_opacity() {
         rc.set_node_opacity_scopes(
             layer_id,

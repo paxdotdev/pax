@@ -12,6 +12,7 @@ pub(crate) trait CommonPropertyValue: PropertyValue + ToPaxValue {}
 impl CommonPropertyValue for Option<String> {}
 impl CommonPropertyValue for Option<Size> {}
 impl CommonPropertyValue for Option<Rotation> {}
+impl CommonPropertyValue for Option<Depth> {}
 impl CommonPropertyValue for Option<Transform2D> {}
 impl CommonPropertyValue for Option<Opacity> {}
 impl CommonPropertyValue for Option<LayoutRole> {}

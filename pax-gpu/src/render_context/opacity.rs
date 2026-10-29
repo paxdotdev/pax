@@ -24,6 +24,10 @@ pub(super) fn collect_opacity_group_keys(plan: &[OpacityPlan], keys: &mut HashSe
 
 impl WgpuRenderer<'_> {
     pub(super) fn opacity_plan(&self) -> Vec<OpacityPlan> {
+        self.opacity_plan_at_depth(&self.visible_main_nodes(), 0)
+    }
+
+    pub(super) fn visible_main_nodes(&self) -> Vec<u32> {
         let viewport = self.viewport_bounds();
         let visible: Vec<_> = self
             .sorted_nodes
@@ -42,7 +46,7 @@ impl WgpuRenderer<'_> {
                     .map(|_| *id)
             })
             .collect();
-        self.opacity_plan_at_depth(&visible, 0)
+        visible
     }
 
     pub(super) fn opacity_plan_at_depth(&self, nodes: &[u32], depth: usize) -> Vec<OpacityPlan> {
@@ -93,6 +97,9 @@ impl WgpuRenderer<'_> {
                 // Lighting, resolution, and clip transforms change cached pixels. The boundary's
                 // own alpha intentionally does not: it is applied only when sampling the cache.
                 bytemuck::bytes_of(globals).hash(&mut hash);
+                self.spatial_region
+                    .map(|(_, signature, _)| signature)
+                    .hash(&mut hash);
                 for id in run {
                     self.hash_opacity_content(*id, &mut hash);
                     if let Some(scopes) = self.opacity_scopes.get(id) {
@@ -117,7 +124,10 @@ impl WgpuRenderer<'_> {
                 plan.push(OpacityPlan::Group {
                     // Separate runs preserve ordering for content which escapes its parent's
                     // normal render position (including unclippable descendants).
-                    key: CaptureKey::Opacity(scope.node_id, run[0]),
+                    key: self.spatial_region.map_or(
+                        CaptureKey::Opacity(scope.node_id, run[0]),
+                        |(region, _, _)| CaptureKey::SpatialOpacity(scope.node_id, run[0], region),
+                    ),
                     opacity: scope.opacity,
                     signature: hash.finish(),
                     bounds,

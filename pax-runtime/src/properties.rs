@@ -915,7 +915,7 @@ impl RuntimeContext {
         })
     }
 
-    pub(crate) fn scroller_content_presentation_transform(&self, node: &ExpandedNode) -> Affine {
+    fn scroller_presentation_offset(&self, node: &ExpandedNode) -> (f64, f64) {
         fn clamp_offset(value: f64, content: f64, viewport: f64) -> f64 {
             if content <= viewport || !value.is_finite() {
                 return 0.0;
@@ -926,7 +926,7 @@ impl RuntimeContext {
         let root_delegates_to_page_scroll = self.get_root_scroller_id() == Some(node.id.to_u32())
             && self.get_visual_viewport_state().is_some();
         if root_delegates_to_page_scroll {
-            return Affine::IDENTITY;
+            return (0.0, 0.0);
         }
 
         let instance_node = borrow!(node.instance_node);
@@ -969,13 +969,64 @@ impl RuntimeContext {
                 .unwrap_or((0.0, 0.0))
         };
 
+        (scroll_x, scroll_y)
+    }
+
+    pub(crate) fn scroller_content_presentation_transform(&self, node: &ExpandedNode) -> Affine {
+        let (scroll_x, scroll_y) = self.scroller_presentation_offset(node);
         if scroll_x.abs() <= f64::EPSILON && scroll_y.abs() <= f64::EPSILON {
             return Affine::IDENTITY;
         }
-
+        let geometry = node.spatial_geometry.get();
+        if geometry.is_spatial() {
+            let m = geometry.world_transform().coeffs();
+            // Project the local scroll vector directly. The projected plane can be
+            // singular while its local coordinate frame remains perfectly valid.
+            return Affine::translate((
+                -m[0] * scroll_x - m[4] * scroll_y,
+                -m[1] * scroll_x - m[5] * scroll_y,
+            ));
+        }
         let world_transform = Affine::from(node.transform_and_bounds.get().transform);
         let inverse_world = Affine::from(node.transform_and_bounds.get().transform.inverse());
         world_transform * Affine::translate((-scroll_x, -scroll_y)) * inverse_world
+    }
+
+    fn scroller_content_depth_offset(&self, node: &ExpandedNode) -> f64 {
+        let geometry = node.spatial_geometry.get();
+        if !geometry.is_spatial() {
+            return 0.0;
+        }
+        let (x, y) = self.scroller_presentation_offset(node);
+        let m = geometry.world_transform().coeffs();
+        -m[2] * x - m[6] * y
+    }
+
+    pub(crate) fn presented_depth_plane(
+        &self,
+        node: &ExpandedNode,
+        presented: Affine,
+    ) -> Option<pax_runtime_api::DepthPlane> {
+        let mut offset = 0.0;
+        let mut ancestor = node.render_parent_node();
+        while let Some(parent) = ancestor {
+            if borrow!(parent.instance_node).scrolls_content(&parent) {
+                offset += self.scroller_content_depth_offset(&parent);
+            }
+            ancestor = parent.render_parent_node();
+        }
+        let plane =
+            node.spatial_geometry
+                .get()
+                .depth_plane(pax_runtime_api::math::Transform2::new(
+                    presented.as_coeffs(),
+                ));
+        if plane.is_none() && offset == 0.0 {
+            return None;
+        }
+        let mut plane = plane.unwrap_or_default();
+        plane.coefficients[2] += offset;
+        Some(plane)
     }
 
     /// Resolve the browser/native presentation transform inherited by a node from ancestor
@@ -1800,6 +1851,7 @@ impl RuntimeContext {
             local,
         );
         prepared.world_transform = Affine::from(tab.transform);
+        prepared.spatial_geometry = node.spatial_geometry.get();
         // Detached mask sources reuse prepared geometry without entering visible
         // replay or native-compositing indexes.
         prepared.is_canvas = !node.is_render_source()
@@ -1980,9 +2032,18 @@ impl RuntimeContext {
         let Some(root_node) = root.or_else(|| borrow!(self.root_expanded_node).upgrade()) else {
             return accum;
         };
-        let mut to_process = vec![(root_node, false, Affine::IDENTITY, false)];
-        while let Some((node, clipped, active_scroll_transform, retained_for_exit)) =
-            to_process.pop()
+        let spatial_possible =
+            self.globals().renderer_is_gpu && self.scene_geometry.borrow().may_have_spatial_nodes();
+        let mut depths = std::collections::HashMap::new();
+        let mut has_spatial_hit = false;
+        let mut to_process = vec![(root_node, false, Affine::IDENTITY, 0.0, false)];
+        while let Some((
+            node,
+            clipped,
+            active_scroll_transform,
+            active_depth_offset,
+            retained_for_exit,
+        )) = to_process.pop()
         {
             if node.is_render_source() {
                 continue;
@@ -2013,6 +2074,12 @@ impl RuntimeContext {
                 )
             };
             let descendant_scroll_transform = active_scroll_transform * scroll_transform;
+            let descendant_depth_offset = active_depth_offset
+                + if spatial_possible && borrow!(node.instance_node).scrolls_content(&node) {
+                    self.scroller_content_depth_offset(&node)
+                } else {
+                    0.0
+                };
             let hit = node.ray_cast_test(active_scroll_transform.inverse() * ray);
             if hit && !clipped {
                 if hit_invisible
@@ -2021,12 +2088,28 @@ impl RuntimeContext {
                         .flags()
                         .invisible_to_raycasting
                 {
-                    //We only care about the topmost node getting hit, and the element
-                    //pool is ordered by z-index so we can just resolve the whole
-                    //calculation when we find the first matching node
-                    if limit_one {
+                    if limit_one && !spatial_possible {
                         return vec![node];
                     }
+                    let presented = active_scroll_transform
+                        * Affine::from(node.transform_and_bounds.get().transform);
+                    let plane = spatial_possible
+                        .then(|| {
+                            node.spatial_geometry.get().depth_plane(
+                                pax_runtime_api::math::Transform2::new(presented.as_coeffs()),
+                            )
+                        })
+                        .flatten();
+                    has_spatial_hit |= plane.is_some() || active_depth_offset != 0.0;
+                    let plane = plane.unwrap_or_default();
+                    depths.insert(
+                        node.id,
+                        (
+                            plane.depth_at(ray.x, ray.y) + active_depth_offset,
+                            plane.backface,
+                            accum.len(),
+                        ),
+                    );
                     accum.push(Rc::clone(&node));
                 }
             }
@@ -2046,11 +2129,35 @@ impl RuntimeContext {
                             v,
                             clipped && !unclippable,
                             descendant_scroll_transform,
+                            descendant_depth_offset,
                             retained_for_exit,
                         )
                     })
                     .rev(),
             )
+        }
+        if has_spatial_hit {
+            accum.sort_by(|a, b| {
+                let a = depths.get(&a.id).copied().unwrap_or((0.0, false, 0));
+                let b = depths.get(&b.id).copied().unwrap_or((0.0, false, 0));
+                // Quantize only numerical ties; geometric depth precedes authored order.
+                (b.0 * 1e7)
+                    .round()
+                    .total_cmp(&(a.0 * 1e7).round())
+                    .then_with(|| {
+                        let order = |value: (f64, bool, usize)| {
+                            pax_runtime_api::DepthPlane {
+                                backface: value.1,
+                                ..Default::default()
+                            }
+                            .coplanar_order(-(value.2 as i64))
+                        };
+                        order(b).cmp(&order(a))
+                    })
+            });
+        }
+        if limit_one {
+            accum.truncate(1);
         }
         accum
     }

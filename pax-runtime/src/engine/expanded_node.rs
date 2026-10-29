@@ -73,8 +73,9 @@ use pax_manifest::{
 
 use crate::{
     add_symmetric_padding_to_content_layout_hull, apply_container_frame, apply_padding_frame,
-    compute_tab, ComponentInstance, ContainerFrame, HandlerLocation, InstanceNode, InstanceNodePtr,
-    ReceivedChildrenSource, RuntimeContext, RuntimePropertiesStackFrame,
+    compute_tab, ComponentInstance, ComputableTransform, ContainerFrame, HandlerLocation,
+    InstanceNode, InstanceNodePtr, ReceivedChildrenSource, RuntimeContext,
+    RuntimePropertiesStackFrame,
 };
 
 #[derive(Clone)]
@@ -346,6 +347,13 @@ pub struct ExpandedNode {
     /// The layout information (width, height, transform) used to render this node.
     /// computed property based on parent bounds + common properties
     pub transform_and_bounds: LocalProperty<TransformAndBounds<NodeLocal, Window>>,
+    /// Placement relative to the render parent, including padding and assigned frames.
+    pub(crate) local_transform_and_bounds: LocalProperty<TransformAndBounds<NodeLocal, NodeLocal>>,
+    // Dimensions have their own dependency chain so ancestor pose cannot dirty
+    // local layout, and immediate reads do not depend on an effect-queue cutoff.
+    pub(crate) layout_bounds: LocalProperty<(f64, f64)>,
+    /// Unprojected geometry retained independently of presentation and scrolling.
+    pub(crate) spatial_geometry: LocalProperty<crate::SpatialGeometry>,
     /// Engine-owned subtree hull used by container measurement.
     pub subtree_layout_hull: LocalProperty<LayoutHull>,
     /// Optional container-assigned virtual wrapper frame applied before this node's own layout.
@@ -1141,6 +1149,9 @@ impl ExpandedNode {
             sidecar_children: RefCell::new(Vec::new()),
             render_source_owner: Cell::new(render_source_owner),
             transform_and_bounds: LocalProperty::new(TransformAndBounds::default()),
+            local_transform_and_bounds: LocalProperty::new(TransformAndBounds::default()),
+            layout_bounds: LocalProperty::new((100.0, 100.0)),
+            spatial_geometry: LocalProperty::new(crate::SpatialGeometry::default()),
             subtree_layout_hull: LocalProperty::new(LayoutHull::default()),
             container_frame: LocalProperty::new(None),
             computed_opacity: LocalProperty::new(1.0),
@@ -2194,6 +2205,8 @@ impl ExpandedNode {
                 glass.untyped(),
                 parent.suspended.untyped(),
                 parent.transform_and_bounds.untyped(),
+                parent.spatial_geometry.untyped(),
+                parent.layout_bounds.untyped(),
                 parent.computed_opacity.untyped(),
                 parent.computed_opacity_scopes.untyped(),
                 parent_cp.padding_x.untyped(),
@@ -2214,6 +2227,9 @@ impl ExpandedNode {
                 cp.skew_x.untyped(),
                 cp.skew_y.untyped(),
                 cp.rotate.untyped(),
+                cp.rotate_x.untyped(),
+                cp.rotate_y.untyped(),
+                cp.translate_z.untyped(),
             ]
         };
         let sources = ParentBindingSources {
@@ -2297,10 +2313,24 @@ impl ExpandedNode {
         self.parent_binding_rebuilds
             .set(self.parent_binding_rebuilds.get() + 1);
         let render_parent = borrow!(self.render_parent).upgrade();
-        let parent_transform_and_bounds = render_parent
+        let parent_geometry = render_parent
             .as_ref()
-            .map(|n| n.transform_and_bounds.clone())
-            .unwrap_or_else(|| ctx.globals().viewport);
+            .map(|n| n.spatial_geometry.clone())
+            .unwrap_or_else(|| {
+                let viewport = ctx.globals().viewport;
+                let deps = [viewport.untyped()];
+                LocalProperty::computed(move || viewport.get().into(), &deps)
+            });
+        // Local layout depends on dimensions, not ancestor pose. Keep placement
+        // available even when the ancestor's projected matrix is singular.
+        let parent_bounds = render_parent
+            .as_ref()
+            .map(|n| n.layout_bounds.clone())
+            .unwrap_or_else(|| {
+                let viewport = ctx.globals().viewport;
+                let deps = [viewport.untyped()];
+                LocalProperty::computed(move || viewport.get().bounds, &deps)
+            });
         let (parent_padding_x, parent_padding_y) = render_parent
             .as_ref()
             .map(|n| {
@@ -2314,7 +2344,7 @@ impl ExpandedNode {
             .unwrap_or_default();
         let container_frame = self.container_frame.clone();
         let deps = [
-            parent_transform_and_bounds.untyped(),
+            parent_bounds.untyped(),
             parent_padding_x.untyped(),
             parent_padding_y.untyped(),
             container_frame.untyped(),
@@ -2323,7 +2353,10 @@ impl ExpandedNode {
             move || {
                 apply_container_frame(
                     apply_padding_frame(
-                        parent_transform_and_bounds.get(),
+                        TransformAndBounds {
+                            transform: Default::default(),
+                            bounds: parent_bounds.get(),
+                        },
                         parent_padding_x.get(),
                         parent_padding_y.get(),
                     ),
@@ -2335,12 +2368,102 @@ impl ExpandedNode {
         let common_props = borrow!(self.common_properties);
         let extra_transform = borrow!(common_props).transform.clone();
 
-        let transform_and_bounds = compute_tab(
-            self.layout_properties(),
-            extra_transform,
-            effective_parent_transform_and_bounds,
+        let width = borrow!(common_props).width.clone();
+        let height = borrow!(common_props).height.clone();
+        let measured = self.measured_size.clone();
+        let container = effective_parent_transform_and_bounds.clone();
+        let deps = [
+            width.untyped(),
+            height.untyped(),
+            measured.untyped(),
+            container.untyped(),
+        ];
+        self.layout_bounds.replace_with(LocalProperty::computed(
+            move || {
+                let measured = measured.get();
+                crate::layout::resolve_layout_bounds(
+                    width
+                        .get()
+                        .or(measured.map(|size| Size::Pixels(size.0.into()))),
+                    height
+                        .get()
+                        .or(measured.map(|size| Size::Pixels(size.1.into()))),
+                    container.get().bounds,
+                )
+            },
+            &deps,
+        ));
+
+        let layout = self.layout_properties();
+        let local = compute_tab(
+            layout.clone(),
+            extra_transform.clone(),
+            effective_parent_transform_and_bounds.clone(),
         );
-        self.transform_and_bounds.replace_with(transform_and_bounds);
+        let deps = [local.untyped()];
+        self.local_transform_and_bounds
+            .replace_with(LocalProperty::computed(
+                move || local.get().cast_spaces(),
+                &deps,
+            ));
+        let local = self.local_transform_and_bounds.clone();
+        let rotate_x = borrow!(common_props).rotate_x.clone();
+        let rotate_y = borrow!(common_props).rotate_y.clone();
+        let translate_z = borrow!(common_props).translate_z.clone();
+        let deps = [
+            parent_geometry.untyped(),
+            local.untyped(),
+            rotate_x.untyped(),
+            rotate_y.untyped(),
+            translate_z.untyped(),
+        ];
+        self.spatial_geometry.replace_with(LocalProperty::computed(
+            move || {
+                let local = local.get();
+                let rx = rotate_x.get().unwrap_or_default().get_as_radians();
+                let ry = rotate_y.get().unwrap_or_default().get_as_radians();
+                let z = translate_z.get().unwrap_or_default().to_float();
+                if rx == 0. && ry == 0. && z == 0. {
+                    return parent_geometry.get().append_local_2d(local);
+                }
+                let mut transform = crate::layout::calculate_spatial_transform(
+                    &layout.get(),
+                    effective_parent_transform_and_bounds.get(),
+                    rx,
+                    ry,
+                    z,
+                );
+                if let Some(extra) = extra_transform.get() {
+                    let extra = extra.apply(TransformAndBounds {
+                        transform: Default::default(),
+                        bounds: local.bounds,
+                    });
+                    transform = transform
+                        * pax_runtime_api::math::Transform3::from(
+                            extra.transform.cast_spaces::<NodeLocal, NodeLocal>(),
+                        );
+                }
+                parent_geometry.get().append_local(transform, local.bounds)
+            },
+            &deps,
+        ));
+        let geometry = self.spatial_geometry.clone();
+        let deps = [geometry.untyped()];
+        self.transform_and_bounds
+            .replace_with(LocalProperty::computed(
+                move || {
+                    let geometry = geometry.get();
+                    // Invalid authored poses paint no area, but keep mounted state and
+                    // local layout so a later finite value can recover the same subtree.
+                    geometry
+                        .orthographic_projection()
+                        .unwrap_or(TransformAndBounds {
+                            transform: pax_runtime_api::math::Transform2::new([0.0; 6]),
+                            bounds: geometry.bounds,
+                        })
+                },
+                &deps,
+            ));
 
         let parent_opacity = borrow!(self.render_parent)
             .upgrade()
@@ -2398,6 +2521,7 @@ impl ExpandedNode {
         // reconciliation; data-only repeat invalidation is not an occlusion change.
         deps.extend([
             self.transform_and_bounds.untyped(),
+            self.spatial_geometry.untyped(),
             self.computed_opacity.untyped(),
             self.liquid_glass_scope.untyped(),
             self.get_common_properties().borrow().unclippable.untyped(),
@@ -2694,35 +2818,24 @@ impl ExpandedNode {
         ancestor: &Rc<Self>,
     ) -> Option<crate::api::math::Transform2<NodeLocal, NodeLocal>> {
         use crate::api::math::Transform2;
-        use crate::ComputableTransform;
         let mut node = Rc::clone(self);
         let mut relative = Transform2::identity();
         while node.id != ancestor.id {
             let parent = node.render_parent_node()?;
-            let parent_common = parent.get_common_properties();
-            let (padding_x, padding_y) = {
-                let common = borrow!(parent_common);
-                (common.padding_x.get(), common.padding_y.get())
-            };
-            // Re-evaluate each local step with an identity parent transform,
-            // keeping bounds, padding, assigned frames, anchors and transforms.
-            // No inverse of the collapsed ancestor is needed.
-            let parent_local = TransformAndBounds {
-                transform: Transform2::identity(),
-                bounds: parent.transform_and_bounds.get().bounds,
-            };
-            let padded = apply_padding_frame(parent_local, padding_x, padding_y);
-            let effective_parent = apply_container_frame(padded, node.container_frame.get());
-            let mut local = crate::calculate_transform_and_bounds(
-                &node.layout_properties().get(),
-                effective_parent,
-            );
-            let extra = borrow!(node.get_common_properties()).transform.get();
-            if let Some(extra) = extra {
-                local = extra.apply(local);
-            }
-            relative = local.transform.cast_spaces() * relative;
+            // Retained local placement survives a collapsed ancestor without
+            // inverting its world transform or reconstructing authored layout.
+            relative = node.local_transform_and_bounds.get().transform * relative;
             if parent.id == ancestor.id {
+                let parent_common = parent.get_common_properties();
+                let common = borrow!(parent_common);
+                let padded = apply_padding_frame(
+                    TransformAndBounds {
+                        transform: Transform2::identity(),
+                        bounds: parent.layout_bounds.get(),
+                    },
+                    common.padding_x.get(),
+                    common.padding_y.get(),
+                );
                 return Some(padded.transform.inverse().cast_spaces() * relative);
             }
             node = parent;
@@ -3709,6 +3822,14 @@ impl ExpandedNode {
     /// intersects this `ExpandedNode`.
     pub fn ray_cast_test(&self, ray: Point2<Window>) -> bool {
         if self.is_render_source() {
+            return false;
+        }
+        let geometry = self.spatial_geometry.get();
+        if geometry.is_spatial()
+            && geometry
+                .plane()
+                .is_none_or(|plane| plane.normal().z.abs() <= 1e-12)
+        {
             return false;
         }
         let cp = borrow!(self.common_properties);

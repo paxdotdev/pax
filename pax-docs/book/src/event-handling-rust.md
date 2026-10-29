@@ -594,6 +594,14 @@ subtracting only the element's `x` and `y` misses rotation, scale, and moving
 scroll content. Read more about [Layout](layout-responsiveness.md) and
 [Scrolling](scrolling-viewports.md).
 
+With the experimental [spatial properties](layout-responsiveness.md#rotating-flat-surfaces-in-3d),
+the default orthographic view still delivers window-space coordinates. GPU
+hit testing compares geometric depth at that position before coplanar paint
+order. Edge-on surfaces cannot receive a new hit. Use `ctx.local_point(...)`
+for the projected control's local coordinates, as with 2D transforms. A pose
+change does not itself dispatch a pointer move or replace an established
+mouse/touch sequence target; the capture rules below continue to apply.
+
 ### Wheel input
 
 `@wheel` receives `Event<Wheel>` on web and macOS, including over content in a

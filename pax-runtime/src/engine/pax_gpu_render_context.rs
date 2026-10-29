@@ -2543,6 +2543,15 @@ impl RenderContext for PaxGpuRenderer {
         self.apply_drawing_command(layer, DrawingCommand::Opacity(node_id, scopes.to_vec()));
     }
 
+    fn set_node_depth_plane(
+        &mut self,
+        layer: usize,
+        node_id: u32,
+        plane: Option<pax_runtime_api::DepthPlane>,
+    ) {
+        self.apply_drawing_command(layer, DrawingCommand::Depth(node_id, plane));
+    }
+
     fn begin_node(&mut self, layer: usize, node_id: u32, z_index: i32, light_mask: u32) -> bool {
         if self
             .direct_surface_layer

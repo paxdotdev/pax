@@ -57,6 +57,13 @@ Check whether the node's property object is of type `T`.
 
 Current layout properties after common-property collection.
 
+##### `local_transform_and_bounds`
+<pre><code class="api-signature language-rust ignore">pub fn local_transform_and_bounds(&amp;self) -&gt; LocalProperty&lt;<a href="../../../../api/internal/pax-runtime/layout.md#transformandbounds">TransformAndBounds</a>&lt;<a href="../../../../api/internal/pax-runtime/engine/node_interface.md#nodelocal">NodeLocal</a>, <a href="../../../../api/internal/pax-runtime/engine/node_interface.md#nodelocal">NodeLocal</a>&gt;&gt;</code></pre>
+
+Engine-owned placement relative to the render parent, before projection.
+Includes parent padding, a container-assigned frame, and authored layout.
+Inspect or subscribe to this property; do not replace its engine binding.
+
 ##### `measured_size`
 <pre><code class="api-signature language-rust ignore">pub fn measured_size(&amp;self) -&gt; Option&lt;(f64, f64)&gt;</code></pre>
 
@@ -73,6 +80,13 @@ when feeding a child's measured extent back into an ancestor's layout.
 <pre><code class="api-signature language-rust ignore">pub fn render_parent(&amp;self) -&gt; Option&lt;<a href="../../../../api/internal/pax-runtime/engine/node_interface.md#nodeinterface">NodeInterface</a>&gt;</code></pre>
 
 Parent in render traversal order.
+
+##### `spatial_geometry`
+<pre><code class="api-signature language-rust ignore">pub fn spatial_geometry(&amp;self) -&gt; LocalProperty&lt;<a href="../../../../api/internal/pax-runtime/spatial.md#spatialgeometry">SpatialGeometry</a>&gt;</code></pre>
+
+Engine-owned unprojected geometry, in unscrolled world coordinates.
+Inspect or subscribe to this property; do not replace its engine binding.
+This does not enable template-level spatial transforms or depth ordering.
 
 ##### `subtree_layout_hull`
 <pre><code class="api-signature language-rust ignore">pub fn subtree_layout_hull(&amp;self) -&gt; LocalProperty&lt;<a href="../../../../api/internal/pax-runtime/layout.md#layouthull">LayoutHull</a>&gt;</code></pre>

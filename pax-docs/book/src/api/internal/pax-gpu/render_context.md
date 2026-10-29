@@ -342,6 +342,11 @@ opacity are independent of the consuming content; its enclosing mask is applied 
 
 Restores the consumer and installs a reference to the source's retained alpha texture.
 
+##### `set_node_depth_plane`
+<pre><code class="api-signature language-rust ignore">pub fn set_node_depth_plane(&amp;mut self, node_id: u32, plane: Option&lt;<a href="../../../api/pax-runtime-api/rendering.md#depthplane">DepthPlane</a>&gt;)</code></pre>
+
+Updates an orthographic plane independently of retained paint resources.
+
 ##### `clip_alpha`
 <pre><code class="api-signature language-rust ignore">pub fn clip_alpha(&amp;mut self, paints: Vec&lt;<a href="../../../api/pax-runtime-api/rendering.md#alphamaskpaint">AlphaMaskPaint</a>&gt;, feather: f32)</code></pre>
 

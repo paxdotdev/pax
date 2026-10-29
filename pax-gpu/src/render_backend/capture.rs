@@ -8,6 +8,7 @@ use wgpu::Buffer;
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub(crate) enum CaptureKey {
     Opacity(u32, u32),
+    SpatialOpacity(u32, u32, usize),
     Alpha(u32),
     #[cfg(feature = "shaders")]
     EffectSource(u32),
@@ -19,7 +20,7 @@ impl CaptureKey {
             Self::Alpha(_) => true,
             #[cfg(feature = "shaders")]
             Self::EffectSource(_) => true,
-            Self::Opacity(..) => false,
+            Self::Opacity(..) | Self::SpatialOpacity(..) => false,
         }
     }
 }

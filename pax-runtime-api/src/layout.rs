@@ -259,7 +259,15 @@ pub struct CommonProperties {
     pub skew_y: LocalProperty<Option<Rotation>>,
     /// Rotation around the z axis.
     pub rotate: LocalProperty<Option<Rotation>>,
-    /// Full composed transform.
+    /// Rotation around the local x axis, in addition to `rotate`. Defaults to zero.
+    pub rotate_x: LocalProperty<Option<Rotation>>,
+    /// Rotation around the local y axis, in addition to `rotate`. Defaults to zero.
+    pub rotate_y: LocalProperty<Option<Rotation>>,
+    /// Translation along the parent's z axis in logical pixels. Positive values
+    /// move toward the default viewer when the parent is unrotated. Percent depth
+    /// is unsupported. Defaults to zero.
+    pub translate_z: LocalProperty<Option<Depth>>,
+    /// Full composed 2D transform, applied in the node’s local plane.
     pub transform: LocalProperty<Option<Transform2D>>,
     /// Opacity of this node's subtree. WGPU and Vello CPU compose each canvas
     /// portion before fading it; live native surfaces currently fade separately.
@@ -331,6 +339,9 @@ impl CommonProperties {
             skew_x,
             skew_y,
             rotate,
+            rotate_x,
+            rotate_y,
+            translate_z,
             transform,
             opacity,
             layout_role,
@@ -381,6 +392,18 @@ impl CommonProperties {
             (
                 "rotate".to_string(),
                 Variable::new_from_common_property(rotate.clone()),
+            ),
+            (
+                "rotate_x".to_string(),
+                Variable::new_from_common_property(rotate_x.clone()),
+            ),
+            (
+                "rotate_y".to_string(),
+                Variable::new_from_common_property(rotate_y.clone()),
+            ),
+            (
+                "translate_z".to_string(),
+                Variable::new_from_common_property(translate_z.clone()),
             ),
             (
                 "anchor_x".to_string(),

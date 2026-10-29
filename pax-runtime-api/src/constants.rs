@@ -28,7 +28,7 @@ pub const TYPE_ID_SLOT: &str = "SLOT";
 pub const TYPE_ID_COMMENT: &str = "COMMENT";
 
 // Property names that every renderable node may accept.
-pub const COMMON_PROPERTIES: [&str; 21] = [
+pub const COMMON_PROPERTIES: [&str; 24] = [
     "id",
     "x",
     "y",
@@ -44,6 +44,9 @@ pub const COMMON_PROPERTIES: [&str; 21] = [
     "anchor_x",
     "anchor_y",
     "rotate",
+    "rotate_x",
+    "rotate_y",
+    "translate_z",
     "transform",
     "width",
     "height",
@@ -97,6 +100,9 @@ pub const COMMON_PROPERTIES_TYPE: &[(&str, &str)] = &[
     ("anchor_x", "pax_engine::api::Size"),
     ("anchor_y", "pax_engine::api::Size"),
     ("rotate", "pax_engine::api::Rotation"),
+    ("rotate_x", "pax_engine::api::Rotation"),
+    ("rotate_y", "pax_engine::api::Rotation"),
+    ("translate_z", "pax_engine::api::Depth"),
     ("transform", "pax_engine::api::Transform2D"),
     ("width", "pax_engine::api::Size"),
     ("height", "pax_engine::api::Size"),

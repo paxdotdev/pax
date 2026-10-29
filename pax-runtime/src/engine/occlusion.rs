@@ -437,6 +437,24 @@ pub(crate) fn update_node_occlusion_observed(
                 state.records.get_mut(&id).unwrap().geometry = Some(geometry);
             }
         }
+        // The initial structural walk uses painter order. Spatial layers must include
+        // all overlapping candidates, including geometry earlier in that walk.
+        if ctx.globals().renderer_is_gpu
+            && state
+                .records
+                .values()
+                .filter_map(|r| r.geometry.as_ref())
+                .any(|g| g.spatial_geometry.world_transform().try_as_2d().is_none())
+        {
+            let native: Vec<_> = state
+                .records
+                .iter()
+                .filter_map(|(&id, r)| (r.layer == Layer::Native).then_some(id))
+                .collect();
+            for id in native {
+                update_indexed_mask(id, ctx, state);
+            }
+        }
         // Classify each layer once. Searching all records for every scroller
         // makes the initial mount quadratic for grids of nested scroll regions.
         let mut container_layers = HashSet::new();
@@ -1301,9 +1319,6 @@ fn update_indexed_mask(id: u32, ctx: &RuntimeContext, state: &mut OcclusionState
         else {
             continue;
         };
-        if occluder.occlusion.get().z_index <= node.occlusion.get().z_index {
-            continue;
-        }
         if let Some(entry) = native_mask_entry(&node, &occluder, coverage, ctx, state) {
             entries.push(entry);
         }
@@ -1339,9 +1354,19 @@ fn native_mask_entry(
     let native_bounds =
         OcclusionBox::new_from_transform_and_bounds_with_affine(tab, native_presentation);
     let inverse = native_mask_inverse(Affine::from(tab.transform), native_presentation)?;
-    let path = presentation(occluder) * coverage.path.as_ref()?.clone();
+    let occluder_presentation = presentation(occluder);
+    let front = ctx.presented_depth_plane(
+        occluder,
+        occluder_presentation * Affine::from(occluder.transform_and_bounds.get().transform),
+    );
+    let back = ctx.presented_depth_plane(native, native_presentation * Affine::from(tab.transform));
+    let spatial = ctx.globals().renderer_is_gpu && (front.is_some() || back.is_some());
+    if !spatial && occluder.occlusion.get().z_index <= native.occlusion.get().z_index {
+        return None;
+    }
+    let path = occluder_presentation * coverage.path.as_ref()?.clone();
     let bounds = OcclusionBox::new_from_path(&path)?;
-    let clips: Vec<_> = coverage
+    let mut clips: Vec<_> = coverage
         .clips
         .iter()
         // Shared ancestors already clip the native element itself. Baking them
@@ -1353,6 +1378,20 @@ fn native_mask_entry(
             Some(presentation(&owner) * clip.clone())
         })
         .collect();
+    if spatial {
+        // Depth clipping uses the same domain as the cutout: retain scroll-local
+        // masks while composing surfaces at different depths.
+        clips.push(crate::spatial::front_region(
+            front.unwrap_or_default(),
+            back.unwrap_or_default(),
+            occluder.occlusion.get().z_index,
+            native.occlusion.get().z_index,
+            path.bounding_box().intersect(
+                (native_presentation * Affine::from(tab.transform))
+                    .transform_rect_bbox(Rect::new(0.0, 0.0, tab.bounds.0, tab.bounds.1)),
+            ),
+        )?);
+    }
     if !clipped_coverage_bounds(bounds, &clips).is_some_and(|b| b.intersects(&native_bounds)) {
         return None;
     }
@@ -1517,16 +1556,6 @@ fn update_node_occlusion_recursive(
     parent: Option<u32>,
     state: &mut OcclusionState,
 ) {
-    fn clamp_offset(value: f64, content: f64, viewport: f64) -> f64 {
-        if content <= viewport {
-            return 0.0;
-        }
-        if !value.is_finite() {
-            return 0.0;
-        }
-        value.max(0.0).min((content - viewport).max(0.0))
-    }
-
     let topology_index = state.topology.begin(
         node.id.to_u32(),
         parent,
@@ -1542,58 +1571,7 @@ fn update_node_occlusion_recursive(
     let has_effect_clip = effect_clip_path.is_some();
     let scrolls_content = instance_node.scrolls_content(node);
     let scroll_transform = if scrolls_content {
-        let root_delegates_to_page_scroll = ctx.get_root_scroller_id() == Some(node.id.to_u32())
-            && ctx.get_visual_viewport_state().is_some();
-        if root_delegates_to_page_scroll {
-            Affine::IDENTITY
-        } else {
-            let (scroll_x, scroll_y) = if ctx.get_root_scroller_id() == Some(node.id.to_u32()) {
-                if let Some(visual) = ctx.get_visual_viewport_state() {
-                    let visual_x = visual.page_scroll_x + visual.offset_x;
-                    let visual_y = visual.page_scroll_y + visual.offset_y;
-                    if visual_x.is_finite() && visual_y.is_finite() {
-                        if let Some(state) = ctx.get_scroller_surface_state(node.id.to_u32()) {
-                            let viewport_width = if visual.width.is_finite() {
-                                visual.width
-                            } else {
-                                state.viewport_width
-                            };
-                            let viewport_height = if visual.height.is_finite() {
-                                visual.height
-                            } else {
-                                state.viewport_height
-                            };
-                            (
-                                clamp_offset(visual_x, state.content_width, viewport_width),
-                                clamp_offset(visual_y, state.content_height, viewport_height),
-                            )
-                        } else {
-                            (visual_x, visual_y)
-                        }
-                    } else {
-                        ctx.get_scroller_surface_scroll(node.id.to_u32())
-                            .or_else(|| instance_node.resolve_scroll_offset(node))
-                            .unwrap_or((0.0, 0.0))
-                    }
-                } else {
-                    ctx.get_scroller_surface_scroll(node.id.to_u32())
-                        .or_else(|| instance_node.resolve_scroll_offset(node))
-                        .unwrap_or((0.0, 0.0))
-                }
-            } else {
-                ctx.get_scroller_surface_scroll(node.id.to_u32())
-                    .or_else(|| instance_node.resolve_scroll_offset(node))
-                    .unwrap_or((0.0, 0.0))
-            };
-            if scroll_x.abs() > f64::EPSILON || scroll_y.abs() > f64::EPSILON {
-                let world_transform = Affine::from(node.transform_and_bounds.get().transform);
-                let inverse_world =
-                    Affine::from(node.transform_and_bounds.get().transform.inverse());
-                world_transform * Affine::translate((-scroll_x, -scroll_y)) * inverse_world
-            } else {
-                Affine::IDENTITY
-            }
-        }
+        ctx.scroller_content_presentation_transform(node)
     } else {
         Affine::IDENTITY
     };

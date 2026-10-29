@@ -82,10 +82,27 @@ Type: `LocalProperty`<`Option`<[`Rotation`](../../api/pax-runtime-api/transform.
 
 Rotation around the z axis.
 
+##### `rotate_x`
+Type: `LocalProperty`<`Option`<[`Rotation`](../../api/pax-runtime-api/transform.md#rotation)>>
+
+Rotation around the local x axis, in addition to `rotate`. Defaults to zero.
+
+##### `rotate_y`
+Type: `LocalProperty`<`Option`<[`Rotation`](../../api/pax-runtime-api/transform.md#rotation)>>
+
+Rotation around the local y axis, in addition to `rotate`. Defaults to zero.
+
+##### `translate_z`
+Type: `LocalProperty`<`Option`<[`Depth`](../../api/pax-runtime-api/drawing.md#depth)>>
+
+Translation along the parent's z axis in logical pixels. Positive values
+move toward the default viewer when the parent is unrotated. Percent depth
+is unsupported. Defaults to zero.
+
 ##### `transform`
 Type: `LocalProperty`<`Option`<[`Transform2D`](../../api/pax-runtime-api/transform.md#transform2d)>>
 
-Full composed transform.
+Full composed 2D transform, applied in the node’s local plane.
 
 ##### `opacity`
 Type: `LocalProperty`<`Option`<[`Opacity`](../../api/pax-runtime-api/color.md#opacity)>>

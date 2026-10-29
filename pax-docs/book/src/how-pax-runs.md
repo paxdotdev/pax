@@ -363,6 +363,16 @@ Their presentation is divided across graphics surfaces and platform-owned
 elements. The compositor coordinates those pieces, including the places where
 clipping, scrolling, and overlap cross surface boundaries.
 
+The runtime retains node-local placement and unprojected world geometry before
+deriving the current 2D presentation. Prepared geometry records carry that
+world geometry alongside their canvas-space coverage. This keeps plane
+inspection independent of surface ownership and opacity scopes. The experimental
+orthographic spatial path projects flat surfaces for native presentation and
+partitions GPU composition where their geometric depth order changes. Existing
+2D trees retain the affine path. See
+[Rotating flat surfaces in 3D](layout-responsiveness.md#rotating-flat-surfaces-in-3d)
+for authoring and current backend/compositing limits.
+
 For example, a Rectangle can be drawn into a graphics layer while a Textbox
 is a browser control or Apple-native view. The runtime sends the native
 element its required updates; user input returns through the chassis to the

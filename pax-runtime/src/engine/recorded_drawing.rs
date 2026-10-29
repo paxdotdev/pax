@@ -27,6 +27,7 @@ pub(super) enum Command {
     BeginSource(Transform2D, f32),
     EndSource,
     Opacity(u32, Vec<OpacityScope>),
+    Depth(u32, Option<pax_runtime_api::DepthPlane>),
     Fill {
         path: Path,
         bounds: Rect,
@@ -92,6 +93,7 @@ impl Command {
             Self::BeginSource(t, feather) => gpu.begin_alpha_source(*t, *feather),
             Self::EndSource => gpu.end_alpha_source(),
             Self::Opacity(id, scopes) => gpu.set_node_opacity_scopes(*id, scopes),
+            Self::Depth(id, plane) => gpu.set_node_depth_plane(*id, *plane),
             Self::Fill {
                 path,
                 bounds,

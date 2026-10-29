@@ -34,6 +34,34 @@ Primitive boundary: compose its paints before applying source-relative opacity.
 
 ---
 
+### `DepthPlane`
+Depth of a flat surface as `z = x*a + y*b + c` in canvas-content coordinates.
+Positive depth is toward the default orthographic viewer. Coplanar surfaces
+retain paint order; a spatial back face reverses its planar layer stack.
+
+#### Properties
+##### `coefficients`
+Type: [`f64`; 3]
+
+##### `backface`
+Type: `bool`
+
+#### Implementations
+##### `coplanar_order`
+<pre><code class="api-signature language-rust ignore">pub fn coplanar_order(self, authored_order: i64) -&gt; (bool, i64)</code></pre>
+
+Stable back-to-front key for geometrically coincident paint. Larger authored
+orders paint later on front faces and earlier on back faces. Opposing faces
+at exactly the same depth put front-facing paint last, independently of the
+authored index range. Renderers, occlusion masks, and picking share this tie.
+
+##### `depth_at`
+<pre><code class="api-signature language-rust ignore">pub fn depth_at(self, x: f64, y: f64) -&gt; f64</code></pre>
+
+Evaluates camera-relative depth at a projected coordinate.
+
+---
+
 ### `OpacityScope`
 One authored opacity boundary, ordered from the outermost ancestor to the painted node.
 Native surfaces can present independently while a canvas backend composes each scope.

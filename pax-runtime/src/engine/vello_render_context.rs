@@ -973,6 +973,7 @@ pub struct CpuRenderer<S: CpuSurface> {
     surface_replay: SurfaceReplayCoordinator,
     active_render_scopes: Vec<Vec<Vec<usize>>>,
     clean_skipped_canvas_nodes: HashSet<(usize, u32)>,
+    warned_spatial_depth: bool,
 }
 
 impl<S: CpuSurface> CpuRenderer<S> {
@@ -989,6 +990,7 @@ impl<S: CpuSurface> CpuRenderer<S> {
             surface_replay: SurfaceReplayCoordinator::default(),
             active_render_scopes: Vec::new(),
             clean_skipped_canvas_nodes: HashSet::new(),
+            warned_spatial_depth: false,
         }
     }
 
@@ -1492,6 +1494,18 @@ impl<S: CpuSurface> api::RenderContext for CpuRenderer<S> {
             for renderer in &mut target.renderers {
                 renderer.clear();
             }
+        }
+    }
+
+    fn set_node_depth_plane(
+        &mut self,
+        _layer: usize,
+        _node_id: u32,
+        plane: Option<pax_runtime_api::DepthPlane>,
+    ) {
+        if plane.is_some() && !self.warned_spatial_depth {
+            log::warn!("Spatial depth composition currently requires the GPU renderer. CPU presentation uses projected transforms in document order.");
+            self.warned_spatial_depth = true;
         }
     }
 

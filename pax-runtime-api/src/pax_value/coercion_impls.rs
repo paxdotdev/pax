@@ -600,8 +600,13 @@ impl CoercionRules for Depth {
             PaxValue::Size(Size::Percent(_)) | PaxValue::Percent(_) => {
                 return Err("failed to coerce Depth: percent depth is not supported".to_string());
             }
+            // Size arithmetic retains a combined representation even for px + px.
+            // A zero percentage contribution is still an absolute logical depth.
+            PaxValue::Size(Size::Combined(value, percent)) if percent.to_float() == 0.0 => {
+                Depth(value)
+            }
             PaxValue::Size(Size::Combined(_, _)) => {
-                return Err("failed to coerce Depth: combined depth is not supported".to_string());
+                return Err("failed to coerce Depth: percent depth is not supported".to_string());
             }
             PaxValue::Numeric(value) => Depth(value),
             PaxValue::Option(o) => {

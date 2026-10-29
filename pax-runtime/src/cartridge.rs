@@ -2791,7 +2791,10 @@ where
         "x" | "y" | "anchor_x" | "anchor_y" | "padding_x" | "padding_y" => {
             Some(PaxValue::Size(Size::ZERO()))
         }
-        "rotate" | "skew_x" | "skew_y" => Some(PaxValue::Rotation(Rotation::ZERO())),
+        "rotate" | "rotate_x" | "rotate_y" | "skew_x" | "skew_y" => {
+            Some(PaxValue::Rotation(Rotation::ZERO()))
+        }
+        "translate_z" => Some(PaxValue::Numeric(0.0.into())),
         "opacity" => Some(PaxValue::Numeric(1.0.into())),
         _ => None,
     };
@@ -4989,6 +4992,31 @@ mod base_symbol_tests {
     }
 
     #[test]
+    fn spatial_common_properties_bind_layers_and_reactive_expressions() {
+        let angle = LocalProperty::new(pax_runtime_api::Rotation::Degrees(25.into()));
+        let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
+            "angle".to_string(),
+            Variable::new_from_typed_property(angle.clone()),
+        )]));
+        let mut columns = columns_for("rotate_x", vec![entry(expression("angle"))]);
+        columns.extend(columns_for(
+            "rotate_y",
+            vec![entry(expression("@base + 40deg"))],
+        ));
+        columns.extend(columns_for(
+            "translate_z",
+            vec![entry(size_literal(12.0)), entry(expression("@base + 8px"))],
+        ));
+        let common = create_new_common_properties_from_columns(&columns, &stack);
+        let cp = common.borrow();
+        assert!((cp.rotate_x.get().unwrap().get_as_radians() - 25_f64.to_radians()).abs() < 1e-9);
+        assert!((cp.rotate_y.get().unwrap().get_as_radians() - 40_f64.to_radians()).abs() < 1e-9);
+        assert_eq!(cp.translate_z.get().unwrap().0.to_float(), 20.0);
+        angle.set(pax_runtime_api::Rotation::Degrees(60.into()));
+        assert!((cp.rotate_x.get().unwrap().get_as_radians() - 60_f64.to_radians()).abs() < 1e-9);
+    }
+
+    #[test]
     fn base_symbol_resolves_previous_common_property_layer() {
         let stack = empty_stack();
         let columns = columns_for(
@@ -5394,6 +5422,9 @@ pub fn create_new_common_properties_from_columns(
         skew_x: resolve_property("skew_x", property_columns, stack_frame),
         skew_y: resolve_property("skew_y", property_columns, stack_frame),
         rotate: resolve_property("rotate", property_columns, stack_frame),
+        rotate_x: resolve_property("rotate_x", property_columns, stack_frame),
+        rotate_y: resolve_property("rotate_y", property_columns, stack_frame),
+        translate_z: resolve_property("translate_z", property_columns, stack_frame),
         transform: resolve_property("transform", property_columns, stack_frame),
         opacity: resolve_property("opacity", property_columns, stack_frame),
         layout_role: resolve_property("layout_role", property_columns, stack_frame),
@@ -5438,6 +5469,9 @@ fn bind_common_setting<T: CoercionRules + PropertyValue + ToPaxValue>(
             | "anchor_x"
             | "anchor_y"
             | "rotate"
+            | "rotate_x"
+            | "rotate_y"
+            | "translate_z"
             | "skew_x"
             | "skew_y"
             | "opacity"
@@ -5477,6 +5511,30 @@ fn update_common_properties(
     }
     bind_common_setting(&cp.x, "x", property_columns, stack_frame, node, mode);
     bind_common_setting(&cp.y, "y", property_columns, stack_frame, node, mode);
+    bind_common_setting(
+        &cp.rotate_x,
+        "rotate_x",
+        property_columns,
+        stack_frame,
+        node,
+        mode,
+    );
+    bind_common_setting(
+        &cp.rotate_y,
+        "rotate_y",
+        property_columns,
+        stack_frame,
+        node,
+        mode,
+    );
+    bind_common_setting(
+        &cp.translate_z,
+        "translate_z",
+        property_columns,
+        stack_frame,
+        node,
+        mode,
+    );
     bind_common_setting(
         &cp.padding_x,
         "padding_x",

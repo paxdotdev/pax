@@ -18,4 +18,5 @@
 - [shader_effect](shader_effect.md)
 - [settings_motion](settings_motion.md)
 - [slot](slot.md)
+- [spatial](spatial.md)
 - [viewport_proximity](viewport_proximity.md)

@@ -1382,7 +1382,13 @@ impl<'w> RenderBackend<'w> {
                         depth_fail_op: wgpu::StencilOperation::Keep,
                         pass_op: wgpu::StencilOperation::Keep,
                     },
-                    back: wgpu::StencilFaceState::IGNORE,
+                    // Reflections and spatial back faces obey the same clip as front faces.
+                    back: wgpu::StencilFaceState {
+                        compare: wgpu::CompareFunction::Equal,
+                        fail_op: wgpu::StencilOperation::Keep,
+                        depth_fail_op: wgpu::StencilOperation::Keep,
+                        pass_op: wgpu::StencilOperation::Keep,
+                    },
                     read_mask: !0,
                     write_mask: !0,
                 },

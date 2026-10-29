@@ -309,7 +309,13 @@ impl StencilRenderer {
                             depth_fail_op: wgpu::StencilOperation::Keep,
                             pass_op: stencil_op,
                         },
-                        back: wgpu::StencilFaceState::IGNORE,
+                        // Reflections and spatial back faces obey the same clip as front faces.
+                        back: wgpu::StencilFaceState {
+                            compare: wgpu::CompareFunction::Always,
+                            fail_op: wgpu::StencilOperation::Keep,
+                            depth_fail_op: wgpu::StencilOperation::Keep,
+                            pass_op: stencil_op,
+                        },
                         read_mask: !0,
                         write_mask: !0,
                     },

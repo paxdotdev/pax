@@ -1,0 +1,194 @@
+<Scroller width=100% height=100% scroll_height={(Math::max(@viewport.height, @viewport.width < 850 ? 1240 : 840))px}>
+    <Group anchor=0% width=100% height={(Math::max(@viewport.height, @viewport.width < 850 ? 1240 : 840))px}>
+        <Group anchor=0% width=100% height=100% translate_z=1000px>
+            <Text class="eyebrow" anchor=0% selectable=false x=32px y=26px width=500px height=20px text="PAX LAB / SPATIAL WORKBENCH / 01"/>
+            <Text anchor=0% selectable=false x=32px y=54px width=600px height=52px text="A new dimension." style={
+                font: "Georgia"
+                font_size: 38px
+                fill: rgb(235, 244, 242)
+            }/>
+            <Text class="muted" anchor=0% selectable=false x=34px y=112px width={100% - 68px} height=26px
+                text="Live native controls. Flat surfaces. Real geometric depth."/>
+            <Text class="eyebrow" anchor=0% selectable=false x=34px y={100% - 40px} width={100% - 68px} height=22px
+                text="ORTHOGRAPHIC VIEW  /  ZERO-THICKNESS SURFACES  /  WEBGPU"/>
+        </Group>
+        <Group anchor=0% x={@viewport.width < 850 ? 24px : (100% - 302px)} y={@viewport.width < 850 ? 570px : 168px}
+            width={@viewport.width < 850 ? (100% - 48px) : 270px} height=612px translate_z=1000px>
+            <Text class="eyebrow" anchor=0% selectable=false x=18px y=18px width=234px height=20px text="SURFACE CONTROLS"/>
+            <Button class="control" anchor=0% id=play x=18px y=52px width=110px label={playing ? "Pause motion" : "Play motion"}
+                @button_click=toggle_play/>
+            <Button class="control" anchor=0% id=reset x=140px y=52px width=110px label="Reset pose" @button_click=reset/>
+            <Text class="label" anchor=0% selectable=false x=18px y=100px width=232px height=20px
+                text={"X tilt   " + Example::rounded(tilt_x) + "°"}/>
+            <Slider anchor=0% id=tilt_x x=18px y=124px width=232px height=24px value=bind:tilt_x min=-85.0 max=85.0 step=1.0
+                accent=rgb(99, 216, 188) background=rgb(40, 63, 72) @slider_change=pause/>
+            <Text class="label" anchor=0% selectable=false x=18px y=158px width=232px height=20px
+                text={"Y tilt   " + Example::rounded(tilt_y) + "°"}/>
+            <Slider anchor=0% id=tilt_y x=18px y=182px width=232px height=24px value=bind:tilt_y min=-180.0 max=180.0 step=1.0
+                accent=rgb(99, 216, 188) background=rgb(40, 63, 72) @slider_change=pause/>
+            <Text class="label" anchor=0% selectable=false x=18px y=216px width=232px height=20px
+                text={"Z position   " + Example::rounded(depth) + " px"}/>
+            <Slider anchor=0% id=depth x=18px y=240px width=232px height=24px value=bind:depth min=-240.0 max=240.0 step=1.0
+                accent=rgb(99, 216, 188) background=rgb(40, 63, 72)/>
+            <Text class="label" anchor=0% selectable=false x=18px y=274px width=232px height=20px
+                text={"Child tilt   " + Example::rounded(child_tilt) + "°"}/>
+            <Slider anchor=0% id=child_tilt x=18px y=298px width=232px height=24px value=bind:child_tilt min=-75.0 max=75.0 step=1.0
+                accent=rgb(99, 216, 188) background=rgb(40, 63, 72)/>
+            <Text class="label" anchor=0% selectable=false x=18px y=332px width=232px height=20px
+                text={"Amber depth   " + Example::rounded(crossing_depth) + " px"}/>
+            <Slider anchor=0% id=amber_depth x=18px y=356px width=232px height=24px value=bind:crossing_depth min=-240.0 max=240.0 step=1.0
+                accent=rgb(99, 216, 188) background=rgb(40, 63, 72) @slider_change=pause/>
+            <Text class="label" anchor=0% selectable=false x=18px y=392px width=232px height=20px
+                text={"Card opacity   " + Example::rounded(alpha * 100) + "%"}/>
+            <Slider anchor=0% id=opacity x=18px y=416px width=232px height=24px value=bind:alpha min=0.1 max=1.0 step=0.05
+                accent=rgb(99, 216, 188) background=rgb(40, 63, 72)/>
+            <Button class="control" anchor=0% id=flat x=18px y=466px width=110px label="Coplanar" @button_click=flat/>
+            <Button class="control" anchor=0% id=back x=140px y=466px width=110px label="Back face" @button_click=back/>
+            <Button class="control" anchor=0% id=clip x=18px y=514px width=110px label={clipping ? "Aperture on" : "Aperture off"}
+                @button_click=toggle_clip/>
+            <Button class="control" anchor=0% id=cross x=140px y=514px width=110px label={crossing ? "Hide amber" : "Show amber"}
+                @button_click=toggle_crossing/>
+            <Text class="muted" anchor=0% selectable=false x=18px y=568px width=234px height=24px text="Typed text survives every pose."/>
+            <Rectangle anchor=0% width=100% height=100% corner_radius=18 fill=rgb(22, 38, 47) stroke={
+                paint: rgb(46, 68, 77)
+                width: 1px
+            }/>
+        </Group>
+        <Group anchor=0% x=24px y=168px width={@viewport.width < 850 ? (100% - 48px) : (100% - 350px)}
+            height={@viewport.width < 850 ? 370px : (100% - 252px)}>
+            <Frame anchor=50% x=50% y=50% width={clipping ? (@viewport.width < 600 ? 260px : 350px) : 100%}
+                height={clipping ? (@viewport.width < 600 ? 200px : 240px) : 100%} corner_radius=24 _clip_content={clipping}>
+                <Group anchor=50% x=50% y=50% width=430px height=300px scale={@viewport.width < 600 ? 75% : 100%} rotate_x={(tilt_x)deg}
+                    rotate_y={(tilt_y)deg} translate_z={(depth)px} opacity={alpha}>
+                    <Textbox anchor=0% id=live_note x=26px y=122px width=378px height=42px text=bind:note background=rgb(235, 250, 245)
+                        corner_radius=8 style={
+                            font: "Arial"
+                            font_size: 17px
+                            fill: rgb(15, 59, 61)
+                        }/>
+                    <Slider anchor=0% id=live_level x=26px y=186px width=225px height=28px value=bind:level min=0.0 max=100.0 step=1.0
+                        accent=rgb(202, 255, 235) background=rgb(19, 95, 94)/>
+                    <Button anchor=0% id=live_button x=270px y=180px width=134px height=38px label={"Press / " + clicks} color=rgb(215, 255, 236)
+                        hover_color=rgb(246, 255, 250) corner_radius=8 style={
+                            font: "Arial"
+                            font_size: 14px
+                            fill: rgb(18, 66, 63)
+                            align_horizontal: TextAlignHorizontal::Center
+                            align_vertical: TextAlignVertical::Center
+                        }
+                        @button_click=press/>
+                    <Group anchor=0% x=286px y=238px width=118px height=38px rotate_y={(child_tilt)deg}>
+                        <Text anchor=0% selectable=false x=10px y=9px width=98px height=20px text="CHILD PLANE" style={
+                            font: "Arial"
+                            font_size: 11px
+                            fill: rgb(15, 54, 57)
+                        }/>
+                        <Rectangle anchor=0% width=100% height=100% corner_radius=6 fill=rgb(164, 234, 212)/>
+                    </Group>
+                    <Text anchor=0% selectable=false x=26px y=244px width=245px height=22px text={"Signal / " + Example::rounded(level) + "%"}
+                        style={
+                            font: "Arial"
+                            font_size: 13px
+                            fill: rgb(188, 237, 222)
+                        }/>
+                    <Text anchor=0% selectable=false x=26px y=24px width=370px height=20px text="SURFACE A / LIVE NATIVE UI" style={
+                        font: "Arial"
+                        font_size: 11px
+                        fill: rgb(164, 234, 212)
+                    }/>
+                    <Text anchor=0% selectable=false x=26px y=57px width=378px height=40px text="Still your controls." style={
+                        font: "Georgia"
+                        font_size: 28px
+                        fill: rgb(238, 255, 247)
+                    }/>
+                    <Rectangle anchor=0% width=100% height=100% corner_radius=16 fill=@gradient {
+                        linear: {
+                            start: [0%, 0%],
+                            end: [100%, 100%],
+                        },
+                        0%: rgb(24, 133, 127),
+                        100%: rgb(15, 71, 83),
+                    }
+                        stroke={
+                            paint: rgb(75, 184, 163)
+                            width: 1px
+                        }/>
+                </Group>
+                if crossing {
+                    <Group anchor=50% x=57% y=52% width=350px height=238px rotate_y=42deg rotate_x=-8deg translate_z={(crossing_depth)px}>
+                        <Text anchor=0% selectable=false x=22px y=24px width=300px height=20px text="SURFACE B / DEPTH PROBE" style={
+                            font: "Arial"
+                            font_size: 11px
+                            fill: rgb(61, 39, 28)
+                        }/>
+                        <Text anchor=0% selectable=false x=22px y=168px width=300px height=40px text="Through the plane." style={
+                            font: "Georgia"
+                            font_size: 25px
+                            fill: rgb(61, 39, 28)
+                        }/>
+                        for line in 0..6 {
+                            <Rectangle anchor=0% x=22px y={(63 + line * 14)px} width=306px height=1px fill=rgba(67, 40, 23, 65)/>
+                        }
+                        <Rectangle anchor=0% width=100% height=100% corner_radius=12 fill=rgb(231, 170, 105) stroke={
+                            paint: rgb(255, 207, 147)
+                            width: 1px
+                        }/>
+                    </Group>
+                }
+            </Frame>
+            <Group anchor=0% width=100% height=100% translate_z=-1000px>
+                <Text class="eyebrow" anchor=0% selectable=false x=22px y=20px width=400px height=20px text="01 / TWO SURFACES, ONE WORLD"/>
+                for row in 0..14 {
+                    <Rectangle anchor=0% x=0px y={(row * 100 / 14)%} width=100% height=1px fill=rgba(84, 130, 139, 25)/>
+                }
+                for column in 0..24 {
+                    <Rectangle anchor=0% x={(column * 100 / 24)%} y=0px width=1px height=100% fill=rgba(84, 130, 139, 25)/>
+                }
+                <Rectangle anchor=0% width=100% height=100% corner_radius=20 fill=rgb(15, 29, 38) stroke={
+                    paint: rgb(39, 61, 72)
+                    width: 1px
+                }/>
+            </Group>
+        </Group>
+        <Rectangle anchor=0% width=100% height=100% translate_z=-2000px fill=rgb(10, 21, 29)/>
+    </Group>
+</Scroller>
+
+@settings {
+    @mount: mount
+    @pre_render: pre_render
+    .eyebrow {
+        style: {
+            font: "Arial"
+            font_size: 11px
+            fill: rgb(115, 171, 173)
+        }
+    }
+    .muted {
+        style: {
+            font: "Arial"
+            font_size: 13px
+            fill: rgb(143, 166, 176)
+        }
+    }
+    .label {
+        style: {
+            font: "Arial"
+            font_size: 13px
+            fill: rgb(209, 226, 226)
+        }
+    }
+    .control {
+        height: 34px
+        color: rgb(36, 58, 68)
+        hover_color: rgb(48, 79, 87)
+        corner_radius: 7
+        style: {
+            font: "Arial"
+            font_size: 12px
+            fill: rgb(220, 240, 235)
+            align_horizontal: TextAlignHorizontal::Center
+            align_vertical: TextAlignVertical::Center
+        }
+    }
+}

@@ -3272,3 +3272,171 @@ fn empty_parent_alpha_masks_remain_transparent_to_nested_sources() {
         assert_pixel(&frame, 2, 2, [0; 4]);
     }
 }
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn intersecting_spatial_planes_preserve_transparency_clips_and_retained_updates() {
+    use pax_runtime_api::DepthPlane;
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 32, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.set_viewport(64.0, 32.0, [1.0, 1.0]);
+    for (frame, coefficients) in [[1.0, 0.0, -32.0], [-1.0, 0.0, 32.0], [0.0, 0.0, 100.0]]
+        .into_iter()
+        .enumerate()
+    {
+        // Frame-like clip owners end before the children draw. On subsequent frames
+        // only the moving child is recorded; the other child keeps its retained clip.
+        renderer.begin_node(100, 0, 0);
+        renderer.save();
+        let mut clip = Path::builder();
+        if frame == 2 {
+            renderer.transform(Transform2D::new(-1.0, 0.0, 0.0, 1.0, 64.0, 0.0));
+        }
+        clip.begin(point(0.0, 4.0));
+        clip.line_to(point(64.0, 4.0));
+        clip.line_to(point(60.0, 28.0));
+        clip.line_to(point(4.0, 28.0));
+        clip.close();
+        renderer.clip(clip.build());
+        renderer.end_node(100);
+        if frame == 2 {
+            renderer.transform(Transform2D::new(-1.0, 0.0, 0.0, 1.0, 64.0, 0.0));
+        }
+        for (id, color) in [
+            (1, Color::rgba(1.0, 0.0, 0.0, 0.5)),
+            (2, Color::rgba(0.0, 0.0, 1.0, 0.5)),
+        ] {
+            if frame == 1 && id == 2 {
+                continue;
+            }
+            renderer.begin_node(id, id as i32, 0);
+            renderer.save();
+            if frame > 0 {
+                renderer.transform(Transform2D::new(-1.0, 0.0, 0.0, 1.0, 64.0, 0.0));
+            }
+            if id == 1 {
+                renderer.fill_path(rect(0.0, 0.0, 64.0, 32.0), Fill::Solid(color));
+            } else {
+                renderer.draw_image_with_opacity(
+                    "blue-plane",
+                    0,
+                    &Image {
+                        rgba: vec![0, 0, 255, 255],
+                        pixel_width: 1,
+                        pixel_height: 1,
+                    },
+                    Box2D::new(point(0.0, 0.0), point(64.0, 32.0)),
+                    0.5,
+                );
+            }
+            renderer.restore();
+            renderer.end_node(id);
+        }
+        renderer.restore();
+        renderer.set_node_depth_plane(
+            1,
+            Some(DepthPlane {
+                coefficients,
+                backface: false,
+            }),
+        );
+        renderer.request_screenshot_capture(frame as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let pixels = renderer.take_screenshot_capture(frame as u32).unwrap();
+        for x in [8, 24, 40, 56] {
+            let red_front = coefficients[0] * (x as f64 + 0.5) + coefficients[2] > 0.0;
+            // Screenshot data is premultiplied; intersecting translucent surfaces
+            // must change color order within one draw, retaining 75% total coverage.
+            assert_pixel(
+                &pixels,
+                x,
+                16,
+                if red_front {
+                    [128, 0, 64, 191]
+                } else {
+                    [64, 0, 128, 191]
+                },
+            );
+        }
+        assert_pixel(&pixels, 16, 1, [0, 0, 0, 0]);
+    }
+    let stats = renderer.take_resource_churn_stats();
+    assert_eq!(stats.vector_geometry_rebuilds, 1);
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn spatial_group_opacity_and_backface_reuse_paint_without_stale_captures() {
+    use pax_runtime_api::{DepthPlane, OpacityScope};
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 32, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.set_viewport(64.0, 32.0, [1.0, 1.0]);
+    for (id, color) in [
+        (1, Color::rgba(1.0, 0.0, 0.0, 1.0)),
+        (2, Color::rgba(0.0, 0.0, 1.0, 1.0)),
+        (3, Color::rgba(0.0, 1.0, 0.0, 1.0)),
+    ] {
+        renderer.begin_node(id, id as i32, 0);
+        renderer.fill_path(rect(0.0, 0.0, 64.0, 32.0), Fill::Solid(color));
+        renderer.end_node(id);
+        if id < 3 {
+            renderer.set_node_opacity_scopes(
+                id,
+                &[OpacityScope {
+                    node_id: 10,
+                    opacity: 0.5,
+                }],
+            );
+        }
+    }
+    for (frame, (slope, backface)) in [(1.0, false), (-1.0, false), (-1.0, true)]
+        .into_iter()
+        .enumerate()
+    {
+        for id in [1, 2] {
+            renderer.set_node_depth_plane(
+                id,
+                Some(DepthPlane {
+                    coefficients: [slope, 0.0, -32.0 * slope],
+                    backface,
+                }),
+            );
+        }
+        renderer.request_screenshot_capture(frame as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let pixels = renderer.take_screenshot_capture(frame as u32).unwrap();
+        for x in 0..64 {
+            let group_front = slope * (x as f64 + 0.5 - 32.0) > 0.0;
+            assert_pixel(
+                &pixels,
+                x,
+                16,
+                if !group_front {
+                    [0, 255, 0, 255]
+                } else if backface {
+                    [128, 128, 0, 255]
+                } else {
+                    [0, 128, 128, 255]
+                },
+            );
+        }
+    }
+}

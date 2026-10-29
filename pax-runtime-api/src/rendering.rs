@@ -35,8 +35,38 @@ pub struct OpacityScope {
 
 impl crate::Interpolatable for OpacityScope {}
 
+/// Depth of a flat surface as `z = x*a + y*b + c` in canvas-content coordinates.
+/// Positive depth is toward the default orthographic viewer. Coplanar surfaces
+/// retain paint order; a spatial back face reverses its planar layer stack.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct DepthPlane {
+    pub coefficients: [f64; 3],
+    pub backface: bool,
+}
+
+impl DepthPlane {
+    /// Evaluates camera-relative depth at a projected coordinate.
+    pub fn depth_at(self, x: f64, y: f64) -> f64 {
+        self.coefficients[0] * x + self.coefficients[1] * y + self.coefficients[2]
+    }
+
+    /// Stable back-to-front key for geometrically coincident paint. Larger authored
+    /// orders paint later on front faces and earlier on back faces. Opposing faces
+    /// at exactly the same depth put front-facing paint last, independently of the
+    /// authored index range. Renderers, occlusion masks, and picking share this tie.
+    pub fn coplanar_order(self, authored_order: i64) -> (bool, i64) {
+        (
+            !self.backface,
+            if self.backface { !authored_order } else { authored_order },
+        )
+    }
+}
+
 /// The drawing contract shared by Pax runtime backends.
 pub trait RenderContext {
+    /// Supplies retained planar depth for an orthographically projected node.
+    /// `None` restores the ordinary 2D plane. Called after beginning the node.
+    fn set_node_depth_plane(&mut self, _layer: usize, _node_id: u32, _plane: Option<DepthPlane>) {}
     /// Whether this session uses Pax's GPU renderer. This identifies the backend,
     /// not individual effect support or the presence of hardware acceleration.
     fn is_gpu(&self) -> bool {

@@ -435,14 +435,94 @@ still update autosized containers before the ancestor becomes visible again.
 [Events](event-handling-rust.md#events-and-coordinates) explains converting
 input positions through transformed geometry.
 
+### Rotating flat surfaces in 3D
+
+The experimental GPU spatial path adds `rotate_x`, `rotate_y`, and `translate_z`
+to ordinary elements and groups. No scene wrapper is required. Unspecified
+values are zero, so existing interfaces keep their 2D layout and paint order.
+`rotate` remains rotation around Z. Rectangle and Ellipse remain flat shapes;
+these properties do not extrude them into solids.
+
+```pax
+<Group width=320px height=180px x=50% y=50%
+    rotate_x=12deg rotate_y=-30deg translate_z=40px>
+    <Textbox x=20px y=70px width=280px height=40px text="Edit on a tilted surface"/>
+    <Rectangle width=100% height=100% fill=rgb(20, 125, 120)/>
+</Group>
+```
+
+Layout, percentages, padding, and anchors remain local to each element.
+Rotation uses the existing anchor. Scale/skew and the local `transform` act
+in the element's plane; the pose then applies X rotation, Y rotation, and
+`rotate` (Z rotation), followed by placement in the parent. `translate_z`
+moves along the **parent's** Z axis, in logical pixels. It accepts numbers or
+`px`, including expressions such as `{20px + offset}` with an absolute result;
+percent depth is not supported. Positive Z points toward the default viewer
+when the parent is unrotated. An ancestor's tilt also tilts its descendants'
+coordinate axes.
+
+The current scene view is orthographic. Tilt changes a surface's projected
+shape; changing Z alone does not change its size. Local layout dimensions stay
+unchanged, including when a surface is edge-on. Edge-on surfaces are not pointer
+targets. Non-finite spatial poses paint no area and keep their mounted state,
+so replacing the invalid value can restore the subtree.
+
+Geometric depth takes precedence over template order. When projected flat
+surfaces intersect, their front/back order can change across the intersection.
+Coplanar content retains Pax's earlier-sibling-on-top order. Rotating a shared
+group keeps its coplanar descendants together; independently tilting or moving
+a child out of that plane can separate it. On the back of a spatial surface,
+the coplanar layer stack reverses: an opaque background hides the labels and
+controls painted on its front. When opposite-facing surfaces coincide exactly, front-facing paint wins the
+tie. Surfaces have zero thickness in this checkpoint.
+
+A Frame remains a projected 2D aperture over its descendants. Its clip does
+not become a volume, and clipping does not flatten the descendants' depth.
+Native text and controls use their exact projected affine footprints and keep
+platform ownership through pose changes. The engine compares logical hit
+geometry at the pointer; it does not infer extra hit regions from shader pixels.
+See [Events and coordinates](event-handling-rust.md#events-and-coordinates).
+
+Try [Spatial Workbench](https://github.com/paxproject/pax/tree/dev/examples/fixtures/spatial-workbench)
+for crossing surfaces, live controls, child tilt, aperture clipping, group opacity,
+and back-face checks:
+
+```sh
+pax-cli run --path examples/fixtures/spatial-workbench --target web
+```
+
+This is a bounded first spatial implementation:
+
+- Depth composition is implemented by the GPU renderer within a logical canvas
+  layer. Distinct native/scroller surfaces retain their existing platform
+  stacking restrictions; arbitrary intersections between those layers are not
+  resolved. Native controls also retain the existing separate-opacity and
+  platform-popup limitations.
+- GPU canvas paint composes a contiguous group before applying its opacity.
+  If outside geometry interleaves between noncoplanar members of a translucent
+  group, the current compositor fades separate contiguous runs. General
+  whole-group transparency across that interleaving is not yet implemented.
+- CPU fallback projects the transforms but retains document paint order. It
+  emits a warning when spatial depth is requested; native occlusion and engine
+  targeting follow that same fallback order. Use the GPU renderer for this
+  example and for geometric depth.
+- Scene-camera selection, perspective presentation, solid primitives, spatial
+  clipping volumes, and transformed lighting normals are not enabled by these
+  properties. Shader containers and detached mask-source captures retain their
+  existing raster composition semantics.
+- Projected depth partitions are intended for modest numbers of intersecting
+  flat planes. Many mutually intersecting planes increase composition work;
+  this is not a mesh-scene renderer.
+
 ### Spatial math for engine integrations
 
 Rust integrations can use `pax_runtime_api::math::Transform3`, `Point3`, and
 `Plane3`, together with `pax_runtime_api::camera`, to project geometry and
-intersect a pointer ray with a transformed plane. These are low-level math
-utilities: template transforms, rendering, and native-control placement still
-use the existing 2D pipeline. Adding a spatial matrix in application code does
-not yet rotate a Pax element in 3D.
+intersect a pointer ray with a transformed plane. The runtime also retains
+local placement and unprojected world geometry separately from its 2D
+presentation. Use the common properties above to pose a live element. The
+camera module provides reusable projection and picking math; constructing a
+`Camera` in application code does not select a scene camera.
 
 `Transform3::from(transform_2d)` preserves the existing affine coefficients
 and leaves z unchanged. Matrices default to identity and compose as
@@ -474,6 +554,33 @@ See the [camera API](api/pax-runtime-api/camera.md) and
 [spatial math API](api/pax-runtime-api/math/spatial.md) for the checked constructors and
 coplanarity rules. These utilities run on native and WebAssembly targets;
 they do not establish 3D rendering support on either target.
+
+Engine integrations with a `NodeInterface` can inspect the retained geometry:
+
+```rust,ignore
+// `node` is a pax_runtime::node_interface::NodeInterface.
+let geometry = node.spatial_geometry().get();
+let world = geometry.world_transform();
+let plane = geometry.plane(); // None when the local x/y plane has collapsed.
+let local = node.local_transform_and_bounds().get();
+```
+
+These reactive properties are owned by the engine: subscribe to or inspect
+them, rather than replacing their bindings. Local placement includes parent
+padding and any frame assigned by a container. It remains available beneath
+a collapsed ancestor, and moving an ancestor does not recompute descendant
+local placement when its layout inputs and parent dimensions are unchanged.
+World geometry composes those local placements before projection. The current
+2D path keeps affine multiplication; full spatial matrices are retained when
+using `SpatialGeometry` directly in Rust.
+
+`SpatialGeometry::is_coplanar_with` compares geometric planes with explicit
+distance and angular tolerances. Opposite-facing planes can be coplanar;
+`plane()` preserves their distinct normals. Coplanarity alone does not grant
+permission to flatten across opacity, clipping, or paint-order boundaries.
+The retained geometry is in unscrolled scene coordinates; native scroll
+presentation is applied separately. See the
+[runtime spatial API](api/internal/pax-runtime/spatial.md).
 
 ## Multi-Axis Common Properties
 

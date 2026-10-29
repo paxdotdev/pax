@@ -845,6 +845,58 @@ mod tests {
     }
 
     #[test]
+    fn spatial_common_values_survive_rich_baked_and_rust_manifest_paths() -> BinaryResult<()> {
+        let mut manifest = build_manifest();
+        let component = manifest
+            .components
+            .get_mut(&manifest.main_component_type_id)
+            .unwrap();
+        let template = component.template.as_mut().unwrap();
+        let id = template
+            .get_root()
+            .into_iter()
+            .find(|id| template.get_node(id).unwrap().raw_comment_string.is_none())
+            .unwrap();
+        let mut node = template.get_node(&id).unwrap().clone();
+        let settings = [
+            (
+                "rotate_x",
+                PaxValue::Rotation(pax_runtime_api::Rotation::Degrees(25.into())),
+            ),
+            (
+                "rotate_y",
+                PaxValue::Rotation(pax_runtime_api::Rotation::Degrees((-40).into())),
+            ),
+            ("translate_z", PaxValue::Size(Size::Pixels(80.into()))),
+        ];
+        for (name, value) in &settings {
+            node.settings
+                .as_mut()
+                .unwrap()
+                .push(crate::SettingElement::Setting(
+                    Token::new((*name).into(), test_location()),
+                    ValueDefinition::LiteralValue(value.clone()),
+                ));
+        }
+        template.set_node(id, node);
+        let rich = crate::binary::from_slice(&crate::binary::to_vec(&manifest)?)?;
+        let ir = ProgramIR::from_manifest(&rich);
+        let decoded = super::binary::from_slice(&super::binary::to_vec(&ir)?)?;
+        let template = decoded.components[&decoded.main_component_type_id]
+            .template
+            .as_ref()
+            .unwrap();
+        let node = template.get_node(&template.get_root()[0]).unwrap();
+        for (name, value) in settings {
+            assert!(node.settings.as_ref().unwrap().iter().any(|setting| matches!(setting,
+                crate::SettingElement::Setting(key, ValueDefinition::LiteralValue(actual)) if key.token_value == name && *actual == value)));
+            #[cfg(feature = "compiler")]
+            assert!(crate::rust_manifest::to_rust_expression(&rich).contains(name));
+        }
+        Ok(())
+    }
+
+    #[test]
     fn program_ir_binary_round_trips() -> BinaryResult<()> {
         let manifest = build_manifest();
         let ir = ProgramIR::from_manifest(&manifest);

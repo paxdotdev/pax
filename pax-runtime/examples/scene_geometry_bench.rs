@@ -6,6 +6,7 @@
 mod scene_geometry;
 
 use kurbo::{Affine, Rect};
+use pax_runtime::{SpatialGeometry, TransformAndBounds};
 use scene_geometry::{CanvasGeometry, PreparedCanvasGeometry, SceneGeometry};
 #[path = "../tests/support/counting_allocator.rs"]
 mod counting_allocator;

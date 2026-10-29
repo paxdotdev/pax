@@ -148,6 +148,7 @@
     - [settings_motion](api/internal/pax-runtime/settings_motion.md)
     - [shader_effect](api/internal/pax-runtime/shader_effect.md)
     - [slot](api/internal/pax-runtime/slot.md)
+    - [spatial](api/internal/pax-runtime/spatial.md)
     - [viewport_proximity](api/internal/pax-runtime/viewport_proximity.md)
   - [pax-manifest](api/internal/pax-manifest/index.md)
     - [appearance](api/internal/pax-manifest/appearance.md)

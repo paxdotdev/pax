@@ -5,6 +5,7 @@ use effects::{EffectCapture, EffectNode, EffectRecording};
 mod lighting;
 mod opacity;
 mod source_capture;
+mod spatial;
 use crate::render_backend::stencil;
 use crate::render_backend::CpuBuffers;
 use crate::render_backend::RetainedImageDraw;
@@ -245,6 +246,9 @@ pub struct WgpuRenderer<'w> {
     render_backend: RenderBackend<'w>,
     scene: HashMap<u32, RetainedNode>,
     opacity_scopes: HashMap<u32, Vec<OpacityScope>>,
+    depth_planes: HashMap<u32, pax_runtime_api::DepthPlane>,
+    spatial_clip_keys: Vec<ClipArenaKey>,
+    spatial_region: Option<(usize, u64, u32)>,
     source_nodes: HashMap<u32, u32>,
     source_captures: HashMap<u32, SourceCapture>,
     source_recordings: Vec<SourceRecording>,
@@ -519,9 +523,9 @@ struct TransformArena {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct ClipArenaKey {
-    node_id: u32,
-    clip_index: u32,
+enum ClipArenaKey {
+    Node { node_id: u32, clip_index: u32 },
+    SpatialRegion(usize),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -565,10 +569,24 @@ impl ClipArena {
         geometry: VertexBuffers<stencil::Vertex, u16>,
         transform: Transform2D,
     ) -> Option<(ClipArenaKey, u32)> {
-        let key = ClipArenaKey {
-            node_id,
-            clip_index,
-        };
+        self.sync_key(
+            ClipArenaKey::Node {
+                node_id,
+                clip_index,
+            },
+            geometry_signature,
+            geometry,
+            transform,
+        )
+    }
+
+    fn sync_key(
+        &mut self,
+        key: ClipArenaKey,
+        geometry_signature: u64,
+        geometry: VertexBuffers<stencil::Vertex, u16>,
+        transform: Transform2D,
+    ) -> Option<(ClipArenaKey, u32)> {
         let clip_id = if let Some(clip_id) = self.key_to_id.get(&key).copied() {
             clip_id
         } else {
@@ -719,6 +737,9 @@ impl<'w> WgpuRenderer<'w> {
             tolerance: DEFAULT_TESSELLATION_TOLERANCE, // TODO expose as option
             scene: HashMap::new(),
             opacity_scopes: HashMap::new(),
+            depth_planes: HashMap::new(),
+            spatial_clip_keys: Vec::new(),
+            spatial_region: None,
             source_nodes: HashMap::new(),
             source_captures: HashMap::new(),
             source_recordings: Vec::new(),
@@ -811,6 +832,9 @@ impl<'w> WgpuRenderer<'w> {
         self.scene.clear();
         self.lighting_dependencies = None;
         self.opacity_scopes.clear();
+        self.depth_planes.clear();
+        self.spatial_clip_keys.clear();
+        self.spatial_region = None;
         self.source_nodes.clear();
         self.source_captures.clear();
         self.source_recordings.clear();
@@ -1217,12 +1241,16 @@ impl<'w> WgpuRenderer<'w> {
         let mut active = source_capture_keys;
         #[cfg(feature = "shaders")]
         active.extend(self.render_effects());
-        let plan = self.opacity_plan();
-        collect_opacity_group_keys(&plan, &mut active);
-        self.draw_opacity_plan(&plan);
+        self.draw_spatial_scene(&mut active);
         self.render_backend.retain_captures(&active);
-        let (active_clip_signatures, active_clip_ids) =
+        let (mut active_clip_signatures, mut active_clip_ids) =
             collect_active_clip_resources(&self.scene, &self.clip_arena);
+        for key in &self.spatial_clip_keys {
+            if let Some(id) = self.clip_arena.key_to_id.get(key) {
+                active_clip_ids.insert(*id);
+                active_clip_signatures.insert(self.clip_arena.entries[id].geometry_signature);
+            }
+        }
         self.render_backend
             .retain_stencil_resources(&active_clip_signatures, &active_clip_ids);
         self.finish_backend_frame(defer_submit);
@@ -1247,8 +1275,12 @@ impl<'w> WgpuRenderer<'w> {
                 continue;
             }
             self.resource_churn_stats.retained_nodes_visible += 1;
+            let mut effective_clips = node.clip_stack().to_vec();
+            if let Some((_, _, clip_id)) = self.spatial_region {
+                effective_clips.push(ClipReference::Stencil { clip_id });
+            }
             if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
-                if !clip_stacks_match(batch_clip_stack, node.clip_stack()) {
+                if !clip_stacks_match(batch_clip_stack, &effective_clips) {
                     sync_retained_clip_stack(
                         &mut self.render_backend,
                         &mut retained_runs,
@@ -1267,10 +1299,10 @@ impl<'w> WgpuRenderer<'w> {
                             draws: std::mem::take(&mut current_batch),
                         });
                     }
-                    current_batch_clip_stack = Some(node.clip_stack().to_vec());
+                    current_batch_clip_stack = Some(effective_clips.clone());
                 }
             } else {
-                current_batch_clip_stack = Some(node.clip_stack().to_vec());
+                current_batch_clip_stack = Some(effective_clips.clone());
             }
             match node {
                 #[cfg(feature = "shaders")]
@@ -1891,6 +1923,7 @@ impl<'w> WgpuRenderer<'w> {
         }
         self.source_nodes.remove(&node_id);
         self.opacity_scopes.remove(&node_id);
+        self.depth_planes.remove(&node_id);
         let mut removed = false;
         if let Some(node) = self.scene.remove(&node_id) {
             self.lighting_dependencies = None;
@@ -1925,7 +1958,8 @@ impl<'w> WgpuRenderer<'w> {
         // A retained mesh draw binds its own page, including every crossfade endpoint.
         // The concatenating fast path has one binding for the entire scene; use the
         // ordinary ordered retained draws whenever pages are present.
-        self.source_captures.is_empty()
+        self.depth_planes.is_empty()
+            && self.source_captures.is_empty()
             && self.scene.values().all(|node| !matches!(node, RetainedNode::Vector(node) if !node.buffers.mesh_paints.is_empty()))
             && self.opacity_scopes.values().all(Vec::is_empty)
             && self.scene.len() >= 64
@@ -2153,8 +2187,14 @@ impl<'w> WgpuRenderer<'w> {
             self.render_backend.render_primitive_batches(&mut batches);
         }
 
-        let (active_clip_signatures, active_clip_ids) =
+        let (mut active_clip_signatures, mut active_clip_ids) =
             collect_active_clip_resources(&self.scene, &self.clip_arena);
+        for key in &self.spatial_clip_keys {
+            if let Some(id) = self.clip_arena.key_to_id.get(key) {
+                active_clip_ids.insert(*id);
+                active_clip_signatures.insert(self.clip_arena.entries[id].geometry_signature);
+            }
+        }
         self.render_backend
             .retain_stencil_resources(&active_clip_signatures, &active_clip_ids);
         self.finish_backend_frame(defer_submit);

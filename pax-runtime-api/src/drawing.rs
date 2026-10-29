@@ -340,11 +340,11 @@ impl Hash for Paint {
     }
 }
 
-/// Logical scene depth for lighting calculations.
+/// Logical scene depth for spatial transforms and lighting calculations.
 ///
 /// `Depth` is expressed in logical pixels. Unlike [`Size`], it is not anchored
-/// to a viewport or parent box, so percent and combined units are intentionally
-/// rejected during value coercion.
+/// to a viewport or parent box. Percentage contributions are rejected during
+/// coercion; a combined size with zero percent (such as `10px + 20px`) is accepted.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Default, PartialEq, PartialOrd)]
 #[serde(crate = "crate::serde")]
 pub struct Depth(pub Numeric);

@@ -423,6 +423,46 @@ fn project_axis_range(min: f64, max: f64, scale: f64, translate: f64) -> (f64, f
 
 /// Resolve one set of layout properties into concrete bounds and a window-space transform.
 pub fn calculate_transform_and_bounds(
+    layout: &LayoutProperties,
+    container: TransformAndBounds<NodeLocal, Window>,
+) -> TransformAndBounds<NodeLocal, Window> {
+    let (parts, anchor, bounds) = resolve_layout_transform(layout, container.bounds);
+    let combined: Transform2<NodeLocal, NodeLocal> = parts.into();
+    TransformAndBounds {
+        transform: container.transform * combined * Transform2::translate(anchor),
+        bounds,
+    }
+}
+
+// Spatial rotations belong between z rotation and local scale/skew. Resolve
+// anchors once for both paths; percentage positioning retains its 2D meaning.
+pub(crate) fn calculate_spatial_transform(
+    layout: &LayoutProperties,
+    container: TransformAndBounds<NodeLocal, Window>,
+    rotate_x: f64,
+    rotate_y: f64,
+    translate_z: f64,
+) -> pax_runtime_api::math::Transform3<NodeLocal, NodeLocal> {
+    use pax_runtime_api::math::{Transform3, Vector3};
+    let (parts, anchor, _) = resolve_layout_transform(layout, container.bounds);
+    let rotation = parts.rotation;
+    let origin = parts.origin;
+    let scale_skew: Transform2<NodeLocal, NodeLocal> = TransformParts {
+        origin: Vector2::new(0., 0.),
+        rotation: 0.,
+        ..parts
+    }
+    .into();
+    Transform3::from(container.transform.cast_spaces::<NodeLocal, NodeLocal>())
+        * Transform3::<NodeLocal>::translate(Vector3::new(origin.x, origin.y, translate_z))
+        * Transform3::<NodeLocal>::rotate_z(rotation)
+        * Transform3::<NodeLocal>::rotate_y(rotate_y)
+        * Transform3::<NodeLocal>::rotate_x(rotate_x)
+        * Transform3::from(scale_skew)
+        * Transform3::translate(Vector3::new(anchor.x, anchor.y, 0.))
+}
+
+fn resolve_layout_transform(
     LayoutProperties {
         width,
         height,
@@ -436,25 +476,15 @@ pub fn calculate_transform_and_bounds(
         skew_x,
         skew_y,
     }: &LayoutProperties,
-    TransformAndBounds {
-        transform: container_transform,
-        bounds: container_bounds,
-    }: TransformAndBounds<NodeLocal, Window>,
-) -> TransformAndBounds<NodeLocal, Window> {
+    container_bounds: (f64, f64),
+) -> (TransformParts, Vector2<NodeLocal>, (f64, f64)) {
     let x = x.unwrap_or(Size::ZERO());
     let y = y.unwrap_or(Size::ZERO());
-    let width = width
-        .map(|v| v.evaluate(container_bounds, Axis::X))
-        .unwrap_or(container_bounds.0);
-    let height = height
-        .map(|v| v.evaluate(container_bounds, Axis::Y))
-        .unwrap_or(container_bounds.1);
+    let bounds = resolve_layout_bounds(*width, *height, container_bounds);
     let origin = Vector2::new(
         x.evaluate(container_bounds, Axis::X),
         y.evaluate(container_bounds, Axis::Y),
     );
-
-    let bounds = (width, height);
 
     // Anchor behavior:  if no anchor is specified and if x/y values are present
     // and have an explicit percent value or component, use those percent values (clamp 100% and 0%)
@@ -485,10 +515,10 @@ pub fn calculate_transform_and_bounds(
         }
     });
 
-    let anchor_transform = Transform2::translate(Vector2::new(
+    let anchor = Vector2::new(
         -anchor_x.evaluate(bounds, Axis::X),
         -anchor_y.evaluate(bounds, Axis::Y),
-    ));
+    );
 
     let scale = Vector2::new(
         scale_x
@@ -515,12 +545,22 @@ pub fn calculate_transform_and_bounds(
         rotation,
     };
 
-    let combined_transform: Transform2<NodeLocal, NodeLocal> = parts.into();
+    (parts, anchor, bounds)
+}
 
-    TransformAndBounds {
-        transform: container_transform * combined_transform * anchor_transform,
-        bounds,
-    }
+pub(crate) fn resolve_layout_bounds(
+    width: Option<Size>,
+    height: Option<Size>,
+    container_bounds: (f64, f64),
+) -> (f64, f64) {
+    (
+        width
+            .map(|v| v.evaluate(container_bounds, Axis::X))
+            .unwrap_or(container_bounds.0),
+        height
+            .map(|v| v.evaluate(container_bounds, Axis::Y))
+            .unwrap_or(container_bounds.1),
+    )
 }
 
 impl<F: Space, T: Space> Interpolatable for TransformAndBounds<F, T> {

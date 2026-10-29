@@ -46,6 +46,12 @@ Type: `Affine`
 
 Layout transform in unscrolled scene coordinates, shared with viewport observation.
 
+##### `spatial_geometry`
+Type: [`SpatialGeometry`](../../../api/internal/pax-runtime/spatial.md#spatialgeometry)
+
+Unprojected geometry used to inspect depth and geometric coplanarity.
+Kept separate from canvas ownership and logical opacity scopes.
+
 ##### `layer`
 Type: `usize`
 

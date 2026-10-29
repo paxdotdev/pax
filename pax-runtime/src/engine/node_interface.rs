@@ -128,6 +128,22 @@ impl NodeInterface {
         self.inner.transform_and_bounds.clone()
     }
 
+    /// Engine-owned placement relative to the render parent, before projection.
+    /// Includes parent padding, a container-assigned frame, and authored layout.
+    /// Inspect or subscribe to this property; do not replace its engine binding.
+    pub fn local_transform_and_bounds(
+        &self,
+    ) -> LocalProperty<TransformAndBounds<NodeLocal, NodeLocal>> {
+        self.inner.local_transform_and_bounds.clone()
+    }
+
+    /// Engine-owned unprojected geometry, in unscrolled world coordinates.
+    /// Inspect or subscribe to this property; do not replace its engine binding.
+    /// This does not enable template-level spatial transforms or depth ordering.
+    pub fn spatial_geometry(&self) -> LocalProperty<crate::SpatialGeometry> {
+        self.inner.spatial_geometry.clone()
+    }
+
     /// Parent in render traversal order.
     pub fn render_parent(&self) -> Option<NodeInterface> {
         let parent = borrow!(self.inner.render_parent);

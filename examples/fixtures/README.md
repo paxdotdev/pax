@@ -53,6 +53,7 @@ accepts `fixtures/<name>` and `examples/fixtures/<name>`.
 | Example | Purpose |
 | --- | --- |
 | [text-bodies](text-bodies) | Scalar body, raw-string, formatter, hot reload and native text regression |
+| [spatial-workbench](spatial-workbench) | Experimental orthographic 3D: rotating native controls, intersecting planes, clipping and depth |
 | [architecture-diagram](architecture-diagram) | Engine architecture reference and diagram export tool |
 | [async-workbench](async-workbench) | Async ownership, cancellation, startup and embedding probe |
 | [group-compositing](group-compositing) | Mixed native/canvas group opacity acceptance fixture |
