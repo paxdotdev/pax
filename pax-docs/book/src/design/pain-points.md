@@ -1399,3 +1399,21 @@ Coordinating lifecycle entry with native presentation readiness remains open.
 - 2026-10-30 (PAX-1054): Putting a transferred interactive logo inside a Link caused the Link's `_link_raycast_ignore` rectangle to win hit-testing over the visitor's own hit area (`pax-cli dev ray-cast --x 82 --y 35`). Expected the logo's handler to run; observed only Link navigation. The website now uses a plain destination Group and a separate Link for its fallback brand. Moves preserve declaration/event ancestry, so the visitor handles navigation itself.
 
 - 2026-10-31 — Website smoke test after rebasing PAX-1054 onto `a145dda77`: the debug two-payload build succeeds, but the browser's loading screen reports “Unable to load application.” Temporary console instrumentation in the generated `pax-split-loader.js` exposed `RangeError: WebAssembly.Instance is disallowed on the main thread, if the buffer size is larger than 8MB`. Reproduce with the website's `loader = true`, the qualified splitter and matching wasm-bindgen 0.2.129, then open the debug build in the in-app browser. Main's `createSplitLoader` installs the compiled application synchronously to protect its cancellation contract; supporting large payloads needs an installation/cancellation design that permits asynchronous instantiation. No runtime workaround applied; temporary instrumentation removed.
+- 2026-10-29 — PAX-1053 inspection at `de7e1c095` reproduced the October 7
+  stale-CLI finding: documented `pax-cli dev --help` fails because the PATH
+  executable `/Users/zack/.cargo/bin/pax-cli` is still 0.38.2, while this
+  checkout is 0.39.1. Build and invoke this worktree's CLI for the shader
+  preview; do not use the installed binary to assess current capabilities.
+
+- 2026-10-29 — PAX-1053's first web build produced no progress output while
+  preparing the interface dependencies under restricted network access. A
+  process sample showed `ensure_default_web_interface_bundle` waiting for its
+  child command. Retrying with dependency-network access completed setup;
+  subsequent builds reused it. Expected the pending setup stage to be visible.
+
+- 2026-10-29 — In the Corona fixture, an attempted `Math::round(value)` helper
+  compiled as an enum constructor instead of reporting an unknown function.
+  String labels then became `0.00%`, with browser warnings containing
+  `Enum(("Math", "round", ...))`. Replaced the unsupported helper with direct
+  numeric interpolation. No language change; earlier validation would make this
+  authoring mistake easier to identify.

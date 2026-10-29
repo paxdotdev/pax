@@ -1,0 +1,25 @@
+[package]
+name = "logo-corona"
+version = "0.39.1"
+edition = "2021"
+publish = false
+default-run = "logo-corona"
+
+[package.metadata.pax]
+title = "Pax / Corona"
+
+[dependencies]
+pax-kit = { path = "../../../pax-kit", version = "0.39.1", features = ["shaders"] }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "logo-corona"
+path = "src/main.rs"
+required-features = ["standalone"]

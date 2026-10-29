@@ -44,6 +44,21 @@ class ExampleLayoutTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Duplicate example name"):
                 sync_docs.snapshot(root)
 
+    def test_snapshot_preserves_embedded_shader_dependencies(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "examples/fixtures/probe/src"
+            source.mkdir(parents=True)
+            (source.parent / "Cargo.toml").write_text("[package]\n")
+            (source / "lib.rs").write_text('const SHADER: &str = include_str!("effect.wgsl");\n')
+            shader = "fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p); }\n"
+            (source / "effect.wgsl").write_text(shader)
+            (source.parent / ".pax").mkdir()
+            (source.parent / ".pax/generated.wgsl").write_text("// build output\n")
+            files = json.loads(sync_docs.snapshot(root))["files"]
+            self.assertEqual(files["examples/fixtures/probe/src/effect.wgsl"], shader)
+            self.assertNotIn("examples/fixtures/probe/.pax/generated.wgsl", files)
+
     def test_scaffold_registers_fixture_and_explicit_showcase(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

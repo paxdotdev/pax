@@ -38,7 +38,7 @@ def snapshot(workspace):
                 path = Path(directory) / name
                 if path.is_symlink():
                     continue
-                if path != example / "Cargo.toml" and path.suffix not in {".rs", ".pax"}:
+                if path != example / "Cargo.toml" and path.suffix not in {".rs", ".pax", ".wgsl"}:
                     continue
                 files[path.relative_to(workspace).as_posix()] = path.read_bytes().decode("utf-8")
     if not files:

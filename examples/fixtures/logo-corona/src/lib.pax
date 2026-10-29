@@ -1,0 +1,94 @@
+if @gpu {
+    <Group width=0px height=0px @tick=self.animate/>
+}
+<Scroller width=100% height=100% autosize=true>
+    <Stacker width=100% autosize=true gutter=14px>
+        <Group height=20px width=100%/>
+        <Text x=50% anchor_x=50% width={(self.panel_width)px} height=20px text="PAX / SHADER STUDIES / 02" class="eyebrow"/>
+        <Text x=50% anchor_x=50% width={(self.panel_width)px} height=54px text="Corona" class="title"/>
+        <Text x=50% anchor_x=50% width={(self.panel_width)px} height=40px text="A moving field. A familiar stencil. Light beyond the edge." class="copy"/>
+
+        <Group id=stage width=100% height={(self.stage_height)px} @viewport_proximity_change=self.visibility>
+            if self.compare && !self.small {
+                <Text x=25% y={100% - 30px} anchor_x=50% width=240px height=22px text="01 / PLAIN" class="caption"/>
+                <Group x=25% y=50% anchor=50% width={(self.logo_width)px} height={(self.logo_width * 463.95 / 920.72)px}>
+                    <Group width=920.72px height=463.95px scale={(self.logo_width / 920.72 * 100)%} layout_role=LayoutRole::Breakout>
+                        <AnimatedPaxLogo width=920.72px height=463.95px progress={self.progress} click_to_replay=false
+                            background_mode={self.dark ? LogoBackgroundMode::Dark : LogoBackgroundMode::Light}
+                            fill=rgb(10,12,16) letter_fill=rgb(248,248,245)/>
+                    </Group>
+                </Group>
+            }
+            <Text x={self.compare && !self.small ? 75% : 50%} y={100% - 30px} anchor_x=50% width=280px height=22px
+                text={self.treated ? "02 / CORONA" : "02 / PLAIN"} class="caption"/>
+            <Group x={self.compare && !self.small ? 75% : 50%} y=50% anchor=50% width={(self.logo_width)px} height={(self.logo_width * 463.95 / 920.72)px}>
+                <Group width=920.72px height=463.95px scale={(self.logo_width / 920.72 * 100)%} layout_role=LayoutRole::Breakout>
+                    <Corona width=920.72px height=463.95px phase={self.phase}
+                        emission={self.treated ? self.emission : 0.0} reach={self.reach} amplitude={self.amplitude}
+                        falloff={self.falloff} surface={self.treated ? self.surface : 0.0}
+                        foreground={self.dark ? rgb(248,248,245) : rgb(10,12,16)}
+                        background={self.dark ? rgb(10,12,16) : rgb(248,248,245)}>
+                        <AnimatedPaxLogo width=920.72px height=463.95px progress={self.progress} click_to_replay=false
+                            background_mode={self.dark ? LogoBackgroundMode::Dark : LogoBackgroundMode::Light}
+                            fill=rgb(10,12,16) letter_fill=rgb(248,248,245)/>
+                    </Corona>
+                </Group>
+            </Group>
+        </Group>
+
+        <Stacker x=50% anchor_x=50% width={(self.panel_width)px} autosize=true gutter=18px>
+            <Group width=100% height={self.small ? 88px : 38px}>
+                <Button class="button" width={self.small ? 48% : 23%} label={self.playing ? "Pause corona" : "Resume corona"} @button_click=self.pause/>
+                <Button class="button" x={self.small ? 52% : 25.5%} width={self.small ? 48% : 23%} label="Replay stencil" @button_click=self.replay/>
+                <Button class="button" x={self.small ? 0% : 51%} y={self.small ? 48px : 0px} width={self.small ? 48% : 23%} label={self.dark ? "Black on light" : "Light on dark"} @button_click=self.theme/>
+                <Button class="button" x={self.small ? 52% : 76.5%} y={self.small ? 48px : 0px} width={self.small ? 48% : 23%} label={self.treated ? "Show plain (A/B)" : "Show corona (A/B)"} @button_click=self.treatment/>
+            </Group>
+            <Group width=100% height=56px>
+                <Text width=100% height=20px text="REVEAL / SCRUB THE ORIGINAL CHOREOGRAPHY" class="eyebrow"/>
+                <Slider id=progress y=28px width=100% height=24px value=bind:progress min=0.0 max=1.0 step=0.001 class="slider" @slider_change=self.scrub/>
+            </Group>
+            <Group width=100% height=38px>
+                <Button class="button" width=31% label="Conspicuous" @button_click=self.bold/>
+                <Button class="button" x=34.5% width=31% label="Restrained" @button_click=self.quiet/>
+                <Button class="button" x=69% width=31% label={self.compare ? "Large view" : "Compare"} @button_click=self.comparison/>
+            </Group>
+            <Group width=100% height=56px>
+                <Text width=48% height=20px text={"Emission / " + self.emission} class="copy"/>
+                <Slider id=emission y=28px width=48% height=24px value=bind:emission min=0.0 max=1.0 step=0.01 class="slider"/>
+                <Text x=52% anchor_x=0% width=48% height=20px text={"Reach / " + self.reach} class="copy"/>
+                <Slider id=reach x=52% anchor_x=0% y=28px width=48% height=24px value=bind:reach min=0.0 max=120.0 step=1.0 class="slider"/>
+            </Group>
+            <Group width=100% height=56px>
+                <Text width=48% height=20px text={"Flare amplitude / " + self.amplitude} class="copy"/>
+                <Slider id=amplitude y=28px width=48% height=24px value=bind:amplitude min=0.0 max=1.0 step=0.01 class="slider"/>
+                <Text x=52% anchor_x=0% width=48% height=20px text={"Falloff / " + self.falloff} class="copy"/>
+                <Slider id=falloff x=52% anchor_x=0% y=28px width=48% height=24px value=bind:falloff min=0.5 max=5.0 step=0.1 class="slider"/>
+            </Group>
+            <Group width=100% height=56px>
+                <Text width=48% height=20px text={"Motion / " + self.speed + "x"} class="copy"/>
+                <Slider id=speed y=28px width=48% height=24px value=bind:speed min=0.0 max=2.0 step=0.05 class="slider"/>
+                <Text x=52% anchor_x=0% width=48% height=20px text={"Surface / " + self.surface} class="copy"/>
+                <Slider id=surface x=52% anchor_x=0% y=28px width=48% height=24px value=bind:surface min=0.0 max=0.35 step=0.01 class="slider"/>
+            </Group>
+            <Text width=100% height=46px text={@gpu ? "WebGPU / live corona. The source logo and reveal are unchanged." : "CPU / plain-logo fallback. Corona requires WebGPU."} class="copy"/>
+            <Group width=100% height=30px/>
+        </Stacker>
+    </Stacker>
+</Scroller>
+<Rectangle width=100% height=100% fill={self.dark ? rgb(10,12,16) : rgb(248,248,245)}/>
+
+@settings {
+    @mount: mount
+    @tick: tick
+    .title { style: { font: "Georgia", font_size: 46px, fill: {self.dark ? rgb(248,248,245) : rgb(10,12,16)} } }
+    .eyebrow { style: { font: "Arial", font_size: 11px, fill: {self.dark ? rgb(153,158,169) : rgb(88,92,100)} } }
+    .copy { style: { font: "Arial", font_size: 13px, fill: {self.dark ? rgb(153,158,169) : rgb(88,92,100)} } }
+    .caption { style: { font: "Arial", font_size: 11px, fill: {self.dark ? rgb(153,158,169) : rgb(88,92,100)}, align_horizontal: TextAlignHorizontal::Center } }
+    .slider { accent: {self.dark ? rgb(221,224,229) : rgb(30,33,40)}, background: {self.dark ? rgb(45,49,58) : rgb(210,212,217)}, corner_radius: 12.0 }
+    .button {
+        height: 36px, anchor_x: 0%, anchor_y: 0%,
+        color: {self.dark ? rgb(35,38,46) : rgb(225,226,230)},
+        hover_color: {self.dark ? rgb(53,57,66) : rgb(208,211,217)},
+        style: { font: "Arial", font_size: 12px, fill: {self.dark ? rgb(248,248,245) : rgb(10,12,16)}, align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center }
+    }
+}

@@ -635,6 +635,16 @@ For a settled drawing without animation masks or click behavior, use
 `StaticPaxLogo` with the same size and palette properties. The `pax-logo` starter
 owns only the surrounding scene and controls; no example-crate dependency is needed.
 
+The separate `logo-corona` fixture explores a monochrome shader treatment around
+the same animated logo. It keeps the corona's periodic phase independent of
+`progress`, so pausing the field does not prevent replay or scrubbing. Its
+example-owned `Corona` primitive supports light and dark palettes. Rays spread
+from the foreground-colored aperture, including its internal letter boundaries.
+WGPU renders the effect and CPU retains the plain source logo. Run
+`pax-cli run --path examples/fixtures/logo-corona --target web` from the repository
+to compare them. See [shader containers](compositing-effects.md#experimental-shader-containers)
+for feature flags, capture boundaries, and native-overlap limits.
+
 For handwriting or a drawn-line reveal, animate `draw_start` and
 `draw_end` on Path or Handwriter. Drawing owns the
 [path geometry and reveal limits](drawing-styling.md#paths-and-svg);
