@@ -51,7 +51,8 @@ The animated hero logo remains inside the native page scroller, with its own
 playhead and click replay. `LogoHome` measures its bounds; explicit bindings
 carry its bottom edge and the observed page scroll offset into `SiteShell`.
 The entire nav—static logo, links, CTA, and background—shares one fade playhead.
-Its separate logo instance holds `progress=1` with replay disabled. The nav fades
+Its separate `StaticPaxLogo` uses the animation's settled geometry without mounting
+animation timelines or masks when the nav first appears. The nav fades
 in over 500ms once the hero logo is 128px past the nav's bottom edge, and fades out
 over 450ms when that clearance returns to 96px. Both fades ease gently
 at their start and finish; the earlier exit leaves time for the longer fade.

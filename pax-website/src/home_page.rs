@@ -121,6 +121,12 @@ impl HomePage {
             code: include_str!("hero_outlines_data.rs").into(),
         });
         hero_sources.extend(section_sources(
+            "pax-std/src/drawing/pax_logo/static_pax_logo.pax",
+            include_str!("../../pax-std/src/drawing/pax_logo/static_pax_logo.pax"),
+            "pax-std/src/drawing/pax_logo/static_pax_logo.rs",
+            include_str!("../../pax-std/src/drawing/pax_logo/static_pax_logo.rs"),
+        ));
+        hero_sources.extend(section_sources(
             "pax-std/src/drawing/pax_logo/animated_pax_logo.pax",
             include_str!("../../pax-std/src/drawing/pax_logo/animated_pax_logo.pax"),
             "pax-std/src/drawing/pax_logo/animated_pax_logo.rs",

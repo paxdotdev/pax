@@ -42,3 +42,19 @@ impl LogoHome {
 #[pax]
 #[file("nav_logo.pax")]
 pub struct NavLogo {}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn scroll_revealed_nav_uses_settled_geometry_without_animation_masks() {
+        // Mounting the animated logo's clips at the scroll threshold forces a
+        // full-page coverage rebuild, even when its playhead is held at one.
+        let nav = include_str!("nav_logo.pax");
+        assert!(nav.contains("<StaticPaxLogo"));
+        assert!(!nav.contains("<AnimatedPaxLogo"));
+        // Only the nav is static; the hero must retain its reveal and replay.
+        let hero = include_str!("hero_section.pax");
+        assert!(hero.contains("<AnimatedPaxLogo"));
+        assert!(hero.contains("click_to_replay=true"));
+    }
+}

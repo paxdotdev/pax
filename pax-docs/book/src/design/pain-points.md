@@ -16,6 +16,16 @@ Last triaged: 2026-10-05 — [PAX-972](https://linear.app/paxdev/issue/PAX-972/p
 
 ## Untriaged findings
 
+- 2026-10-28, website first-scroll profiling: mounting a frozen
+  `AnimatedPaxLogo progress=1` in the revealed navigation adds three Mask clip
+  boundaries and falls back to a whole-page occlusion rebuild. At 1800×1043 in
+  release Chrome, coverage alone took 47–49 ms; replacing that nav instance with
+  `StaticPaxLogo` retained over 5,700 unchanged nodes and reduced coverage to
+  2.8–3.4 ms. Reproduce by loading the homepage and scrolling until the nav
+  appears (or hiding/revealing it again). The website workaround preserves the
+  hero animation; incremental reconciliation of newly mounted clip subtrees
+  remains a possible engine improvement, not implemented here.
+
 - 2026-10-25, PAX-1047 modal capture: `pax-cli dev look` of the oscilloscope's
   open message editor omits the dark native `EventBlocker` backdrop and puts
   the native OK label at the button's left edge. Expected the same image as
