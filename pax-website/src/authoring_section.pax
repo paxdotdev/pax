@@ -4,41 +4,35 @@
     </ImportSettings>
     <Stacker id=authoring_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=40px>
         <Stacker width={self.compact ? 100% : 82%} autosize=true gutter=24px>
-            <Text class="editorial_kicker" width=100% text="WHY A LANGUAGE? / COMMON GROUND"/>
-            <Text class="editorial_title" width=100% text="A playground for your mind.
-And artificial minds."/>
-            <Text class="editorial_lead" width=100%
-                text="Give an idea a form you can think with. Pax lets you express an interface in a compact, declarative language—something you and a coding agent can read, reshape, and bring to life together."/>
-            <Text class="editorial_body" width=100%
-                text="Structure, layout, style, motion, and relationships between values are expressed directly, in one declarative layer. Describe how the pieces fit together; let the runtime keep them connected. Rust owns application state, logic, and side effects."/>
+            <Text class="editorial_kicker" width=100%>WHY A LANGUAGE? / COMMON GROUND</Text>
+            <Text class="editorial_title" width=100%>{r"A playground for your mind.
+And artificial minds."}</Text>
+            <Text class="editorial_lead" width=100%>Give an idea a form you can think with. Pax lets you express an interface in a compact, declarative language—something you and a coding agent can read, reshape, and bring to life together.</Text>
+            <Text class="editorial_body" width=100%>Structure, layout, style, motion, and relationships between values are expressed directly, in one declarative layer. Describe how the pieces fit together; let the runtime keep them connected. Rust owns application state, logic, and side effects.</Text>
         </Stacker>
         <SharedDefinitionDemo width=100% height={self.compact ? 680px : 360px} compact={self.compact}/>
         <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=32px
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}>
             <Stacker width=100% autosize=true gutter=12px>
-                <Text class="editorial_kicker" width=100% text="01 / MAKE INTENT INSPECTABLE"/>
-                <Text class="editorial_subtitle" width=100% text="A contract you can point to."/>
-                <Text class="editorial_body" width=100%
-                    text="A proposed interface becomes something concrete to review—not just an agent's explanation of what it intends to build. Read the definition, question a relationship, and agree on what to change."/>
+                <Text class="editorial_kicker" width=100%>01 / MAKE INTENT INSPECTABLE</Text>
+                <Text class="editorial_subtitle" width=100%>A contract you can point to.</Text>
+                <Text class="editorial_body" width=100%>A proposed interface becomes something concrete to review—not just an agent's explanation of what it intends to build. Read the definition, question a relationship, and agree on what to change.</Text>
             </Stacker>
             <Stacker width=100% autosize=true gutter=12px>
-                <Text class="editorial_kicker" width=100% text="02 / CLOSE THE LOOP"/>
-                <Text class="editorial_subtitle" width=100% text="Try an idea. See what happens."/>
-                <Text class="editorial_body" width=100%
-                    text="Run the interface, inspect the scene, and try an interaction. Revise the same definition as your idea takes shape. Pax's hot reload and developer tools make that feedback loop available to people and coding agents alike."/>
+                <Text class="editorial_kicker" width=100%>02 / CLOSE THE LOOP</Text>
+                <Text class="editorial_subtitle" width=100%>Try an idea. See what happens.</Text>
+                <Text class="editorial_body" width=100%>Run the interface, inspect the scene, and try an interaction. Revise the same definition as your idea takes shape. Pax's hot reload and developer tools make that feedback loop available to people and coding agents alike.</Text>
             </Stacker>
         </Stacker>
         <Stacker width={self.compact ? 100% : 82%} autosize=true gutter=14px>
-            <Text class="editorial_note" width=100%
-                text="An explicit definition is common ground, not a proof of correctness. Application behavior still depends on Rust logic, and the result still needs testing. Template hot reload runs in debug CLI sessions; Rust changes require a rebuild."/>
+            <Text class="editorial_note" width=100%>An explicit definition is common ground, not a proof of correctness. Application behavior still depends on Rust logic, and the result still needs testing. Template hot reload runs in debug CLI sessions; Rust changes require a rebuild.</Text>
             <Rectangle class="site_rule" width=100% height=1px/>
-            <Text class="editorial_kicker" width=100% text="WHERE THIS COULD LEAD"/>
-            <Text class="editorial_subtitle" width=100% text="A shared scratchpad for visual thinking."/>
-            <Text class="editorial_body" width=100%
-                text="We believe the right language can be a creative meeting place for people and machines: expressive enough to explore an idea, structured enough to inspect and revise it. We're building toward a shared visual scratchpad, grounded in the declarative language and runtime you can use today."/>
+            <Text class="editorial_kicker" width=100%>WHERE THIS COULD LEAD</Text>
+            <Text class="editorial_subtitle" width=100%>A shared scratchpad for visual thinking.</Text>
+            <Text class="editorial_body" width=100%>We believe the right language can be a creative meeting place for people and machines: expressive enough to explore an idea, structured enough to inspect and revise it. We're building toward a shared visual scratchpad, grounded in the declarative language and runtime you can use today.</Text>
         </Stacker>
         <Link width=100% height=28px url="https://docs.pax.dev/template-language/" target=Target::New>
-            <Text class="editorial_link" width=100% text="EXPLORE THE LANGUAGE →"/>
+            <Text class="editorial_link" width=100%>EXPLORE THE LANGUAGE →</Text>
         </Link>
     </Stacker>
     <Rectangle class="site_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 40px) : 88%} height=1px/>

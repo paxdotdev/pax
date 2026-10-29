@@ -37,9 +37,7 @@ tick-driven updates; the frame-based movement is specific to this example.
 The panel's button names the method to call when it is activated:
 
 ```pax
-<Button x=24px y=76px width=160px height=28px
-    label="Advance" @button_click=self.advance
-/>
+<Button x=24px y=76px width=160px height=28px @button_click=self.advance>Advance</Button>
 ```
 
 The corresponding method lives in `impl Notes`:
@@ -283,7 +281,7 @@ Lifecycle bindings also work inline on a child element:
 
 ```pax
 <Group width=100% height=120px @mount=self.panel_mount>
-    <Text text={self.title} width=100% height=100% />
+    <Text width=100% height=100%>{self.title}</Text>
 </Group>
 ```
 

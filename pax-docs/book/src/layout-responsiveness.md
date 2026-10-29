@@ -191,9 +191,8 @@ available to children while leaving the node's outer bounds in place.
 
 ```pax
 <Group width=240px height=160px padding_x=12px padding_y=16px>
-    <Text width=100% height=100% text="Room around an idea."
-        style={font_size: 18px, fill: rgb(32, 40, 48)}
-    />
+    <Text width=100% height=100%
+        style={font_size: 18px, fill: rgb(32, 40, 48)}>Room around an idea.</Text>
 </Group>
 ```
 
@@ -215,13 +214,11 @@ of differently sized notes or a label whose surrounding frame should grow.
 ```pax
 <Stacker width=280px autosize=true gutter=12px>
     <Group height=48px>
-        <Text x=12px y=12px width={100% - 24px} height=24px text="A short note" />
+        <Text x=12px y=12px width={100% - 24px} height=24px>A short note</Text>
         <Rectangle width=100% height=100% fill=rgb(246, 241, 230) />
     </Group>
     <Group height=96px>
-        <Text x=12px y=12px width={100% - 24px} height=72px
-            text="A longer note has more room for its contents."
-        />
+        <Text x=12px y=12px width={100% - 24px} height=72px>A longer note has more room for its contents.</Text>
         <Rectangle width=100% height=100% fill=rgb(220, 216, 206) />
     </Group>
 </Stacker>
@@ -283,9 +280,8 @@ Use the `Notes` and `NoteCard` declarations from Components, including the
 
 ```pax
 <Group class="board" x=24px y=24px width={100% - 48px}>
-    <Text width=100% height=36px text="On the workbench"
-        style={font_size: 24px, fill: rgb(32, 40, 48)}
-    />
+    <Text width=100% height=36px
+        style={font_size: 24px, fill: rgb(32, 40, 48)}>On the workbench</Text>
     <Stacker class="cards" y=64px width=100% gutter=16px>
         <NoteCard width=100% height=100%
             title={self.title} progress={self.progress}
@@ -294,9 +290,7 @@ Use the `Notes` and `NoteCard` declarations from Components, including the
             title="Sketchbook" progress=0.75
         />
     </Stacker>
-    <Button class="advance" width=160px height=36px
-        label="Advance" @button_click=self.advance
-    />
+    <Button class="advance" width=160px height=36px @button_click=self.advance>Advance</Button>
 </Group>
 
 @settings {
@@ -471,12 +465,10 @@ should remain near its owner without making the owner larger.
     <Group y={100% + 8px} anchor_y=0px width=220px height=64px
         layout_role=LayoutRole::Breakout
     >
-        <Text x=12px y=12px width={100% - 24px} height=40px
-            text="More room for a thought."
-        />
+        <Text x=12px y=12px width={100% - 24px} height=40px>More room for a thought.</Text>
         <Rectangle width=100% height=100% fill=rgb(246, 241, 230) />
     </Group>
-    <Text width=160px height=32px text="Field notes" />
+    <Text width=160px height=32px>Field notes</Text>
 </Group>
 ```
 
@@ -499,7 +491,7 @@ The iOS and iPadOS chassis draw edge to edge. Add a standard-library
 ```pax
 <Stacker width=100% autosize=true gutter=0px>
     <DynamicIslandSpacer />
-    <Text width=100% height=40px text="Below the safe area" />
+    <Text width=100% height=40px>Below the safe area</Text>
 </Stacker>
 ```
 
@@ -517,7 +509,7 @@ measurement. The read-only `inset` output supports deliberate positioning:
 ```pax
 <DynamicIslandSpacer inset=bind:self.safe_top />
 <Group y={(self.safe_top)px} width=100% height={100% - (self.safe_top)px}>
-    <Text width=100% height=40px text="A safe heading" />
+    <Text width=100% height=40px>A safe heading</Text>
 </Group>
 ```
 

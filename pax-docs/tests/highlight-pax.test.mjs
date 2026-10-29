@@ -30,3 +30,12 @@ test('helper calls and literal sigils keep their existing highlighting', () => {
     assert.ok(html.includes('<span class="hljs-symbol">Notes</span><span class="hljs-operator">::</span><span class="hljs-symbol">label</span>'));
     assert.ok(html.includes('<span class="hljs-string">&quot;email@example.com $frames&quot;</span>'));
 });
+
+test('raw string delimiters protect markup and ordinary body quotes stay text', () => {
+    const html = window.PaxHighlight.highlightPax('<Text>{r##"<Button>{x}</Button> \\"#"##}</Text>');
+    assert.equal((html.match(/hljs-string/g) || []).length, 1);
+    assert.ok(html.includes('&lt;Button&gt;{x}&lt;/Button&gt;'));
+    const prose = window.PaxHighlight.highlightPax('<Text>an unmatched " and true</Text>');
+    assert.ok(prose.includes('an unmatched &quot; and true'));
+    assert.ok(!prose.includes('hljs-string'));
+});

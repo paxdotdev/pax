@@ -12,7 +12,6 @@
                 y=36px
                 width={100% - 80px}
                 height=34px
-                text="Rounded Scroller Tiles"
                 selectable=false
                 style={
                     font: {
@@ -26,15 +25,13 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }
-            />
+                }>Rounded Scroller Tiles</Text>
 
             <Text
                 x=40px
                 y=74px
                 width={100% - 80px}
                 height=42px
-                text="Six scrollers with different corner radii. Scroll each tile to watch canvas gradients and native labels clip cleanly."
                 selectable=false
                 style={
                     font: {
@@ -47,8 +44,7 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }
-            />
+                }>Six scrollers with different corner radii. Scroll each tile to watch canvas gradients and native labels clip cleanly.</Text>
         </Group>
 
         <Group width=100% height=100%>
@@ -101,7 +97,6 @@
                                             y=16px
                                             width=200px
                                             height=20px
-                                            text="Radius 8"
                                             selectable=false
                                             style={
                                                 font: {
@@ -115,8 +110,7 @@
                                                 align_horizontal: TextAlignHorizontal::Left
                                                 align_multiline: TextAlignHorizontal::Left
                                                 underline: false
-                                            }
-                                        />
+                                            }>Radius 8</Text>
                                     </Group>
                                 </Scroller>
                                 </Frame>
@@ -153,7 +147,6 @@
                                             y=16px
                                             width=200px
                                             height=20px
-                                            text="Radius 16"
                                             selectable=false
                                             style={
                                                 font: {
@@ -167,8 +160,7 @@
                                                 align_horizontal: TextAlignHorizontal::Left
                                                 align_multiline: TextAlignHorizontal::Left
                                                 underline: false
-                                            }
-                                        />
+                                            }>Radius 16</Text>
                                     </Group>
                                 </Scroller>
                                 </Frame>
@@ -205,7 +197,6 @@
                                             y=16px
                                             width=200px
                                             height=20px
-                                            text="Radius 24"
                                             selectable=false
                                             style={
                                                 font: {
@@ -219,8 +210,7 @@
                                                 align_horizontal: TextAlignHorizontal::Left
                                                 align_multiline: TextAlignHorizontal::Left
                                                 underline: false
-                                            }
-                                        />
+                                            }>Radius 24</Text>
                                     </Group>
                                 </Scroller>
                                 </Frame>
@@ -267,7 +257,6 @@
                                             y=16px
                                             width=200px
                                             height=20px
-                                            text="Radius 32"
                                             selectable=false
                                             style={
                                                 font: {
@@ -281,8 +270,7 @@
                                                 align_horizontal: TextAlignHorizontal::Left
                                                 align_multiline: TextAlignHorizontal::Left
                                                 underline: false
-                                            }
-                                        />
+                                            }>Radius 32</Text>
                                     </Group>
                                 </Scroller>
                                 </Frame>
@@ -319,7 +307,6 @@
                                             y=16px
                                             width=200px
                                             height=20px
-                                            text="Radius 40"
                                             selectable=false
                                             style={
                                                 font: {
@@ -333,8 +320,7 @@
                                                 align_horizontal: TextAlignHorizontal::Left
                                                 align_multiline: TextAlignHorizontal::Left
                                                 underline: false
-                                            }
-                                        />
+                                            }>Radius 40</Text>
                                     </Group>
                                 </Scroller>
                                 </Frame>
@@ -371,7 +357,6 @@
                                         y=16px
                                         width=200px
                                         height=20px
-                                        text="Radius 48"
                                         selectable=false
                                         style={
                                             font: {
@@ -385,8 +370,7 @@
                                             align_horizontal: TextAlignHorizontal::Left
                                             align_multiline: TextAlignHorizontal::Left
                                             underline: false
-                                        }
-                                    />
+                                        }>Radius 48</Text>
                                     </Group>
                                 </Scroller>
                                 </Frame>

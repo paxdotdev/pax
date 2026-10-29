@@ -21,7 +21,7 @@ pub struct FormatSummary {
 pub fn format_pax_template(code: String) -> Result<String, eyre::Report> {
     let pax_component_definition = parse_pax_err(Rule::pax_component_definition, code.as_str())?;
     reject_duplicate_class_attributes(&pax_component_definition)?;
-    Ok(rules::format(pax_component_definition))
+    rules::format(pax_component_definition)
 }
 
 fn reject_duplicate_class_attributes(pair: &Pair<Rule>) -> Result<(), Report> {

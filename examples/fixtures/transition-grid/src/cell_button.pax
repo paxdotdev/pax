@@ -13,9 +13,7 @@
             y=50%
             width={100% - 124px}
             height=24px
-            text={label}
-            selectable=false
-        />
+            selectable=false>{label}</Text>
 
         <Text
             id=hit_count
@@ -24,9 +22,7 @@
             width=42px
             height=22px
             anchor=[100%, 50%]
-            text={hits + "/5"}
-            selectable=false
-        />
+            selectable=false>{hits + "/5"}</Text>
 
         <Rectangle
             x=18px

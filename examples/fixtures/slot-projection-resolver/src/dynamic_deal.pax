@@ -1,13 +1,13 @@
 <Group height=220px>
-    <Text class="panel_title" x=26px y=18px width={100% - 260px} height=28px text={"Dynamic deal: featured slot(" + self.selected + ")"} selectable=false />
-    <Text class="panel_caption" x=26px y=60px width={100% - 52px} height=22px text="Changing the selected index re-deals the remainder Stacker from the same projected children." selectable=false />
+    <Text class="panel_title" x=26px y=18px width={100% - 260px} height=28px selectable=false>{"Dynamic deal: featured slot(" + self.selected + ")"}</Text>
+    <Text class="panel_caption" x=26px y=60px width={100% - 52px} height=22px selectable=false>Changing the selected index re-deals the remainder Stacker from the same projected children.</Text>
 
-    <Text class="bucket_label" x=28px y=100px width=72px height=18px text={"slot(" + self.selected + ")"} selectable=false />
+    <Text class="bucket_label" x=28px y=100px width=72px height=18px selectable=false>{"slot(" + self.selected + ")"}</Text>
     <Stacker x=28px y=120px width=72px height=58px direction=StackerDirection::Horizontal>
         slot(self.selected)
     </Stacker>
 
-    <Text class="bucket_label" x=118px y=100px width=72px height=18px text="slot()" selectable=false />
+    <Text class="bucket_label" x=118px y=100px width=72px height=18px selectable=false>{"slot()"}</Text>
     <Stacker x=118px y=120px width=72px height=58px direction=StackerDirection::Horizontal gutter=10px>
         slot()
     </Stacker>

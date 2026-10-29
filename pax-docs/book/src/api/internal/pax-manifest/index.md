@@ -266,6 +266,12 @@ Properties are divided into modal axes (exactly one value should be true per axi
 Codegen considers each element of the cartesian product of these axes
 
 #### Properties
+##### `is_content`
+Type: `bool`
+
+Compile-time opt-in for scalar element-body content. Release programs
+clear this flag after lowering bodies into ordinary property settings.
+
 ##### `is_binding_repeat_i`
 Type: `bool`
 
@@ -344,6 +350,13 @@ concern.  Note the difference between compile-time `definitions` and runtime `in
 A compile-time `TemplateNodeDefinition` corresponds to a single runtime `RenderNode` instance.
 
 #### Properties
+##### `body_property`
+Type: `Option`<`String`>
+
+Source-only receiving property for an authored scalar body. The value
+lives in `settings`; source edits must read that value rather than keep
+a second, potentially stale copy of the body.
+
 ##### `type_id`
 Type: [`TypeId`](../../../api/internal/pax-manifest/index.md#typeid)
 

@@ -38,9 +38,7 @@
             width={is_compact ? 72% : 180px}
             height=34px
             anchor_x=50%
-            text={is_sealed ? "Press anywhere to stamp again" : "Press anywhere to stamp"}
-            selectable=false
-        />
+            selectable=false>{is_sealed ? "Press anywhere to stamp again" : "Press anywhere to stamp"}</Text>
 
         <PaletteStatus
             x={is_compact ? 50% : 82%}
@@ -103,10 +101,8 @@
             width={is_compact ? 54% : 44%}
             height=48px
             anchor_x=50%
-            text={is_sealed ? "A little light makes the journey." : "A blank page is a place to begin."}
             selectable=false
-            opacity={0.72 + seal_progress * 0.28}
-        />
+            opacity={0.72 + seal_progress * 0.28}>{is_sealed ? "A little light makes the journey." : "A blank page is a place to begin."}</Text>
 
         // A concentric glow with a 68-logical-pixel radius; real lights can enhance it.
         <Ellipse

@@ -8,9 +8,8 @@
             sizes={self.compact ? [] : [Some(61%), None]}>
             <Acrostic width=100% height={(self.artwork_height)px} columns={self.compact ? 6 : 7}/>
             <Stacker width=100% autosize=true gutter=24px>
-                <Text class="editorial_title" width=100% text="More room for making."/>
+                <Text class="editorial_title" width=100%>More room for making.</Text>
                 <Text class="editorial_lead" width=100% markdown=true
-                    text="Pax is free and open source. MIT / Apache-2.0 licensed. [See it on GitHub](https://github.com/paxdotdev/pax)"
                     _style_link={
                         font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
                         font_size: {@viewport.width < 760 ? 19px : 23px}
@@ -18,9 +17,8 @@
                         align_vertical: TextAlignVertical::Top
                         align_horizontal: TextAlignHorizontal::Left
                         align_multiline: TextAlignHorizontal::Left
-                    }/>
-                <Text class="editorial_body" width=100%
-                    text="We're building Pax to bring software creation closer to an artistic medium: something personal, expressive, and open to experimentation. We want more people to be able to turn their imagination into software—and more of humanity to have a hand in shaping the digital world."/>
+                    }>Pax is free and open source. MIT / Apache-2.0 licensed. [See it on GitHub](https://github.com/paxdotdev/pax)</Text>
+                <Text class="editorial_body" width=100%>We're building Pax to bring software creation closer to an artistic medium: something personal, expressive, and open to experimentation. We want more people to be able to turn their imagination into software—and more of humanity to have a hand in shaping the digital world.</Text>
             </Stacker>
         </Stacker>
     </Stacker>

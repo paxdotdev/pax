@@ -71,6 +71,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
         control_flow_settings: None,
         settings: None,
         selector_info: Default::default(),
+        body_property: None,
         raw_comment_string: None,
     });
 
@@ -80,6 +81,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
         control_flow_settings: None,
         settings: None,
         selector_info: Default::default(),
+        body_property: None,
         raw_comment_string: Some("// Hello world\n".to_owned()),
     });
 

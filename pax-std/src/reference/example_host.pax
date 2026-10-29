@@ -15,7 +15,7 @@
     }
     if !self.drawer_open && (!self.inline_source_viewer || self._drawer_progress <= 0.001) {
         <Group x={100% - 24px} y=24px width=112px height=34px @click=self.toggle_drawer>
-            <Text class="example_host_button_label" x=50% y=50% width={100% - 18px} height=18px text="View Source" selectable=false/>
+            <Text class="example_host_button_label" x=50% y=50% width={100% - 18px} height=18px selectable=false>View Source</Text>
             <Rectangle fill=BLACK stroke={
                 paint: WHITE
                 width: 3px

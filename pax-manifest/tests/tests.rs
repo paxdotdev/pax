@@ -1976,6 +1976,7 @@ mod tests {
                 ),
             ]),
             selector_info: Default::default(),
+            body_property: None,
             raw_comment_string: None,
         });
 
@@ -2152,6 +2153,7 @@ mod tests {
                 }),
             )]),
             selector_info: Default::default(),
+            body_property: None,
             raw_comment_string: None,
         });
 
@@ -2320,6 +2322,7 @@ mod tests {
                 ),
             ]),
             selector_info: Default::default(),
+            body_property: None,
             raw_comment_string: None,
         };
         node.normalize_selector_info();

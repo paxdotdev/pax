@@ -1,15 +1,13 @@
 <Group width=100% height=100%>
     if finished && collapsed {
         <Group class="outcome_banner">
-            <Text id=banner_title x=50% y=32px width=360px height=30px text="TEE-PEE DOWN"/>
+            <Text id=banner_title x=50% y=32px width=360px height=30px>TEE-PEE DOWN</Text>
             <Text
                 id=banner_copy
                 x=50%
                 y=66px
                 width=420px
-                height=28px
-                text="One bright stick too many. Tap Rebuild to stack another round."
-            />
+                height=28px>One bright stick too many. Tap Rebuild to stack another round.</Text>
             <Rectangle class="banner_surface"
                 fill=@gradient {
                     linear: {
@@ -26,15 +24,13 @@
 
     if finished && !collapsed {
         <Group class="outcome_banner">
-            <Text id=banner_title x=50% y=32px width=360px height=30px text="TABLE CLEARED"/>
+            <Text id=banner_title x=50% y=32px width=360px height=30px>TABLE CLEARED</Text>
             <Text
                 id=banner_copy
                 x=50%
                 y=66px
                 width=420px
-                height=28px
-                text="Every stick slipped free without bringing the stack down."
-            />
+                height=28px>Every stick slipped free without bringing the stack down.</Text>
             <Rectangle class="banner_surface"
                 fill=@gradient {
                     linear: {
@@ -67,8 +63,8 @@
                 _raycastable=false
             />
             <Rectangle class="reset_hit" fill=TRANSPARENT @click=self.reset_game/>
-            <Text id=reset_caption x=92px y=14px width=76px height=12px text={rebuild_caption} _raycastable=false/>
-            <Text id=reset_label x=90px y=33px width=78px height=18px text="Rebuild" _raycastable=false/>
+            <Text id=reset_caption x=92px y=14px width=76px height=12px _raycastable=false>{rebuild_caption}</Text>
+            <Text id=reset_label x=90px y=33px width=78px height=18px _raycastable=false>Rebuild</Text>
             <Line
                 x1=26px
                 y1=28px
@@ -112,8 +108,8 @@
         </Group>
 
         <Group class="status_chip">
-            <Text class="chip_title" x=24px y=22px width=296px height=20px text={status_text}/>
-            <Text class="chip_body" x=24px y=50px width=296px height=22px text={chance_text}/>
+            <Text class="chip_title" x=24px y=22px width=296px height=20px>{status_text}</Text>
+            <Text class="chip_body" x=24px y=50px width=296px height=22px>{chance_text}</Text>
             <Rectangle class="chip_outline"
                 fill=TRANSPARENT
                 stroke={paint: rgba(255, 225, 168, 88), width: 2px}
@@ -131,8 +127,8 @@
         </Group>
 
         <Group class="progress_chip">
-            <Text class="chip_title" x=24px y=22px width=216px height=20px text="Picks"/>
-            <Text class="chip_body" x=24px y=50px width=216px height=22px text={progress_text}/>
+            <Text class="chip_title" x=24px y=22px width=216px height=20px>Picks</Text>
+            <Text class="chip_body" x=24px y=50px width=216px height=22px>{progress_text}</Text>
             <Rectangle class="chip_outline"
                 fill=TRANSPARENT
                 stroke={paint: rgba(255, 225, 168, 88), width: 2px}
@@ -149,15 +145,13 @@
             />
         </Group>
 
-        <Text id=title x=50% y=72px width=640px height=48px text="Pick-up Sticks"/>
+        <Text id=title x=50% y=72px width=640px height=48px>Pick-up Sticks</Text>
         <Text
             id=subhead
             x=50%
             y=118px
             width=620px
-            height=24px
-            text="Click a bright stick and hope the little tee-pee holds."
-        />
+            height=24px>Click a bright stick and hope the little tee-pee holds.</Text>
 
         <Group class="playfield">
             for (stick, i) in sticks {
@@ -212,10 +206,8 @@
                 y=56%
                 width=620px
                 height=96px
-                text="Breathe in, pull lightly, and let the tiny catastrophe clarify your priorities."
                 opacity=50%
-                _raycastable=false
-            />
+                _raycastable=false>Breathe in, pull lightly, and let the tiny catastrophe clarify your priorities.</Text>
 
             <Ellipse
                 x=50%

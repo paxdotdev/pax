@@ -7,6 +7,7 @@
 - [deserializer](deserializer.md)
 - [interpreter](interpreter.md)
 - [helpers](helpers.md)
+- [text](text.md)
 
 ## Structs
 ### `PaxParser`
@@ -48,7 +49,12 @@ BEGIN TEMPLATE
 ##### `double_binding`
 ##### `any_template_value`
 ##### `node_inner_content`
+##### `body_expression`
+##### `body_expression_value`
+##### `body_text`
 ##### `string`
+##### `raw_string`
+##### `raw_string_content`
 ##### `inner`
 ##### `char`
 ##### `settings_block_declaration`

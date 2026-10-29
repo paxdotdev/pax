@@ -1,21 +1,17 @@
 <Group width=100% height=100%>
-    <Text id=headline x=50% y=28px width=90% height=56px text="Afterimage Observatory"/>
+    <Text id=headline x=50% y=28px width=90% height=56px>Afterimage Observatory</Text>
     <Text
         id=subhead
         x=50%
         y=92px
         width=88%
-        height=44px
-        text="Opacity as atmosphere: fully opaque overlaps, nested attenuation, masked native controls, and moving vector collisions in one noctilucent test bed."
-    />
+        height=44px>Opacity as atmosphere: fully opaque overlaps, nested attenuation, masked native controls, and moving vector collisions in one noctilucent test bed.</Text>
     <Text
         id=live_line
         x=50%
         y=144px
         width=88%
-        height=22px
-        text={"LIVE // " + self.mode_label + " // BAND " + self.spectrum_label + " // CALLSIGN " + self.callsign}
-    />
+        height=22px>{"LIVE // " + self.mode_label + " // BAND " + self.spectrum_label + " // CALLSIGN " + self.callsign}</Text>
 
     <Group class="constellation_strip"
         x={(53.0 + self.orbit_a * 2.6)%}
@@ -24,15 +20,13 @@
         opacity={self.scene_opacity}
     >
         <Group x=24px y=20px width=388px height=146px opacity=1>
-            <Text class="eyebrow" x=16px y=14px width=286px height=22px text="OPAQUE OVERLAP // BEAM AT 100%"/>
-            <Text class="panel_title_small" x=16px y=42px width=304px height=42px text="Diffraction Field"/>
+            <Text class="eyebrow" x=16px y=14px width=286px height=22px>OPAQUE OVERLAP // BEAM AT 100%</Text>
+            <Text class="panel_title_small" x=16px y=42px width=304px height=42px>Diffraction Field</Text>
             <Text class="body_copy"
                 x=16px
                 y=92px
                 width=272px
-                height=58px
-                text="At full BEAM, these solid shapes stay opaque. Lower BEAM to fade them together."
-            />
+                height=58px>At full BEAM, these solid shapes stay opaque. Lower BEAM to fade them together.</Text>
             <Ellipse
                 x=326px
                 y=78px
@@ -131,15 +125,13 @@
         opacity={self.scene_opacity}
     >
         <Group x=22px y=26px width=352px height=520px opacity=1>
-            <Text class="eyebrow" x=20px y=16px width=312px height=22px text="GROUP CASCADE // NATIVE + VECTOR"/>
-            <Text class="panel_title" x=20px y=46px width=320px height=52px text="Console"/>
+            <Text class="eyebrow" x=20px y=16px width=312px height=22px>GROUP CASCADE // NATIVE + VECTOR</Text>
+            <Text class="panel_title" x=20px y=46px width=320px height=52px>Console</Text>
             <Text class="body_copy"
                 x=20px
                 y=108px
                 width=286px
-                height=72px
-                text="The BEAM slider fades vector surfaces, text, and native controls together. Child opacity 1.00 preserves that inherited fade."
-            />
+                height=72px>The BEAM slider fades vector surfaces, text, and native controls together. Child opacity 1.00 preserves that inherited fade.</Text>
             <Group x=292px y=118px width=64px height=64px opacity=1>
                 <Ellipse
                     x=18px
@@ -198,8 +190,8 @@
 
             <Group x=20px y=198px width=292px height=258px opacity=1>
 
-                <Text class="stat_label" x=20px y=24px width=156px height=18px text={"CALLSIGN // " + self.callsign}/>
-                <Text class="stat_right" x=190px y=24px width=74px height=18px text={"BEAM " + self.beam_label}/>
+                <Text class="stat_label" x=20px y=24px width=156px height=18px>{"CALLSIGN // " + self.callsign}</Text>
+                <Text class="stat_right" x=190px y=24px width=74px height=18px>{"BEAM " + self.beam_label}</Text>
                 <Textbox class="input_neon"
                     x=20px
                     y=58px
@@ -217,7 +209,7 @@
                     selected_id=bind:selected_mode
                     options=["SPECTRAL", "NATIVE", "MASK"]
                 />
-                <Text class="stat_label" x=214px y=124px width=56px height=18px text={self.mode_label}/>
+                <Text class="stat_label" x=214px y=124px width=56px height=18px>{self.mode_label}</Text>
                 <Slider
                     x=20px
                     y=168px
@@ -236,9 +228,7 @@
                     y=208px
                     width=244px
                     height=42px
-                    label={self.engage_label}
-                    @button_click=self.increment_engage
-                />
+                    @button_click=self.increment_engage>{self.engage_label}</Button>
                 <Rectangle class="control_surface"
                     fill=@gradient {
                         linear: {
@@ -254,7 +244,7 @@
             </Group>
 
             <Group x=28px y=472px width=286px height=60px opacity=1>
-                <Text class="tiny_label" x=0px y=0px width=286px height=18px text="GROUP FLOOR // 10% MINIMUM"/>
+                <Text class="tiny_label" x=0px y=0px width=286px height=18px>GROUP FLOOR // 10% MINIMUM</Text>
                 <Rectangle
                     x=0px
                     y=30px
@@ -386,15 +376,13 @@
         <Mask width=100% height=100% opacity=1>
             <Group width=100% height=100%>
                 <Group x=20px y=20px width=304px height=420px opacity=1>
-                    <Text class="eyebrow" x=14px y=14px width=252px height=22px text="PARTIAL MASK // MIXED NATIVE"/>
-                    <Text class="panel_title_small" x=14px y=44px width=264px height=40px text="Luminous Chamber"/>
+                    <Text class="eyebrow" x=14px y=14px width=252px height=22px>PARTIAL MASK // MIXED NATIVE</Text>
+                    <Text class="panel_title_small" x=14px y=44px width=264px height=40px>Luminous Chamber</Text>
                     <Text class="body_copy"
                         x=14px
                         y=92px
                         width=256px
-                        height=74px
-                        text="A moving star selects the visible region of this subtree. This geometric mask has a hard edge; BEAM controls the inherited fade."
-                    />
+                        height=74px>A moving star selects the visible region of this subtree. This geometric mask has a hard edge; BEAM controls the inherited fade.</Text>
                     <RadioList class="radio_neon"
                         x=14px
                         y=172px
@@ -430,18 +418,16 @@
                         checked=bind:stabilizers
                         @checkbox_change=self.update_stabilizers
                     />
-                    <Text class="stat_label" x=58px y=316px width=210px height=18px text={"STABILIZERS // " + self.stabilizer_label}/>
-                    <Text class="stat_label" x=14px y=350px width=194px height=18px text={"MODE // " + self.mode_label}/>
-                    <Text class="stat_label" x=14px y=374px width=194px height=18px text={"BAND // " + self.spectrum_label}/>
+                    <Text class="stat_label" x=58px y=316px width=210px height=18px>{"STABILIZERS // " + self.stabilizer_label}</Text>
+                    <Text class="stat_label" x=14px y=350px width=194px height=18px>{"MODE // " + self.mode_label}</Text>
+                    <Text class="stat_label" x=14px y=374px width=194px height=18px>{"BAND // " + self.spectrum_label}</Text>
                     <Button class="button_hot"
                         x=14px
                         y=394px
                         width=228px
-                        height=38px
-                        label={"SYNC " + self.spectrum_label}
-                    />
+                        height=38px>{"SYNC " + self.spectrum_label}</Button>
                     <Group x=224px y=300px width=72px height=72px opacity=1>
-                        <Text class="tiny_label" x=0px y=0px width=72px height=16px text="NESTED"/>
+                        <Text class="tiny_label" x=0px y=0px width=72px height=16px>NESTED</Text>
                         <Ellipse
                             x=36px
                             y=42px
@@ -625,14 +611,12 @@
         rotate={(self.ribbon_rotation)deg}
         opacity={self.scene_opacity}
     >
-        <Text class="footer_title" x=24px y=20px width=412px height=40px text="OPAQUE / TRANSLUCENT / MASKED / NATIVE"/>
+        <Text class="footer_title" x=24px y=20px width=412px height=40px>OPAQUE / TRANSLUCENT / MASKED / NATIVE</Text>
         <Text class="footer_copy"
             x=24px
             y=64px
             width=412px
-            height=28px
-            text="parallax halos • animated partial masks • hierarchical attenuation"
-        />
+            height=28px>parallax halos • animated partial masks • hierarchical attenuation</Text>
         <Rectangle class="footer_skin"
             fill=@gradient {
                 linear: {
@@ -665,7 +649,7 @@
         opacity={self.scene_opacity}
     >
         <Group x={(120.0 + self.drift_a)px} y={(70.0 + self.orbit_d * 18.0)px} width=320px height=126px rotate={(-10.0 + self.orbit_b * 4.0)deg} opacity=1>
-            <Text class="tiny_label" x=10px y=2px width=250px height=16px text={"GROUP A // " + self.beam_label}/>
+            <Text class="tiny_label" x=10px y=2px width=250px height=16px>{"GROUP A // " + self.beam_label}</Text>
             <Rectangle
                 x=0px
                 y=30px
@@ -730,7 +714,7 @@
         opacity={self.scene_opacity}
     >
         <Group x={(276.0 + self.drift_b)px} y={(404.0 + self.drift_c)px} width=336px height=140px rotate={(10.0 - self.orbit_c * 5.0)deg} opacity=1>
-            <Text class="tiny_label" x=14px y=4px width=270px height=16px text="GROUP B // MOVING COLLISION SWARM"/>
+            <Text class="tiny_label" x=14px y=4px width=270px height=16px>GROUP B // MOVING COLLISION SWARM</Text>
             <Rectangle
                 x=0px
                 y=28px

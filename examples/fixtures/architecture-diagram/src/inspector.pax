@@ -1,19 +1,19 @@
-<Button class="close_button" anchor=[100%, 0%] x={100% - 16px} y=14px width=62px height=32px label="Close" @button_click=self.close/>
+<Button class="close_button" anchor=[100%, 0%] x={100% - 16px} y=14px width=62px height=32px @button_click=self.close>Close</Button>
 <Scroller anchor=0% x=22px y=60px width={100% - 44px} height={100% - 82px} scroll_height={(panel.source_y + 150)px}>
-    <Text class="kicker" anchor=0% width=100% height=22px text="COMPONENT / INTERFACES"/>
-    <Text class="title" anchor=0% y=34px width=100% height=66px text={panel.title}/>
-    <Text class="kicker" anchor=0% y=108px width=100% height=48px text={panel.interface}/>
-    <Text class="body" anchor=0% y=158px width=100% height=210px text={panel.body}/>
-    <Text class="kicker" anchor=0% y=380px width=100% height=22px text="READ MORE"/>
+    <Text class="kicker" anchor=0% width=100% height=22px>COMPONENT / INTERFACES</Text>
+    <Text class="title" anchor=0% y=34px width=100% height=66px>{panel.title}</Text>
+    <Text class="kicker" anchor=0% y=108px width=100% height=48px>{panel.interface}</Text>
+    <Text class="body" anchor=0% y=158px width=100% height=210px>{panel.body}</Text>
+    <Text class="kicker" anchor=0% y=380px width=100% height=22px>READ MORE</Text>
     for (doc, i) in panel.docs {
         <DocLink anchor=0% y={(408 + i * 44)px} width=100% height=42px title={doc.title} url={doc.url}/>
     }
-    <Text class="kicker" anchor=0% y=558px width=100% height=22px text="CONNECTIONS"/>
+    <Text class="kicker" anchor=0% y=558px width=100% height=22px>CONNECTIONS</Text>
     for (relation, i) in panel.connections {
         <ConnectionLink anchor=0% y={(586 + i * 66)px} width=100% height=64px relation={relation} selected=bind:selected/>
     }
-    <Text class="kicker" anchor=0% y={(panel.source_y)px} width=100% height=22px text="SOURCE / 3c46cd13d"/>
-    <Text class="body" anchor=0% y={(panel.source_y + 30)px} width=100% height=108px text={panel.source}/>
+    <Text class="kicker" anchor=0% y={(panel.source_y)px} width=100% height=22px>SOURCE / 3c46cd13d</Text>
+    <Text class="body" anchor=0% y={(panel.source_y + 30)px} width=100% height=108px>{panel.source}</Text>
 </Scroller>
 <Path anchor=0% width=100% height=100% elements={outline} fill=rgb(251, 251, 247)
     stroke={paint: rgb(92, 111, 119), width: 1px}/>

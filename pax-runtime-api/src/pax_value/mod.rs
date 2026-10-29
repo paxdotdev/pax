@@ -78,13 +78,38 @@ impl Clone for PaxValue {
     }
 }
 
+/// Emit a lossless Pax string literal. Raw delimiters avoid depending on the
+/// legacy quoted-string escape decoder and preserve multiline payloads.
+pub fn string_literal(value: &str) -> String {
+    if !value.contains(['"', '\\', '\n', '\r']) {
+        return format!("\"{value}\"");
+    }
+    let bytes = value.as_bytes();
+    let mut hashes = 0;
+    let mut cursor = 0;
+    while cursor < bytes.len() {
+        if bytes[cursor] == b'"' {
+            cursor += 1;
+            let start = cursor;
+            while cursor < bytes.len() && bytes[cursor] == b'#' {
+                cursor += 1;
+            }
+            hashes = hashes.max(cursor - start + 1);
+        } else {
+            cursor += 1;
+        }
+    }
+    let delimiter = "#".repeat(hashes);
+    format!("r{delimiter}\"{value}\"{delimiter}")
+}
+
 // Make sure Enum looks like an enum and vec looks like a vec
 impl Display for PaxValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PaxValue::Bool(b) => write!(f, "{}", b),
             PaxValue::Numeric(n) => write!(f, "{}", n),
-            PaxValue::String(s) => write!(f, "\"{}\"", s),
+            PaxValue::String(s) => write!(f, "{}", string_literal(s)),
             PaxValue::Size(s) => write!(f, "{}", s),
             PaxValue::Percent(p) => write!(f, "{}", p),
             PaxValue::Color(c) => write!(f, "{}", c),

@@ -15,8 +15,8 @@ const IN_OUT_TIME: u64 = 10;
     if self.shown {
         <Group x=100% y={y_pos} width=400px height={height}>
             <Group x=50% y=50% width={100%-20px} height={100%-20px}>
-                <Text x=40px height=100% width=70% text=message align={TextAlignHorizontal::Left}/>
-                <Button width=70px height=30px x=90% y=50% label="Undo" @button_click=handle_trigger/>
+                <Text x=40px height=100% width=70% align={TextAlignHorizontal::Left}>{message}</Text>
+                <Button width=70px height=30px x=90% y=50% @button_click=handle_trigger>{"Undo"}</Button>
                 <Rectangle fill=rgb(20, 20, 20)
                 corner_radius=15.0/>
             </Group>

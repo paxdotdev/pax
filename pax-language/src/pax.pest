@@ -19,16 +19,18 @@ any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag | comme
 //This duo describes an XML-style open-tag, like <SomeElement id="...">
 //and matching close-tag, like </SomeElement>.  Note the use of Pest's stack feature, `PUSH`
 //and `POP`, to match closing & opening tags
-open_tag = {"<" ~ PUSH(pascal_identifier) ~ attribute_key_value_pair * ~ ">"}
-closing_tag = {"<" ~ "/" ~ POP ~ ">"}
+open_tag = !{"<" ~ PUSH(pascal_identifier) ~ attribute_key_value_pair * ~ ">"}
+closing_tag = !{"<" ~ "/" ~ POP ~ ">"}
 
 //Describes a (leaf-node) self-closing element, like <SomeElement />
-self_closing_tag = {"<" ~ pascal_identifier ~ attribute_key_value_pair* ~ "/" ~ ">"}
+self_closing_tag = !{"<" ~ pascal_identifier ~ attribute_key_value_pair* ~ "/" ~ ">"}
 
 //Describes an XML subtree surrounded by a pair of matching tags, like
 //<SomeElement>...</SomeElement>
-matched_tag = {open_tag ~ inner_nodes ~ closing_tag}
-inner_nodes = { node_inner_content | any_tag_pair* }
+// Keep body whitespace in its source span. Syntax inside tags/control flow
+// explicitly restores normal whitespace skipping.
+matched_tag = ${open_tag ~ inner_nodes ~ closing_tag}
+inner_nodes = ${ (WHITESPACE* ~ (any_tag_pair ~ WHITESPACE*)* ~ &(closing_tag | "}")) | (node_inner_content ~ &(WHITESPACE* ~ closing_tag)) }
 
 //Describes an atomic symbolic identifier, like `id`, `Engine`, or `some_thing`
 identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
@@ -60,13 +62,17 @@ double_binding = {identifier ~ "=" ~ "bind" ~ ":" ~ literal_function}
 //`...=5.0`, `...={...}`
 any_template_value = {gradient_inline_value | timeline_inline_value | literal_value | expression_wrapped | identifier}
 
-//For example: <Text>"This is my inner content"</Text>
-//Presumably this content can be bare literal values other than strings like Color::hlca(...)
-//It could also be an `{...}` expression
-node_inner_content = { literal_value | expression_wrapped }
+// Scalar content is a whole expression or an atomic text span, never a mix
+// of text, expressions, and child nodes. References are decoded after lexing.
+node_inner_content = { body_expression | body_text }
+body_expression = ${ WHITESPACE* ~ body_expression_value ~ WHITESPACE* }
+body_expression_value = !{ expression_wrapped }
+body_text = @{ (!("<" | "{" | "}") ~ ANY)+ }
 
 //string/inner/char from https://pest.rs/book/examples/json.html
-string = ${ ("\"" ~ inner ~ "\"") | ("'" ~ inner ~ "'") | ("`" ~ inner ~ "`") }
+string = ${ raw_string | ("\"" ~ inner ~ "\"") | ("'" ~ inner ~ "'") | ("`" ~ inner ~ "`") }
+raw_string = ${ "r" ~ PUSH("#"*) ~ "\"" ~ raw_string_content ~ "\"" ~ POP }
+raw_string_content = @{ (!("\"" ~ PEEK) ~ ANY)* }
 inner = @{ char* }
 char = {
     !("\"" | "\\") ~ ANY
@@ -335,7 +341,7 @@ xo_enum_or_function_args_list = {(expression_body ~ ("," ~ expression_body)* ~ s
 //can only sit alongside elements in a template and cannot be bound to properties.  As a result,
 //and to foster clarity of nomenclature, we call these `statements` rather than `expressions`.
 //These statements work as syntactic sugar for built-in primitives: Conditional, Repeat, and Slot.
-statement_control_flow = {(statement_if | statement_for | statement_slot)}
+statement_control_flow = !{(statement_if | statement_for | statement_slot)}
 
 statement_if = { statement_if_branch ~ statement_else_if_branch* ~ statement_else_branch? }
 statement_if_branch = { "if" ~ expression_body ~ "{" ~ inner_nodes ~ "}" }

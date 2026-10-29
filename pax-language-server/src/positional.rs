@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use lsp_types::Position;
 use pax_language::{Pair, Rule};
+use pax_runtime_api::PaxValue;
 
 #[derive(Debug, Clone)]
 pub struct PositionalNode {
@@ -59,17 +60,50 @@ pub struct FunctionCallData {
     pub function_name: String,
 }
 
-fn pair_to_positions(pair: &Pair<Rule>) -> (Position, Position) {
-    let span = pair.as_span();
-    let start = Position {
-        line: (span.start_pos().line_col().0 - 1) as u32,
-        character: (span.start_pos().line_col().1 - 1) as u32,
-    };
-    let end = Position {
-        line: (span.end_pos().line_col().0 - 1) as u32,
-        character: (span.end_pos().line_col().1 - 1) as u32,
-    };
-    (start, end)
+struct SourcePositions {
+    line_starts: Vec<usize>,
+    utf16_adjustments: Vec<(usize, usize)>,
+}
+
+impl SourcePositions {
+    fn new(source: &str) -> Self {
+        let mut line_starts = vec![0];
+        let mut utf16_adjustments = Vec::new();
+        let mut adjustment = 0;
+        for (offset, ch) in source.char_indices() {
+            if ch == '\n' {
+                line_starts.push(offset + 1);
+            }
+            if !ch.is_ascii() {
+                adjustment += ch.len_utf8() - ch.len_utf16();
+                utf16_adjustments.push((offset + ch.len_utf8(), adjustment));
+            }
+        }
+        Self {
+            line_starts,
+            utf16_adjustments,
+        }
+    }
+
+    fn utf16_offset(&self, offset: usize) -> usize {
+        let index = self
+            .utf16_adjustments
+            .partition_point(|(end, _)| *end <= offset);
+        offset
+            - index
+                .checked_sub(1)
+                .map(|i| self.utf16_adjustments[i].1)
+                .unwrap_or(0)
+    }
+
+    fn position(&self, offset: usize) -> Position {
+        let line = self.line_starts.partition_point(|start| *start <= offset) - 1;
+        Position {
+            line: line as u32,
+            character: (self.utf16_offset(offset) - self.utf16_offset(self.line_starts[line]))
+                as u32,
+        }
+    }
 }
 
 pub fn extract_positional_nodes(
@@ -78,7 +112,23 @@ pub fn extract_positional_nodes(
     ids: &mut HashSet<String>,
     classes: &mut HashSet<String>,
 ) {
-    let (start, end) = pair_to_positions(&pair);
+    // Index once: rescanning every prefix is quadratic for many short bodies.
+    let positions = SourcePositions::new(pair.as_span().get_input());
+    extract_with_positions(pair, nodes, ids, classes, &positions);
+}
+
+fn extract_with_positions(
+    pair: Pair<'_, Rule>,
+    nodes: &mut Vec<PositionalNode>,
+    ids: &mut HashSet<String>,
+    classes: &mut HashSet<String>,
+    positions: &SourcePositions,
+) {
+    let span = pair.as_span();
+    let (start, end) = (
+        positions.position(span.start()),
+        positions.position(span.end()),
+    );
     let rule = pair.as_rule();
     let as_str = pair.as_str();
     let mut inner = pair.into_inner();
@@ -227,20 +277,18 @@ pub fn extract_positional_nodes(
                 if key == "id" {
                     ids.insert(value.to_string());
                 } else if key == "class" {
-                    let value = value.trim();
-                    if value.starts_with('[') && value.ends_with(']') {
-                        classes.extend(
-                            value[1..value.len() - 1]
-                                .split(',')
-                                .map(str::trim)
-                                .map(|class_name| class_name.trim_matches(['"', '\'', '`']))
-                                .filter(|class_name| !class_name.is_empty())
-                                .map(str::to_string),
-                        );
-                    } else if !value.starts_with('{') {
-                        let class_name = value.trim_matches(['"', '\'', '`']);
-                        if !class_name.is_empty() {
-                            classes.insert(class_name.to_string());
+                    // Use the literal decoder so raw delimiters and commas in
+                    // strings cannot become part of the indexed class names.
+                    let literals = match pax_language::from_pax(value.trim()) {
+                        Ok(PaxValue::String(name)) => vec![PaxValue::String(name)],
+                        Ok(PaxValue::Vec(values)) => values,
+                        _ => vec![],
+                    };
+                    for literal in literals {
+                        if let PaxValue::String(name) = literal {
+                            if !name.is_empty() {
+                                classes.insert(name);
+                            }
                         }
                     }
                 }
@@ -294,7 +342,7 @@ pub fn extract_positional_nodes(
     }
 
     for inner_pair in inner {
-        extract_positional_nodes(inner_pair, nodes, ids, classes);
+        extract_with_positions(inner_pair, nodes, ids, classes, positions);
     }
 }
 
@@ -410,14 +458,43 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
+    fn body_unicode_uses_utf16_columns_and_raw_markup_is_not_indexed() {
+        let source = "<Text>🚀é</Text>\n<Text>{r#\"<Hidden>{word}</Hidden>\"#}</Text>";
+        let parsed = parse_pax_str(Rule::pax_component_definition, source).unwrap();
+        let mut nodes = Vec::new();
+        extract_positional_nodes(parsed, &mut nodes, &mut HashSet::new(), &mut HashSet::new());
+        let tags: Vec<_> = nodes
+            .iter()
+            .filter_map(|n| match &n.node_type {
+                super::NodeType::Tag(tag) => Some((
+                    tag.pascal_identifier.as_str(),
+                    n.start.line,
+                    n.start.character,
+                )),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            tags,
+            [
+                ("Text", 0, 0),
+                ("Text", 0, 9),
+                ("Text", 1, 0),
+                ("Text", 1, 36)
+            ]
+        );
+    }
+
+    #[test]
     fn class_index_reads_literal_bindings_and_skips_expressions() {
         let component = parse_pax_str(
             Rule::pax_component_definition,
-            r#"
-                <Rectangle class=["card", "elevated"] />
+            r##"
+                <Rectangle class=[r"card", "elevated"] />
+                <Group class=r#"raw-single"# />
                 <Group class={self.dynamic_classes} />
                 @settings { .selected { opacity: 1 } }
-            "#,
+            "##,
         )
         .unwrap();
         let mut nodes = Vec::new();
@@ -432,6 +509,7 @@ mod tests {
                 "card".to_string(),
                 "elevated".to_string(),
                 "selected".to_string(),
+                "raw-single".to_string(),
             ])
         );
     }

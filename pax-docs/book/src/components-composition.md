@@ -61,13 +61,9 @@ Give `src/note_card.pax` the display portion of the panel:
 
 ```pax
 <Text x=24px y=24px width={100% - 48px} height=36px
-    text={self.title}
-    style={font_size: 24px, fill: rgb(32, 40, 48)}
-/>
+    style={font_size: 24px, fill: rgb(32, 40, 48)}>{self.title}</Text>
 <Text x=24px y=72px width={100% - 48px} height=28px
-    text={"Progress: " + (self.progress * 100) + "%"}
-    style={font_size: 16px, fill: rgb(72, 80, 88)}
-/>
+    style={font_size: 16px, fill: rgb(72, 80, 88)}>{"Progress: " + (self.progress * 100) + "%"}</Text>
 <Group x=24px y=116px width={100% - 48px} height=12px>
     <Rectangle width={(self.progress * 100)%} height=100%
         fill=rgb(55, 120, 90) corner_radius=6
@@ -85,6 +81,33 @@ The card uses the layout area supplied by its caller. The percentage widths
 follow that area; the fixed offsets give this example its padding. Its
 background remains last so the text and bar render in front. For sizing and
 container choices, read [Layout and Responsiveness](layout-responsiveness.md).
+
+### Receiving text content
+
+A component or primitive can designate one named `Property<String>` field as
+its scalar content receiver. The field keeps its normal Rust and attribute API:
+
+```rust
+#[pax]
+#[file("notice.pax")]
+pub struct Notice {
+    #[pax(content)]
+    pub message: Property<String>,
+}
+```
+
+In `notice.pax`, display it with
+`<Text width=100% height=100%>{self.message}</Text>`. A caller can then write
+`<Notice width=320px height=40px>Changes saved.</Notice>` or
+`<Notice width=320px height=40px>{self.status}</Notice>`.
+
+The annotation is optional; components without it accept structural children
+but reject scalar bodies. It requires exactly one `Property<String>` receiver
+and cannot be combined with `#[pax(rust)]` or applied to a struct-only value.
+It does not add children or a runtime wrapper. A receiver can coexist with a
+slot-based template, but each invocation supplies either scalar content or
+structural children. [Text bodies](template-language.md#text-bodies) defines
+whitespace, character references, and raw strings.
 
 ### Use the card
 
@@ -135,9 +158,7 @@ wiring. The path is not relative to the Rust file containing the attribute.
 In `src/lib.pax`, place two cards and an application-level button:
 
 ```pax
-<Button x=24px y=24px width=160px height=28px
-    label="Advance" @button_click=self.advance
-/>
+<Button x=24px y=24px width=160px height=28px @button_click=self.advance>Advance</Button>
 <NoteCard x=24px y=72px width=320px height=160px
     title={self.title} progress={self.progress}
 />
@@ -346,7 +367,7 @@ same open, selected-source, and theme state:
         <ExampleHost width=100% height=400px title="My example" sources={self.sources}
             inline_source_viewer=false drawer_open=bind:self.source_open
             selected_source=bind:self.source_index source_light_mode=bind:self.source_light>
-            <Text width=100% height=40px text="Your example goes here."/>
+            <Text width=100% height=40px>Your example goes here.</Text>
         </ExampleHost>
     </Scroller>
 </Group>
@@ -391,9 +412,8 @@ reaches one:
             title={self.title} progress={self.progress}
         />
     } else {
-        <Text width=100% height=100% text="Ready for the next idea."
-            style={font_size: 20px, fill: rgb(55, 120, 90)}
-        />
+        <Text width=100% height=100%
+            style={font_size: 20px, fill: rgb(55, 120, 90)}>Ready for the next idea.</Text>
     }
 </Group>
 ```
@@ -422,9 +442,7 @@ decorative elements or positions:
 
 ```pax
 for i in 0..3 {
-    <Text x=24px y={(24 + i * 32)px} width=240px height=28px
-        text={"Position " + i}
-    />
+    <Text x=24px y={(24 + i * 32)px} width=240px height=28px>{"Position " + i}</Text>
 }
 ```
 
@@ -538,15 +556,12 @@ Use it from `lib.pax` with content between its opening and closing tags:
 
 ```pax
 <NoteFrame x=24px y=72px width=320px height=220px>
-    <Text width=100% height=100% text={self.title}
-        style={font_size: 24px, fill: rgb(32, 40, 48)}
-    />
-    <Text width=100% height=32px text="Make room for the next idea."
-        style={font_size: 16px, fill: rgb(72, 80, 88)}
-    />
-    <Button y=48px width=100% height=36px label="Advance"
-        @button_click=self.advance
-    />
+    <Text width=100% height=100%
+        style={font_size: 24px, fill: rgb(32, 40, 48)}>{self.title}</Text>
+    <Text width=100% height=32px
+        style={font_size: 16px, fill: rgb(72, 80, 88)}>Make room for the next idea.</Text>
+    <Button y=48px width=100% height=36px
+        @button_click=self.advance>Advance</Button>
 </NoteFrame>
 ```
 

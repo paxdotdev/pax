@@ -193,6 +193,7 @@ mod tests {
         for index in 0..64 {
             let node = TemplateNodeDefinition {
                 type_id: type_id.clone(),
+                body_property: None,
                 raw_comment_string: Some(format!("node {index}")),
                 ..Default::default()
             };
@@ -336,6 +337,7 @@ mod tests {
             control_flow_settings: None,
             settings: Some(vec![]),
             selector_info: Default::default(),
+            body_property: None,
             raw_comment_string: None,
         });
         server_manifest
@@ -365,6 +367,7 @@ mod tests {
             control_flow_settings: None,
             settings: Some(vec![]),
             selector_info: Default::default(),
+            body_property: None,
             raw_comment_string: None,
         });
 

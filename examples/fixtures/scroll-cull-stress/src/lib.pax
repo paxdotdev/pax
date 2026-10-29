@@ -4,7 +4,6 @@
         y=32px
         width={100% - 80px}
         height=34px
-        text="Scroll Cull Stress"
         selectable=false
         style={
             font: {
@@ -18,14 +17,13 @@
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
             underline: false
-        }/>
+        }>Scroll Cull Stress</Text>
 
     <Text
         x=40px
         y=74px
         width={100% - 80px}
         height=46px
-        text="Heavy vector tiles in a long scroller. Designed to stress mesh + texture work so tile culling wins are obvious."
         selectable=false
         style={
             font: {
@@ -38,7 +36,7 @@
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
             underline: false
-        }/>
+        }>Heavy vector tiles in a long scroller. Designed to stress mesh + texture work so tile culling wins are obvious.</Text>
 
     <Scroller
         x=0px
@@ -60,7 +58,6 @@
                         y=20px
                         width={100% - 48px}
                         height=24px
-                        text={"Vector Tile " + card}
                         selectable=false
                         style={
                             font: {
@@ -74,7 +71,7 @@
                             align_horizontal: TextAlignHorizontal::Left
                             align_multiline: TextAlignHorizontal::Left
                             underline: false
-                        }/>
+                        }>{"Vector Tile " + card}</Text>
 
                     for row in 0..4 {
                         <DotRow

@@ -115,16 +115,10 @@ and bar:
 ```pax
 <Group x=24px y=24px width=320px height=220px>
     <Text x=24px y=24px width={100% - 48px} height=36px
-        text={self.title}
-        style={font_size: 24px, fill: rgb(32, 40, 48)}
-    />
-    <Button x=24px y=76px width=160px height=28px
-        label="Advance" @button_click=self.advance
-    />
+        style={font_size: 24px, fill: rgb(32, 40, 48)}>{self.title}</Text>
+    <Button x=24px y=76px width=160px height=28px @button_click=self.advance>Advance</Button>
     <Text x=24px y=116px width={100% - 48px} height=28px
-        text={"Progress: " + (self.progress * 100) + "%"}
-        style={font_size: 16px, fill: rgb(72, 80, 88)}
-    />
+        style={font_size: 16px, fill: rgb(72, 80, 88)}>{"Progress: " + (self.progress * 100) + "%"}</Text>
     <Group x=24px y=160px width={100% - 48px} height=12px>
         <Rectangle width={(self.progress * 100)%} height=100%
             fill=rgb(55, 120, 90) corner_radius=6
@@ -299,9 +293,7 @@ Replace the panel's progress text element with:
 
 ```pax
 <Text x=24px y=116px width={100% - 48px} height=28px
-    text={self.progress_label}
-    style={font_size: 16px, fill: rgb(72, 80, 88)}
-/>
+    style={font_size: 16px, fill: rgb(72, 80, 88)}>{self.progress_label}</Text>
 ```
 
 The initial label reads “25% complete.” Pressing Advance changes the source

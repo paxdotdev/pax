@@ -1375,6 +1375,7 @@ pub(super) fn parse_pax_source_update(
 
     catch_unwind(AssertUnwindSafe(|| {
         let mut tpc = TemplateNodeParseContext {
+            content_properties: pax_manifest::parsing::content_properties(&manifest.type_table),
             pascal_identifier_to_type_id_map: template_map,
             route_branch_descriptors: manifest
                 .components

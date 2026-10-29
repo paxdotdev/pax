@@ -1,0 +1,40 @@
+<Group x=24px y=24px width={100% - 48px} height={100% - 48px}>
+    <Text class="heading" width=100% height=48px>Text, as authored</Text>
+    <Text class="caption" y=56px width=100% height=30px>Literal bodies · raw strings · reactive content</Text>
+    <Text class="copy" id=ordinary y=110px width=100% height=100px>
+        Shared indentation disappears.
+            This line keeps its extra four spaces.
+        Unicode: café 🚀 · References: &lt;Text&gt; &#123;value&#125; &amp;
+    </Text>
+    <Text class="copy" id=raw y=222px width=100% height=94px>{r#"  Raw content keeps these two spaces.
+    And these four. <Text>{braces}</Text> & \n
+"#}</Text>
+    <Text class="copy" id=markdown y=320px width=100% height=40px markdown=true>Markdown is explicit: **bold** and *emphasis*.</Text>
+    <Notice id=custom y=370px width=100% height=40px>A custom receiver uses the same body syntax.</Notice>
+    <Button id=increment y=425px width=240px height=44px @button_click=self.increment>{"Clicked " + self.count + " times"}</Button>
+    <Text class="copy" id=editable y=495px width=100% height=40px editable=true text=bind:note/>
+    <Text class="copy" id=echo y=550px width=100% height=40px>{"Live echo: " + self.note}</Text>
+    <Rectangle width=100% height=100% fill=rgb(249, 247, 241)/>
+</Group>
+
+@settings {
+    @mount: mount
+    .heading {
+        style: {
+            font_size: 32px
+            fill: rgb(27, 44, 51)
+        }
+    }
+    .caption {
+        style: {
+            font_size: 15px
+            fill: rgb(81, 99, 105)
+        }
+    }
+    .copy {
+        style: {
+            font_size: 18px
+            fill: rgb(27, 44, 51)
+        }
+    }
+}

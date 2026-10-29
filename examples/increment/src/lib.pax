@@ -1,5 +1,5 @@
 <Group x=50% y=50% width=25% height=25% @click=self.increment rotate={(current_rotation)deg}>
-    <Text x=50% y=50% width=250px height=150px selectable=false text={num_clicks + " clicks"} id=text/>
+    <Text x=50% y=50% width=250px height=150px selectable=false id=text>{num_clicks + " clicks"}</Text>
     <Rectangle fill={rgb(ticks, 75, 255 - ticks)} corner_radius=10.00/>
 </Group>
 

@@ -9,17 +9,15 @@
 >
     <Group class="slide" width=100% height=100%>
         <Group class=["panel", "panel_one"] x={(self.panel_x_left)px} y=30% width={(self.panel_width)px} height=250px>
-            <Text class="panel_kicker_one" x=32px y=26px width={100% - 64px} height=18px text="SCROLL GARDEN" selectable=false />
-            <Text class="panel_title_one" x=32px y=54px width={100% - 64px} height=60px text="Jointed Tendrils" selectable=false />
+            <Text class="panel_kicker_one" x=32px y=26px width={100% - 64px} height=18px selectable=false>SCROLL GARDEN</Text>
+            <Text class="panel_title_one" x=32px y=54px width={100% - 64px} height=60px selectable=false>Jointed Tendrils</Text>
             <Rectangle class="panel_rule_one" x=32px y=122px width=72px height=4px />
             <Text class="panel_body_one"
                 x=32px
                 y=138px
                 width={100% - 64px}
                 height=88px
-                text="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
-                selectable=false
-            />
+                selectable=false>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</Text>
             <Rectangle class=["panel_back", "panel_back_one"] width=100% height=100% />
         </Group>
         <Group class="kalei_layer" x=0% y=50% width=100% height=180% anchor=[0%, 50%]>
@@ -45,17 +43,15 @@
 
     <Group class="slide" width=100% height=100%>
         <Group class=["panel", "panel_two"] x={(self.panel_x_right)px} y=30% width={(self.panel_width)px} height=250px>
-            <Text class="panel_kicker_two" x=32px y=26px width={100% - 64px} height=18px text="KALEIDOSCOPE EDGE" selectable=false />
-            <Text class="panel_title_two" x=32px y=54px width={100% - 64px} height=60px text="Mirror Articulation" selectable=false />
+            <Text class="panel_kicker_two" x=32px y=26px width={100% - 64px} height=18px selectable=false>KALEIDOSCOPE EDGE</Text>
+            <Text class="panel_title_two" x=32px y=54px width={100% - 64px} height=60px selectable=false>Mirror Articulation</Text>
             <Rectangle class="panel_rule_two" x=32px y=122px width=72px height=4px />
             <Text class="panel_body_two"
                 x=32px
                 y=138px
                 width={100% - 64px}
                 height=88px
-                text="Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
-                selectable=false
-            />
+                selectable=false>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</Text>
             <Rectangle class=["panel_back", "panel_back_two"] width=100% height=100% />
         </Group>
         <Group class="kalei_layer" x=0% y=50% width=100% height=180% anchor=[0%, 50%]>
@@ -81,17 +77,15 @@
 
     <Group class="slide" width=100% height=100%>
         <Group class=["panel", "panel_three"] x={(self.panel_x_left)px} y=30% width={(self.panel_width)px} height=250px>
-            <Text class="panel_kicker_three" x=32px y=26px width={100% - 64px} height=18px text="GEM JOINTS" selectable=false />
-            <Text class="panel_title_three" x=32px y=54px width={100% - 64px} height=60px text="Angular Variety" selectable=false />
+            <Text class="panel_kicker_three" x=32px y=26px width={100% - 64px} height=18px selectable=false>GEM JOINTS</Text>
+            <Text class="panel_title_three" x=32px y=54px width={100% - 64px} height=60px selectable=false>Angular Variety</Text>
             <Rectangle class="panel_rule_three" x=32px y=122px width=72px height=4px />
             <Text class="panel_body_three"
                 x=32px
                 y=138px
                 width={100% - 64px}
                 height=88px
-                text="Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur."
-                selectable=false
-            />
+                selectable=false>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</Text>
             <Rectangle class=["panel_back", "panel_back_three"] width=100% height=100% />
         </Group>
         <Group class="kalei_layer" x=0% y=50% width=100% height=180% anchor=[0%, 50%]>
@@ -117,17 +111,15 @@
 
     <Group class="slide" width=100% height=100%>
         <Group class=["panel", "panel_four"] x={(self.panel_x_right)px} y=30% width={(self.panel_width)px} height=250px>
-            <Text class="panel_kicker_four" x=32px y=26px width={100% - 64px} height=18px text="SCROLL SCRUB" selectable=false />
-            <Text class="panel_title_four" x=32px y=54px width={100% - 64px} height=60px text="Furl and Unfurl" selectable=false />
+            <Text class="panel_kicker_four" x=32px y=26px width={100% - 64px} height=18px selectable=false>SCROLL SCRUB</Text>
+            <Text class="panel_title_four" x=32px y=54px width={100% - 64px} height=60px selectable=false>Furl and Unfurl</Text>
             <Rectangle class="panel_rule_four" x=32px y=122px width=72px height=4px />
             <Text class="panel_body_four"
                 x=32px
                 y=138px
                 width={100% - 64px}
                 height=88px
-                text="Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
-                selectable=false
-            />
+                selectable=false>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</Text>
             <Rectangle class=["panel_back", "panel_back_four"] width=100% height=100% />
         </Group>
         <Group class="kalei_layer" x=0% y=50% width=100% height=180% anchor=[0%, 50%]>
@@ -153,17 +145,15 @@
 
     <Group class="slide" width=100% height=100%>
         <Group class=["panel", "panel_five"] x={(self.panel_x_left)px} y=30% width={(self.panel_width)px} height=250px>
-            <Text class="panel_kicker_five" x=32px y=26px width={100% - 64px} height=18px text="TIMELINE FINALE" selectable=false />
-            <Text class="panel_title_five" x=32px y=54px width={100% - 64px} height=60px text="Edge Bloom" selectable=false />
+            <Text class="panel_kicker_five" x=32px y=26px width={100% - 64px} height=18px selectable=false>TIMELINE FINALE</Text>
+            <Text class="panel_title_five" x=32px y=54px width={100% - 64px} height=60px selectable=false>Edge Bloom</Text>
             <Rectangle class="panel_rule_five" x=32px y=122px width=72px height=4px />
             <Text class="panel_body_five"
                 x=32px
                 y=138px
                 width={100% - 64px}
                 height=88px
-                text="Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos."
-                selectable=false
-            />
+                selectable=false>Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos.</Text>
             <Rectangle class=["panel_back", "panel_back_five"] width=100% height=100% />
         </Group>
         <Group class="kalei_layer" x=0% y=50% width=100% height=180% anchor=[0%, 50%]>

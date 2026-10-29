@@ -1829,6 +1829,11 @@ impl ComponentTemplate {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
 pub struct TemplateNodeDefinition {
+    /// Source-only receiving property for an authored scalar body. The value
+    /// lives in `settings`; source edits must read that value rather than keep
+    /// a second, potentially stale copy of the body.
+    #[serde(default)]
+    pub body_property: Option<String>,
     /// Reference to the unique string ID for a component, e.g. `primitive::Frame` or `component::Stacker`
     pub type_id: TypeId,
     /// Iff this TND is a control-flow node: parsed control flow attributes (slot/if/for)
@@ -1942,6 +1947,10 @@ impl PropertyDefinition {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
 pub struct PropertyDefinitionFlags {
+    /// Compile-time opt-in for scalar element-body content. Release programs
+    /// clear this flag after lowering bodies into ordinary property settings.
+    #[serde(default)]
+    pub is_content: bool,
     // // //
     // Binding axis
     //

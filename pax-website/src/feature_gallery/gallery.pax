@@ -1,8 +1,8 @@
 <Group width=100% height=100%>
     <Stacker id=gallery_content y=80px width=100% autosize=true gutter=30px>
         <Stacker x=50% width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=18px anchor_x=50%>
-            <Text class="gallery_eyebrow" width=100% text="A love poem to the pixel"/>
-            <Text class="gallery_title" width=100% text="Meet Pax's creative toolkit:"/>
+            <Text class="gallery_eyebrow" width=100%>A love poem to the pixel</Text>
+            <Text class="gallery_title" width=100%>Meet Pax's creative toolkit:</Text>
         </Stacker>
         <Group width=100% height={self.compact ? 546px : 522px}>
             // Native image alpha composites across both the scroll island and native text.
@@ -221,7 +221,7 @@
                     summary="Use @base to derive a value from the previous settings layer, enabling composable offsets and relative animation without duplicating the original expression."
                     proof="@BASE + 12PX" docs_label="RELATIVE VALUES" docs_url="https://docs.pax.dev/data-binding-expressions.html#base">
                     <Group class="poster">
-                        <Text class="poster_code" x=28px y=30px width={100% - 56px} height=24px text="@base + 12px"/>
+                        <Text class="poster_code" x=28px y=30px width={100% - 56px} height=24px>@base + 12px</Text>
                         <Ellipse class="poster_dot_alt" x=42% y=84px width=16px height=16px anchor=50%/>
                         <Ellipse class="poster_dot" x=62% y=84px width=20px height=20px anchor=50%/>
                         <Rectangle class="poster_track" x=28px y=84px width=220px height=2px/>
@@ -276,8 +276,8 @@
                     summary="Name a font once, load it from a URL, and use the same declarative font value across template text styles."
                     proof="NAMED FONT + URL" docs_label="FONT VALUES" docs_url="https://docs.pax.dev/text-fonts-images.html#font-values">
                     <Group class="poster">
-                        <Text class="poster_type_large" x=26px y=24px width=236px height=54px text="Aa"/>
-                        <Text class="poster_code" x=28px y=92px width=232px height=24px text="Manrope / system mono"/>
+                        <Text class="poster_type_large" x=26px y=24px width=236px height=54px>Aa</Text>
+                        <Text class="poster_code" x=28px y=92px width=232px height=24px>Manrope / system mono</Text>
                     </Group>
                 </FeatureCard>
                 <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
@@ -286,7 +286,7 @@
                     proof="ASSET / URL / PROPERTY" docs_label="IMAGE SOURCES"
                     docs_url="https://docs.pax.dev/text-fonts-images.html#image-sources">
                     <Group class="poster">
-                        <Text class="poster_arrow" x=119px y=64px width=50px height=28px text="↔"/>
+                        <Text class="poster_arrow" x=119px y=64px width=50px height=28px>↔</Text>
                         <Rectangle class="poster_native" x=38px y=24px width=94px height=112px/>
                         <Rectangle class="poster_native" x=156px y=24px width=94px height=112px/>
                     </Group>
@@ -296,8 +296,8 @@
                     summary="Navigate same-origin routes through browser history while retaining ordinary new-window behavior for external destinations."
                     proof="HISTORY API / TARGET" docs_label="LINK API" docs_url="https://docs.pax.dev/api/pax-std/core/link.html">
                     <Group class="poster">
-                        <Text class="poster_code" x=24px y=28px width=238px height=24px text="/docs  →  /examples"/>
-                        <Text class="poster_arrow" x=122px y=84px width=44px height=24px text="→"/>
+                        <Text class="poster_code" x=24px y=28px width=238px height=24px>/docs  →  /examples</Text>
+                        <Text class="poster_arrow" x=122px y=84px width=44px height=24px>→</Text>
                         <Rectangle class="poster_panel_accent" x=158px y=76px width=104px height=48px/>
                         <Rectangle class="poster_panel" x=24px y=76px width=104px height=48px/>
                     </Group>
@@ -308,7 +308,7 @@
                     proof="STATE CHANGE → EFFECT" docs_label="SUBSCRIPTIONS"
                     docs_url="https://docs.pax.dev/state-properties.html#subscriptions-and-effects">
                     <Group class="poster">
-                        <Text class="poster_code" x=82px y=38px width=120px height=22px text="subscribe"/>
+                        <Text class="poster_code" x=82px y=38px width=120px height=22px>subscribe</Text>
                         <Ellipse class="poster_dot_alt" x=50px y=76px width=20px height=20px anchor=50%/>
                         <Ellipse class="poster_dot" x=232px y=76px width=26px height=26px anchor=50%/>
                         <Rectangle class="poster_track" x=60px y=75px width=162px height=2px/>
@@ -320,8 +320,8 @@
                     proof="X / Y SHORTHANDS" docs_label="COMMON PROPERTIES"
                     docs_url="https://docs.pax.dev/layout-responsiveness.html#multi-axis-common-properties">
                     <Group class="poster">
-                        <Text class="poster_code" x=22px y=24px width=52px height=20px text="x"/>
-                        <Text class="poster_code" x=214px y=112px width=52px height=20px text="y"/>
+                        <Text class="poster_code" x=22px y=24px width=52px height=20px>x</Text>
+                        <Text class="poster_code" x=214px y=112px width=52px height=20px>y</Text>
                         <Rectangle class="poster_axis" x=144px y=16px width=2px height=126px/>
                         <Rectangle class="poster_axis" x=70px y=78px width=150px height=2px/>
                         <Rectangle class="poster_outline" x=76px y=26px width=136px height=104px rotate=-8deg/>
@@ -339,7 +339,7 @@
                     summary="Open the documentation shipped with the current CLI and move from prose into first-party runnable examples from the same repository revision."
                     proof="PAX-CLI DOCS" docs_label="GETTING STARTED" docs_url="https://docs.pax.dev/getting-started.html">
                     <Group class="poster">
-                        <Text class="poster_code_light" x=52px y=44px width=182px height=24px text="$ pax-cli docs"/>
+                        <Text class="poster_code_light" x=52px y=44px width=182px height=24px>$ pax-cli docs</Text>
                         <Rectangle class="poster_code_line_light" x=52px y=82px width=146px height=6px/>
                         <Rectangle class="poster_code_line_signal" x=52px y=106px width=112px height=6px/>
                         <Rectangle class="poster_code_panel" x=34px y=24px width=220px height=112px/>
@@ -350,8 +350,8 @@
                     summary="Select familiar platform cursor shapes declaratively for mouse-capable interfaces while touch-first targets simply ignore the affordance."
                     proof="PLATFORM CURSOR STYLE" docs_label="CURSOR API" docs_url="https://docs.pax.dev/api/pax-runtime-api/cursor.html">
                     <Group class="poster">
-                        <Text class="poster_cursor" x=42px y=22px width=82px height=104px text="↖"/>
-                        <Text class="poster_code_light" x=142px y=68px width=86px height=24px text="pointer"/>
+                        <Text class="poster_cursor" x=42px y=22px width=82px height=104px>↖</Text>
+                        <Text class="poster_code_light" x=142px y=68px width=86px height=24px>pointer</Text>
                         <Rectangle class="poster_panel_accent" x=128px y=58px width=112px height=46px/>
                     </Group>
                 </FeatureCard>

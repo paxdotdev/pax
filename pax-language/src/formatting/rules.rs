@@ -6,7 +6,6 @@ const LINE_LIMIT: usize = 120;
 const INDENTATION: usize = 4;
 
 pub const PREFIX_OPERATORS: [Rule; 2] = [Rule::xo_neg, Rule::xo_bool_not];
-pub const DO_NOT_INSERT_TAB_MARKER: &str = "|-DO_NOT_INSERT_TAB-|";
 
 pub const INFIX_OPERATORS: [Rule; 17] = [
     Rule::xo_add,
@@ -28,42 +27,146 @@ pub const INFIX_OPERATORS: [Rule; 17] = [
     Rule::xo_null_coalesce,
 ];
 
-pub fn format(component: Pair<Rule>) -> String {
-    apply_formatting_rules(component).replace(DO_NOT_INSERT_TAB_MARKER, "")
+pub fn format(component: Pair<Rule>) -> Result<String, eyre::Report> {
+    // Layout is computed separately from literal payloads. Reattach the source
+    // slices by AST order after layout, so ancestor indentation can never edit
+    // a string's bytes and no sentinel can collide with authored content.
+    let mut original = Vec::new();
+    protected_spans(component.clone(), String::new(), None, &mut original);
+    let laid_out = apply_formatting_rules(component);
+    let parsed = crate::parse_pax_err(Rule::pax_component_definition, &laid_out)?;
+    let mut destinations = Vec::new();
+    protected_spans(parsed, String::new(), None, &mut destinations);
+    if original.len() != destinations.len() {
+        return Err(eyre::eyre!(
+            "formatter changed the number of text/string literals"
+        ));
+    }
+    let mut result = String::with_capacity(laid_out.len());
+    let mut cursor = 0;
+    let originals: std::collections::HashMap<_, _> = original
+        .into_iter()
+        .map(|(key, pair, _)| (key, pair))
+        .collect();
+    for (key, destination, tag_start) in destinations {
+        let source = originals
+            .get(&key)
+            .ok_or_else(|| eyre::eyre!("formatter changed a literal owner: {key}"))?;
+        if source.as_rule() != destination.as_rule() {
+            return Err(eyre::eyre!("formatter changed a literal's syntax kind"));
+        }
+        let span = destination.as_span();
+        result.push_str(&laid_out[cursor..span.start()]);
+        if source.as_rule() == Rule::body_text {
+            let raw = source.as_str();
+            let normalized = crate::text::normalize_body_whitespace(raw);
+            let line_endings = raw.replace("\r\n", "\n").replace('\r', "\n");
+            if crate::text::block_framing(&line_endings).is_some() && !raw.trim().is_empty() {
+                let line = laid_out[..tag_start.unwrap_or(span.start())]
+                    .rsplit('\n')
+                    .next()
+                    .unwrap_or("");
+                let prefix = line
+                    .bytes()
+                    .take_while(|b| matches!(b, b' ' | b'\t'))
+                    .count();
+                let closing_indent = &line[..prefix];
+                let indent = format!("{closing_indent}{}", n_indentation_string(1));
+                result.push('\n');
+                for (i, line) in normalized.split('\n').enumerate() {
+                    if i != 0 {
+                        result.push('\n');
+                    }
+                    result.push_str(&indent);
+                    result.push_str(line);
+                }
+                result.push('\n');
+                result.push_str(closing_indent);
+            } else {
+                result.push_str(raw);
+            }
+        } else {
+            result.push_str(source.as_str());
+        }
+        cursor = span.end();
+    }
+    result.push_str(&laid_out[cursor..]);
+    Ok(result)
+}
+
+fn protected_spans<'a>(
+    pair: Pair<'a, Rule>,
+    key: String,
+    tag_start: Option<usize>,
+    output: &mut Vec<(String, Pair<'a, Rule>, Option<usize>)>,
+) {
+    let tag_start = if pair.as_rule() == Rule::matched_tag {
+        Some(pair.as_span().start())
+    } else {
+        tag_start
+    };
+    if matches!(pair.as_rule(), Rule::string | Rule::body_text) {
+        output.push((key, pair, tag_start));
+    } else if pair.as_rule() == Rule::attribute_key_value_pair {
+        // Attributes may be reordered and a one-item class list may become a
+        // scalar. Identify literals by their owning attribute, not source order.
+        let name = pair.as_str().split('=').next().unwrap().trim();
+        fn leaves<'a>(pair: Pair<'a, Rule>, output: &mut Vec<Pair<'a, Rule>>) {
+            if pair.as_rule() == Rule::string {
+                output.push(pair);
+            } else {
+                for child in pair.into_inner() {
+                    leaves(child, output);
+                }
+            }
+        }
+        let mut values = Vec::new();
+        leaves(pair.clone(), &mut values);
+        for (i, value) in values.into_iter().enumerate() {
+            output.push((format!("{key}/{name}/{i}"), value, tag_start));
+        }
+    } else {
+        let mut counts = std::collections::HashMap::new();
+        for child in pair.into_inner() {
+            let rule = child.as_rule();
+            let identity = if rule == Rule::attribute_key_value_pair {
+                format!(
+                    "attribute/{}",
+                    child.as_str().split('=').next().unwrap().trim()
+                )
+            } else {
+                format!("{rule:?}")
+            };
+            let count = counts.entry(identity.clone()).or_insert(0usize);
+            let child_key = format!("{key}/{identity}/{count}");
+            *count += 1;
+            protected_spans(child, child_key, tag_start, output);
+        }
+    }
 }
 
 pub fn apply_formatting_rules(pair: Pair<Rule>) -> String {
+    if matches!(pair.as_rule(), Rule::string | Rule::body_text) {
+        return pair.as_str().to_owned();
+    }
     let children = pair.clone().into_inner();
     let mut formatted_children: Vec<Child> = Vec::new();
 
     for child in children {
         let child_formatted = apply_formatting_rules(child.clone());
-        let _child = Child::new(child.as_rule(), child_formatted.clone());
-        formatted_children.push(_child.clone());
+        formatted_children.push(Child::new(child.as_rule(), child_formatted));
     }
 
     let formatting_rules = get_formatting_rules(pair.as_rule());
-    let applicable_rules = {
-        let mut applicable_rules = Vec::new();
-        for rule in formatting_rules {
-            if rule.is_applicable(formatted_children.clone()) {
-                applicable_rules.push(rule);
-            }
+    for rule in formatting_rules {
+        if rule.is_applicable(&formatted_children) {
+            return rule.format(pair, formatted_children);
         }
-        applicable_rules
-    };
-
-    if applicable_rules.len() == 0 {
-        panic!(
-            "No applicable formatting rule found for {:?}",
-            pair.as_rule()
-        );
     }
-
-    applicable_rules
-        .first()
-        .unwrap()
-        .format(pair.clone(), formatted_children)
+    panic!(
+        "No applicable formatting rule found for {:?}",
+        pair.as_rule()
+    );
 }
 
 fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
@@ -157,6 +260,11 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::node_inner_content
         | Rule::settings_value => {
             vec![Box::new(WrapExpressionRule), Box::new(ForwardRule)]
+        }
+        Rule::body_expression_value => vec![Box::new(WrapExpressionRule), Box::new(ForwardRule)],
+        Rule::body_expression => vec![Box::new(ForwardRule)],
+        Rule::body_text | Rule::raw_string | Rule::raw_string_content => {
+            vec![Box::new(DoNotIndentRule)]
         }
         Rule::timeline_block_setting_value
         | Rule::timeline_keyframe_value
@@ -260,7 +368,7 @@ impl Child {
 }
 
 trait FormattingRule {
-    fn is_applicable(&self, _children: Vec<Child>) -> bool {
+    fn is_applicable(&self, _children: &[Child]) -> bool {
         true
     }
     fn format(&self, node: Pair<Rule>, children: Vec<Child>) -> String;
@@ -372,9 +480,21 @@ impl FormattingRule for SelfClosingTagDefaultRule {
 struct MatchTagDefaultRule;
 
 impl FormattingRule for MatchTagDefaultRule {
-    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+    fn format(&self, node: Pair<Rule>, children: Vec<Child>) -> String {
         let mut formatted_node = String::new();
         let open_tag = &children[0].formatted_node;
+        if node
+            .into_inner()
+            .nth(1)
+            .unwrap()
+            .into_inner()
+            .any(|p| p.as_rule() == Rule::node_inner_content)
+        {
+            return format!(
+                "{}{}{}",
+                open_tag, children[1].formatted_node, children[2].formatted_node
+            );
+        }
         let inner_node = indent_every_line_of_string(children[1].formatted_node.clone());
         let close_tag = &children[2].formatted_node;
         formatted_node.push_str(&format!("{}\n{}\n{}", open_tag, inner_node, close_tag));
@@ -833,7 +953,7 @@ impl FormattingRule for GradientStopDefaultRule {
 struct ListMultiLineRule;
 
 impl FormattingRule for ListMultiLineRule {
-    fn is_applicable(&self, children: Vec<Child>) -> bool {
+    fn is_applicable(&self, children: &[Child]) -> bool {
         has_multi_line_children(&children) || children_longer_than_line_limit(&children)
     }
 
@@ -867,7 +987,7 @@ impl FormattingRule for ListDefaultRule {
 struct TupleMultiLineRule;
 
 impl FormattingRule for TupleMultiLineRule {
-    fn is_applicable(&self, children: Vec<Child>) -> bool {
+    fn is_applicable(&self, children: &[Child]) -> bool {
         has_multi_line_children(&children) || children_longer_than_line_limit(&children)
     }
 
@@ -901,7 +1021,7 @@ impl FormattingRule for TupleDefaultRule {
 struct IdentifierCallMultiLineRule;
 
 impl FormattingRule for IdentifierCallMultiLineRule {
-    fn is_applicable(&self, children: Vec<Child>) -> bool {
+    fn is_applicable(&self, children: &[Child]) -> bool {
         has_multi_line_children(&children) || children_longer_than_line_limit(&children)
     }
 
@@ -954,7 +1074,7 @@ impl FormattingRule for IdentifierCallDefaultRule {
 struct ColorFunctionMultiLineRule;
 
 impl FormattingRule for ColorFunctionMultiLineRule {
-    fn is_applicable(&self, children: Vec<Child>) -> bool {
+    fn is_applicable(&self, children: &[Child]) -> bool {
         has_multi_line_children(&children) || children_longer_than_line_limit(&children)
     }
 
@@ -1003,7 +1123,7 @@ impl FormattingRule for ColorFunctionDefaultRule {
 struct ArgsListMultiLineRule;
 
 impl FormattingRule for ArgsListMultiLineRule {
-    fn is_applicable(&self, children: Vec<Child>) -> bool {
+    fn is_applicable(&self, children: &[Child]) -> bool {
         has_multi_line_children(&children) || children_longer_than_line_limit(&children)
     }
 
@@ -1034,7 +1154,7 @@ impl FormattingRule for ArgsListDefaultRule {
 struct ExpressionBodyMultiLineRule;
 
 impl FormattingRule for ExpressionBodyMultiLineRule {
-    fn is_applicable(&self, children: Vec<Child>) -> bool {
+    fn is_applicable(&self, children: &[Child]) -> bool {
         has_multi_line_children(&children) || children_longer_than_line_limit(&children)
     }
 
@@ -1271,16 +1391,18 @@ impl FormattingRule for StatementSlotDefaultRule {
 struct ForwardRule;
 
 impl FormattingRule for ForwardRule {
-    fn is_applicable(&self, _children: Vec<Child>) -> bool {
+    fn is_applicable(&self, _children: &[Child]) -> bool {
         _children.len() > 0
     }
 
     fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
-        return children
-            .iter()
-            .map(|child| child.formatted_node.clone())
-            .collect::<Vec<String>>()
-            .join("");
+        if children.len() == 1 {
+            return children.into_iter().next().unwrap().formatted_node;
+        }
+        children
+            .into_iter()
+            .map(|child| child.formatted_node)
+            .collect()
     }
 }
 
@@ -1322,7 +1444,7 @@ impl FormattingRule for PanicRule {
 struct WrapExpressionRule;
 
 impl FormattingRule for WrapExpressionRule {
-    fn is_applicable(&self, children: Vec<Child>) -> bool {
+    fn is_applicable(&self, children: &[Child]) -> bool {
         if children.len() == 1 {
             if children[0].node_type == Rule::expression_body {
                 return true;
@@ -1341,16 +1463,7 @@ struct DoNotIndentRule;
 
 impl FormattingRule for DoNotIndentRule {
     fn format(&self, node: Pair<Rule>, _children: Vec<Child>) -> String {
-        let value: String = node.as_str().trim().to_string();
-        let mut formatted_value = Vec::new();
-        for (i, line) in value.lines().enumerate() {
-            let mut line_str = line.to_string();
-            if i > 0 {
-                line_str.insert_str(0, DO_NOT_INSERT_TAB_MARKER);
-            }
-            formatted_value.push(line_str);
-        }
-        formatted_value.join("\n")
+        node.as_str().to_string()
     }
 }
 
@@ -1362,7 +1475,7 @@ fn is_infix(child: &Child) -> bool {
     INFIX_OPERATORS.contains(&child.node_type)
 }
 
-fn children_longer_than_line_limit(children: &Vec<Child>) -> bool {
+fn children_longer_than_line_limit(children: &[Child]) -> bool {
     let mut length = 0;
     for child in children {
         length += child.formatted_node.len();
@@ -1370,7 +1483,7 @@ fn children_longer_than_line_limit(children: &Vec<Child>) -> bool {
     length > LINE_LIMIT
 }
 
-fn has_multi_line_children(children: &Vec<Child>) -> bool {
+fn has_multi_line_children(children: &[Child]) -> bool {
     for child in children {
         if child.formatted_node.contains('\n') {
             return true;
@@ -1420,9 +1533,7 @@ fn n_indentation_string(n: usize) -> String {
 pub fn indent_every_line_of_string(string: String) -> String {
     let mut result = String::new();
     for line in string.lines() {
-        if !line.contains(DO_NOT_INSERT_TAB_MARKER) {
-            result.push_str(&n_indentation_string(1));
-        }
+        result.push_str(&n_indentation_string(1));
         result.push_str(line);
         result.push_str("\n");
     }

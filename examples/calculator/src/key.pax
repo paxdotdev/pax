@@ -1,6 +1,6 @@
 <Group width=100% height=100%>
     if !self.compact && self.secondary_label != "" {
-        <Text x=50% y=0px anchor_x=50% width=100% height=11.5px text={self.secondary_label} selectable=false wrap=false style={
+        <Text x=50% y=0px anchor_x=50% width=100% height=11.5px selectable=false wrap=false style={
             font: {
                 family: "Manrope"
                 url: "/assets/fonts/Manrope.ttf"
@@ -10,11 +10,11 @@
             fill: {self.second_active ? rgb(107, 68, 15) : rgb(75, 79, 66)}
             align_horizontal: TextAlignHorizontal::Center
             align_vertical: TextAlignVertical::Center
-        }/>
+        }>{self.secondary_label}</Text>
     }
     <Group y={(self.compact ? 11.5 : 13.5)px} width=100% height={(self.compact ? 21 : 31.5)px}>
         <Group y={(self.pressed)px} width=100% height=100%>
-            <Text x=50% y=50% anchor=50% width=100% height=100% text={self.label} selectable=false wrap=false style={
+            <Text x=50% y=50% anchor=50% width=100% height=100% selectable=false wrap=false style={
                 font: {
                     family: "Manrope"
                 url: "/assets/fonts/Manrope.ttf"
@@ -24,7 +24,7 @@
                 fill: {self.tone == 0 || self.tone == 3 ? rgb(48, 55, 59) : rgb(244, 245, 236)}
                 align_horizontal: TextAlignHorizontal::Center
                 align_vertical: TextAlignVertical::Center
-            }/>
+            }>{self.label}</Text>
             <Rectangle width=100% height=100% corner_radius={self.compact ? 6 : 8} fill={paint: {self.tone == 0
                 ? (self.hovered ? rgb(239, 240, 228) : rgb(222, 225, 213))
                 : (self.tone == 3 ? (self.second_active ? rgb(233, 204, 120) : rgb(191, 179, 132))

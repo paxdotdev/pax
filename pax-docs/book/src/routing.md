@@ -88,22 +88,22 @@ In `src/lib.pax`:
 ```pax
 <Group x=24px y=24px width={100% - 48px} height={100% - 48px}>
     <Link width=100px height=36px url="/">
-        <Text width=100% height=100% text="Home" />
+        <Text width=100% height=100%>Home</Text>
     </Link>
     <Link x=120px width=100px height=36px url="/notes">
-        <Text width=100% height=100% text="Notes" />
+        <Text width=100% height=100%>Notes</Text>
     </Link>
 
     <Group y=64px width=100% height={100% - 64px}>
         <Router>
             <Route path="/">
-                <Text width=100% height=48px text="A place for your ideas." />
+                <Text width=100% height=48px>A place for your ideas.</Text>
             </Route>
             <Route path="/notes">
-                <Text width=100% height=48px text="Your field notes." />
+                <Text width=100% height=48px>Your field notes.</Text>
             </Route>
             <Route default=true>
-                <Text width=100% height=48px text="This page could not be found." />
+                <Text width=100% height=48px>This page could not be found.</Text>
             </Route>
         </Router>
     </Group>
@@ -150,7 +150,7 @@ Wrap the visible content of a navigation control in a `Link`:
 
 ```pax
 <Link width=200px height=44px url="/teams/design">
-    <Text width=100% height=100% text="Open the design team" />
+    <Text width=100% height=100%>Open the design team</Text>
 </Link>
 ```
 
@@ -159,7 +159,7 @@ external web destination should open in a new browsing context:
 
 ```pax
 <Link width=200px height=44px url="https://pax.dev" target=Target::New>
-    <Text width=100% height=100% text="Visit Pax" />
+    <Text width=100% height=100%>Visit Pax</Text>
 </Link>
 ```
 
@@ -184,8 +184,8 @@ impl App {
 ```
 
 ```pax
-<Button width=180px height=36px label="Open team"
-    @button_click=self.open_team />
+<Button width=180px height=36px
+    @button_click=self.open_team>Open team</Button>
 ```
 
 This requests navigation through the active platform interface. Use
@@ -216,7 +216,7 @@ Existing links and Rust handlers then use their ordinary URLs:
 
 ```pax
 <Link url="/blog/pax-0-39-0/" target=Target::Current>
-    <Text text="Read the announcement" />
+    <Text>Read the announcement</Text>
 </Link>
 ```
 
@@ -280,7 +280,7 @@ describe this match:
 For example, inside `/teams/:team_id/*`:
 
 ```pax
-<Text width=100% height=36px text={"Team: " + route.params.team_id} />
+<Text width=100% height=36px>{"Team: " + route.params.team_id}</Text>
 ```
 
 Both location objects contain `path_segments`, `query`, and `fragment`.
@@ -325,7 +325,7 @@ team's inner screen:
 
 ```pax
 <Group width=100% height=100%>
-    <Text width=100% height=40px text={"Team: " + self.team_id} />
+    <Text width=100% height=40px>{"Team: " + self.team_id}</Text>
     <Group y=56px width=100% height={100% - 56px}>
         <Router>
             <Route path="/">
@@ -476,10 +476,10 @@ Then use it directly under a router, in the layout area for the screen:
 ```pax
 <Router>
     <PanelRoute pattern="/notes/:slug">
-        <Text width=100% height=40px text={"Note: " + route.params.slug} />
+        <Text width=100% height=40px>{"Note: " + route.params.slug}</Text>
     </PanelRoute>
     <PanelRoute fallback=true>
-        <Text width=100% height=40px text="No matching note." />
+        <Text width=100% height=40px>No matching note.</Text>
     </PanelRoute>
 </Router>
 ```

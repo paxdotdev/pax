@@ -1,39 +1,37 @@
 <Group width=100% height=100%>
     <Group x=50% anchor_x=50% width={(Math::min(720, @viewport.width - 32))px} height=100%>
-        <Text id=title x=50% y=24px anchor=[50%, 0%] width=100% height=40px
-            text="Transition Grid" selectable=false />
+        <Text id=title x=50% y=24px anchor=[50%, 0%] width=100% height=40px selectable=false>Transition Grid</Text>
         <Text id=subtitle x=50% y=80px anchor=[50%, 0%] width=100% height=20px
-            text={cell_count + " tiles · " + total_clicks + " taps · " + recycle_count + " replaced"}
-            selectable=false />
+            selectable=false>{cell_count + " tiles · " + total_clicks + " taps · " + recycle_count + " replaced"}</Text>
         <HintPill x=0px y=116px anchor=0% width=100% height=54px />
 
         <Stacker x=0px y=186px width=100% height=42px
             direction=StackerDirection::Horizontal gutter=8px>
             <Group width=100% height=100% @click=self.handle_insert_top>
-                <Text class="chip_label" x=50% y=50% width={100% - 12px} height=20px text="Insert" selectable=false />
+                <Text class="chip_label" x=50% y=50% width={100% - 12px} height=20px selectable=false>Insert</Text>
                 <Rectangle class="action_surface" width=100% height=100% />
             </Group>
             <Group width=100% height=100% @click=self.handle_remove_top>
-                <Text class="chip_label" x=50% y=50% width={100% - 12px} height=20px text="Remove" selectable=false />
+                <Text class="chip_label" x=50% y=50% width={100% - 12px} height=20px selectable=false>Remove</Text>
                 <Rectangle class="action_surface" width=100% height=100% />
             </Group>
             <Group width=100% height=100% @click=self.handle_reverse_order>
-                <Text class="chip_label" x=50% y=50% width={100% - 12px} height=20px text="Reverse" selectable=false />
+                <Text class="chip_label" x=50% y=50% width={100% - 12px} height=20px selectable=false>Reverse</Text>
                 <Rectangle class="action_surface" width=100% height=100% />
             </Group>
         </Stacker>
 
         <Group x=0px y=244px anchor_x=0% width={50% - 6px} height=88px>
-            <Text id=exit_label x=50% y=12px anchor=[50%, 0%] width={100% - 12px} height=18px text="Exit Handling" selectable=false />
+            <Text id=exit_label x=50% y=12px anchor=[50%, 0%] width={100% - 12px} height=18px selectable=false>Exit Handling</Text>
             <Stacker x=6px y=38px width={100% - 12px} height=42px direction=StackerDirection::Horizontal gutter=2px>
                 <Group width=100% height=100% @click=self.set_exit_flow>
-                    <Text class="chip_label" x=50% y=50% width={100% - 6px} height=20px text="Flow" selectable=false />
+                    <Text class="chip_label" x=50% y=50% width={100% - 6px} height=20px selectable=false>Flow</Text>
                     <Rectangle width=100% height=100% corner_radius=7
                         fill={exit_mode == ContainerExitMode::Flow ? rgb(48, 48, 56) : rgb(26, 26, 30)}
                         stroke={paint: {exit_mode == ContainerExitMode::Flow ? rgb(64, 222, 246) : rgb(42, 42, 48)}, width: 1px} />
                 </Group>
                 <Group width=100% height=100% @click=self.set_exit_ghost>
-                    <Text class="chip_label" x=50% y=50% width={100% - 6px} height=20px text="Ghost" selectable=false />
+                    <Text class="chip_label" x=50% y=50% width={100% - 6px} height=20px selectable=false>Ghost</Text>
                     <Rectangle width=100% height=100% corner_radius=7
                         fill={exit_mode == ContainerExitMode::Ghost ? rgb(48, 48, 56) : rgb(26, 26, 30)}
                         stroke={paint: {exit_mode == ContainerExitMode::Ghost ? rgb(64, 222, 246) : rgb(42, 42, 48)}, width: 1px} />
@@ -43,16 +41,16 @@
         </Group>
 
         <Group x={50% + 6px} y=244px anchor_x=0% width={50% - 6px} height=88px>
-            <Text id=change_label x=50% y=12px anchor=[50%, 0%] width={100% - 12px} height=18px text="Reflow Motion" selectable=false />
+            <Text id=change_label x=50% y=12px anchor=[50%, 0%] width={100% - 12px} height=18px selectable=false>Reflow Motion</Text>
             <Stacker x=6px y=38px width={100% - 12px} height=42px direction=StackerDirection::Horizontal gutter=2px>
                 <Group width=100% height=100% @click=self.set_change_snap>
-                    <Text class="chip_label" x=50% y=50% width={100% - 6px} height=20px text="Snap" selectable=false />
+                    <Text class="chip_label" x=50% y=50% width={100% - 6px} height=20px selectable=false>Snap</Text>
                     <Rectangle width=100% height=100% corner_radius=7
                         fill={reflow_kind == ContainerReflowTransitionKind::Snap ? rgb(48, 48, 56) : rgb(26, 26, 30)}
                         stroke={paint: {reflow_kind == ContainerReflowTransitionKind::Snap ? rgb(184, 137, 255) : rgb(42, 42, 48)}, width: 1px} />
                 </Group>
                 <Group width=100% height=100% @click=self.set_change_ease>
-                    <Text class="chip_label" x=50% y=50% width={100% - 6px} height=20px text="Ease" selectable=false />
+                    <Text class="chip_label" x=50% y=50% width={100% - 6px} height=20px selectable=false>Ease</Text>
                     <Rectangle width=100% height=100% corner_radius=7
                         fill={reflow_kind == ContainerReflowTransitionKind::Ease ? rgb(48, 48, 56) : rgb(26, 26, 30)}
                         stroke={paint: {reflow_kind == ContainerReflowTransitionKind::Ease ? rgb(184, 137, 255) : rgb(42, 42, 48)}, width: 1px} />

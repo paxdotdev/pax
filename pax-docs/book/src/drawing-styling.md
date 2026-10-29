@@ -22,8 +22,8 @@ Here is a small surface for the Field notes content from the previous chapter:
 
 ```pax
 <Group x=24px y=24px width=280px height=156px>
-    <Text x=24px y=24px width=232px height=36px text="Field notes"
-        style={font: "Arial", font_size: 24px, fill: rgb(36, 54, 47)} />
+    <Text x=24px y=24px width=232px height=36px
+        style={font: "Arial", font_size: 24px, fill: rgb(36, 54, 47)}>Field notes</Text>
     <Line x=24px y=80px width=232px height=1px
         x1=0px y1=0px x2=100% y2=0px
         stroke={paint: rgb(152, 168, 146), width: 1px} />

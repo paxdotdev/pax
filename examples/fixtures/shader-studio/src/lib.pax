@@ -1,58 +1,58 @@
 <Scroller width=100% height=100% autosize=true>
     <Stacker x=50% anchor_x=50% width={(self.panel_width)px} autosize=true gutter=18px>
         <Group width=100% height=22px/>
-        <Text width=100% height=20px text="PAX / SHADER STUDIES / 01" style={font: "Arial" font_size: 12px fill: rgb(167,142,112)}/>
-        <Text width=100% height=62px text="A living surface." style={font: "Georgia" font_size: 40px fill: rgb(245,231,204)}/>
-        <Text width=100% height=55px text="One scene, six brush languages. Brush motion and the light behind it move to separate clocks." style={font: "Arial" font_size: 16px fill: rgb(181,187,176)}/>
+        <Text width=100% height=20px style={font: "Arial" font_size: 12px fill: rgb(167,142,112)}>PAX / SHADER STUDIES / 01</Text>
+        <Text width=100% height=62px style={font: "Georgia" font_size: 40px fill: rgb(245,231,204)}>A living surface.</Text>
+        <Text width=100% height=55px style={font: "Arial" font_size: 16px fill: rgb(181,187,176)}>One scene, six brush languages. Brush motion and the light behind it move to separate clocks.</Text>
         <Group width=100% height={self.panel_width < 560.0 ? 88px : 40px}>
-            <Button class="mode_button" label="Basic" @button_click=basic
-                color={self.mode == ImpressionistMode::Basic ? rgb(125,92,51) : rgb(38,55,56)}/>
-            <Button class="mode_button" x={self.panel_width < 560.0 ? 34% : 17%} label="Gauguin" @button_click=gauguin
-                color={self.mode == ImpressionistMode::Gauguin ? rgb(125,92,51) : rgb(38,55,56)}/>
-            <Button class="mode_button" x={self.panel_width < 560.0 ? 68% : 34%} label="Van Gogh" @button_click=van_gogh
-                color={self.mode == ImpressionistMode::VanGogh ? rgb(125,92,51) : rgb(38,55,56)}/>
-            <Button class="mode_button" x={self.panel_width < 560.0 ? 0% : 51%} y={self.panel_width < 560.0 ? 48px : 0px} label="Signac" @button_click=signac
-                color={self.mode == ImpressionistMode::Signac ? rgb(125,92,51) : rgb(38,55,56)}/>
-            <Button class="mode_button" x={self.panel_width < 560.0 ? 34% : 68%} y={self.panel_width < 560.0 ? 48px : 0px} label="Cézanne" @button_click=cezanne
-                color={self.mode == ImpressionistMode::Cezanne ? rgb(125,92,51) : rgb(38,55,56)}/>
-            <Button class="mode_button" x={self.panel_width < 560.0 ? 68% : 85%} y={self.panel_width < 560.0 ? 48px : 0px} label="Seurat" @button_click=seurat
-                color={self.mode == ImpressionistMode::Seurat ? rgb(125,92,51) : rgb(38,55,56)}/>
+            <Button class="mode_button" @button_click=basic
+                color={self.mode == ImpressionistMode::Basic ? rgb(125,92,51) : rgb(38,55,56)}>Basic</Button>
+            <Button class="mode_button" x={self.panel_width < 560.0 ? 34% : 17%} @button_click=gauguin
+                color={self.mode == ImpressionistMode::Gauguin ? rgb(125,92,51) : rgb(38,55,56)}>Gauguin</Button>
+            <Button class="mode_button" x={self.panel_width < 560.0 ? 68% : 34%} @button_click=van_gogh
+                color={self.mode == ImpressionistMode::VanGogh ? rgb(125,92,51) : rgb(38,55,56)}>Van Gogh</Button>
+            <Button class="mode_button" x={self.panel_width < 560.0 ? 0% : 51%} y={self.panel_width < 560.0 ? 48px : 0px} @button_click=signac
+                color={self.mode == ImpressionistMode::Signac ? rgb(125,92,51) : rgb(38,55,56)}>Signac</Button>
+            <Button class="mode_button" x={self.panel_width < 560.0 ? 34% : 68%} y={self.panel_width < 560.0 ? 48px : 0px} @button_click=cezanne
+                color={self.mode == ImpressionistMode::Cezanne ? rgb(125,92,51) : rgb(38,55,56)}>Cézanne</Button>
+            <Button class="mode_button" x={self.panel_width < 560.0 ? 68% : 85%} y={self.panel_width < 560.0 ? 48px : 0px} @button_click=seurat
+                color={self.mode == ImpressionistMode::Seurat ? rgb(125,92,51) : rgb(38,55,56)}>Seurat</Button>
         </Group>
-        <Text width=100% height={self.panel_width < 560.0 ? 64px : 42px} text={self.mode_description} style={font: "Arial" font_size: 15px fill: rgb(215,197,164)}/>
+        <Text width=100% height={self.panel_width < 560.0 ? 64px : 42px} style={font: "Arial" font_size: 15px fill: rgb(215,197,164)}>{self.mode_description}</Text>
         <Group width=100% height=58px>
-            <Text width=100% height=22px text={"Brush size: " + self.brush_size + " — remembered per style"}
-                style={font: "Arial" font_size: 14px fill: rgb(215,197,164)}/>
+            <Text width=100% height=22px
+                style={font: "Arial" font_size: 14px fill: rgb(215,197,164)}>{"Brush size: " + self.brush_size + " — remembered per style"}</Text>
             <Slider id=brush_size y=28px width=100% height=28px
                 value=bind:brush_size min=4.0 max=32.0 step=1.0
                 accent=rgb(196,155,94) background=rgb(38,55,56) corner_radius=12.0/>
         </Group>
         <Group width=100% height=58px>
-            <Text width=100% height=22px text={"Motion speed: " + self.motion_speed + "× — negative reverses"}
-                style={font: "Arial" font_size: 14px fill: rgb(215,197,164)}/>
+            <Text width=100% height=22px
+                style={font: "Arial" font_size: 14px fill: rgb(215,197,164)}>{"Motion speed: " + self.motion_speed + "× — negative reverses"}</Text>
             <Slider id=motion_speed y=28px width=100% height=28px
                 value=bind:motion_speed min=-5.0 max=5.0 step=0.1
                 accent=rgb(196,155,94) background=rgb(38,55,56) corner_radius=12.0/>
         </Group>
         <Group width=100% height=42px>
-            <Button width=48% height=40px label={self.playing ? "Pause strokes" : "Resume strokes"} @button_click=toggle_play/>
-            <Button x=52% anchor_x=0% width=48% height=40px label={self.moving ? "Freeze source" : "Animate source"} @button_click=toggle_source/>
+            <Button width=48% height=40px @button_click=toggle_play>{self.playing ? "Pause strokes" : "Resume strokes"}</Button>
+            <Button x=52% anchor_x=0% width=48% height=40px @button_click=toggle_source>{self.moving ? "Freeze source" : "Animate source"}</Button>
         </Group>
         <Frame width=100% height=340px corner_radius=18>
             <Impressionist width=100% height=100% mode={self.mode} phase={self.phase} size={self.brush_size} seed=17>
                 <Landscape width=100% height=100% phase={self.source_phase}/>
             </Impressionist>
         </Frame>
-        <Text width=100% height=24px text="01 / PIGMENT     —     SURFACE-ANCHORED STROKES" style={font: "Arial" font_size: 12px fill: rgb(181,187,176)}/>
+        <Text width=100% height=24px style={font: "Arial" font_size: 12px fill: rgb(181,187,176)}>01 / PIGMENT     —     SURFACE-ANCHORED STROKES</Text>
         <Group width=100% height=42px>
-            <Button width=48% height=40px label={"Radius: " + self.radius + " px"} @button_click=blur_more/>
-            <Button x=52% anchor_x=0% width=48% height=40px label={self.reference ? "Reference" : "Adaptive"} @button_click=toggle_reference/>
+            <Button width=48% height=40px @button_click=blur_more>{"Radius: " + self.radius + " px"}</Button>
+            <Button x=52% anchor_x=0% width=48% height=40px @button_click=toggle_reference>{self.reference ? "Reference" : "Adaptive"}</Button>
         </Group>
         <Frame width=100% height=260px corner_radius=18>
             <GaussianBlur width=100% height=100% radius={self.radius} reference={self.reference}>
                 <Landscape width=100% height=100% phase={self.source_phase}/>
             </GaussianBlur>
         </Frame>
-        <Text width=100% height=62px text="02 / DIFFUSION — GAUSSIAN BLUR. Radius is standard deviation. Adaptive mode blends into quarter-resolution passes from 6 to 10 px." style={font: "Arial" font_size: 12px fill: rgb(181,187,176)}/>
+        <Text width=100% height=62px style={font: "Arial" font_size: 12px fill: rgb(181,187,176)}>02 / DIFFUSION — GAUSSIAN BLUR. Radius is standard deviation. Adaptive mode blends into quarter-resolution passes from 6 to 10 px.</Text>
         <Frame width=100% height=220px corner_radius=18>
             <GaussianBlur width=100% height=100% radius=2.0>
                 <Impressionist width=100% height=100% mode={self.mode} phase={self.phase} size={self.brush_size} seed=7>
@@ -60,14 +60,14 @@
                 </Impressionist>
             </GaussianBlur>
         </Frame>
-        <Text width=100% height=70px text="03 / LAYERS — PAINT, THEN DIFFUSE. Native text and controls remain outside the effects. Nested shaders compose through the same userland API." style={font: "Arial" font_size: 12px fill: rgb(181,187,176)}/>
+        <Text width=100% height=70px style={font: "Arial" font_size: 12px fill: rgb(181,187,176)}>03 / LAYERS — PAINT, THEN DIFFUSE. Native text and controls remain outside the effects. Nested shaders compose through the same userland API.</Text>
         <Group width=100% height=96px>
             <GaussianBlur width=100% height=100% radius={self.radius}>
                 <Rectangle x=40% anchor_x=0% width=18% height=100% fill=rgb(248,213,141)/>
             </GaussianBlur>
-            <Text y=30px width=100% height=40px text="ORIGINAL COVERAGE" style={font: "Georgia" font_size: 28px fill: rgb(245,231,204)}/>
+            <Text y=30px width=100% height=40px style={font: "Georgia" font_size: 28px fill: rgb(245,231,204)}>ORIGINAL COVERAGE</Text>
         </Group>
-        <Text width=100% height=70px text="04 / NATIVE OVERLAP — ORIGINAL CUTOUT. The text cutout follows the rectangle; blur does not reshape it." style={font: "Arial" font_size: 12px fill: rgb(181,187,176)}/>
+        <Text width=100% height=70px style={font: "Arial" font_size: 12px fill: rgb(181,187,176)}>04 / NATIVE OVERLAP — ORIGINAL CUTOUT. The text cutout follows the rectangle; blur does not reshape it.</Text>
         <Group width=100% height=24px/>
     </Stacker>
 </Scroller>

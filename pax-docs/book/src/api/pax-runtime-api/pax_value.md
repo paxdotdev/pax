@@ -96,6 +96,13 @@ Converts a Rust value into its built-in `PaxValue` representation.
 This is exact conversion, not coercion; coercion is handled separately by
 `CoercionRules`.
 
+## Functions
+### `string_literal`
+<pre><code class="api-signature language-rust ignore">pub fn string_literal(value: &amp;str) -&gt; String</code></pre>
+
+Emit a lossless Pax string literal. Raw delimiters avoid depending on the
+legacy quoted-string escape decoder and preserve multiline payloads.
+
 ## Type Aliases
 ### `RcPaxValue`
 Shared runtime PaxValue handle.

@@ -1347,3 +1347,32 @@ handoff. Moving the opaque backdrop with the sheet removes the previous
 full-page blank interval; highlighting only the selected source avoids eager
 work for hidden tabs. No arbitrary delay or bypass of text readiness was added.
 Coordinating lifecycle entry with native presentation readiness remains open.
+
+- 2026-10-29 — PAX-1056 web fixture validation: typed `Edited 🚀` into
+  `Text editable=true text=bind:note` through browser key events. Expected normal
+  caret advancement; observed reversed character order (`🚀 detidE`), while the
+  bound echo correctly followed each update. Pasting the full string works.
+  Repro: `examples/fixtures/text-bodies`, browser Text editing; investigate the
+  existing content replacement/selection handling separately from body parsing.
+
+- 2026-10-29 — Running `swift test --package-path
+  pax-host/native/common/pax-swift-common --filter NativeTextTests` concurrently
+  with Cargo tests created `.build` under a directory embedded by
+  `pax-host/src/sources.rs`. Expected independent checks; Rust `include_dir!`
+  raced Swift module-cache lock files and failed to read a removed file. Use
+  `swift test --scratch-path /private/tmp/<task-build> ...` and keep generated
+  Swift output out of the embedded source tree.
+
+- 2026-10-29 — PAX-1056 native fixture launch: `target/debug/text-bodies`
+  compiled successfully, but this session reported `Pax display clock unavailable
+  (-6661); retrying on display/session wake`. Native AppKit text tests pass; an
+  interactive native visual check remains unverified on this host.
+
+- 2026-10-29 — Broad runtime validation during PAX-1056: two
+  `viewport_proximity` mask tests fail identically on the working change and an
+  untouched `git archive HEAD` baseline (`de7e1c095`), including serial execution.
+  `masks_with_scroll_islands_disabled_use_presented_geometry` expects a nonzero
+  mask at line 1255 but receives 0; `unclipped_scroll_overflow_updates_masks_outside_its_viewport`
+  expects 0 at line 1288 but receives 5588616461809109485. Reproduce with
+  `cargo test -p pax-runtime --test viewport_proximity -- --test-threads=1`.
+  Remaining tests in that binary: 20 passed, 1 ignored.

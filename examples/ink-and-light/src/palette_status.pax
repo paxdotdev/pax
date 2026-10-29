@@ -5,9 +5,7 @@
         width=45%
         height=100%
         anchor_x=50%
-        text={is_sealed ? "sealed with light" : "ink & light"}
-        selectable=false
-    />
+        selectable=false>{is_sealed ? "sealed with light" : "ink & light"}</Text>
     <Ellipse x=4% y=50% width=14px height=14px anchor_y=50% fill=rgba(19, 42, 77, 255) />
     <Ellipse x=14% y=50% width=14px height=14px anchor_y=50% fill=rgba(219, 91, 73, 255) />
     <Ellipse x=24% y=50% width=14px height=14px anchor_y=50% fill=rgba(159, 143, 190, 255) />

@@ -1,0 +1,26 @@
+[package]
+publish = false
+name = "text-bodies"
+version = "0.39.1"
+edition = "2021"
+default-run = "text-bodies"
+
+[package.metadata.pax]
+title = "text-bodies"
+
+[dependencies]
+pax-kit = { path = "../../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "text-bodies"
+path = "src/main.rs"
+required-features = ["standalone"]
+

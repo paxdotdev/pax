@@ -3,30 +3,25 @@
         <SiteTheme />
     </ImportSettings>
     <Stacker id=runtime_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=36px>
-        <Text class="editorial_kicker" width=100% text="A PORTABLE RUNTIME"/>
-        <Text class="editorial_title" width=100% text="One project. Native and web."/>
-        <Text class="editorial_lead" width={self.compact ? 100% : 82%}
-            text="Take the same Pax templates and Rust logic to macOS, iOS, iPadOS, and the browser. Share the interface model, while each platform supplies the integration it needs."/>
+        <Text class="editorial_kicker" width=100%>A PORTABLE RUNTIME</Text>
+        <Text class="editorial_title" width=100%>One project. Native and web.</Text>
+        <Text class="editorial_lead" width={self.compact ? 100% : 82%}>Take the same Pax templates and Rust logic to macOS, iOS, iPadOS, and the browser. Share the interface model, while each platform supplies the integration it needs.</Text>
         <PaxflixShowcase width=100% height={(self.showcase_height)px} content_height=bind:self.showcase_height/>
         <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=32px
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}>
             <Stacker width=100% autosize=true gutter=14px>
-                <Text class="editorial_subtitle" width=100% text="Native where it matters."/>
-                <Text class="editorial_body" width=100%
-                    text="Text selection, editing, form controls, and scrolling draw on the platform's own behavior. Pax composes those native elements with rendered visuals in one coordinate space, including transforms, clipping, and motion."/>
-                <Text class="editorial_note" width=100%
-                    text="Build web apps from macOS, Debian/Ubuntu Linux, or Windows. Apple app targets require macOS and Xcode. Native Linux, Windows, and Android apps are not current targets."/>
+                <Text class="editorial_subtitle" width=100%>Native where it matters.</Text>
+                <Text class="editorial_body" width=100%>Text selection, editing, form controls, and scrolling draw on the platform's own behavior. Pax composes those native elements with rendered visuals in one coordinate space, including transforms, clipping, and motion.</Text>
+                <Text class="editorial_note" width=100%>Build web apps from macOS, Debian/Ubuntu Linux, or Windows. Apple app targets require macOS and Xcode. Native Linux, Windows, and Android apps are not current targets.</Text>
             </Stacker>
             <Stacker width=100% autosize=true gutter=14px>
-                <Text class="editorial_subtitle" width=100% text="Performance is part of the design."/>
-                <Text class="editorial_body" width=100%
-                    text="The reactive graph narrows what needs updating. The renderer retains resources, reuses work, and culls content outside the viewport. Rust gives the core runtime control over memory and execution; GPU rendering handles the visual work where supported."/>
-                <Text class="editorial_note" width=100%
-                    text="Apple builds use Metal-backed rendering. Web builds use WebGPU where available, with a CPU fallback. Backend-specific effects can differ; performance still needs evaluating against your app and hardware."/>
+                <Text class="editorial_subtitle" width=100%>Performance is part of the design.</Text>
+                <Text class="editorial_body" width=100%>The reactive graph narrows what needs updating. The renderer retains resources, reuses work, and culls content outside the viewport. Rust gives the core runtime control over memory and execution; GPU rendering handles the visual work where supported.</Text>
+                <Text class="editorial_note" width=100%>Apple builds use Metal-backed rendering. Web builds use WebGPU where available, with a CPU fallback. Backend-specific effects can differ; performance still needs evaluating against your app and hardware.</Text>
             </Stacker>
         </Stacker>
         <Link width=100% height=28px url="https://docs.pax.dev/targets-build-deploy/" target=Target::New>
-            <Text class="editorial_link" width=100% text="EXPLORE TARGETS AND DEPLOYMENT →"/>
+            <Text class="editorial_link" width=100%>EXPLORE TARGETS AND DEPLOYMENT →</Text>
         </Link>
     </Stacker>
     <Rectangle class="site_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 40px) : 88%} height=1px/>

@@ -32,13 +32,9 @@ application's root, and `#[file("lib.pax")]` names its template. Here is that te
 ```pax
 <Group x=24px y=24px width=320px height=160px>
     <Text x=24px y=24px width={100% - 48px} height=36px
-        text="Field notes"
-        style={font_size: 24px, fill: rgb(32, 40, 48)}
-    />
+        style={font_size: 24px, fill: rgb(32, 40, 48)}>Field notes</Text>
     <Text x=24px y=72px width={100% - 48px} height=48px
-        text="A place for your next idea."
-        style={font_size: 16px, fill: rgb(72, 80, 88)}
-    />
+        style={font_size: 16px, fill: rgb(72, 80, 88)}>A place for your next idea.</Text>
     // The background is behind the text above it.
     <Rectangle width=100% height=100%
         fill=rgb(246, 241, 230) corner_radius=12
@@ -48,8 +44,8 @@ application's root, and `#[file("lib.pax")]` names its template. Here is that te
 
 Tags name components, using PascalCase: `Group`, `Text`, and `Rectangle` here.
 The `Group` has an opening and closing tag because it contains other elements.
-The two `Text` elements and the `Rectangle` use self-closing tags. Visible words
-are supplied through the `Text` component's `text` property.
+The `Text` elements receive words between their tags. This assigns each Text's
+`text` property. The `Rectangle` uses a self-closing tag.
 
 The group is the parent of these three elements, and they are siblings of one
 another. Each child's position and percentage dimensions are relative to its
@@ -98,6 +94,79 @@ Event bindings connect the tree to application behavior. The handler's body
 lives in Rust; [Event Handling and Rust Logic](event-handling-rust.md) covers
 its signature, event data, and state updates.
 
+## Text bodies
+
+`Text` and `Button` accept text between their opening and closing tags:
+
+```pax
+<Text width=240px height=40px>Hello, world.</Text>
+<Button width=180px height=40px>Continue</Button>
+<Text width=240px height=40px>{"Hello, " + self.name}</Text>
+```
+
+A body is either literal text or one complete `{...}` expression. Expressions
+read the containing component's state. Inline interpolation such as
+`Hello {self.name}` is not supported; put the entire string expression in braces.
+A scalar body cannot be mixed with child elements or template control flow.
+Structural children and slots retain their existing behavior.
+
+Bodies assign an ordinary property: `Text.text`, `Button.label`, or a custom
+component's [content receiver](components-composition.md#receiving-text-content).
+The attribute forms still work, including `text=bind:note` for editable text.
+Do not supply both a body and its receiving attribute on the same tag. A body
+has the same precedence as an inline attribute over shared settings.
+
+### Whitespace and literal characters
+
+Inline bodies preserve spaces. For a multiline body whose first and last lines
+contain only spaces or tabs, Pax removes those two framing lines and the shared
+space/tab prefix of the nonblank content lines. Additional indentation, blank
+lines, and trailing spaces remain; ordinary body line endings normalize to LF.
+The formatter may indent a framed block without changing its value:
+
+```pax
+<Text width=320px height=80px>
+    First line
+        Four intentional spaces on this line
+    Last line
+</Text>
+```
+
+An empty or whitespace-only ordinary body supplies no value, leaving defaults
+and settings in effect. Use `{""}` to assign an empty string explicitly.
+
+Literal `<`, `{`, `}`, and `&` need character references in ordinary bodies.
+Use `&lt;`, `&#123;`, `&#125;`, and `&amp;`. Pax also accepts `&gt;`, `&quot;`,
+`&apos;`, and decimal or hexadecimal Unicode scalar references such as
+`&#233;` or `&#x1F680;`. References decode once, after whitespace handling;
+decoded characters never become template syntax. Unknown references and bare
+ampersands are errors. Quotes, apostrophes, backticks, and backslashes otherwise
+remain ordinary text. A body consisting of template comments or `slot(...)`
+is structural; use a string expression when those characters are intended text.
+
+### Exact text with raw strings
+
+Use a raw string expression for exact whitespace, literal markup, or embedded
+code. The formatter leaves the string payload unchanged, including a first or
+last newline, tabs, CRLF, and intentional indentation:
+
+```pax
+<Text width=320px height=80px>{r#"  Keep these two spaces.
+    Keep these four, too. <Text>{name}</Text> & \n"#}</Text>
+```
+
+`r"..."`, `r#"..."#`, and forms with more hashes are PAXEL string literals.
+Choose enough hashes that the matching closing quote/hash sequence does not
+occur in the text. Raw strings do not decode references or backslash escapes.
+They can also be used in attributes and other PAXEL expressions. Existing quoted
+strings retain their existing escape behavior. Prefer a raw string expression
+inside `#[inlined(...)]` when prose contains punctuation that Rust would parse
+as tokens; `.pax` files accept ordinary prose directly.
+
+Text bodies do not enable Markdown. See
+[Markdown content](text-fonts-images.md#markdown-content) for the explicit switch
+and target limitations.
+
 ## Element order
 
 Earlier siblings appear in front of later siblings. In the panel above, both
@@ -125,9 +194,9 @@ give elements a class and collect those settings in an `@settings` block:
 ```pax
 <Group id=panel x=24px y=24px>
     <Text class="heading" x=24px y=24px width={100% - 48px}
-        height=36px text="Field notes" />
+        height=36px>Field notes</Text>
     <Text class="body" x=24px y=72px width={100% - 48px}
-        height=48px text="A place for your next idea." />
+        height=48px>A place for your next idea.</Text>
     <Rectangle class="surface" width=100% height=100% />
 </Group>
 
@@ -293,9 +362,7 @@ siblings of `ImportSettings`:
 
 <Group x=24px y=24px width=320px height=160px>
     <Text x=24px y=24px width={100% - 48px} height=36px
-        text="Field notes"
-        style={font_size: 24px, fill: rgb(32, 40, 48)}
-    />
+        style={font_size: 24px, fill: rgb(32, 40, 48)}>Field notes</Text>
     <Rectangle class="surface" width=100% height=100% />
 </Group>
 ```

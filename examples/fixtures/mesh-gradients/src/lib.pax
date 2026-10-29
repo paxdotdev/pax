@@ -1,34 +1,33 @@
 <Scroller width=100% height=100% autosize=true>
     <Stacker x=50% anchor_x=50% width={(self.panel_width)px} autosize=true gutter=20px>
         <Group width=100% height=24px/>
-        <Text width=100% height=20px text="PAX / MATERIAL STUDIES / 01" style={
+        <Text width=100% height=20px style={
             font: "Arial"
             font_size: 12px
             fill: rgb(130, 153, 180)
-        }/>
-        <Text width=100% height=60px text="Color, in motion." style={
+        }>PAX / MATERIAL STUDIES / 01</Text>
+        <Text width=100% height=60px style={
             font: "Arial"
             font_size: 38px
             fill: WHITE
-        }/>
+        }>Color, in motion.</Text>
         <Text width=100% height=56px
-            text="Nine anchors. Independent positions. One continuous field. Move the center without changing its neighbors."
             style={
                 font: "Arial"
                 font_size: 16px
                 fill: rgb(175, 188, 207)
-            }/>
+            }>Nine anchors. Independent positions. One continuous field. Move the center without changing its neighbors.</Text>
         <Group width=100% height=42px>
-            <Button width=30% height=40px label={self.playing ? "Pause" : "Resume"} @button_click=toggle_playing/>
-            <Button x=34% anchor_x=0% width=31% height=40px label={self.overlay ? "Hide anchors" : "Show anchors"}
-                @button_click=toggle_overlay/>
-            <Button x=69% anchor_x=0% width=31% height=40px label={self.compact ? "Expand" : "Narrow"} @button_click=toggle_size/>
+            <Button width=30% height=40px @button_click=toggle_playing>{self.playing ? "Pause" : "Resume"}</Button>
+            <Button x=34% anchor_x=0% width=31% height=40px
+                @button_click=toggle_overlay>{self.overlay ? "Hide anchors" : "Show anchors"}</Button>
+            <Button x=69% anchor_x=0% width=31% height=40px @button_click=toggle_size>{self.compact ? "Expand" : "Narrow"}</Button>
         </Group>
-        <Text width=100% height=22px text="01 — MORPH / NESTED POSITION + COLOR BINDINGS" style={
+        <Text width=100% height=22px style={
             font: "Arial"
             font_size: 12px
             fill: rgb(175, 188, 207)
-        }/>
+        }>01 — MORPH / NESTED POSITION + COLOR BINDINGS</Text>
         <Group width=100% height={(self.field_height)px}>
             if self.overlay {
                 <Ellipse x={self.center_x} y={self.center_y} anchor=50% width=12px height=12px fill=WHITE stroke={
@@ -96,11 +95,11 @@
                 material: {Material::unlit()}
             }/>
         </Group>
-        <Text width=100% height=22px text="02 — CONTINUOUS FIELD / HANDWRITER MASK" style={
+        <Text width=100% height=22px style={
             font: "Arial"
             font_size: 12px
             fill: rgb(175, 188, 207)
-        }/>
+        }>02 — CONTINUOUS FIELD / HANDWRITER MASK</Text>
         <Mask width=100% height={(self.word_height)px} alpha=true>
             <Rectangle width=100% height=100% fill={
                 paint: @gradient {
@@ -117,17 +116,16 @@
                 }/>
         </Mask>
         <Text width=100% height=42px
-            text="The word ‘creative’ reveals a single field. Its writing progress and paint coordinates stay independent."
             style={
                 font: "Arial"
                 font_size: 14px
                 fill: rgb(175, 188, 207)
-            }/>
-        <Text width=100% height=42px text="03 — DIRECT STROKE / STABLE DOMAIN THROUGH REVEAL" style={
+            }>The word ‘creative’ reveals a single field. Its writing progress and paint coordinates stay independent.</Text>
+        <Text width=100% height=42px style={
             font: "Arial"
             font_size: 12px
             fill: rgb(175, 188, 207)
-        }/>
+        }>03 — DIRECT STROKE / STABLE DOMAIN THROUGH REVEAL</Text>
         <Path width=100% height=140px draw_end={self.progress} fill=TRANSPARENT stroke={
             paint: @gradient {
                 mesh: {
@@ -188,11 +186,11 @@
                 PathElement::Cubic(70%, 0%, 80%, 100%),
                 PathElement::Point(100%, 30%)
             ]/>
-        <Text width=100% height=22px text="04 — STATIC / TRANSLUCENT ANCHORS" style={
+        <Text width=100% height=22px style={
             font: "Arial"
             font_size: 12px
             fill: rgb(175, 188, 207)
-        }/>
+        }>04 — STATIC / TRANSLUCENT ANCHORS</Text>
         <Group width=100% height=180px opacity=80%>
             <Rectangle width=100% height=100% fill={
                 paint: @gradient {
@@ -248,12 +246,11 @@
             <Rectangle width=100% height=100% fill=rgb(32, 40, 54)/>
         </Group>
         <Text width=100% height=56px
-            text="WGPU mesh paint • Rows encode connectivity, not alignment. Pause freezes the field; Narrow exercises responsive paint bounds."
             style={
                 font: "Arial"
                 font_size: 13px
                 fill: rgb(130, 153, 180)
-            }/>
+            }>WGPU mesh paint • Rows encode connectivity, not alignment. Pause freezes the field; Narrow exercises responsive paint bounds.</Text>
         <Group width=100% height=24px/>
     </Stacker>
 </Scroller>

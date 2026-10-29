@@ -1,13 +1,12 @@
-<Button anchor=0% x=12px y=12px width={25% - 16px} height=36px label="1 direct" @button_click=self.single/>
-<Button anchor=0% x={25% + 4px} y=12px width={25% - 16px} height=36px label="1 scaled" @button_click=self.scaled/>
-<Button anchor=0% x={50% + 4px} y=12px width={25% - 16px} height=36px label="2 direct" @button_click=self.pair/>
-<Button anchor=0% x={75% + 4px} y=12px width={25% - 16px} height=36px label="2 scaled" @button_click=self.pair_scaled/>
-<Text anchor=0% x=12px y=56px width={100% - 24px} height=40px
-    text={"Mode " + mode + " / identical presented content; scaled modes add a 0.5x embedding transform."} style={
+<Button anchor=0% x=12px y=12px width={25% - 16px} height=36px @button_click=self.single>1 direct</Button>
+<Button anchor=0% x={25% + 4px} y=12px width={25% - 16px} height=36px @button_click=self.scaled>1 scaled</Button>
+<Button anchor=0% x={50% + 4px} y=12px width={25% - 16px} height=36px @button_click=self.pair>2 direct</Button>
+<Button anchor=0% x={75% + 4px} y=12px width={25% - 16px} height=36px @button_click=self.pair_scaled>2 scaled</Button>
+<Text anchor=0% x=12px y=56px width={100% - 24px} height=40px style={
         font: "Arial"
         font_size: 14px
         fill: rgb(238, 238, 238)
-    }/>
+    }>{"Mode " + mode + " / identical presented content; scaled modes add a 0.5x embedding transform."}</Text>
 for branch in 0..branches {
     <Frame anchor=0% x={(12 + branch * (pane_width + 12))px} y=104px width={(pane_width)px} height={(pane_height)px}
         corner_radius=12>

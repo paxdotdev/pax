@@ -151,13 +151,14 @@ impl RustManifestWriter {
 
     fn template_node_definition(&self, node: &TemplateNodeDefinition) -> String {
         format!(
-            "{mp}::TemplateNodeDefinition {{ type_id: {type_id}, control_flow_settings: {control_flow_settings}, settings: {settings}, selector_info: {selector_info}, raw_comment_string: {raw_comment_string} }}",
+            "{mp}::TemplateNodeDefinition {{ body_property: {body_property}, type_id: {type_id}, control_flow_settings: {control_flow_settings}, settings: {settings}, selector_info: {selector_info}, raw_comment_string: {raw_comment_string} }}",
             mp = self.manifest_path,
             type_id = self.type_id(&node.type_id),
             control_flow_settings = self.option(&node.control_flow_settings, |value| self.control_flow_settings_definition(value)),
             settings = self.option(&node.settings, |value| self.vec(value, |element| self.setting_element(element))),
             selector_info = self.template_node_selector_info(&node.selector_info),
             raw_comment_string = self.option(&node.raw_comment_string, |value| rust_string(value)),
+            body_property = self.option(&node.body_property, |value| rust_string(value)),
         )
     }
 
@@ -193,8 +194,9 @@ impl RustManifestWriter {
 
     fn property_definition_flags(&self, flags: &PropertyDefinitionFlags) -> String {
         format!(
-            "{mp}::PropertyDefinitionFlags {{ is_binding_repeat_i: {is_binding_repeat_i}, is_binding_repeat_elem: {is_binding_repeat_elem}, is_repeat_source_range: {is_repeat_source_range}, is_repeat_source_iterable: {is_repeat_source_iterable}, is_property_wrapped: {is_property_wrapped}, is_enum: {is_enum} }}",
+            "{mp}::PropertyDefinitionFlags {{ is_content: {is_content}, is_binding_repeat_i: {is_binding_repeat_i}, is_binding_repeat_elem: {is_binding_repeat_elem}, is_repeat_source_range: {is_repeat_source_range}, is_repeat_source_iterable: {is_repeat_source_iterable}, is_property_wrapped: {is_property_wrapped}, is_enum: {is_enum} }}",
             mp = self.manifest_path,
+            is_content = flags.is_content,
             is_binding_repeat_i = flags.is_binding_repeat_i,
             is_binding_repeat_elem = flags.is_binding_repeat_elem,
             is_repeat_source_range = flags.is_repeat_source_range,

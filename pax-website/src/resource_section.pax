@@ -7,20 +7,19 @@
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
             sizes={self.compact ? [] : [Some(40%), None]}>
             <Stacker width=100% autosize=true gutter=24px>
-                <Text class="editorial_kicker" width=100% text="PAX IS READY FOR BUILDERS"/>
-                <Text class="editorial_title" width=100% text="Your next interface starts here."/>
-                <Text class="editorial_lead" width=100% text="Start with a running project, change something, and make it yours."/>
-                <Text class="editorial_subtitle" width=100% text="Four commands to begin."/>
+                <Text class="editorial_kicker" width=100%>PAX IS READY FOR BUILDERS</Text>
+                <Text class="editorial_title" width=100%>Your next interface starts here.</Text>
+                <Text class="editorial_lead" width=100%>Start with a running project, change something, and make it yours.</Text>
+                <Text class="editorial_subtitle" width=100%>Four commands to begin.</Text>
                 <Stacker width=100% autosize=true gutter=8px>
-                    <Text class="editorial_code" width=100% text="cargo install pax-cli"/>
-                    <Text class="editorial_code" width=100% text="pax-cli create my-app"/>
-                    <Text class="editorial_code" width=100% text="cd my-app"/>
-                    <Text class="editorial_code" width=100% text="pax-cli run"/>
+                    <Text class="editorial_code" width=100%>cargo install pax-cli</Text>
+                    <Text class="editorial_code" width=100%>pax-cli create my-app</Text>
+                    <Text class="editorial_code" width=100%>cd my-app</Text>
+                    <Text class="editorial_code" width=100%>pax-cli run</Text>
                 </Stacker>
-                <Text class="editorial_note" width=100%
-                    text="Set up your workstation first. The guide covers macOS, Linux, and Windows; pax-cli run opens the web target by default."/>
+                <Text class="editorial_note" width=100%>Set up your workstation first. The guide covers macOS, Linux, and Windows; pax-cli run opens the web target by default.</Text>
                 <Link width=220px height=48px url="https://docs.pax.dev/getting-started/" target=Target::New>
-                    <Text class="site_button_label" width=100% height=100% text="Start with the CLI →"/>
+                    <Text class="site_button_label" width=100% height=100%>Start with the CLI →</Text>
                     <Rectangle class="site_button_signal" width=100% height=100%/>
                 </Link>
             </Stacker>
@@ -29,31 +28,29 @@
         <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter={self.compact ? 32px : 6%}
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}>
             <Stacker width=100% autosize=true gutter=14px>
-                <Text class="editorial_subtitle" width=100% text="Early, open, and ready to build with."/>
-                <Text class="editorial_body" width=100%
-                    text="Pax has been in development since 2021. Today's framework is coherent and runnable, but still pre-1.0: APIs will evolve and capabilities vary by target. Try it against the needs of your project, and help shape what comes next."/>
-                <Text class="editorial_note" width=100%
-                    text="Native text and controls provide an accessibility foundation. Reading order, tab order, semantic annotations, image alternatives, and broader accessibility audits remain ongoing work."/>
+                <Text class="editorial_subtitle" width=100%>Early, open, and ready to build with.</Text>
+                <Text class="editorial_body" width=100%>Pax has been in development since 2021. Today's framework is coherent and runnable, but still pre-1.0: APIs will evolve and capabilities vary by target. Try it against the needs of your project, and help shape what comes next.</Text>
+                <Text class="editorial_note" width=100%>Native text and controls provide an accessibility foundation. Reading order, tab order, semantic annotations, image alternatives, and broader accessibility audits remain ongoing work.</Text>
             </Stacker>
             <Stacker width=100% autosize=true gutter=12px>
                 <Link width=100% height=28px url="https://docs.pax.dev/" target=Target::New>
-                    <Text class="editorial_link" width=100% text="READ THE DOCS →"/>
+                    <Text class="editorial_link" width=100%>READ THE DOCS →</Text>
                 </Link>
                 <Link width=100% height=28px url="https://github.com/paxdotdev/pax/tree/dev/examples" target=Target::New>
-                    <Text class="editorial_link" width=100% text="FIND AN EXAMPLE TO BUILD ON →"/>
+                    <Text class="editorial_link" width=100%>FIND AN EXAMPLE TO BUILD ON →</Text>
                 </Link>
                 <Link width=100% height=28px url="https://github.com/paxdotdev/pax" target=Target::New>
-                    <Text class="editorial_link" width=100% text="EXPLORE THE REPOSITORY →"/>
+                    <Text class="editorial_link" width=100%>EXPLORE THE REPOSITORY →</Text>
                 </Link>
                 <Link width=100% height=28px url="https://discord.com/invite/Eq8KWAUc6b" target=Target::New>
-                    <Text class="editorial_link" width=100% text="SHOW US WHAT YOU'RE MAKING →"/>
+                    <Text class="editorial_link" width=100%>SHOW US WHAT YOU'RE MAKING →</Text>
                 </Link>
                 <Link width=100% height=28px url="/blog" target=Target::Current>
-                    <Text class="editorial_link" width=100% text="PAX NOTES →"/>
+                    <Text class="editorial_link" width=100%>PAX NOTES →</Text>
                 </Link>
             </Stacker>
         </Stacker>
-        <Text class="editorial_note" width=100% text="Built in Pax. Open a section's source, or follow the code on GitHub."/>
+        <Text class="editorial_note" width=100%>Built in Pax. Open a section's source, or follow the code on GitHub.</Text>
     </Stacker>
     <Rectangle class="site_rule" x=50% y=0px width={self.compact ? (100% - 48px) : 88%} height=1px/>
     <Rectangle class="site_ink" width=100% height=100%/>

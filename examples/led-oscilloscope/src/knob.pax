@@ -1,8 +1,8 @@
 <Group width=100% height=100% wheel_events=WheelEvents::Cancellable>
     <Rectangle width=100% height=100% fill=TRANSPARENT/>
     <Group y=50% width=100% height={(self.diameter + 70)px}>
-        <Text x=50% y=0px width=100% height=18px text={self.label} selectable=false wrap=false
-            style={font:"Helvetica", font_size:11px, fill:rgb(49,48,43), align_horizontal:TextAlignHorizontal::Center}/>
+        <Text x=50% y=0px width=100% height=18px selectable=false wrap=false
+            style={font:"Helvetica", font_size:11px, fill:rgb(49,48,43), align_horizontal:TextAlignHorizontal::Center}>{self.label}</Text>
         <Group x=50% y=34px width={(self.diameter)px} height={(self.diameter)px} anchor_x=50%>
             <Group x=50% y=50% width=100% height=100% anchor=50% rotate={(-135 + self.value*270)deg}>
                 <Rectangle x=50% y=9% width=3px height=12% corner_radius=1 fill=rgb(249,241,218)/>
@@ -16,8 +16,8 @@
             <Path elements={self.marks} fill=TRANSPARENT stroke={paint:rgb(77,73,61),width:1px}/>
             <Ellipse x=-2px y=3px width={100% + 4px} height={100% + 4px} fill=rgba(39,36,29,110)/>
         </Group>
-        <Text x=50% y={(self.diameter + 43)px} width=100% height=17px text={self.value_label} selectable=false wrap=false
-            style={font:"Courier New",font_size:10px,fill:rgb(88,82,67),align_horizontal:TextAlignHorizontal::Center}/>
+        <Text x=50% y={(self.diameter + 43)px} width=100% height=17px selectable=false wrap=false
+            style={font:"Courier New",font_size:10px,fill:rgb(88,82,67),align_horizontal:TextAlignHorizontal::Center}>{self.value_label}</Text>
     </Group>
 </Group>
 @settings {

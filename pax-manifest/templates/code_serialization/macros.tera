@@ -104,6 +104,7 @@
         {% elif node_map[node_id].raw_comment_string %}
             {{node_map[node_id].raw_comment_string}}
         {% else %}
+            {% set body = to_pax_body(node=node_map[node_id]) %}
             {% if node_map[node_id].type_id.pax_type.Singleton %}
                 <{{node_map[node_id].type_id.pax_type.Singleton.pascal_identifier}}
             {% else %}
@@ -114,7 +115,7 @@
                 {% endif %}
                 {% if node_map[node_id].settings %}
                     {% for setting in node_map[node_id].settings %}
-                        {% if setting.Setting %}
+                        {% if setting.Setting and (setting.Setting.0.token_value != body.property or children[node_id]) %}
                             {% if setting.Setting.1.EventBindingTarget %}@{%- endif -%}
                             {{setting.Setting.0.token_value }}={{ self::render_value_definition(vd=setting.Setting.1) }}
                         {% endif %}
@@ -130,6 +131,8 @@
                     {% else %}
                         </ {{node_map[node_id].type_id.pax_type.BlankComponent.pascal_identifier}} >
                     {% endif %}
+            {% elif body.property %}
+                >{{- body.content -}}</{{ node_map[node_id].type_id.pax_type.Singleton.pascal_identifier }}>
             {% else %}
                     />
             {% endif %}

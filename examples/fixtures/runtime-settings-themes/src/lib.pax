@@ -24,45 +24,35 @@
             x=0px
             y=0px
             width=100%
-            height=24px
-            text="IMPORTSETTINGS // AUTOMATIC THEME TRANSITIONS"
-        />
+            height=24px>IMPORTSETTINGS // AUTOMATIC THEME TRANSITIONS</Text>
 
         <Text class="hero_title"
             x=0px
             y=40px
             width=84%
-            height=108px
-            text="Runtime theme providers can attach and detach like ordinary component instances."
-        />
+            height=108px>Runtime theme providers can attach and detach like ordinary component instances.</Text>
 
         <Text class="body_copy"
             x=0px
             y=168px
             width=78%
-            height=40px
-            text="Each control toggles a theme layer. Switch again mid-motion: every changed setting starts from its current value."
-        />
+            height=40px>Each control toggles a theme layer. Switch again mid-motion: every changed setting starts from its current value.</Text>
 
         <Group x=0px y=236px width=360px height={100% - 236px}>
             <Text class="section_title"
                 x=24px
                 y=30px
                 width={100% - 48px}
-                height=30px
-                text="Theme Imports"
-            />
+                height=30px>Theme Imports</Text>
 
             <Text class="section_copy"
                 x=24px
                 y=68px
                 width={100% - 48px}
-                height=42px
-                text="Color, typography, and corner shape each come from their own conditional provider."
-            />
+                height=42px>Color, typography, and corner shape each come from their own conditional provider.</Text>
 
             <Group x=24px y=128px width={100% - 48px} height=124px>
-                <Text class="control_label" x=18px y=18px width={100% - 36px} height=18px text="Color Mode" />
+                <Text class="control_label" x=18px y=18px width={100% - 36px} height=18px>Color Mode</Text>
                 <RadioList class="theme_radio"
                     x=18px
                     y=46px
@@ -76,7 +66,7 @@
             </Group>
 
             <Group x=24px y=268px width={100% - 48px} height=124px>
-                <Text class="control_label" x=18px y=18px width={100% - 36px} height=18px text="Typography" />
+                <Text class="control_label" x=18px y=18px width={100% - 36px} height=18px>Typography</Text>
                 <RadioList class="theme_radio"
                     x=18px
                     y=46px
@@ -90,7 +80,7 @@
             </Group>
 
             <Group x=24px y=408px width={100% - 48px} height=124px>
-                <Text class="control_label" x=18px y=18px width={100% - 36px} height=18px text="Corners" />
+                <Text class="control_label" x=18px y=18px width={100% - 36px} height=18px>Corners</Text>
                 <RadioList class="theme_radio"
                     x=18px
                     y=46px
@@ -128,26 +118,20 @@
                             x=0px
                             y=0px
                             width=100%
-                            height=32px
-                            text="Preview Surface"
-                        />
+                            height=32px>Preview Surface</Text>
 
                         <Text class="section_copy"
                             x=0px
                             y=42px
                             width=100%
-                            height=42px
-                            text="These nodes are authored once in the root template, then decorated live by the imported selector blocks."
-                        />
+                            height=42px>These nodes are authored once in the root template, then decorated live by the imported selector blocks.</Text>
 
                         <Group x=0px y=106px width=184px height=36px>
                             <Text class="preview_badge_text"
                                 x=16px
                                 y=8px
                                 width=152px
-                                height=20px
-                                text="ACTIVE THEME"
-                            />
+                                height=20px>ACTIVE THEME</Text>
                             <Rectangle
                                 class={self.color_mode == 0 ? "preview_badge" : ["preview_badge", "dark_badge"]}
                                 x=0px
@@ -161,49 +145,37 @@
                             x=0px
                             y=164px
                             width=100%
-                            height=92px
-                            text="Selector classes and imported providers both update live."
-                        />
+                            height=92px>Selector classes and imported providers both update live.</Text>
 
                         <Text class="preview_body"
                             x=0px
                             y=280px
                             width=100%
-                            height=60px
-                            text="This example keeps the preview in the root template so the theme axes apply through class selectors rather than bespoke component wiring."
-                        />
+                            height=60px>This example keeps the preview in the root template so the theme axes apply through class selectors rather than bespoke component wiring.</Text>
 
                         <Text class="preview_stat_label"
                             x=0px
                             y=368px
                             width=180px
-                            height=18px
-                            text="MODE STACK"
-                        />
+                            height=18px>MODE STACK</Text>
 
                         <Text class="preview_stat_value"
                             x=0px
                             y=394px
                             width=100%
-                            height=24px
-                            text="Light or Dark + Sans or Serif + Rounded or Squared"
-                        />
+                            height=24px>Light or Dark + Sans or Serif + Rounded or Squared</Text>
 
                         <Text class="preview_stat_label"
                             x=0px
                             y=454px
                             width=200px
-                            height=18px
-                            text="SURFACE PALETTE"
-                        />
+                            height=18px>SURFACE PALETTE</Text>
 
                         <Text class="section_copy"
                             x=0px
                             y=480px
                             width=100%
-                            height=42px
-                            text="Primary and secondary surfaces stay in the root template while imported selector layers restyle them live."
-                        />
+                            height=42px>Primary and secondary surfaces stay in the root template while imported selector layers restyle them live.</Text>
 
                         <Stacker
                             x=0px
@@ -220,18 +192,14 @@
                                         x=18px
                                         y=16px
                                         width={100% - 36px}
-                                        height=24px
-                                        text="Primary Surface"
-                                    />
+                                        height=24px>Primary Surface</Text>
                                     <Rectangle class="preview_chip_primary" x=0px y=0px width=100% height=100% />
                                 </Frame>
                                 <Text class="section_copy"
                                     x=0px
                                     y=70px
                                     width=100%
-                                    height=36px
-                                    text="Panels, control cards, and the badge use this quieter fill."
-                                />
+                                    height=36px>Panels, control cards, and the badge use this quieter fill.</Text>
                             </Group>
 
                             <Group width=100% height=100%>
@@ -240,18 +208,14 @@
                                         x=18px
                                         y=16px
                                         width={100% - 36px}
-                                        height=24px
-                                        text="Secondary Surface"
-                                    />
+                                        height=24px>Secondary Surface</Text>
                                     <Rectangle class="preview_chip_secondary" x=0px y=0px width=100% height=100% />
                                 </Frame>
                                 <Text class="section_copy"
                                     x=0px
                                     y=70px
                                     width=100%
-                                    height=36px
-                                    text="Accent chips can get brighter or softer without moving any nodes."
-                                />
+                                    height=36px>Accent chips can get brighter or softer without moving any nodes.</Text>
                             </Group>
                         </Stacker>
                     </Group>

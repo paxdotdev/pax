@@ -265,7 +265,7 @@ impl ComboBox {
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined(
-    <Text x=3px text={data.text} width={100%-3px} height=100% style=style/>
+    <Text x=3px width={100%-3px} height=100% style=style>{data.text}</Text>
     <Rectangle fill=background/>
 
     @settings {

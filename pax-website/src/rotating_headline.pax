@@ -1,7 +1,7 @@
 <Group width=100% height=100%>
-    <Text class="headline" width=100% height={(self.font_px * 1.3)px} text="A declarative language" wrap=false/>
+    <Text class="headline" width=100% height={(self.font_px * 1.3)px} wrap=false>A declarative language</Text>
     <Group y={(self.font_px * 1.18)px} width=100% height={(self.font_px * 1.3)px}>
-        <Text class="headline" width={(self.font_px * 1.6)px} height=100% text="for" wrap=false/>
+        <Text class="headline" width={(self.font_px * 1.6)px} height=100% wrap=false>for</Text>
         // Keep animated descendants out of the autosized ancestor's layout hull.
         // The fixed signboard and normal headline text determine the paragraph position.
         <Frame x={(self.font_px * 1.65)px} y={(self.font_px * -0.1)px} width={100% - (self.font_px * 1.65)px}
@@ -12,8 +12,7 @@
                     // Transparent ink preserves the native selection highlight; node opacity=0 would hide it.
                     // Keep this Text outside the mask, where native source leaves are suppressed.
                     <Text class="selection" x={(self.font_px * 0.05)px}
-                        width={(self.font_px * 0.86 * 4060.8 / 815.55)px} height=100%
-                        text="creative" wrap=false clip=true selectable=true/>
+                        width={(self.font_px * 0.86 * 4060.8 / 815.55)px} height=100% wrap=false clip=true selectable=true>creative</Text>
                     // EMS League's "creative" has source bounds 4060.8 x 815.55.
                     // Handwriter normalizes each axis, so preserve that ratio in its box.
                     <Group x={(self.font_px * 0.05)px} y={(self.font_px * 0.29)px} width={(self.font_px * 0.86 * 4060.8 / 815.55)px}
@@ -50,7 +49,7 @@
                 } else {
                     if self.vector_ready {
                         // Clip only the resting selection box; iOS uses its interactive text view here.
-                        <Text class="selection" width={(self.run_width * self.font_px)px} height=100% text={self.word} wrap=false clip=true selectable=true/>
+                        <Text class="selection" width={(self.run_width * self.font_px)px} height=100% wrap=false clip=true selectable=true>{self.word}</Text>
                         if self.word_index >= 2 {
                             // Filter the moving paint first, then clip it with the original letter coverage.
                             <Mask width={(self.run_width * self.font_px)px} height=100% alpha=true>
@@ -127,14 +126,14 @@
                             </LightFrame>
                         }
                     } else {
-                        <Text class="headline" width=100% height=100% text={self.word} wrap=false/>
+                        <Text class="headline" width=100% height=100% wrap=false>{self.word}</Text>
                     }
                 }
             </Group>
         </Frame>
     </Group>
-    <Text class="headline" y={(self.font_px * 2.36)px} width=100% height={(self.font_px * 1.3)px} text="user interfaces"
-        wrap=false/>
+    <Text class="headline" y={(self.font_px * 2.36)px} width=100% height={(self.font_px * 1.3)px}
+        wrap=false>user interfaces</Text>
 </Group>
 
 @settings {

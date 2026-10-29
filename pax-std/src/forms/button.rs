@@ -98,7 +98,9 @@ mod publication_tests {
 #[primitive("pax_std::forms::button::ButtonInstance")]
 #[custom(Default)]
 pub struct Button {
-    /// Text label displayed inside the button.
+    /// Text label displayed inside the button, also assignable with
+    /// `<Button>content</Button>` or a whole-body PAXEL expression.
+    #[pax(content)]
     pub label: Property<String>,
     /// Button background color.
     pub color: Property<Color>,

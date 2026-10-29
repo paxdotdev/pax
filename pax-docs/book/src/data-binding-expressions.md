@@ -21,8 +21,8 @@ subscriptions.
 Start with a literal, then replace it with a property read:
 
 ```pax
-<Text text="Field notes" />
-<Text text={self.title} />
+<Text>Field notes</Text>
+<Text>{self.title}</Text>
 ```
 
 The first element always displays the same words. The second reads `title`
@@ -57,16 +57,12 @@ several properties:
 ```pax
 <Group x=24px y=24px width=320px height=220px>
     <Text x=24px y=24px width={100% - 48px} height=36px
-        text={self.title}
-        style={font_size: 24px, fill: rgb(32, 40, 48)}
-    />
+        style={font_size: 24px, fill: rgb(32, 40, 48)}>{self.title}</Text>
     <Slider x=24px y=76px width={100% - 48px} height=24px
         value=bind:progress min=0.0 max=1.0 step=0.25
     />
     <Text x=24px y=116px width={100% - 48px} height=28px
-        text={"Progress: " + (self.progress * 100) + "%"}
-        style={font_size: 16px, fill: rgb(72, 80, 88)}
-    />
+        style={font_size: 16px, fill: rgb(72, 80, 88)}>{"Progress: " + (self.progress * 100) + "%"}</Text>
     <Group x=24px y=160px width={100% - 48px} height=12px>
         <Rectangle width={(self.progress * 100)%} height=100%
             fill={self.progress >= 0.5 ? rgb(55, 120, 90) : rgb(75, 100, 160)}
@@ -163,7 +159,7 @@ covers durations, frame counts, and clocks.
 A ternary selects a value using a boolean condition:
 
 ```pax
-<Text text={self.progress >= 1.0 ? "Ready" : "In progress"} />
+<Text>{self.progress >= 1.0 ? "Ready" : "In progress"}</Text>
 ```
 
 The form is `condition ? when_true : when_false`. Pax evaluates the chosen
@@ -176,7 +172,7 @@ For optional data, `??` supplies a fallback. If the component declares
 `maybe_title: Property<Option<String>>`, its template can use:
 
 ```pax
-<Text text={self.maybe_title ?? "Untitled"} />
+<Text>{self.maybe_title ?? "Untitled"}</Text>
 ```
 
 An option contains either `Some(value)` or `None`. `??` unwraps a present
@@ -202,8 +198,8 @@ uses it for the first cell and leaves the second flexible:
 
 ```pax
 <Stacker sizes={[self.first_size, None]}>
-    <Text text="First cell" />
-    <Text text="Flexible cell" />
+    <Text>First cell</Text>
+    <Text>Flexible cell</Text>
 </Stacker>
 ```
 
@@ -216,10 +212,10 @@ Contextual objects can hold individual bindings. With
 reading the font size:
 
 ```pax
-<Text text="Field notes" style={
+<Text style={
     font_size: {self.heading_size}
     fill: rgb(32, 40, 48)
-} />
+}>Field notes</Text>
 ```
 
 Here the outer braces describe the style's fields, and the braces around
@@ -234,7 +230,7 @@ Ranges often provide the source for a template `for`:
 
 ```pax
 for i in 0..3 {
-    <Text y={(i * 24)px} text={"Item " + i} />
+    <Text y={(i * 24)px}>{"Item " + i}</Text>
 }
 ```
 
@@ -275,7 +271,7 @@ impl Notes {
 Call it with the changing value as an explicit argument:
 
 ```pax
-<Text text={Notes::progress_label(self.progress)} />
+<Text>{Notes::progress_label(self.progress)}</Text>
 ```
 
 `#[helpers]` exposes public associated functions in that implementation; they
@@ -408,6 +404,15 @@ grouping explicit in formulas that mix different operations.
 `+` also joins strings and displayable values, as in the panel's progress
 label. `^` is exponentiation. The unit suffixes are `px`, `%`, `deg`, `rad`,
 `ms`, `s`, and `f`.
+
+### Raw string literals
+
+PAXEL accepts Rust-style raw strings such as `r"literal \n"` or
+`r#"a "quote" and <markup>"#`. Add matching hashes when the text contains a
+closing delimiter. Backslashes, references, newlines, and indentation inside
+the delimiters remain literal. The formatter preserves the payload. See
+[exact text with raw strings](template-language.md#exact-text-with-raw-strings)
+for a multiline example and the distinction from ordinary text bodies.
 
 ## Shape value reference
 

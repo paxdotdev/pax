@@ -1,7 +1,6 @@
 <Text
     width=100%
     height=100%
-    text={_accessibility_text}
     selectable={selectable}
     editable=false
     clip=false
@@ -12,8 +11,7 @@
         align_vertical: TextAlignVertical::Center
         align_horizontal: TextAlignHorizontal::Center
         align_multiline: TextAlignHorizontal::Center
-    }
-/>
+    }>{_accessibility_text}</Text>
 
 <Path
     width=100%

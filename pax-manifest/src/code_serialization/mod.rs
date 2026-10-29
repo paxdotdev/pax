@@ -54,9 +54,52 @@ fn to_pax_string(args: &HashMap<String, tera::Value>) -> tera::Result<tera::Valu
             "No string value provided to to_pax_string function",
         ));
     };
-    serde_json::to_string(value)
-        .map(tera::Value::String)
-        .map_err(|err| tera::Error::msg(format!("Failed to serialize Pax string: {err}")))
+    Ok(tera::Value::String(
+        pax_runtime_api::pax_value::string_literal(value),
+    ))
+}
+
+fn to_pax_body(args: &HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
+    let node: crate::TemplateNodeDefinition = serde_json::from_value(
+        args.get("node")
+            .ok_or_else(|| tera::Error::msg("missing body node"))?
+            .clone(),
+    )
+    .map_err(|e| tera::Error::msg(e.to_string()))?;
+    let result = node.body_property.as_ref().and_then(|property| {
+        let value = node.settings.as_ref()?.iter().find_map(|s| match s {
+            crate::SettingElement::Setting(token, value) if &token.token_value == property => {
+                Some(value)
+            }
+            _ => None,
+        })?;
+        let content = match value {
+            crate::ValueDefinition::LiteralValue(PaxValue::String(text))
+                if !text.contains(['\r', '\n'])
+                    && !text.trim().is_empty()
+                    && !["//", "/*", "slot"]
+                        .iter()
+                        .any(|prefix| text.trim_start().starts_with(prefix)) =>
+            {
+                text.replace('&', "&amp;")
+                    .replace('<', "&lt;")
+                    .replace('{', "&#123;")
+                    .replace('}', "&#125;")
+            }
+            crate::ValueDefinition::LiteralValue(PaxValue::String(text)) => {
+                format!("{{{}}}", pax_runtime_api::pax_value::string_literal(text))
+            }
+            crate::ValueDefinition::Expression(expression) => {
+                format!("{{{}}}", expression.expression)
+            }
+            crate::ValueDefinition::Identifier(identifier) => format!("{{{identifier}}}"),
+            // A source edit can replace a body with a two-way binding. Preserve
+            // that assignment as an attribute, since body expressions are reads.
+            _ => return None,
+        };
+        Some(serde_json::json!({"property": property, "content": content}))
+    });
+    Ok(result.unwrap_or_else(|| serde_json::json!({"property": null, "content": null})))
 }
 
 fn format_numeric(value: &Numeric) -> String {
@@ -159,6 +202,7 @@ pub fn press_code_serialization_template(args: ComponentDefinition) -> Result<St
 
     tera.register_function("to_pax_value", to_pax_value);
     tera.register_function("to_pax_string", to_pax_string);
+    tera.register_function("to_pax_body", to_pax_body);
     tera.register_function("to_pax_size", to_pax_size);
     tera.register_function("to_pax_expression", to_pax_expression);
     tera.register_function("to_timeline_marker", to_timeline_marker);

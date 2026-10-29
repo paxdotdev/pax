@@ -31,7 +31,8 @@ Whether text overflow is clipped to the node bounds.
 ##### `text`
 Type: `Property`<`String`>
 
-Text content to display.
+Text content to display, also assignable with `<Text>content</Text>`.
+Body expressions read state; use `text=bind:...` for write-through editing.
 
 ##### `style`
 Type: `Property`<[`TextStyle`](../../../api/pax-std/core/text.md#textstyle)>

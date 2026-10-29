@@ -36,6 +36,9 @@ pub use interpreter::{computable::Computable, property_resolution::DependencyCol
 pub struct PaxParser;
 
 #[cfg(feature = "parser")]
+pub mod text;
+
+#[cfg(feature = "parser")]
 fn renamed_rules(rule: &Rule) -> String {
     match rule {
         Rule::template_list_value => "template list entry".to_string(),
@@ -65,7 +68,11 @@ fn renamed_rules(rule: &Rule) -> String {
         Rule::transition_inline_timeline_body => "inline transition timeline body".to_string(),
         Rule::double_binding => "two-way binding".to_string(),
         Rule::any_template_value => "literal value, literal object, expression, identifier, @gradient".to_string(),
-        Rule::node_inner_content => "literal value or expression".to_string(),
+        Rule::node_inner_content => "text or one whole-body expression (mixed content is unsupported)".to_string(),
+        Rule::body_text => "text body (escape < and braces, or use a raw string expression)".to_string(),
+        Rule::body_expression | Rule::body_expression_value => "whole-body expression".to_string(),
+        Rule::raw_string => "raw string literal".to_string(),
+        Rule::raw_string_content => "raw string content".to_string(),
         Rule::string => "double quoted string".to_string(),
         Rule::inner => "string".to_string(),
         Rule::char => "char".to_string(),

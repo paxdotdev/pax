@@ -1,22 +1,22 @@
 <Group height=220px>
-    <Text class="panel_title" x=26px y=18px width={100% - 260px} height=28px text={"Duplicate explicit indices: slot(" + self.a + "), slot(" + self.b + ")"} selectable=false />
-    <Text class="panel_caption" x=26px y=60px width={100% - 52px} height=22px text="If both explicit slots ask for the same child, the first site wins and the second stays empty." selectable=false />
+    <Text class="panel_title" x=26px y=18px width={100% - 260px} height=28px selectable=false>{"Duplicate explicit indices: slot(" + self.a + "), slot(" + self.b + ")"}</Text>
+    <Text class="panel_caption" x=26px y=60px width={100% - 52px} height=22px selectable=false>If both explicit slots ask for the same child, the first site wins and the second stays empty.</Text>
 
-    <Text class="bucket_label" x=28px y=100px width=72px height=18px text={"slot(" + self.a + ")"} selectable=false />
+    <Text class="bucket_label" x=28px y=100px width=72px height=18px selectable=false>{"slot(" + self.a + ")"}</Text>
     <Group x=28px y=120px width=72px height=58px>
         slot(self.a)
     </Group>
 
-    <Text class="bucket_label" x=118px y=100px width=72px height=18px text={"slot(" + self.b + ")"} selectable=false />
+    <Text class="bucket_label" x=118px y=100px width=72px height=18px selectable=false>{"slot(" + self.b + ")"}</Text>
     if self.b == self.a {
         <Rectangle class="empty_bucket_bg" x=118px y=120px width=72px height=58px />
     }
     <Group x=118px y=120px width=72px height=58px>
         slot(self.b)
     </Group>
-    <Text class="empty_hint" x=124px y=136px width=60px height=24px text={self.b == self.a ? "empty on duplicate" : ""} selectable=false />
+    <Text class="empty_hint" x=124px y=136px width=60px height=24px selectable=false>{self.b == self.a ? "empty on duplicate" : ""}</Text>
 
-    <Text class="bucket_label" x=208px y=100px width=72px height=18px text="slot()" selectable=false />
+    <Text class="bucket_label" x=208px y=100px width=72px height=18px selectable=false>{"slot()"}</Text>
     <Group x=208px y=120px width=72px height=58px>
         slot()
     </Group>

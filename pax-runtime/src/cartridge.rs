@@ -5669,6 +5669,7 @@ mod runtime_settings_tests {
                 ))),
                 ..Default::default()
             },
+            body_property: None,
             raw_comment_string: None,
         };
         node.normalize_selector_info();

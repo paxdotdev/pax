@@ -558,6 +558,7 @@ fn parse_designtime_subtemplate(
     }
 
     let mut parse_context = pax_manifest::parsing::TemplateNodeParseContext {
+        content_properties: pax_manifest::parsing::content_properties(&manifest.type_table),
         template: ComponentTemplate::new(containing_component_type_id.clone(), None),
         pascal_identifier_to_type_id_map: manifest
             .components

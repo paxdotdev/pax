@@ -1,26 +1,26 @@
 <ExampleHost width=100% height=100% title="Slot Projection Resolver" sources={self.sources} drawer_open=false>
     <Group>
-        <Text id=title x=50% y=44px width={100% - 48px} height=38px text="Slot Projection Resolver" selectable=false />
+        <Text id=title x=50% y=44px width={100% - 48px} height=38px selectable=false>Slot Projection Resolver</Text>
 
         <Scroller x=50% y=96px width={100% - 48px} height={100% - 116px} anchor_x=50% scroll_height=1240px>
             <Group width=100% height=1240px>
                 <Group class="panel_control" x={100% - 24px} y=268px width=142px height=32px @click=self.next_selected>
-                    <Text class="control_text" x=50% y=50% width={100% - 16px} height=20px text={"selected: " + self.selected} selectable=false />
+                    <Text class="control_text" x=50% y=50% width={100% - 16px} height=20px selectable=false>{"selected: " + self.selected}</Text>
                     <Rectangle class="control_bg" />
                 </Group>
 
                 <Group class="panel_control" x={100% - 24px} y=512px width=142px height=32px @click=self.toggle_duplicate>
-                    <Text class="control_text" x=50% y=50% width={100% - 16px} height=20px text={self.duplicate_b == self.duplicate_a ? "duplicate on" : "duplicate off"} selectable=false />
+                    <Text class="control_text" x=50% y=50% width={100% - 16px} height=20px selectable=false>{self.duplicate_b == self.duplicate_a ? "duplicate on" : "duplicate off"}</Text>
                     <Rectangle class="control_bg" />
                 </Group>
 
                 <Group class="panel_control" x={100% - 24px} y=756px width=142px height=32px @click=self.toggle_conditional>
-                    <Text class="control_text" x=50% y=50% width={100% - 16px} height=20px text={self.pin_first ? "if slot on" : "if slot off"} selectable=false />
+                    <Text class="control_text" x=50% y=50% width={100% - 16px} height=20px selectable=false>{self.pin_first ? "if slot on" : "if slot off"}</Text>
                     <Rectangle class="control_bg" />
                 </Group>
 
                 <Group class="panel_control" x={100% - 24px} y=1000px width=142px height=32px @click=self.rotate_repeated>
-                    <Text class="control_text" x=50% y=50% width={100% - 16px} height=20px text="rotate tiles" selectable=false />
+                    <Text class="control_text" x=50% y=50% width={100% - 16px} height=20px selectable=false>rotate tiles</Text>
                     <Rectangle class="control_bg" />
                 </Group>
 

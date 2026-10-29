@@ -10,7 +10,8 @@ A button control, delegating to a platform-specific native button.
 ##### `label`
 Type: `Property`<`String`>
 
-Text label displayed inside the button.
+Text label displayed inside the button, also assignable with
+`<Button>content</Button>` or a whole-body PAXEL expression.
 
 ##### `color`
 Type: `Property`<[`Color`](../../../api/pax-runtime-api/color.md#color)>

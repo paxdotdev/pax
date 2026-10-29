@@ -1,35 +1,33 @@
-<Text id=title x=50% y=70px width=760px height=54px text="Marionette Studio" />
+<Text id=title x=50% y=70px width=760px height=54px>Marionette Studio</Text>
 <Text
     id=subtitle
     x=50%
     y=124px
     width=820px
-    height=20px
-    text="NESTED TIMELINES · SHARED PLAYHEAD · JOINTED PUPPET RIG"
-/>
+    height=20px>NESTED TIMELINES · SHARED PLAYHEAD · JOINTED PUPPET RIG</Text>
 
 <Group x=50% y=94% width=860px height=126px anchor=[50%, 100%]>
-    <Text class="panel_kicker" x=32px y=16px width=160px height=18px text="SCENE CONTROL" />
-    <Text class="panel_label" x=32px y=42px width=192px height=18px text="ACTION" />
+    <Text class="panel_kicker" x=32px y=16px width=160px height=18px>SCENE CONTROL</Text>
+    <Text class="panel_label" x=32px y=42px width=192px height=18px>ACTION</Text>
     if selected_action == 0 {
-        <Text class="panel_label" x=292px y=42px width=216px height=18px text="GREETING WAVE" />
+        <Text class="panel_label" x=292px y=42px width=216px height=18px>GREETING WAVE</Text>
     }
     if selected_action == 1 {
-        <Text class="panel_label" x=292px y=42px width=216px height=18px text="COURT BOW" />
+        <Text class="panel_label" x=292px y=42px width=216px height=18px>COURT BOW</Text>
     }
     if selected_action == 2 {
-        <Text class="panel_label" x=292px y=42px width=216px height=18px text="IDLE SWAY" />
+        <Text class="panel_label" x=292px y=42px width=216px height=18px>IDLE SWAY</Text>
     }
     if selected_action == 3 {
-        <Text class="panel_label" x=292px y=42px width=216px height=18px text="HEROIC POINT" />
+        <Text class="panel_label" x=292px y=42px width=216px height=18px>HEROIC POINT</Text>
     }
     if selected_action == 4 {
-        <Text class="panel_label" x=292px y=42px width=216px height=18px text="SNEAK STEP" />
+        <Text class="panel_label" x=292px y=42px width=216px height=18px>SNEAK STEP</Text>
     }
     if selected_action == 5 {
-        <Text class="panel_label" x=292px y=42px width=216px height=18px text="CAN-CAN KICK" />
+        <Text class="panel_label" x=292px y=42px width=216px height=18px>CAN-CAN KICK</Text>
     }
-    <Text class="panel_label" x=534px y=42px width=196px height=18px text={"PLAYHEAD " + master_playhead} />
+    <Text class="panel_label" x=534px y=42px width=196px height=18px>{"PLAYHEAD " + master_playhead}</Text>
 
     <Dropdown
         x=32px
@@ -64,9 +62,7 @@
         x=690px
         y=52px
         width=138px
-        height=42px
-        text="Scrub the master playhead to drive the active puppet."
-    />
+        height=42px>Scrub the master playhead to drive the active puppet.</Text>
 
     <Rectangle class="control_panel" />
 </Group>

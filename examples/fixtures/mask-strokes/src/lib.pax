@@ -3,27 +3,26 @@
         <Group height=24px width=100%/>
         <LayerStudies width=100% height=730px/>
         <CaptureStudies width=100% height=490px/>
-        <Text height=64px width=100% text="Component mask sources" style={
+        <Text height=64px width=100% style={
             font: "Arial"
             font_size: 30px
             fill: WHITE
-        }/>
-        <Text height=60px width=100%
-            text="Live handwriting reveals moving CMY paint. The source is a regular component with its own writing clock." style={
+        }>Component mask sources</Text>
+        <Text height=60px width=100% style={
                 font: "Arial"
                 font_size: 16px
                 fill: rgb(180, 180, 180)
-            }/>
+            }>Live handwriting reveals moving CMY paint. The source is a regular component with its own writing clock.</Text>
         <Group width=100% height=44px>
-            <Button width=46% height=40px label={self.playing ? "Pause" : "Resume"} @button_click=toggle_playing/>
-            <Button x=50% anchor_x=0% width=50% height=40px label={self.mounted ? "Remove source" : "Remount source"} @button_click=toggle_mounted/>
+            <Button width=46% height=40px @button_click=toggle_playing>{self.playing ? "Pause" : "Resume"}</Button>
+            <Button x=50% anchor_x=0% width=50% height=40px @button_click=toggle_mounted>{self.mounted ? "Remove source" : "Remount source"}</Button>
         </Group>
         <Group width=100% height={(self.word_height + 64.0)px}>
-            <Text height=20px width=100% text="HANDWRITER / COMPONENT SOURCE" style={
+            <Text height=20px width=100% style={
                 font: "Arial"
                 font_size: 12px
                 fill: rgb(170, 170, 170)
-            }/>
+            }>HANDWRITER / COMPONENT SOURCE</Text>
             if self.mounted {
                 <Mask x=24px y=40px width={100% - 48px} height={(self.word_height)px} alpha=true>
                     <Group width=100% height=100%>
@@ -41,17 +40,17 @@
                 </Mask>
             }
         </Group>
-        <Text height=40px width=100% text="The written word is ‘creative’. Native accessible text stays outside the mask." style={
+        <Text height=40px width=100% style={
             font: "Arial"
             font_size: 14px
             fill: rgb(170, 170, 170)
-        }/>
+        }>The written word is ‘creative’. Native accessible text stays outside the mask.</Text>
         <Group width=100% height=140px>
-            <Text height=20px width=100% text="PATH / PRIMITIVE SOURCE" style={
+            <Text height=20px width=100% style={
                 font: "Arial"
                 font_size: 12px
                 fill: rgb(170, 170, 170)
-            }/>
+            }>PATH / PRIMITIVE SOURCE</Text>
             <Mask x=24px y=40px width={100% - 48px} height=80px alpha=true>
                 <Rectangle width=100% height=100% fill=WHITE/>
                 <Path width=100% height=100% fill=TRANSPARENT stroke={
@@ -66,11 +65,11 @@
                 ]/>
             </Mask>
         </Group>
-        <Text height=24px width=100% text="NESTED SCROLLER / OFFSET FRAME" style={
+        <Text height=24px width=100% style={
             font: "Arial"
             font_size: 12px
             fill: rgb(170, 170, 170)
-        }/>
+        }>NESTED SCROLLER / OFFSET FRAME</Text>
         <Scroller x=24px width={100% - 48px} height=180px scroll_height=480px>
             <Frame x=16px y=40px width={100% - 32px} height=300px>
                 <Mask x=12px y=48px width={100% - 24px} height=160px alpha=true>
@@ -83,11 +82,11 @@
                 <Rectangle width=100% height=100% fill=rgb(30, 30, 30)/>
             </Frame>
         </Scroller>
-        <Text height=48px width=100% text="Scroll the cyan ring, then the page. Its mask and paint should stay aligned." style={
+        <Text height=48px width=100% style={
             font: "Arial"
             font_size: 14px
             fill: rgb(170, 170, 170)
-        }/>
+        }>Scroll the cyan ring, then the page. Its mask and paint should stay aligned.</Text>
         <Group width=100% height=360px/>
     </Stacker>
 </Scroller>

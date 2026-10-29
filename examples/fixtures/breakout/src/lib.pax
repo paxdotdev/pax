@@ -17,17 +17,17 @@
             <Rectangle fill={brick.fill} width={brick_width} height={brick_height} x={brick.x} y={brick.y}/>
         }
     }
-    <Text text={"Score: " + score} x=2% y=2% style={
+    <Text x=2% y=2% style={
         font: {
             family: "Arial"
             weight: 700
         }
         font_size: 20px
         fill: WHITE
-    }/>
+    }>{"Score: " + score}</Text>
     if game_state == 1 {
         <Rectangle fill=rgba(0, 0, 0, 70) width=100% height=100%/>
-        <Text text="Game Over! Click to restart." x=50% y=50% anchor=50% style={
+        <Text x=50% y=50% anchor=50% style={
             font: {
                 family: "Arial"
                 weight: 700
@@ -36,11 +36,11 @@
             fill: WHITE
             align_horizontal: TextAlignHorizontal::Center
             align_vertical: TextAlignVertical::Center
-        }/>
+        }>Game Over! Click to restart.</Text>
     }
     if game_state == 2 {
         <Rectangle fill=rgba(0, 0, 0, 70) width=100% height=100%/>
-        <Text text={"You Won! Final Score: " + score + ". Click to play again."} x=50% y=50% anchor=50% style={
+        <Text x=50% y=50% anchor=50% style={
             font: {
                 family: "Arial"
                 weight: 700
@@ -49,7 +49,7 @@
             fill: WHITE
             align_horizontal: TextAlignHorizontal::Center
             align_vertical: TextAlignVertical::Center
-        }/>
+        }>{"You Won! Final Score: " + score + ". Click to play again."}</Text>
     }
 </Group>
 <Rectangle id=background fill={background_fill} width=100% height=100%/>

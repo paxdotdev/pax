@@ -16,28 +16,28 @@ if !export_mode {
         <AnimatedPaxLogo width=920.72px height=463.95px progress=1.0
             fill=rgb(36, 48, 52) letter_fill=rgb(248, 249, 245)/>
     </Group>
-    <Text anchor=0% x=114px y=17px width=200px height=32px text="Architecture" selectable=false
-        style={font: {family: "Arial", weight: 600}, font_size: 24px, fill: rgb(36, 48, 52)}/>
+    <Text anchor=0% x=114px y=17px width=200px height=32px selectable=false
+        style={font: {family: "Arial", weight: 600}, font_size: 24px, fill: rgb(36, 48, 52)}>Architecture</Text>
     if !export_mode {
         if @viewport.width >= 660 {
             <Group anchor=[100%, 0%] x={100% - 12px} y=14px width=298px height=36px>
-                <Button class="toolbar_button" x=0px width=42px label="−" @button_click=self.zoom_out/>
-                <Button class="toolbar_button" x=48px width=42px label="+" @button_click=self.zoom_in/>
-                <Button class="toolbar_button" x=96px width=64px label="Fit" @button_click=self.fit/>
-                <Button class="toolbar_button" x=172px width=126px label="Sheet view" @button_click=self.sheet/>
+                <Button class="toolbar_button" x=0px width=42px @button_click=self.zoom_out>−</Button>
+                <Button class="toolbar_button" x=48px width=42px @button_click=self.zoom_in>+</Button>
+                <Button class="toolbar_button" x=96px width=64px @button_click=self.fit>Fit</Button>
+                <Button class="toolbar_button" x=172px width=126px @button_click=self.sheet>Sheet view</Button>
             </Group>
         } else {
             <Group anchor=0% x=12px y=64px width=298px height=44px>
-                <Button class="toolbar_button" height=44px x=0px width=42px label="−" @button_click=self.zoom_out/>
-                <Button class="toolbar_button" height=44px x=48px width=42px label="+" @button_click=self.zoom_in/>
-                <Button class="toolbar_button" height=44px x=96px width=64px label="Fit" @button_click=self.fit/>
-                <Button class="toolbar_button" height=44px x=172px width=126px label="Sheet view" @button_click=self.sheet/>
+                <Button class="toolbar_button" height=44px x=0px width=42px @button_click=self.zoom_out>−</Button>
+                <Button class="toolbar_button" height=44px x=48px width=42px @button_click=self.zoom_in>+</Button>
+                <Button class="toolbar_button" height=44px x=96px width=64px @button_click=self.fit>Fit</Button>
+                <Button class="toolbar_button" height=44px x=172px width=126px @button_click=self.sheet>Sheet view</Button>
             </Group>
         }
     } else {
         <Button class="toolbar_button" anchor=[100%, 0%] x={100% - 12px}
             y={@viewport.width >= 660 ? 14px : 64px} height={@viewport.width >= 660 ? 36px : 44px}
-            width=144px label="Exit sheet view" @button_click=self.exit_sheet/>
+            width=144px @button_click=self.exit_sheet>Exit sheet view</Button>
     }
     <Rectangle anchor=0% width=100% height={(header_height)px} fill=rgb(248, 249, 245)/>
 </Group>
@@ -71,7 +71,7 @@ if !export_mode {
 
         for assembly in assemblies {
             <Text class="assembly_title" anchor=0% x={(assembly.x + 18)px} y={(assembly.y + 16)px}
-                width={(assembly.w - 36)px} height=25px text={assembly.title}/>
+                width={(assembly.w - 36)px} height=25px>{assembly.title}</Text>
         }
 
         for edge in edges {
@@ -83,16 +83,16 @@ if !export_mode {
                 stroke={paint: rgb(246, 247, 241), width: 6px}/>
         }
 
-        <Text class="band_number" anchor=0% x=88px y=35px width=50px height=40px text="01"/>
-        <Text class="band_title" anchor=0% x=138px y=35px width=270px height=40px text="Compiler"/>
-        <Text class="band_number" anchor=0% x=528px y=35px width=50px height=40px text="02"/>
-        <Text class="band_title" anchor=0% x=578px y=35px width=300px height=40px text="Scene graph"/>
-        <Text class="band_number" anchor=0% x=1000px y=35px width=50px height=40px text="03"/>
-        <Text class="band_title" anchor=0% x=1050px y=35px width=590px height=40px text="Reactive runtime"/>
-        <Text class="band_number" anchor=0% x=1840px y=35px width=50px height=40px text="04"/>
-        <Text class="band_title" anchor=0% x=1890px y=35px width=610px height=40px text="Rendering engine"/>
-        <Text class="band_number" anchor=0% x=2700px y=35px width=50px height=40px text="05"/>
-        <Text class="band_title" anchor=0% x=2750px y=35px width=345px height=40px text="Platform Chassis"/>
+        <Text class="band_number" anchor=0% x=88px y=35px width=50px height=40px>01</Text>
+        <Text class="band_title" anchor=0% x=138px y=35px width=270px height=40px>Compiler</Text>
+        <Text class="band_number" anchor=0% x=528px y=35px width=50px height=40px>02</Text>
+        <Text class="band_title" anchor=0% x=578px y=35px width=300px height=40px>Scene graph</Text>
+        <Text class="band_number" anchor=0% x=1000px y=35px width=50px height=40px>03</Text>
+        <Text class="band_title" anchor=0% x=1050px y=35px width=590px height=40px>Reactive runtime</Text>
+        <Text class="band_number" anchor=0% x=1840px y=35px width=50px height=40px>04</Text>
+        <Text class="band_title" anchor=0% x=1890px y=35px width=610px height=40px>Rendering engine</Text>
+        <Text class="band_number" anchor=0% x=2700px y=35px width=50px height=40px>05</Text>
+        <Text class="band_title" anchor=0% x=2750px y=35px width=345px height=40px>Platform Chassis</Text>
 
         for assembly in assemblies {
             <Rectangle anchor=0% x={(assembly.x)px} y={(assembly.y)px} width={(assembly.w)px} height={(assembly.h)px}

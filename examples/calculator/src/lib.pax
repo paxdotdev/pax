@@ -9,7 +9,7 @@ if !self.embedded {
         height={100% - (self.safe_top + self.safe_bottom)px} scroll_width=100% scroll_height={(self.page_height)px}>
         <Group width=100% height={(self.page_height)px}>
             <Group x=50% y={(self.body_top)px} anchor_x=50% width={(self.body_width)px} height={(self.body_height)px}>
-                <Text x=28px y=24px width=112px height=22px text="PAX-83+" selectable=false style={
+                <Text x=28px y=24px width=112px height=22px selectable=false style={
                     font: {
                         family: "Manrope"
                 url: "/assets/fonts/Manrope.ttf"
@@ -17,8 +17,8 @@ if !self.embedded {
                     }
                     font_size: 22px
                     fill: rgb(53, 62, 67)
-                }/>
-                <Text x={100% - 28px} y=30px anchor_x=100% width=142px height=14px text="SILVER EDITION" selectable=false style={
+                }>PAX-83+</Text>
+                <Text x={100% - 28px} y=30px anchor_x=100% width=142px height=14px selectable=false style={
                     font: {
                         family: "Manrope"
                 url: "/assets/fonts/Manrope.ttf"
@@ -27,7 +27,7 @@ if !self.embedded {
                     font_size: 10px
                     fill: rgb(68, 77, 82)
                     align_horizontal: TextAlignHorizontal::Right
-                }/>
+                }>SILVER EDITION</Text>
                 <Frame x=28px y=62px width={(self.screen_width)px} height={(self.screen_height)px} corner_radius=3>
                     if self.cursor_visible {
                         <Rectangle x={(self.cursor_x)px} y={(self.cursor_y)px} width={(self.cell_width - 1.6)px} height={(self.lcd_font_size + 1)px} fill={
@@ -37,12 +37,12 @@ if !self.embedded {
                     }
                     <Group x=14px y={(self.input_y)px} width={100% - 28px} height={(self.input_height)px} @click=input_click>
                         for row in self.input_rows key row.id {
-                            <Text x=0px y={(row.y)px} width=100% height={(self.line_height)px} text={row.text} selectable=false wrap=false clip=true
+                            <Text x=0px y={(row.y)px} width=100% height={(self.line_height)px} selectable=false wrap=false clip=true
                                 style={
                                     font: {self.mono_font}
                                     font_size: {(self.lcd_font_size)px}
                                     fill: rgb(39, 49, 36)
-                                }/>
+                                }>{row.text}</Text>
                         }
                         <Rectangle width=100% height=100% fill={
                             paint: TRANSPARENT
@@ -50,7 +50,6 @@ if !self.embedded {
                         }/>
                     </Group>
                     <Text x=14px y=10px width=150px height=14px
-                        text={self.graph_mode ? (self.polar ? "POLAR  /  RAD  /  0…2π" : "FUNCTION  /  RAD") : "CALCULATE  /  RAD"}
                         selectable=false style={
                             font: {
                                 family: "Manrope"
@@ -59,27 +58,27 @@ if !self.embedded {
                             }
                             font_size: 10px
                             fill: rgb(58, 69, 49)
-                        }/>
-                    <Text x={100% - 14px} y=9px anchor_x=100% width=110px height=14px text={self.grid_label} selectable=false style={
+                        }>{self.graph_mode ? (self.polar ? "POLAR  /  RAD  /  0…2π" : "FUNCTION  /  RAD") : "CALCULATE  /  RAD"}</Text>
+                    <Text x={100% - 14px} y=9px anchor_x=100% width=110px height=14px selectable=false style={
                         font: {self.mono_font}
                         font_size: 10px
                         fill: rgb(73, 84, 62)
                         align_horizontal: TextAlignHorizontal::Right
-                    }/>
+                    }>{self.grid_label}</Text>
                     if self.graph_mode {
-                        <Text x=12px y={100% - 17px} width={100% - 24px} height=14px text={self.error ? self.status : self.graph_range}
+                        <Text x=12px y={100% - 17px} width={100% - 24px} height=14px
                             selectable=false wrap=false clip=true style={
                                 font: {self.mono_font}
                                 font_size: 9px
                                 fill: {self.error ? rgb(115, 53, 32) : rgb(59, 71, 51)}
-                            }/>
-                        <Text x={100% - 16px} y={(self.graph_top)px} anchor_x=100% width=180px height=15px text={self.graph_status} selectable=false
+                            }>{self.error ? self.status : self.graph_range}</Text>
+                        <Text x={100% - 16px} y={(self.graph_top)px} anchor_x=100% width=180px height=15px selectable=false
                             style={
                                 font: {self.mono_font}
                                 font_size: 9px
                                 fill: rgb(91, 65, 40)
                                 align_horizontal: TextAlignHorizontal::Right
-                            }/>
+                            }>{self.graph_status}</Text>
                         <Scroller id=graph_view x=12px y={(self.graph_top)px} width={(self.graph_width)px} height={(self.graph_height)px}
                             scroll_width={(self.graph_extent)px} scroll_height={(self.graph_extent)px} scroll_pos_x=bind:self.scroll_x
                             scroll_pos_y=bind:self.scroll_y corner_radius=2 @mouse_down=graph_down @touch_start=graph_touch @wheel=graph_wheel>
@@ -106,12 +105,12 @@ if !self.embedded {
                                             - self.graph_origin_y
                                             + self.graph_height
                                             - 2 {
-                                            <Text x={(label.x)px} y={(label.y)px} width={(label.width)px} height=15px text={label.text} selectable=false wrap=false
+                                            <Text x={(label.x)px} y={(label.y)px} width={(label.width)px} height=15px selectable=false wrap=false
                                                 style={
                                                     font: {self.mono_font}
                                                     font_size: 10px
                                                     fill: rgb(66, 79, 57)
-                                                }/>
+                                                }>{label.text}</Text>
                                         }
                                     }
                                     <Path elements={self.curve} fill={
@@ -146,21 +145,21 @@ if !self.embedded {
                             scroll_height={(self.history_extent)px} scroll_pos_y=bind:self.history_scroll>
                             <Group width=100% height={(self.history_extent)px}>
                                 for row in self.rows key row.id {
-                                    <Text x=0px y={(row.y)px} width=100% height={(self.line_height)px} text={row.text} selectable=false wrap=false clip=true
+                                    <Text x=0px y={(row.y)px} width=100% height={(self.line_height)px} selectable=false wrap=false clip=true
                                         style={
                                             font: {self.mono_font}
                                             font_size: {(self.lcd_font_size)px}
                                             fill: {row.subdued ? rgb(86, 99, 72) : rgb(38, 49, 34)}
-                                        }/>
+                                        }>{row.text}</Text>
                                 }
                             </Group>
                         </Scroller>
                         if self.error {
-                            <Text x=14px y={100% - 17px} width={100% - 28px} height=14px text={self.status} selectable=false wrap=false clip=true style={
+                            <Text x=14px y={100% - 17px} width={100% - 28px} height=14px selectable=false wrap=false clip=true style={
                                 font: {self.mono_font}
                                 font_size: 9px
                                 fill: rgb(115, 53, 32)
-                            }/>
+                            }>{self.status}</Text>
                         }
                         <Rectangle x=12px y={(self.input_y - 9)px} width={100% - 24px} height=1px fill={
                             paint: rgba(50, 65, 39, 35)
@@ -215,7 +214,7 @@ if !self.embedded {
                             height={(self.key_height)px} label={button.label} action={button.action} tone={button.tone}
                             secondary_label={button.secondary_label} secondary_action={button.secondary_action} second_active={self.second_active}/>
                     }
-                    <Text x={(self.key_width + 8)px} y=0px width={(2 * self.key_width + 8)px} height=11.5px text="ZOOM" selectable=false style={
+                    <Text x={(self.key_width + 8)px} y=0px width={(2 * self.key_width + 8)px} height=11.5px selectable=false style={
                         font: {
                             family: "Manrope"
                 url: "/assets/fonts/Manrope.ttf"
@@ -224,7 +223,7 @@ if !self.embedded {
                         font_size: 9.2px
                         fill: rgb(69, 80, 82)
                         align_horizontal: TextAlignHorizontal::Center
-                    }/>
+                    }>ZOOM</Text>
                     <Group x={(4 * self.key_width + 28)px} anchor_x=50% width={(self.dpad_width)px} height={(3 * self.key_pitch - 4)px}>
                         <CalculatorKey id=nav_up x=50% anchor_x=50% y=0px width=44px height={(self.key_height)px} label="↑" action="up" tone=1/>
                         <CalculatorKey id=nav_left x=0px y={(self.key_pitch)px} width=44px height={(self.key_height)px} label="←" action="left" tone=1/>

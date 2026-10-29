@@ -4,7 +4,6 @@
         y=24px
         width={100% - 48px}
         height=44px
-        text="Auto-sized containers"
         selectable=false
         style={
             font_size: 28px
@@ -13,14 +12,13 @@
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
             underline: false
-        }/>
+        }>Auto-sized containers</Text>
 
     <Text
         x=24px
         y=64px
         width={100% - 48px}
         height=40px
-        text="This scene exercises every current autosize surface: Scroller, Stacker, Group, Frame, Link, and Tooltip. Filler rectangles at the end keep the outer scroller well beyond a single viewport."
         selectable=false
         style={
             font_size: 14px
@@ -29,7 +27,7 @@
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
             underline: false
-        }/>
+        }>This scene exercises every current autosize surface: Scroller, Stacker, Group, Frame, Link, and Tooltip. Filler rectangles at the end keep the outer scroller well beyond a single viewport.</Text>
 
     <Stacker x=24px y=120px width={100% - 48px} autosize=true gutter=20px>
         <Group height=92px>
@@ -38,7 +36,6 @@
                 y=18px
                 width={100% - 40px}
                 height=24px
-                text="Scroller autosize=true"
                 selectable=false
                 style={
                     font_size: 20px
@@ -47,13 +44,12 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>Scroller autosize=true</Text>
             <Text
                 x=20px
                 y=46px
                 width={100% - 40px}
                 height=28px
-                text="The root scroller omits manual scroll metrics and derives them from the measured hull of everything below."
                 selectable=false
                 style={
                     font_size: 15px
@@ -62,7 +58,7 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>The root scroller omits manual scroll metrics and derives them from the measured hull of everything below.</Text>
             <Rectangle
                 width=100%
                 height=100%
@@ -77,7 +73,6 @@
                     y=18px
                     width={100% - 40px}
                     height=24px
-                    text="Stacker autosize=true"
                     selectable=false
                     style={
                         font_size: 20px
@@ -86,13 +81,12 @@
                         align_horizontal: TextAlignHorizontal::Left
                         align_multiline: TextAlignHorizontal::Left
                         underline: false
-                    }/>
+                    }>Stacker autosize=true</Text>
                 <Text
                     x=20px
                     y=46px
                     width={100% - 40px}
                     height=24px
-                    text="Varied child heights drive this inner stack's total measured height."
                     selectable=false
                     style={
                         font_size: 15px
@@ -101,7 +95,7 @@
                         align_horizontal: TextAlignHorizontal::Left
                         align_multiline: TextAlignHorizontal::Left
                         underline: false
-                    }/>
+                    }>Varied child heights drive this inner stack's total measured height.</Text>
                 <Rectangle
                     width=100%
                     height=100%
@@ -115,7 +109,6 @@
                     y=18px
                     width={100% - 40px}
                     height=56px
-                    text="No explicit stack height is set here. The gutter and the four child cards determine it."
                     selectable=false
                     style={
                         font_size: 18px
@@ -124,7 +117,7 @@
                         align_horizontal: TextAlignHorizontal::Left
                         align_multiline: TextAlignHorizontal::Left
                         underline: false
-                    }/>
+                    }>No explicit stack height is set here. The gutter and the four child cards determine it.</Text>
                 <Rectangle
                     width=100%
                     height=100%
@@ -138,7 +131,6 @@
                     y=22px
                     width={100% - 40px}
                     height=78px
-                    text="This taller card makes the autosized main axis easy to inspect without relying on percentage-based filler."
                     selectable=false
                     style={
                         font_size: 18px
@@ -147,7 +139,7 @@
                         align_horizontal: TextAlignHorizontal::Left
                         align_multiline: TextAlignHorizontal::Left
                         underline: false
-                    }/>
+                    }>This taller card makes the autosized main axis easy to inspect without relying on percentage-based filler.</Text>
                 <Rectangle
                     width=100%
                     height=100%
@@ -161,7 +153,6 @@
                     y=18px
                     width={100% - 40px}
                     height=48px
-                    text="Short finishing card"
                     selectable=false
                     style={
                         font_size: 20px
@@ -170,7 +161,7 @@
                         align_horizontal: TextAlignHorizontal::Left
                         align_multiline: TextAlignHorizontal::Left
                         underline: false
-                    }/>
+                    }>Short finishing card</Text>
                 <Rectangle
                     width=100%
                     height=100%
@@ -185,7 +176,6 @@
                 y=16px
                 width=168px
                 height=24px
-                text="Group autosize=true"
                 selectable=false
                 style={
                     font_size: 18px
@@ -194,13 +184,12 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>Group autosize=true</Text>
             <Text
                 x=18px
                 y=42px
                 width=190px
                 height=18px
-                text="Two offset children define the hull."
                 selectable=false
                 style={
                     font_size: 13px
@@ -209,13 +198,12 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>Two offset children define the hull.</Text>
             <Text
                 x=292px
                 y=28px
                 width=92px
                 height=18px
-                text="badge"
                 selectable=false
                 style={
                     font_size: 14px
@@ -224,7 +212,7 @@
                     align_horizontal: TextAlignHorizontal::Center
                     align_multiline: TextAlignHorizontal::Center
                     underline: false
-                }/>
+                }>badge</Text>
             <Rectangle
                 x=272px
                 y=18px
@@ -245,7 +233,6 @@
                 y=18px
                 width=220px
                 height=24px
-                text="Frame autosize=true"
                 selectable=false
                 style={
                     font_size: 18px
@@ -254,13 +241,12 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>Frame autosize=true</Text>
             <Text
                 x=20px
                 y=48px
                 width=246px
                 height=54px
-                text="The frame measures its direct children first, then uses that measured size as its clip boundary."
                 selectable=false
                 style={
                     font_size: 15px
@@ -269,7 +255,7 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>The frame measures its direct children first, then uses that measured size as its clip boundary.</Text>
             <Rectangle
                 x=278px
                 y=84px
@@ -291,7 +277,6 @@
                     y=18px
                     width=220px
                     height=24px
-                    text="Link autosize=true"
                     selectable=false
                     style={
                         font_size: 18px
@@ -300,13 +285,12 @@
                         align_horizontal: TextAlignHorizontal::Left
                         align_multiline: TextAlignHorizontal::Left
                         underline: false
-                    }/>
+                    }>Link autosize=true</Text>
                 <Text
                     x=20px
                     y=44px
                     width=220px
                     height=18px
-                    text="Tap to open pax.dev in-place"
                     selectable=false
                     style={
                         font_size: 14px
@@ -315,13 +299,12 @@
                         align_horizontal: TextAlignHorizontal::Left
                         align_multiline: TextAlignHorizontal::Left
                         underline: false
-                    }/>
+                    }>Tap to open pax.dev in-place</Text>
                 <Text
                     x=284px
                     y=26px
                     width=28px
                     height=20px
-                    text="↗"
                     selectable=false
                     style={
                         font_size: 20px
@@ -330,7 +313,7 @@
                         align_horizontal: TextAlignHorizontal::Center
                         align_multiline: TextAlignHorizontal::Center
                         underline: false
-                    }/>
+                    }>↗</Text>
                 <Rectangle
                     width=332px
                     height=72px
@@ -346,7 +329,6 @@
                     y=18px
                     width=220px
                     height=24px
-                    text="Tooltip autosize=true"
                     selectable=false
                     style={
                         font_size: 18px
@@ -355,13 +337,12 @@
                         align_horizontal: TextAlignHorizontal::Left
                         align_multiline: TextAlignHorizontal::Left
                         underline: false
-                    }/>
+                    }>Tooltip autosize=true</Text>
                 <Text
                     x=204px
                     y=22px
                     width=66px
                     height=16px
-                    text="tap / hover"
                     selectable=false
                     style={
                         font_size: 12px
@@ -370,7 +351,7 @@
                         align_horizontal: TextAlignHorizontal::Center
                         align_multiline: TextAlignHorizontal::Center
                         underline: false
-                    }/>
+                    }>tap / hover</Text>
                 <Rectangle
                     width=290px
                     height=60px
@@ -385,7 +366,6 @@
                 y=18px
                 width=220px
                 height=22px
-                text="Status board"
                 selectable=false
                 style={
                     font_size: 18px
@@ -394,13 +374,12 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>Status board</Text>
             <Text
                 x=20px
                 y=48px
                 width=220px
                 height=18px
-                text="Six cards below keep the root scroller tall."
                 selectable=false
                 style={
                     font_size: 14px
@@ -409,14 +388,13 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>Six cards below keep the root scroller tall.</Text>
             <Button
                 x=20px
                 y=90px
                 width=132px
                 height=36px
-                label={self.primary_action_label}
-                @button_click=self.record_control_tap/>
+                @button_click=self.record_control_tap>{self.primary_action_label}</Button>
             <Slider
                 x=168px
                 y=96px
@@ -434,7 +412,6 @@
                 y=142px
                 width=220px
                 height=18px
-                text={"gain " + self.board_gain}
                 selectable=false
                 style={
                     font_size: 13px
@@ -443,7 +420,7 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>{"gain " + self.board_gain}</Text>
             <Rectangle
                 width=100%
                 height=184px
@@ -457,7 +434,6 @@
                 y=18px
                 width=240px
                 height=22px
-                text="Notes"
                 selectable=false
                 style={
                     font_size: 18px
@@ -466,13 +442,12 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>Notes</Text>
             <Text
                 x=20px
                 y=50px
                 width=286px
                 height=74px
-                text="Autosized wrappers now share the same content-hull plumbing while stackers and scrollers interpret their default axes semantically."
                 selectable=false
                 style={
                     font_size: 15px
@@ -481,7 +456,7 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>Autosized wrappers now share the same content-hull plumbing while stackers and scrollers interpret their default axes semantically.</Text>
             <Rectangle x=20px y=136px width=132px height=20px fill=rgb(255, 220, 231) corner_radius=10.0/>
             <Rectangle x=162px y=136px width=96px height=20px fill=rgb(255, 226, 235) corner_radius=10.0/>
             <Rectangle
@@ -497,7 +472,6 @@
                 y=18px
                 width=200px
                 height=22px
-                text="Palette"
                 selectable=false
                 style={
                     font_size: 18px
@@ -506,7 +480,7 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>Palette</Text>
             <Rectangle x=20px y=56px width=56px height=56px fill=rgb(188, 230, 208) corner_radius=18.0/>
             <Rectangle x=88px y=56px width=56px height=56px fill=rgb(204, 238, 219) corner_radius=18.0/>
             <Rectangle x=156px y=56px width=56px height=56px fill=rgb(217, 244, 229) corner_radius=18.0/>
@@ -536,7 +510,6 @@
                 y=18px
                 width=220px
                 height=22px
-                text="Timeline snapshot"
                 selectable=false
                 style={
                     font_size: 18px
@@ -545,7 +518,7 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>Timeline snapshot</Text>
             <Rectangle x=20px y=60px width=292px height=10px fill=rgb(225, 210, 255) corner_radius=5.0/>
             <Rectangle x=20px y=88px width=188px height=10px fill=rgb(202, 176, 255) corner_radius=5.0/>
             <Rectangle x=20px y=116px width=242px height=10px fill=rgb(185, 154, 250) corner_radius=5.0/>
@@ -554,14 +527,12 @@
                 y=146px
                 width=146px
                 height=34px
-                label={self.armed_label}
-                @button_click=self.toggle_controls_armed/>
+                @button_click=self.toggle_controls_armed>{self.armed_label}</Button>
             <Text
                 x=182px
                 y=152px
                 width=260px
                 height=24px
-                text="The outer scroller remains comfortably beyond one viewport."
                 selectable=false
                 style={
                     font_size: 14px
@@ -570,7 +541,7 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>The outer scroller remains comfortably beyond one viewport.</Text>
             <Rectangle
                 width=100%
                 height=208px
@@ -584,7 +555,6 @@
                 y=18px
                 width=220px
                 height=22px
-                text="Checklist"
                 selectable=false
                 style={
                     font_size: 18px
@@ -593,38 +563,34 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>Checklist</Text>
             <Text
                 x=20px
                 y=50px
                 width=250px
                 height=18px
-                text="Axis defaults"
                 selectable=false
-                style={font_size: 14px fill: rgb(133, 116, 175) align_vertical: TextAlignVertical::Top align_horizontal: TextAlignHorizontal::Left align_multiline: TextAlignHorizontal::Left underline: false}/>
+                style={font_size: 14px fill: rgb(133, 116, 175) align_vertical: TextAlignVertical::Top align_horizontal: TextAlignHorizontal::Left align_multiline: TextAlignHorizontal::Left underline: false}>Axis defaults</Text>
             <Text
                 x=20px
                 y=78px
                 width=250px
                 height=18px
-                text="Wrapper overrides"
                 selectable=false
-                style={font_size: 14px fill: rgb(133, 116, 175) align_vertical: TextAlignVertical::Top align_horizontal: TextAlignHorizontal::Left align_multiline: TextAlignHorizontal::Left underline: false}/>
+                style={font_size: 14px fill: rgb(133, 116, 175) align_vertical: TextAlignVertical::Top align_horizontal: TextAlignHorizontal::Left align_multiline: TextAlignHorizontal::Left underline: false}>Wrapper overrides</Text>
             <Text
                 x=20px
                 y=106px
                 width=250px
                 height=18px
-                text="Touch demo polish"
                 selectable=false
-                style={font_size: 14px fill: rgb(133, 116, 175) align_vertical: TextAlignVertical::Top align_horizontal: TextAlignHorizontal::Left align_multiline: TextAlignHorizontal::Left underline: false}/>
+                style={font_size: 14px fill: rgb(133, 116, 175) align_vertical: TextAlignVertical::Top align_horizontal: TextAlignHorizontal::Left align_multiline: TextAlignHorizontal::Left underline: false}>Touch demo polish</Text>
             <Button
                 x=278px
                 y=54px
                 width=126px
                 height=36px
-                label="Nudge"
-                @button_click=self.record_control_tap/>
+                @button_click=self.record_control_tap>Nudge</Button>
             <Rectangle
                 width=100%
                 height=176px
@@ -638,7 +604,6 @@
                 y=18px
                 width=220px
                 height=22px
-                text="Closing panel"
                 selectable=false
                 style={
                     font_size: 18px
@@ -647,13 +612,12 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>Closing panel</Text>
             <Text
                 x=20px
                 y=50px
                 width=250px
                 height=44px
-                text="Everything after the autosize showcase is just ordinary content inside the same measured scroll pane."
                 selectable=false
                 style={
                     font_size: 14px
@@ -662,7 +626,7 @@
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                }/>
+                }>Everything after the autosize showcase is just ordinary content inside the same measured scroll pane.</Text>
             <Rectangle x=20px y=114px width=150px height=18px fill=rgb(216, 230, 255) corner_radius=9.0/>
             <Rectangle
                 width=100%

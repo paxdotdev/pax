@@ -13,7 +13,7 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"PAXP\x00IR\x00";
-const VERSION: u8 = 5;
+const VERSION: u8 = 6;
 
 /// Runtime-facing semantic program model derived from a rich `PaxManifest`.
 ///
@@ -63,7 +63,13 @@ impl From<&PaxManifest> for ProgramIR {
             type_table: manifest
                 .type_table
                 .iter()
-                .map(|(type_id, definition)| (type_id.clone(), definition.clone()))
+                .map(|(type_id, definition)| {
+                    let mut definition = definition.clone();
+                    for property in &mut definition.property_definitions {
+                        property.flags.is_content = false;
+                    }
+                    (type_id.clone(), definition)
+                })
                 .collect(),
             assets_dirs: manifest.assets_dirs.clone(),
         }
@@ -172,6 +178,7 @@ fn sanitize_template_node(node: &TemplateNodeDefinition) -> Option<TemplateNodeD
             id: node.selector_info.id.as_ref().map(strip_token),
             class_binding: node.selector_info.class_binding.clone(),
         },
+        body_property: None,
         raw_comment_string: None,
     })
 }
@@ -442,6 +449,7 @@ mod tests {
             control_flow_settings: None,
             settings: None,
             selector_info: Default::default(),
+            body_property: None,
             raw_comment_string: Some("// comment".to_string()),
         });
 
@@ -468,6 +476,7 @@ mod tests {
                 ),
             ]),
             selector_info: Default::default(),
+            body_property: None,
             raw_comment_string: None,
         });
 

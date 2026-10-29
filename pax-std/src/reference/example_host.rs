@@ -518,8 +518,8 @@ mod tests {
 #[engine_import_path("pax_engine")]
 #[inlined(
 <Group width=100% height=100% @click=self.select_source>
-    <Text class="example_host_tab_label" x=50% y=50% width={100% - 16px} height=18px text={source.label} selectable=false
-        wrap=false clip=true/>
+    <Text class="example_host_tab_label" x=50% y=50% width={100% - 16px} height=18px selectable=false
+        wrap=false clip=true>{source.label}</Text>
     if self.index == self.selected {
         <Path class="example_host_tab_active" width=100% height=100%/>
     }

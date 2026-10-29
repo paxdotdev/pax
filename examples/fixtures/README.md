@@ -51,6 +51,7 @@ accepts `fixtures/<name>` and `examples/fixtures/<name>`.
 
 | Example | Purpose |
 | --- | --- |
+| [text-bodies](text-bodies) | Scalar body, raw-string, formatter, hot reload and native text regression |
 | [architecture-diagram](architecture-diagram) | Engine architecture reference and diagram export tool |
 | [async-workbench](async-workbench) | Async ownership, cancellation, startup and embedding probe |
 | [group-compositing](group-compositing) | Mixed native/canvas group opacity acceptance fixture |

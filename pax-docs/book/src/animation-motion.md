@@ -153,18 +153,17 @@ at the next UI settlement boundary; mixing that reset with an immediate local
 In `src/lib.pax`:
 
 ```pax
-<Button x=24px y=24px width=110px height=40px label="Replay"
-    @button_click=self.replay />
-<Button x=148px y=24px width=110px height=40px label="Pause"
-    @button_click=self.pause />
+<Button x=24px y=24px width=110px height=40px
+    @button_click=self.replay>Replay</Button>
+<Button x=148px y=24px width=110px height=40px
+    @button_click=self.pause>Pause</Button>
 <Slider x=24px y=84px width=280px height=32px
     min=0.0 max=100.0 step=1.0 value=bind:self.playhead />
 
 <Rectangle id=marker y=156px width=40px height=40px
     corner_radius=8 fill=rgb(56, 100, 78) />
 <Text id=caption x=24px y=224px width=280px height=40px
-    text="Ready for another page"
-    style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)} />
+    style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)}>Ready for another page</Text>
 
 @settings {
     #marker { x: 24px }
@@ -420,8 +419,7 @@ In `src/note_card.pax`:
 
 ```pax
 <Text x=16px y=16px width={100% - 32px} height={100% - 32px}
-    text={self.title}
-    style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)} />
+    style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)}>{self.title}</Text>
 <Rectangle width=100% height=100% corner_radius=12
     fill=rgb(237, 241, 226) />
 
@@ -512,8 +510,8 @@ transition:
         opacity: { 0%: 1, InQuad, 100%: 0, },
     }
 >
-    <Text x=16px y=16px width=248px height=52px text="A brief note"
-        style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)} />
+    <Text x=16px y=16px width=248px height=52px
+        style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)}>A brief note</Text>
     <Rectangle width=100% height=100% corner_radius=12
         fill=rgb(237, 241, 226) />
 </Group>

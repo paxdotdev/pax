@@ -33,6 +33,78 @@ pub struct TemplateNodeParseContext {
     pub template: ComponentTemplate,
     pub pascal_identifier_to_type_id_map: HashMap<String, TypeId>,
     pub route_branch_descriptors: HashMap<TypeId, RouteBranchDescriptor>,
+    pub content_properties: HashMap<TypeId, String>,
+}
+
+/// Identify explicitly declared scalar-body receivers for template parsing and
+/// hot reload. These are compile-time declarations, not extra runtime values.
+pub fn content_properties(types: &TypeTable) -> HashMap<TypeId, String> {
+    types
+        .iter()
+        .filter_map(|(id, definition)| {
+            definition
+                .property_definitions
+                .iter()
+                .find(|p| p.flags.is_content)
+                .map(|p| (id.clone(), p.name.clone()))
+        })
+        .collect()
+}
+
+/// Validate the shared Rust declaration contract used by both static analysis
+/// and macro expansion. A receiver is one named `Property<String>` field on
+/// a component or primitive, never a struct-only value or Rust-only field.
+pub fn validate_content_receiver(
+    fields: &syn::Fields,
+    is_component: bool,
+) -> Result<Option<String>, syn::Error> {
+    let mut receiver = None;
+    for field in fields {
+        let attributes: Vec<_> = field
+            .attrs
+            .iter()
+            .filter(|a| a.path.is_ident("pax"))
+            .collect();
+        let content = attributes.iter().any(|a| {
+            a.parse_args::<syn::Ident>()
+                .map(|i| i == "content")
+                .unwrap_or(false)
+        });
+        if !content {
+            continue;
+        }
+        let error = |message| syn::Error::new_spanned(field, message);
+        if !is_component {
+            return Err(error(
+                "#[pax(content)] requires a component template or primitive",
+            ));
+        }
+        if attributes.len() != 1 || receiver.is_some() {
+            return Err(error(
+                "declare exactly one #[pax(content)] receiver, without #[pax(rust)]",
+            ));
+        }
+        let valid = match &field.ty {
+            Type::Path(path) if path.qself.is_none() => path.path.segments.last().map(|segment| {
+                segment.ident == "Property" && match &segment.arguments {
+                    syn::PathArguments::AngleBracketed(args) if args.args.len() == 1 => matches!(args.args.first(), Some(syn::GenericArgument::Type(Type::Path(inner))) if inner.qself.is_none() && inner.path.segments.last().is_some_and(|s| s.ident == "String" && matches!(s.arguments, syn::PathArguments::None))),
+                    _ => false,
+                }
+            }).unwrap_or(false),
+            _ => false,
+        };
+        if !valid {
+            return Err(error("#[pax(content)] requires Property<String>"));
+        }
+        receiver = Some(
+            field
+                .ident
+                .as_ref()
+                .ok_or_else(|| error("content receivers require named fields"))?
+                .to_string(),
+        );
+    }
+    Ok(receiver)
 }
 
 fn recurse_visit_tag_pairs_for_template(
@@ -58,7 +130,7 @@ fn recurse_visit_tag_pairs_for_template(
                 return;
             }
 
-            let template_node = TemplateNodeDefinition {
+            let mut template_node = TemplateNodeDefinition {
                 type_id: TypeId::build_singleton(
                     &ctx.pascal_identifier_to_type_id_map
                         .get(pascal_identifier)
@@ -68,9 +140,19 @@ fn recurse_visit_tag_pairs_for_template(
                 ),
                 settings,
                 selector_info,
+                body_property: None,
                 raw_comment_string: None,
                 control_flow_settings: None,
             };
+
+            let inner_nodes = matched_tag.clone().into_inner().nth(1).unwrap();
+            if let Some(body) = inner_nodes
+                .clone()
+                .into_inner()
+                .find(|p| p.as_rule() == Rule::node_inner_content)
+            {
+                lower_body(ctx, &mut template_node, body);
+            }
 
             let id = match location {
                 TreeLocation::Root => ctx.template.add_root_node_back(template_node),
@@ -83,6 +165,9 @@ fn recurse_visit_tag_pairs_for_template(
                 Rule::inner_nodes => {
                     let inner_nodes = prospective_inner_nodes;
                     inner_nodes.into_inner().for_each(|sub_tag_pair| {
+                        if sub_tag_pair.as_rule() == Rule::node_inner_content {
+                            return;
+                        }
                         recurse_visit_tag_pairs_for_template(
                             ctx,
                             sub_tag_pair,
@@ -120,6 +205,7 @@ fn recurse_visit_tag_pairs_for_template(
                 type_id,
                 settings,
                 selector_info,
+                body_property: None,
                 raw_comment_string: None,
                 control_flow_settings: None,
             };
@@ -140,6 +226,7 @@ fn recurse_visit_tag_pairs_for_template(
                         type_id: TypeId::build_if(),
                         settings: None,
                         selector_info: Default::default(),
+                        body_property: None,
                         raw_comment_string: None,
                     };
 
@@ -281,6 +368,7 @@ fn recurse_visit_tag_pairs_for_template(
                         control_flow_settings: Some(cfavd),
                         settings: None,
                         selector_info: Default::default(),
+                        body_property: None,
                         raw_comment_string: None,
                     };
 
@@ -318,6 +406,7 @@ fn recurse_visit_tag_pairs_for_template(
                         type_id: TypeId::build_slot(),
                         settings: None,
                         selector_info: Default::default(),
+                        body_property: None,
                         raw_comment_string: None,
                     };
 
@@ -337,6 +426,7 @@ fn recurse_visit_tag_pairs_for_template(
                 type_id: TypeId::build_comment(),
                 settings: None,
                 selector_info: Default::default(),
+                body_property: None,
                 raw_comment_string: Some(any_tag_pair.as_str().to_string()),
             };
             let _ = match location {
@@ -345,13 +435,62 @@ fn recurse_visit_tag_pairs_for_template(
             };
         }
         Rule::node_inner_content => {
-            //For example:  `<Text>"I am inner content"</Text>`
-            unimplemented!("Inner content not yet supported");
+            panic!("scalar text requires an element with a #[pax(content)] receiving property");
         }
         _ => {
             unreachable!("Parsing error: {:?}", any_tag_pair.as_rule());
         }
     }
+}
+
+fn lower_body(ctx: &TemplateNodeParseContext, node: &mut TemplateNodeDefinition, body: Pair<Rule>) {
+    let location = span_to_location(&body.as_span());
+    let fail = |message: &str| -> ! {
+        panic!(
+            "{}:{}: {message}",
+            location.start_line_col.0 + 1,
+            location.start_line_col.1 + 1
+        )
+    };
+    let value = body.into_inner().next().unwrap();
+    let value = match value.as_rule() {
+        Rule::body_text => match pax_language::text::decode_body_text(value.as_str()) {
+            Ok(Some(text)) => ValueDefinition::LiteralValue(PaxValue::String(text)),
+            Ok(None) => return,
+            Err(error) => fail(&error.to_string()),
+        },
+        Rule::body_expression => {
+            let expression = value
+                .into_inner()
+                .next()
+                .unwrap()
+                .into_inner()
+                .next()
+                .unwrap();
+            ValueDefinition::Expression(ExpressionInfo::new(
+                parse_pax_expression_from_pair(expression).unwrap(),
+            ))
+        }
+        _ => unreachable!(),
+    };
+    let Some(property) = ctx.content_properties.get(&node.type_id) else {
+        fail("this component has no #[pax(content)] Property<String> receiver; use child components or declare a receiver");
+    };
+    let settings = node.settings.get_or_insert_with(Vec::new);
+    if let Some(token) = settings.iter().find_map(|setting| match setting {
+        SettingElement::Setting(token, _) if &token.token_value == property => Some(token),
+        _ => None,
+    }) {
+        fail(&format!(
+            "body content duplicates inline property `{property}` at {:?}; provide it once",
+            token.token_location
+        ));
+    }
+    settings.push(SettingElement::Setting(
+        Token::new(property.clone(), location),
+        value,
+    ));
+    node.body_property = Some(property.clone());
 }
 
 fn parse_router_matched_tag(
@@ -364,6 +503,7 @@ fn parse_router_matched_tag(
         type_id: TypeId::build_router(),
         settings: None,
         selector_info: Default::default(),
+        body_property: None,
         raw_comment_string: None,
         control_flow_settings: Some(ControlFlowSettingsDefinition::default()),
     };
@@ -455,6 +595,7 @@ fn parse_router_self_closing_tag(ctx: &mut TemplateNodeParseContext, location: T
         type_id: TypeId::build_router(),
         settings: None,
         selector_info: Default::default(),
+        body_property: None,
         raw_comment_string: None,
         control_flow_settings: Some(ControlFlowSettingsDefinition::default()),
     };
@@ -506,6 +647,7 @@ fn parse_route_branch_from_matched_tag(
         type_id: type_id_for_pascal(ctx, route_tag),
         settings: route_settings.clone(),
         selector_info,
+        body_property: None,
         raw_comment_string: None,
         control_flow_settings: None,
     };
@@ -546,6 +688,7 @@ fn parse_route_branch_from_self_closing_tag(
         type_id: type_id_for_pascal(ctx, route_tag),
         settings: route_settings.clone(),
         selector_info,
+        body_property: None,
         raw_comment_string: None,
         control_flow_settings: None,
     };
@@ -1928,6 +2071,7 @@ pub fn assemble_component_definition(
     rust_source_file_path: &str,
 ) -> (ParsingContext, ComponentDefinition) {
     let mut tpc = TemplateNodeParseContext {
+        content_properties: content_properties(&ctx.type_table),
         pascal_identifier_to_type_id_map: template_map,
         route_branch_descriptors,
         template: ComponentTemplate::new(

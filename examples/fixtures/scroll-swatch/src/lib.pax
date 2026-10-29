@@ -4,7 +4,6 @@
             y=34px
             width={100% - 80px}
             height=34px
-            text="Scroll Swatch"
             selectable=false
             style={
                 font: {
@@ -18,14 +17,13 @@
                 align_horizontal: TextAlignHorizontal::Left
                 align_multiline: TextAlignHorizontal::Left
                 underline: false
-            }/>
+            }>Scroll Swatch</Text>
 
         <Text
             x=40px
             y=76px
             width={100% - 80px}
             height=48px
-            text="Drag the card shell to sweep hue. Drag inside a card to pan saturation on x and luminance on y."
             selectable=false
             style={
                 font: {
@@ -38,7 +36,7 @@
                 align_horizontal: TextAlignHorizontal::Left
                 align_multiline: TextAlignHorizontal::Left
                 underline: false
-            }/>
+            }>Drag the card shell to sweep hue. Drag inside a card to pan saturation on x and luminance on y.</Text>
 
         <Scroller
             x=0px
@@ -60,7 +58,6 @@
                             y=24px
                             width=312px
                             height=28px
-                            text={"Hue " + (hue * 20) + " deg"}
                             selectable=false
                             style={
                                 font: {
@@ -74,7 +71,7 @@
                                 align_horizontal: TextAlignHorizontal::Left
                                 align_multiline: TextAlignHorizontal::Left
                                 underline: false
-                            }/>
+                            }>{"Hue " + (hue * 20) + " deg"}</Text>
 
                         <Scroller
                             x=24px
@@ -99,7 +96,6 @@
                                                 y=32px
                                                 width=202px
                                                 height=24px
-                                                text={"H " + (hue * 20) + " S " + (24 + col * 18) + " L " + (84 - row * 16)}
                                                 selectable=false
                                                 style={
                                                     font: {
@@ -113,7 +109,7 @@
                                                     align_horizontal: TextAlignHorizontal::Left
                                                     align_multiline: TextAlignHorizontal::Left
                                                     underline: false
-                                                }/>
+                                                }>{"H " + (hue * 20) + " S " + (24 + col * 18) + " L " + (84 - row * 16)}</Text>
 
                                             <Rectangle
                                                 x=10px

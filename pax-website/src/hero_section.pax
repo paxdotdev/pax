@@ -19,37 +19,36 @@
         <Stacker y={self.compact ? 0px : 56px} width=100% autosize=true gutter=26px>
             <RotatingHeadline width=100% height={(self.font_px * 3.7)px} font_px={self.font_px} playing=true/>
             <Stacker width=100% autosize=true gutter=12px>
-                <Text class="hero_copy" width=100%
-                    text="Write application logic in Rust, alongside Pax: a declarative language for making UIs powerful, expressive, and fun."/>
-                <Text class="hero_copy" width=100% text="Ship to native macOS, iOS, iPadOS, and the web."/>
+                <Text class="hero_copy" width=100%>Write application logic in Rust, alongside Pax: a declarative language for making UIs powerful, expressive, and fun.</Text>
+                <Text class="hero_copy" width=100%>Ship to native macOS, iOS, iPadOS, and the web.</Text>
                 <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter={@viewport.width < 600 ? 4px : 6px}
                     direction={@viewport.width < 600 ? StackerDirection::Vertical : StackerDirection::Horizontal}
                     sizes={@viewport.width < 600 ? [] : (self.compact ? [Some(178px), None] : [Some(199px), None])}>
-                    <Text class="hero_copy" width=100% text="Free and open source." style={
+                    <Text class="hero_copy" width=100% style={
                         font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::SemiBold)
                         font_size: {self.compact ? 16px : 18px}
                         fill: {SiteTheme::muted()}
                         align_horizontal: TextAlignHorizontal::Left
                         align_multiline: TextAlignHorizontal::Left
-                    }/>
-                    <Text class="hero_copy" width=100% text="This website was built in Pax."/>
+                    }>Free and open source.</Text>
+                    <Text class="hero_copy" width=100%>This website was built in Pax.</Text>
                 </Stacker>
             </Stacker>
             <Stacker width=100% height=48px direction=StackerDirection::Horizontal gutter=10px>
                 <Link width=100% height=100% url="https://docs.pax.dev/getting-started/" target=Target::New>
-                    <Text class="site_button_label" width=100% height=100% text="Get Started" selectable=false/>
+                    <Text class="site_button_label" width=100% height=100% selectable=false>Get Started</Text>
                     <Rectangle class="site_button_signal" width=100% height=100%/>
                 </Link>
                 <Link width=100% height=100% url="https://github.com/paxdotdev/pax" target=Target::New>
-                    <Text class="site_button_outline_label" width=100% height=100% text="View GitHub" selectable=false/>
+                    <Text class="site_button_outline_label" width=100% height=100% selectable=false>View GitHub</Text>
                     <Rectangle class="site_button_outline" width=100% height=100%/>
                 </Link>
             </Stacker>
             <Group width=100% autosize=true autosize_x=false autosize_y=true>
                 <Stacker width=100% autosize=true padding_x=18px padding_y=16px>
-                    <Text class="hero_command" width=100% selectable=true markdown=false text="cargo install pax-cli
+                    <Text class="hero_command" width=100% selectable=true markdown=false>{r"cargo install pax-cli
 pax-cli create my-app
-cd my-app && pax-cli run"/>
+cd my-app && pax-cli run"}</Text>
                 </Stacker>
                 <Rectangle width=100% height=100% layout_role=LayoutRole::Breakout corner_radius=12 fill={
                     paint: {SiteTheme::surface()}

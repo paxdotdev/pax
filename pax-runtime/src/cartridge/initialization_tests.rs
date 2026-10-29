@@ -215,6 +215,7 @@ fn plan(
             class_binding: classes,
             ..Default::default()
         },
+        body_property: None,
         raw_comment_string: None,
     };
     node.normalize_selector_info();

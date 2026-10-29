@@ -1,8 +1,8 @@
 <Scroller width=100% height=100% scroll_height=1550px>
     <Group x=24px y=22px width={100% - 48px} height=1500px>
-        <Text width=100% height=42px text="Store ownership lab" style={font_size: 30px, fill: rgb(24, 30, 48)}/>
-        <Text y=48px width=100% height=30px text="Each card owns its state. Received and private children share that owner." style={font_size: 15px, fill: rgb(80, 88, 110)}/>
-        <Button id="toggle-left" y=87px width=180px height=30px label="Remount left" style={font_size: 14px, fill: WHITE, align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center} @button_click=self.toggle_left/>
+        <Text width=100% height=42px style={font_size: 30px, fill: rgb(24, 30, 48)}>Store ownership lab</Text>
+        <Text y=48px width=100% height=30px style={font_size: 15px, fill: rgb(80, 88, 110)}>Each card owns its state. Received and private children share that owner.</Text>
+        <Button id="toggle-left" y=87px width=180px height=30px style={font_size: 14px, fill: WHITE, align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center} @button_click=self.toggle_left>Remount left</Button>
         if self.show_left {
             <CounterProvider id="left-provider" y=130px width={50% - 8px} height=190px label="Left provider">
                 <CounterConsumer id="left-projected" width=100% height=34px label="Projected +1"/>
@@ -17,14 +17,14 @@
                 <CounterConsumer id="inner-projected" width=100% height=34px label="Inner +1"/>
             </CounterProvider>
         </CounterProvider>
-        <Button id="reverse" y=710px width=150px height=30px label="Reverse keyed cards" style={font_size: 14px, fill: WHITE, align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center} @button_click=self.reverse/>
-        <Button id="toggle-item" x=164px y=710px width=165px height=30px label="Remove / add item 20" style={font_size: 14px, fill: WHITE, align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center} @button_click=self.toggle_item/>
+        <Button id="reverse" y=710px width=150px height=30px style={font_size: 14px, fill: WHITE, align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center} @button_click=self.reverse>Reverse keyed cards</Button>
+        <Button id="toggle-item" x=164px y=710px width=165px height=30px style={font_size: 14px, fill: WHITE, align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center} @button_click=self.toggle_item>Remove / add item 20</Button>
         for (key, i) in self.keys key key {
             <CounterProvider y=760px x={(i * 100 / 3)%} anchor_x=0% width={33.333% - 12px} height=140px label={"Item " + key}/>
         }
-        <Text y=910px width=100% height=28px text="Standard-library consumers" style={font_size: 21px, fill: rgb(24, 30, 48)}/>
-        <Text y=945px width=45% height=24px text="Left selection" style={font_size: 14px}/>
-        <Text x=52% anchor_x=0% y=945px width=45% height=24px text="Right selection" style={font_size: 14px}/>
+        <Text y=910px width=100% height=28px style={font_size: 21px, fill: rgb(24, 30, 48)}>Standard-library consumers</Text>
+        <Text y=945px width=45% height=24px style={font_size: 14px}>Left selection</Text>
+        <Text x=52% anchor_x=0% y=945px width=45% height=24px style={font_size: 14px}>Right selection</Text>
         <ComboBox id="combo-left" y=974px width=45% height=30px selected=bind:combo_left options={["Alpha", "Beta", "Gamma"]}/>
         <ComboBox id="combo-right" x=52% anchor_x=0% y=974px width=45% height=30px selected=bind:combo_right options={["Delta", "Epsilon", "Zeta"]}/>
         <Table id="table-left" y=1030px width=45% height=80px rows=2 columns=2>
@@ -51,10 +51,10 @@
             <PathPoint x=0% y=0%/><PathLine/><PathPoint x=50% y=100%/><PathLine/><PathPoint x=100% y=0%/>
         </Path>
         <ExampleHost id="host-left" y=1200px width=45% height=270px title="Left source drawer" sources={self.sources} drawer_open=true>
-            <Text text="Left preview"/>
+            <Text>Left preview</Text>
         </ExampleHost>
         <ExampleHost id="host-right" x=52% anchor_x=0% y=1200px width=45% height=270px title="Right source drawer" sources={self.sources} drawer_open=true>
-            <Text text="Right preview"/>
+            <Text>Right preview</Text>
         </ExampleHost>
     </Group>
 </Scroller>

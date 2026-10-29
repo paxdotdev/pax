@@ -1,18 +1,16 @@
-<Text id=title x=50% y=78px width=820px height=62px text="Timeline Jungle" />
+<Text id=title x=50% y=78px width=820px height=62px>Timeline Jungle</Text>
 <Text
     id=subtitle
     x=50%
     y=148px
     width=980px
     height=22px
-    text="DECLARATIVE TIMELINES · UNITLESS, F, MS, S DURATIONS @ 120FPS"
     opacity=@timeline {
         duration: 1.25s,
         0: 0.58, Linear,
         50%: 1.0, OutQuad,
         100%: 0.58,
-    }
-/>
+    }>DECLARATIVE TIMELINES · UNITLESS, F, MS, S DURATIONS @ 120FPS</Text>
 
 <Group id=firefly_one width=42px height=42px anchor=50%>
     <Ellipse class="firefly_core" x=50% y=50% width=8px height=8px anchor=50%/>

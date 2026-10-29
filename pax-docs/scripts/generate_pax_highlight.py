@@ -306,6 +306,15 @@ def render_highlighter(
         return cursor;
     }}
 
+    function readRawString(source, index) {{
+        const prefix = /^r(#+)?"/.exec(source.slice(index));
+        if (!prefix) return null;
+        const delimiter = '"' + (prefix[1] || '');
+        const end = source.indexOf(delimiter, index + prefix[0].length);
+        const cursor = end === -1 ? source.length : end + delimiter.length;
+        return {{ html: span("string", source.slice(index, cursor)), index: cursor }};
+    }}
+
     function readString(source, index) {{
         const quote = source[index];
         let cursor = index + 1;
@@ -536,6 +545,8 @@ def render_highlighter(
 
     function scanToken(source, index, context) {{
         const ch = source[index];
+        const raw = ch === "r" ? readRawString(source, index) : null;
+        if (raw) return raw;
         const comment = readComment(source, index);
         if (comment) {{
             return comment;
@@ -582,7 +593,16 @@ def render_highlighter(
             if (source[index] === "<" && /<\/?[A-Z]/.test(source.slice(index, index + 3))) {{
                 const tag = scanTag(source, index);
                 html += tag.html;
+                const opening = !source.startsWith("</", index) && !source.slice(index, tag.index).trimEnd().endsWith("/>");
                 index = tag.index;
+                if (opening) {{
+                    const end = source.indexOf("<", index);
+                    const body = source.slice(index, end === -1 ? source.length : end);
+                    if (!/[{{}}]/.test(body) && !/^\s*(?:slot\s*\(|\/\/|\/\*)/.test(body)) {{
+                        html += escapeHtml(body);
+                        index += body.length;
+                    }}
+                }}
                 continue;
             }}
             const token = scanToken(source, index, {{}});

@@ -25,12 +25,10 @@ share a family and color while differing in size and weight:
 
 ```pax
 <Group x=24px y=24px width={100% - 48px} height=180px>
-    <Text width=100% height=40px text="Field notes" class="heading" />
+    <Text width=100% height=40px class="heading">Field notes</Text>
     <Text y=56px width=100%
-        text={"Collect a small observation. Give it a title, " +
-            "then leave room for the next idea."}
-        class="body"
-    />
+        class="body">{"Collect a small observation. Give it a title, " +
+            "then leave room for the next idea."}</Text>
 </Group>
 
 @settings {
@@ -51,7 +49,10 @@ share a family and color while differing in size and weight:
 }
 ```
 
-`text={self.title}` can replace a literal when the content comes from state.
+`<Text>{self.title}</Text>` reads content from state. Body syntax assigns the
+existing `text` property; `text={self.title}` remains valid. See
+[text bodies](template-language.md#text-bodies) for multiline indentation and
+raw strings that preserve exact text.
 The same reactive bindings used for layout work here; see
 [Properties](state-properties.md#reading-and-updating-state) and
 [PAXEL](data-binding-expressions.md).
@@ -74,10 +75,8 @@ A paragraph usually needs a width and an omitted height:
 
 ```pax
 <Text x=24px y=24px width={100% - 48px}
-    text={"A useful note can be one sentence or several. " +
-        "Let the available width determine the line breaks."}
-    style={font: "Arial", font_size: 18px, fill: rgb(32, 40, 48)}
-/>
+    style={font: "Arial", font_size: 18px, fill: rgb(32, 40, 48)}>{"A useful note can be one sentence or several. " +
+        "Let the available width determine the line breaks."}</Text>
 ```
 
 `wrap` defaults to `true`. With a width constraint, the native renderer breaks
@@ -87,7 +86,10 @@ it does not reduce the font size to make everything fit.
 
 Wrapping uses the Text's local layout width. Rotating, translating, or scaling
 the node or an ancestor transforms that layout without changing its line breaks.
-Changing the layout width can reflow the text.
+Changing the layout width can reflow the text. Plain Text preserves authored
+spaces and newlines even when wrapping is enabled, including intentional
+indentation in a raw string or extra indentation in a framed body. Markdown
+retains the target renderer's own whitespace rules.
 
 Measurements can change when the string, width, style, or loaded font changes.
 Allow the layout to settle before relying on a measured size. A following
@@ -105,9 +107,7 @@ to the left.
 
 ```pax
 <Text x=24px y=24px width=220px height=28px wrap=false clip=true
-    text="A long label with more to say than this row can hold"
-    style={font: "Arial", font_size: 18px, fill: rgb(32, 40, 48)}
-/>
+    style={font: "Arial", font_size: 18px, fill: rgb(32, 40, 48)}>A long label with more to say than this row can hold</Text>
 ```
 
 ### First presentation on web
@@ -139,7 +139,7 @@ Layout positions the Text node. TextStyle aligns the content inside it:
 For a centered caption, set all three deliberately:
 
 ```pax
-<Text width=240px height=100px text="A place to begin, and room to continue."
+<Text width=240px height=100px
     style={
         font: "Arial"
         font_size: 20px
@@ -147,8 +147,7 @@ For a centered caption, set all three deliberately:
         align_horizontal: TextAlignHorizontal::Center
         align_vertical: TextAlignVertical::Center
         align_multiline: TextAlignHorizontal::Center
-    }
-/>
+    }>A place to begin, and room to continue.</Text>
 ```
 
 The default alignments are left, top, and left. Text metrics and line breaks
@@ -164,13 +163,12 @@ workstation or device; a missing family falls back through the native renderer.
 A named object adds modifiers:
 
 ```pax
-<Text width=280px height=48px text="An observation worth keeping"
+<Text width=280px height=48px
     style={
         font: {family: "Arial", style: FontStyle::Italic, weight: 700}
         font_size: 22px
         fill: rgb(32, 40, 48)
-    }
-/>
+    }>An observation worth keeping</Text>
 ```
 
 The fields are `family`, optional `url`, `style`, and `weight`, in any order.
@@ -196,13 +194,12 @@ and reference it through `url`. For example, with a file named
 `NotesRegular.ttf`:
 
 ```pax
-<Text width=320px height=48px text="A typeface for these notes"
+<Text width=320px height=48px
     style={
         font: {family: "Notes", url: "assets/fonts/NotesRegular.ttf", weight: 400}
         font_size: 24px
         fill: rgb(32, 40, 48)
-    }
-/>
+    }>A typeface for these notes</Text>
 ```
 
 Here `Notes` is the family name registered with the browser for that file.
@@ -217,8 +214,8 @@ stylesheet in the font's `url`; the generated HTML does not load a global font
 stylesheet for every application. For example:
 
 ```pax
-<Text width=280px text="A stylesheet font"
-    style={font: {family: "Example Sans", url: "/assets/fonts/example.css"}, font_size: 24px}/>
+<Text width=280px
+    style={font: {family: "Example Sans", url: "/assets/fonts/example.css"}, font_size: 24px}>A stylesheet font</Text>
 ```
 
 This requires an actual stylesheet declaring the matching family and its font
@@ -291,9 +288,8 @@ should belong to the containing component:
     editable=true text=bind:self.title
     style={font: "Arial", font_size: 24px, fill: rgb(32, 40, 48)}
 />
-<Text x=24px y=80px width=280px text={"Current title: " + self.title}
-    style={font: "Arial", font_size: 16px, fill: rgb(72, 80, 88)}
-/>
+<Text x=24px y=80px width=280px
+    style={font: "Arial", font_size: 16px, fill: rgb(72, 80, 88)}>{"Current title: " + self.title}</Text>
 ```
 
 This uses the `title: Property<String>` on Notes from
@@ -309,18 +305,19 @@ See [Events](event-handling-rust.md#use-event-data) and
 
 ### Markdown content
 
-Set `markdown=true` for authored content with inline emphasis and other
-Markdown formatting:
+Text defaults to plain text. Set `markdown=true` for authored content with
+inline emphasis and other Markdown formatting:
 
 ```pax
 <Text width=300px markdown=true
-    text="Keep **one observation** and *one question*."
-    style={font: "Arial", font_size: 18px, fill: rgb(32, 40, 48)}
-/>
+    style={font: "Arial", font_size: 18px, fill: rgb(32, 40, 48)}>Keep **one observation** and *one question*.</Text>
 ```
 
-Web and Apple targets use different Markdown renderers, so start with simple
-formatting and verify anything richer on your targets. Treat this as a
+Web uses snarkdown; Apple uses its native inline Markdown path with whitespace
+preservation and a separate HTML compatibility path. Full block Markdown
+parity is not guaranteed. Start with simple formatting and verify richer content
+on each target. Body whitespace normalization happens before rendering; use a
+raw string expression for exact indentation or boundary newlines. Treat this as a
 trusted-content surface: the web path inserts rendered markup and does not
 provide a sanitization boundary for arbitrary user input. Leave `markdown`
 false for plain strings from users.

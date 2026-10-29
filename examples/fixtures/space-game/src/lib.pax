@@ -1,11 +1,11 @@
 if game_state == "PLAYING" {
-    <Text x=10px y=10px text={"Score: " + score} style={
+    <Text x=10px y=10px style={
         fill: WHITE
-    }/>
+    }>{"Score: " + score}</Text>
 } else if game_state == "GAME_OVER" {
-    <Text y=25% height=25% width=100% text="GAME OVER" id=game_over/>
-    <Text y=50% height=25% width=100% text={"Score: " + score} id=game_over_score/>
-    <Button x=50% y=65% width=180px height=44px label="Play Again"
+    <Text y=25% height=25% width=100% id=game_over>GAME OVER</Text>
+    <Text y=50% height=25% width=100% id=game_over_score>{"Score: " + score}</Text>
+    <Button x=50% y=65% width=180px height=44px
         color=rgb(245, 240, 244) hover_color=WHITE
         style={
             font: { family: "Times New Roman", weight: 700 }
@@ -15,7 +15,7 @@ if game_state == "PLAYING" {
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center
         }
-        @button_click=self.play_again/>
+        @button_click=self.play_again>Play Again</Button>
     <Rectangle fill=rgba(255, 0, 50, 50)/>
 }
 <Group scale=200% width=50% height=50%>

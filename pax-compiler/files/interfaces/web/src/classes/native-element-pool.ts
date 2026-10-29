@@ -1418,8 +1418,13 @@ export class NativeElementPool {
             applyClip(patch.clip);
         }
 
-        if (patch.wrap != null) {
-            textChild.style.whiteSpace = patch.wrap ? "normal" : "pre";
+        if (patch.wrap != null) textChild.dataset.paxWrap = String(patch.wrap);
+        if (patch.markdown != null) textChild.dataset.paxMarkdown = String(patch.markdown);
+        if (patch.wrap != null || patch.markdown != null) {
+            // Wrapping must not discard authored spaces in plain text. Markdown
+            // keeps its renderer's HTML whitespace behavior.
+            textChild.style.whiteSpace = textChild.dataset.paxWrap === "false" ? "pre"
+                : textChild.dataset.paxMarkdown === "true" ? "normal" : "pre-wrap";
         }
 
         applyTextStyle(leaf, textChild, patch.style);

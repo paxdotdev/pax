@@ -404,6 +404,7 @@ fn build_item_recursive(
                 let type_id = ensure_syn_type(ctx, registry, &field.ty, &item.scope)?;
                 let mut flags = PropertyDefinitionFlags::default();
                 flags.is_property_wrapped = field.is_property_wrapped;
+                flags.is_content = field.is_content;
                 property_definitions.push(PropertyDefinition {
                     name: field.name.clone(),
                     flags,
@@ -1416,6 +1417,10 @@ fn register_struct_item(
     let config = parse_pax_config(&item_struct.attrs, source_file_contents)?;
     let import_path = format!("{}::{}", scope.module_path, item_struct.ident);
     let kind = build_item_kind(package_context, source_file_path, &config)?;
+    pax_manifest::parsing::validate_content_receiver(
+        &item_struct.fields,
+        !matches!(&kind, PaxItemKind::StructOnly),
+    )?;
     let data = build_struct_data_summary(&item_struct)?;
     registry.insert(ScannedPaxItem {
         ident: item_struct.ident.to_string(),
@@ -1579,6 +1584,12 @@ fn build_struct_data_summary(item_struct: &ItemStruct) -> Result<DataSummary> {
             name: field_name,
             ty: field_ty,
             is_property_wrapped,
+            is_content: field.attrs.iter().any(|a| {
+                a.path.is_ident("pax")
+                    && a.parse_args::<syn::Ident>()
+                        .map(|i| i == "content")
+                        .unwrap_or(false)
+            }),
         });
     }
 
@@ -2805,6 +2816,7 @@ struct FieldSummary {
     name: String,
     ty: Type,
     is_property_wrapped: bool,
+    is_content: bool,
 }
 
 #[derive(Clone)]

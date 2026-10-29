@@ -760,6 +760,17 @@ pub fn __pax_expand(
             .into();
     }
     validate_config(&input, &config).unwrap();
+    if let Data::Struct(data) = &input.data {
+        let is_component = config.is_primitive
+            || config.file_path.is_some()
+            || config.svg_path.is_some()
+            || config.inlined_contents.is_some();
+        if let Err(error) =
+            pax_manifest::parsing::validate_content_receiver(&data.fields, is_component)
+        {
+            return error.to_compile_error().into();
+        }
+    }
 
     let mut trait_impls = vec!["Clone", "Default", "Serialize", "Deserialize", "Debug"];
 
@@ -909,8 +920,20 @@ pub fn __pax_expand(
                 field.attrs.retain(|attr| !attr.path.is_ident("pax"));
                 field.attrs.push(syn::parse_quote!(#[serde(skip)]));
             } else if field.attrs.iter().any(|attr| attr.path.is_ident("pax")) {
-                return quote! { compile_error!("the field attribute must be #[pax(rust)]"); }
-                    .into();
+                if field
+                    .attrs
+                    .iter()
+                    .filter(|a| a.path.is_ident("pax"))
+                    .all(|a| {
+                        a.parse_args::<syn::Ident>()
+                            .map(|i| i == "content")
+                            .unwrap_or(false)
+                    })
+                {
+                    field.attrs.retain(|attr| !attr.path.is_ident("pax"));
+                } else {
+                    return quote! { compile_error!("the field attribute must be #[pax(rust)] or #[pax(content)]"); }.into();
+                }
             }
         }
     }

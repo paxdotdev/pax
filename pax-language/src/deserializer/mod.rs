@@ -252,8 +252,12 @@ impl<'de> PaxDeserializer<'de> {
                 }
             }
             Rule::string => {
-                let string_within_quotes =
-                    self.ast.into_inner().next().unwrap().as_str().to_string();
+                let inner = self.ast.into_inner().next().unwrap();
+                let string_within_quotes = if inner.as_rule() == Rule::raw_string {
+                    inner.into_inner().next().unwrap().as_str().to_string()
+                } else {
+                    inner.as_str().to_string()
+                };
                 visitor.visit_string(string_within_quotes)
             }
             Rule::literal_boolean => {

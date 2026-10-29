@@ -210,12 +210,16 @@ opt-level = 0
 [profile.dev.package.led-oscilloscope]
 opt-level = 0
 
+[profile.dev.package.text-bodies]
+opt-level = 0
+
 [profile.release]
 lto = true
 opt-level = "z" 
 codegen-units = 1  
 
 [dev-dependencies]
+text-bodies = { path = "examples/fixtures/text-bodies", default-features = false }
 led-oscilloscope = { path = "examples/led-oscilloscope", default-features = false }
 shader-studio = { path = "examples/fixtures/shader-studio", default-features = false }
 pax-kit = { path = "pax-kit", features = ["host", "designtime"] }
@@ -437,3 +441,7 @@ path = "examples/fixtures/transition-grid.rs"
 [[example]]
 name = "shader-studio"
 path = "examples/fixtures/shader-studio.rs"
+
+[[example]]
+name = "text-bodies"
+path = "examples/fixtures/text-bodies.rs"

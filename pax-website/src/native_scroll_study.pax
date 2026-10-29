@@ -2,12 +2,12 @@
     <ImportSettings>
         <SiteTheme />
     </ImportSettings>
-    <Text class="demo_label" x=16px y=16px width={100% - 32px} height=24px text="NATIVE SCROLLING"/>
+    <Text class="demo_label" x=16px y=16px width={100% - 32px} height=24px>NATIVE SCROLLING</Text>
     <Scroller x=12px y=52px width={100% - 24px} height={100% - 76px} autosize=true corner_radius=10>
         <Stacker width=100% autosize=true gutter=12px>
             for i in 0..6 {
                 <Group width=100% height=148px>
-                    <Text class="demo_note" x=16px y=116px width={100% - 32px} height=20px text={"STUDY 0" + (i + 1)}/>
+                    <Text class="demo_note" x=16px y=116px width={100% - 32px} height=20px>{"STUDY 0" + (i + 1)}</Text>
                     <Path  x=16px y=12px width={100% - 32px} height=88px fill={paint: TRANSPARENT, material: {Material::unlit()}} stroke={material: {Material::unlit()},
                         paint: rgb(225, 225, 225)
                         width: 1.5px

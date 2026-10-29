@@ -18,6 +18,12 @@ when shipping on web, macOS, iOS, or iPadOS.
 
 <a id="native-controls"></a>
 
+`Button` accepts its label as a [text body](template-language.md#text-bodies),
+for example `<Button width=120px height=40px>Save</Button>`. This sets the existing
+`label` property; attributes and bindings remain available. On web, Button labels
+continue to use the existing Markdown renderer. Text bodies do not change a
+control's native accessibility or editing behavior.
+
 ## A small editable form
 
 Let's add a settings form to Field notes. A name, a location preference, a
@@ -67,28 +73,26 @@ In `src/lib.pax`:
 
 ```pax
 <Group x=24px y=24px width={100% - 48px} height=452px>
-    <Text class="label" width=100% height=28px text="Notebook name" />
+    <Text class="label" width=100% height=28px>Notebook name</Text>
     <Textbox y=32px width=100% height=40px
         text=bind:self.name placeholder="e.g. Moss and rain" />
 
     <Checkbox y=92px width=24px height=24px
         checked=bind:self.include_location />
-    <Text class="label" x=36px y=90px width={100% - 36px} height=28px
-        text="Include location" />
+    <Text class="label" x=36px y=90px width={100% - 36px} height=28px>Include location</Text>
 
-    <Text class="label" y=140px width=100% height=28px text="Visibility" />
+    <Text class="label" y=140px width=100% height=28px>Visibility</Text>
     <Dropdown y=172px width=100% height=40px
         options=["Private", "Shared"] selected_id=bind:self.visibility />
 
-    <Text class="label" y=236px width=100% height=28px
-        text={"Detail: " + self.detail} />
+    <Text class="label" y=236px width=100% height=28px>{"Detail: " + self.detail}</Text>
     <Slider y=268px width=100% height=32px
         min=0.0 max=1.0 step=0.1 value=bind:self.detail />
 
-    <Button y=324px width=180px height=44px label="Save notebook"
+    <Button y=324px width=180px height=44px
         color=rgb(56, 100, 78) hover_color=rgb(43, 79, 60)
-        @button_click=self.save />
-    <Text class="label" y=388px width=100% height=64px text={self.message} />
+        @button_click=self.save>Save notebook</Button>
+    <Text class="label" y=388px width=100% height=64px>{self.message}</Text>
 </Group>
 
 @settings {
@@ -323,12 +327,12 @@ a usable size:
     source=PhotoPickerSource::Library allow_multiple=true
     include_bytes=false max_bytes_per_photo=26214400
     @photo_picker_change=self.choose_photos>
-    <Text width=100% height=100% text="Choose photos"
+    <Text width=100% height=100%
         style={
             font: "Arial", font_size: 18px, fill: WHITE
             align_horizontal: HorizontalAlign::Center
             align_vertical: VerticalAlign::Center
-        } />
+        }>Choose photos</Text>
     <Rectangle width=100% height=100% corner_radius=8
         fill=rgb(56, 100, 78) />
 </PhotoPicker>

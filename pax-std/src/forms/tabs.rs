@@ -15,7 +15,7 @@ use pax_engine::*;
     			<Rectangle x=50% y=100% width={100%-4px} height={100%-2px} fill={rgba(255, 255, 255, 30*(i == self.selected))}
                 corner_radius=[10.0, 10.0, 0.0, 0.0]
     			/>
-    			<Text align={TextAlignHorizontal::Center} width=100% height=100% text={name}/>
+                <Text align={TextAlignHorizontal::Center} width=100% height=100%>{name}</Text>
     			<Rectangle x=50% y=100% width={100%-4px} height={100%-2px} fill={self.color}
                 corner_radius=[10.0, 10.0, 0.0, 0.0]
     			/>

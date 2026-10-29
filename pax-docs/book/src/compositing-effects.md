@@ -70,8 +70,8 @@ rounds that boundary, using a number of pixels:
 
 ```pax
 <Frame x=24px y=24px width=280px height=160px corner_radius=24>
-    <Text x=16px y=16px width=248px height=32px text="A view of the coast"
-        style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)} />
+    <Text x=16px y=16px width=248px height=32px
+        style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)}>A view of the coast</Text>
     <Ellipse x=196px y=80px width=140px height=140px
         fill=rgb(72, 124, 112) />
     <Rectangle width=100% height=100% fill=rgb(237, 241, 226) />
@@ -134,9 +134,9 @@ child is an ellipse that selects the visible area:
 ```pax
 <Mask x=24px y=24px width=280px height=180px>
     <Group width=100% height=100%>
-        <Button x=70px y=84px width=140px height=36px label="Open note" />
-        <Text x=60px y=44px width=160px height=28px text="Moss and rain"
-            style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)} />
+        <Button x=70px y=84px width=140px height=36px>Open note</Button>
+        <Text x=60px y=44px width=160px height=28px
+            style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)}>Moss and rain</Text>
         <Rectangle width=100% height=100% fill=rgb(237, 241, 226) />
     </Group>
     <Ellipse x=20px y=10px width=240px height=160px fill=BLACK />
@@ -432,7 +432,7 @@ express the desired order through the template:
 ```pax
 <Group x=24px y=24px width=280px height=120px>
     <Ellipse x=180px y=0px width=80px height=80px fill=rgb(207, 120, 79) />
-    <Button x=24px y=24px width=220px height=44px label="Partly covered" />
+    <Button x=24px y=24px width=220px height=44px>Partly covered</Button>
     <Rectangle width=100% height=100% fill=rgb(237, 241, 226) />
 </Group>
 ```
@@ -566,13 +566,13 @@ panel before it and the underlying content after it:
 ```pax
 <Group width=100% height=100%>
     <Group x=50% y=50% width=280px height=120px>
-        <Text x=20px y=20px width=240px height=32px text="A moment to pause"
-            style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)} />
+        <Text x=20px y=20px width=240px height=32px
+            style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)}>A moment to pause</Text>
         <Rectangle width=100% height=100% corner_radius=16
             fill=rgb(237, 241, 226) />
     </Group>
     <EventBlocker width=100% height=100% background=rgba(0, 0, 0, 128) />
-    <Button x=24px y=24px width=160px height=44px label="Underlying action" />
+    <Button x=24px y=24px width=160px height=44px>Underlying action</Button>
     <Rectangle width=100% height=100% fill=rgb(248, 244, 234) />
 </Group>
 ```
@@ -602,9 +602,9 @@ supported controls receive the native treatment:
 <LiquidGlass x=24px y=24px width=280px height=160px
     spacing=12px variant="regular">
     <Group width=100% height=100% corner_radius=20>
-        <Text x=20px y=20px width=240px height=32px text="Field notes"
-            style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)} />
-        <Button x=20px y=76px width=240px height=44px label="Continue" />
+        <Text x=20px y=20px width=240px height=32px
+            style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)}>Field notes</Text>
+        <Button x=20px y=76px width=240px height=44px>Continue</Button>
     </Group>
 </LiquidGlass>
 ```

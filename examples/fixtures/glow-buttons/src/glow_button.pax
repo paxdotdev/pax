@@ -15,7 +15,7 @@
     />
 
     <Group x=22px y={100% - 35px} width={100% - 44px} height=18px>
-        <Text id=gesture_label width=92px height=18px text="MOVE LIGHT" selectable=false />
+        <Text id=gesture_label width=92px height=18px selectable=false>MOVE LIGHT</Text>
         <Ellipse
             x={100% - 9px}
             y=9px
@@ -33,9 +33,7 @@
         y=19px
         width={100% - 44px}
         height=38px
-        text={label}
-        selectable=false
-    />
+        selectable=false>{label}</Text>
 
     <Rectangle
         x=2px

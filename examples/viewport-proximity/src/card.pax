@@ -4,14 +4,12 @@
     @viewport_proximity_exit=self.exit
 >
     <Text x=0px y=177px width=100% height=22px
-        text={"VISIT " + self.entries + "  /  " + self.samples + " SAMPLES  /  " + self.visible_pixels + "px VISIBLE"}
-        style={font: "Courier New", font_size: 10px, fill: rgb(79, 88, 104)}/>
+        style={font: "Courier New", font_size: 10px, fill: rgb(79, 88, 104)}>{"VISIT " + self.entries + "  /  " + self.samples + " SAMPLES  /  " + self.visible_pixels + "px VISIBLE"}</Text>
     <Group id=card x=50% y=80px anchor_x=50% anchor_y=50% width=100% height=160px>
         <Text x=24px y=17px width={100% - 48px} height=18px
-            text={"FIELD NOTE " + (self.index + 1) + "    /    " + self.stage}
-            style={font: "Courier New", font_size: 11px, fill: rgb(216, 238, 151)}/>
-        <Text x=22px y=49px width={100% - 44px} height=70px text={self.detail}
-            style={font: "Georgia", font_size: 28px, fill: rgb(255, 251, 239)}/>
+            style={font: "Courier New", font_size: 11px, fill: rgb(216, 238, 151)}>{"FIELD NOTE " + (self.index + 1) + "    /    " + self.stage}</Text>
+        <Text x=22px y=49px width={100% - 44px} height=70px
+            style={font: "Georgia", font_size: 28px, fill: rgb(255, 251, 239)}>{self.detail}</Text>
         <Group x=24px y=131px width={100% - 48px} height=2px>
             <Rectangle width={(self.visible_pixels / 200.0 * 100)%}
                 height=100% fill=rgb(216, 238, 151)/>

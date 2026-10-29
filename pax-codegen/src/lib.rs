@@ -27,6 +27,20 @@ pub fn generate(manifest: &PaxManifest, designtime: bool, baked: bool) -> String
     );
     let mut runtime = manifest.clone();
     add_runtime_root(&mut runtime);
+    if baked {
+        for component in runtime.components.values_mut() {
+            if let Some(template) = &mut component.template {
+                for node in template.get_nodes_mut() {
+                    node.body_property = None;
+                }
+            }
+        }
+        for definition in runtime.type_table.values_mut() {
+            for property in &mut definition.property_definitions {
+                property.flags.is_content = false;
+            }
+        }
+    }
     cartridge_generation::render_cartridge(manifest, &runtime, designtime, baked)
 }
 

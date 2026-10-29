@@ -115,6 +115,7 @@
     - [helpers](api/internal/pax-language/helpers.md)
     - [interpreter](api/internal/pax-language/interpreter.md)
       - [interpreter::property_resolution](api/internal/pax-language/interpreter/property_resolution.md)
+    - [text](api/internal/pax-language/text.md)
   - [pax-runtime](api/internal/pax-runtime/index.md)
     - [api](api/internal/pax-runtime/api.md)
     - [cartridge](api/internal/pax-runtime/cartridge.md)

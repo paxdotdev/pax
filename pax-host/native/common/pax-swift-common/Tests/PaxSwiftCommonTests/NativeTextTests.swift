@@ -44,6 +44,19 @@ final class NativeTextTests: XCTestCase {
     }
 
     @MainActor
+    func testPlainTextRetainsBodyWhitespaceAndLiteralMarkup() throws {
+        try fixture { host, _, model, field in
+            let content = "  leading\n    relative\n\ntrailing  \n<Text>{x}</Text> & \\n"
+            model.content = content
+            update(host)
+            XCTAssertEqual(field.stringValue, content)
+            model.wrap = false
+            update(host)
+            XCTAssertEqual(field.stringValue, content)
+        }
+    }
+
+    @MainActor
     func testOrdinaryLabelHasNoPrivateScrollerOrDocumentTextView() throws {
         try fixture { host, _, model, field in
             XCTAssertTrue(field.isSelectable)

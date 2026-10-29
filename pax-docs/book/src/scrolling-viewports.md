@@ -35,8 +35,7 @@ Here is a 240-pixel-tall viewport onto 720 pixels of notes. Paste this into
         for i in 0..4 {
             <Group y={(i * 180)px} width=100% height=180px>
                 <Text x=20px y=20px width={100% - 40px} height=40px
-                    text={"Field note " + (i + 1)}
-                    style={font: "Arial", font_size: 24px, fill: rgb(36, 54, 47)} />
+                    style={font: "Arial", font_size: 24px, fill: rgb(36, 54, 47)}>{"Field note " + (i + 1)}</Text>
                 <Rectangle x=8px y=8px width={100% - 16px} height=164px
                     corner_radius=12 fill=rgb(225, 234, 220) />
             </Group>
@@ -122,8 +121,8 @@ For a document that grows as you add content, let Scroller measure its pane:
     scroll_width=100% autosize=true corner_radius=16>
     <Stacker width=100% autosize=true gutter=12px>
         for i in 0..5 {
-            <Text width=100% height=80px text={"Measured note " + (i + 1)}
-                style={font: "Arial", font_size: 24px, fill: rgb(36, 54, 47)} />
+            <Text width=100% height=80px
+                style={font: "Arial", font_size: 24px, fill: rgb(36, 54, 47)}>{"Measured note " + (i + 1)}</Text>
         }
     </Stacker>
 </Scroller>
@@ -200,21 +199,19 @@ impl Example {
 In `src/lib.pax`:
 
 ```pax
-<Button x=24px y=24px width=120px height=36px label="Back to top"
-    @button_click=self.back_to_top />
-<Button x=156px y=24px width=120px height=36px label="Last note"
-    @button_click=self.last_note />
+<Button x=24px y=24px width=120px height=36px
+    @button_click=self.back_to_top>Back to top</Button>
+<Button x=156px y=24px width=120px height=36px
+    @button_click=self.last_note>Last note</Button>
 <Text x=24px y=72px width=280px height=28px
-    text={"Offset: " + self.scroll_y}
-    style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)} />
+    style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)}>{"Offset: " + self.scroll_y}</Text>
 
 <Scroller x=24px y=120px width={100% - 48px} height=240px
     scroll_width=100% scroll_height=720px scroll_pos_y=bind:self.scroll_y>
     <Group width=100% height=720px>
         for i in 0..4 {
             <Text x=16px y={(i * 180 + 16)px} width={100% - 32px} height=80px
-                text={"Field note " + (i + 1)}
-                style={font: "Arial", font_size: 24px, fill: rgb(36, 54, 47)} />
+                style={font: "Arial", font_size: 24px, fill: rgb(36, 54, 47)}>{"Field note " + (i + 1)}</Text>
         }
         <Rectangle width=100% height=100% fill=rgb(225, 234, 220) />
     </Group>
@@ -331,8 +328,7 @@ panels and snaps at their starts:
     for i in 0..3 {
         <Group x={(i * 100)%} anchor_x=0% width=100% height=100%>
             <Text x=20px y=20px width={100% - 40px} height=48px
-                text={"Panel " + (i + 1)}
-                style={font: "Arial", font_size: 24px, fill: rgb(36, 54, 47)} />
+                style={font: "Arial", font_size: 24px, fill: rgb(36, 54, 47)}>{"Panel " + (i + 1)}</Text>
             <Rectangle x=6px width={100% - 12px} height=100%
                 corner_radius=16 fill=rgb(225, 234, 220) />
         </Group>

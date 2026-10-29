@@ -32,15 +32,11 @@
                 direction=StackerDirection::Vertical
                 gutter=10px
             >
-                <Text class="page_eyebrow" width=100% text="Top-level fallback" />
+                <Text class="page_eyebrow" width=100%>Top-level fallback</Text>
                 <Text class="page_title"
-                    width=100%
-                    text="No explicit top-level route matched this path."
-                />
+                    width=100%>No explicit top-level route matched this path.</Text>
                 <Text class="page_copy"
-                    width=100%
-                    text="The default branch is the final declarative escape hatch. It still gets a structured `route` value, so you can render useful diagnostics or recovery actions."
-                />
+                    width=100%>The default branch is the final declarative escape hatch. It still gets a structured `route` value, so you can render useful diagnostics or recovery actions.</Text>
             </Stacker>
         </Group>
 
@@ -88,9 +84,7 @@
             }
         >
             <Text class="page_copy"
-                width=100%
-                text={"Fragment on this location: " + (route.global_location.fragment ?? "none")}
-            />
+                width=100%>{"Fragment on this location: " + (route.global_location.fragment ?? "none")}</Text>
         </Group>
 
         <Group class="route_stage_3"

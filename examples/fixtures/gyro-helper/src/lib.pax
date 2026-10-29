@@ -5,15 +5,13 @@
             y={100% - 110px}
             width=190px
             height=48px
-            label="Enable motion"
-            @button_click=self.enable_motion
-        />
+            @button_click=self.enable_motion>Enable motion</Button>
     }
 
-    <Text class="title" x=50% y=54px width=86% height=48px text="Gyroscope & Accelerometer"/>
-    <Text class="readout" x=50% y=102px width=86% height=24px text={self.gyro_label}/>
-    <Text class="readout" x=50% y=130px width=86% height=24px text={self.accel_label}/>
-    <Text class="status" x=50% y={100% - 46px} width=84% height=28px text={self.status_label}/>
+    <Text class="title" x=50% y=54px width=86% height=48px>Gyroscope &amp; Accelerometer</Text>
+    <Text class="readout" x=50% y=102px width=86% height=24px>{self.gyro_label}</Text>
+    <Text class="readout" x=50% y=130px width=86% height=24px>{self.accel_label}</Text>
+    <Text class="status" x=50% y={100% - 46px} width=84% height=28px>{self.status_label}</Text>
 
     <Group
         x={50% + (@gyro.y * 5.5)px}

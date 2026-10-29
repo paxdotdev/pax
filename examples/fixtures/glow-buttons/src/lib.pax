@@ -13,9 +13,7 @@
                 y=40px
                 width={is_compact ? 88% : 82%}
                 height=18px
-                text="PAX LIGHTING LAB / PAX-966"
-                selectable=false
-            />
+                selectable=false>PAX LIGHTING LAB / PAX-966</Text>
 
             <Text
                 id=title
@@ -23,9 +21,7 @@
                 y=66px
                 width={is_compact ? 88% : 82%}
                 height={is_compact ? 76px : 62px}
-                text="A pocket light for every button."
-                selectable=false
-            />
+                selectable=false>A pocket light for every button.</Text>
 
             <Text
                 id=instructions
@@ -33,9 +29,7 @@
                 y={is_compact ? 145px : 134px}
                 width={is_compact ? 88% : 82%}
                 height=48px
-                text={is_compact ? "Tap for a glow pulse. Hold and drag to make the light follow your finger." : "Hover to reveal the light. Move across a button to paint its surface; click to press."}
-                selectable=false
-            />
+                selectable=false>{is_compact ? "Tap for a glow pulse. Hold and drag to make the light follow your finger." : "Hover to reveal the light. Move across a button to paint its surface; click to press."}</Text>
 
             <Group
                 x=50%
@@ -79,8 +73,8 @@
                 height=34px
                 anchor_x=50%
             >
-                <Text id=footer_hint width=65% height=24px text="Each light stops at its nearest LightFrame." selectable=false />
-                <Text id=press_count x=100% width=35% height=24px anchor_x=100% text={total_presses + " presses"} selectable=false />
+                <Text id=footer_hint width=65% height=24px selectable=false>Each light stops at its nearest LightFrame.</Text>
+                <Text id=press_count x=100% width=35% height=24px anchor_x=100% selectable=false>{total_presses + " presses"}</Text>
             </Group>
 
             <Rectangle

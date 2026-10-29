@@ -1,5 +1,5 @@
-<Text x=18px y=14px width={100% - 36px} height=26px text={self.label} style={font_size: 18px, fill: rgb(30, 35, 55)}/>
-<Text x=18px y=42px width={100% - 36px} height=25px text={"Owner count: " + self.count} style={font_size: 15px, fill: rgb(87, 76, 145)}/>
+<Text x=18px y=14px width={100% - 36px} height=26px style={font_size: 18px, fill: rgb(30, 35, 55)}>{self.label}</Text>
+<Text x=18px y=42px width={100% - 36px} height=25px style={font_size: 15px, fill: rgb(87, 76, 145)}>{"Owner count: " + self.count}</Text>
 <CounterConsumer x=18px y=76px width={100% - 36px} height=34px label="Private +1"/>
 <Group x=18px y=120px width={100% - 36px} height={100% - 136px}>
     slot()

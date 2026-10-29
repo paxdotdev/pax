@@ -42,7 +42,9 @@ pub struct Text {
     pub selectable: Property<bool>,
     /// Whether text overflow is clipped to the node bounds.
     pub clip: Property<bool>,
-    /// Text content to display.
+    /// Text content to display, also assignable with `<Text>content</Text>`.
+    /// Body expressions read state; use `text=bind:...` for write-through editing.
+    #[pax(content)]
     pub text: Property<String>,
     /// Text styling.
     pub style: Property<TextStyle>,

@@ -15,60 +15,56 @@
                 gutter=10px
                 sizes=[24px, None, 96px]
             >
-                <Text id=sidebar_eyebrow width=100% height=100% text="Router Playground" />
+                <Text id=sidebar_eyebrow width=100% height=100%>Router Playground</Text>
                 <Text
                     id=sidebar_title
                     width=100%
-                    height=100%
-                    text="Declarative routing, nested scope, and browser URL sync."
-                />
+                    height=100%>Declarative routing, nested scope, and browser URL sync.</Text>
                 <Text
                     id=sidebar_copy
                     width=100%
-                    height=100%
-                    text="Use route cards or the jump button. Browser URL updates stay in-tab for same-origin navigation."
-                />
+                    height=100%>Use route cards or the jump button. Browser URL updates stay in-tab for same-origin navigation.</Text>
             </Stacker>
         </Group>
 
-        <Text id=sidebar_section width=100% height=24px text="Primary routes" />
+        <Text id=sidebar_section width=100% height=24px>Primary routes</Text>
 
         <Group width=100% height=72px @click=self.navigate_to_landing>
             <Stacker class="nav_card_content">
-                <Text class="nav_title" width=100% height=100% text="Landing" />
-                <Text class="nav_meta" width=100% height=100% text="/ (default root)" />
+                <Text class="nav_title" width=100% height=100%>Landing</Text>
+                <Text class="nav_meta" width=100% height=100%>/ (default root)</Text>
             </Stacker>
             <Rectangle class="nav_card" width=100% height=100% />
         </Group>
 
         <Group width=100% height=72px @click=self.navigate_to_guide>
             <Stacker class="nav_card_content">
-                <Text class="nav_title" width=100% height=100% text="Guide" />
-                <Text class="nav_meta" width=100% height=100% text="/guide/topic/router" />
+                <Text class="nav_title" width=100% height=100%>Guide</Text>
+                <Text class="nav_meta" width=100% height=100%>/guide/topic/router</Text>
             </Stacker>
             <Rectangle class="nav_card" width=100% height=100% />
         </Group>
 
         <Group width=100% height=72px @click=self.navigate_to_team>
             <Stacker class="nav_card_content">
-                <Text class="nav_title" width=100% height=100% text="Team" />
-                <Text class="nav_meta" width=100% height=100% text="/teams/design/members/ada" />
+                <Text class="nav_title" width=100% height=100%>Team</Text>
+                <Text class="nav_meta" width=100% height=100%>/teams/design/members/ada</Text>
             </Stacker>
             <Rectangle class="nav_card" width=100% height=100% />
         </Group>
 
         <Group width=100% height=72px @click=self.navigate_to_not_found>
             <Stacker class="nav_card_content">
-                <Text class="nav_title" width=100% height=100% text="Top-level 404" />
-                <Text class="nav_meta" width=100% height=100% text="/not-found/anywhere" />
+                <Text class="nav_title" width=100% height=100%>Top-level 404</Text>
+                <Text class="nav_meta" width=100% height=100%>/not-found/anywhere</Text>
             </Stacker>
             <Rectangle class="nav_card" width=100% height=100% />
         </Group>
 
         <Group width=100% height=88px @click=self.jump_to_next_demo>
             <Stacker class="nav_card_content">
-                <Text class="jump_title" width=100% height=100% text="Imperative jump" />
-                <Text class="jump_meta" width=100% height=100% text={next_jump_target} />
+                <Text class="jump_title" width=100% height=100%>Imperative jump</Text>
+                <Text class="jump_meta" width=100% height=100%>{next_jump_target}</Text>
             </Stacker>
             <Rectangle class="jump_card" width=100% height=100% />
         </Group>
@@ -76,7 +72,7 @@
         <Group width=100% height=24px />
 
         <Link width=100% height=24px url="https://docs.pax.dev" target=Target::New>
-            <Text id=external_link width=100% height=100% text="Open docs in a new tab" />
+            <Text id=external_link width=100% height=100%>Open docs in a new tab</Text>
         </Link>
     </Stacker>
 </Scroller>
