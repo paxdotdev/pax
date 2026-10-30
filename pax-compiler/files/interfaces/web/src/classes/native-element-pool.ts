@@ -3145,7 +3145,7 @@ export class NativeElementPool {
         }
         let state = this.scrollerMeasurementStates.get(id);
         if (state?.delegatesToPageScroll) {
-            this.setPageScrollDelegation(id, oldNode, state, false);
+            this.setPageScrollDelegation(id, oldNode, state, false, 0, 0, 0, 0, 0);
         }
         if (this.pageSnapOwnerScrollerId === id && this.pageSnapHost != null) {
             while (this.pageSnapHost.firstChild) {
@@ -3718,7 +3718,7 @@ function applyScreenshotCanvasClips(
                 scaleY,
             );
         }
-        screenshotClipPathData(style).forEach((pathData) => {
+        for (const pathData of screenshotClipPathData(style)) {
             const scrollerScroll = screenshotAncestorScrollerScrollOffset(current, mount);
             ctx.setTransform(
                 scaleX,
@@ -3730,7 +3730,7 @@ function applyScreenshotCanvasClips(
             );
             ctx.clip(new Path2D(pathData));
             ctx.setTransform(1, 0, 0, 1, 0, 0);
-        });
+        }
         if (current === mount) {
             break;
         }
@@ -4665,21 +4665,29 @@ function drawPlainTextNativeLeaves(
 }
 
 function applyCanvasTypography(ctx: CanvasRenderingContext2D, textStyle: CSSStyleDeclaration) {
-    const typographyContext = ctx as CanvasRenderingContext2D & {
-        fontKerning?: string;
-        fontStretch?: string;
-        fontVariantCaps?: string;
-        letterSpacing?: string;
-        wordSpacing?: string;
-        textRendering?: string;
-    };
-
-    typographyContext.fontKerning = textStyle.fontKerning;
-    typographyContext.fontStretch = textStyle.fontStretch;
-    typographyContext.fontVariantCaps = textStyle.fontVariantCaps;
-    typographyContext.letterSpacing = textStyle.letterSpacing;
-    typographyContext.wordSpacing = textStyle.wordSpacing;
-    typographyContext.textRendering = textStyle.textRendering;
+    // Computed CSS strings can include values outside the canvas keyword enums
+    // (for example, percentage font-stretch). Leave those canvas settings intact.
+    switch (textStyle.fontKerning) {
+        case "auto": case "normal": case "none":
+            ctx.fontKerning = textStyle.fontKerning;
+    }
+    switch (textStyle.fontStretch) {
+        case "ultra-condensed": case "extra-condensed": case "condensed":
+        case "semi-condensed": case "normal": case "semi-expanded":
+        case "expanded": case "extra-expanded": case "ultra-expanded":
+            ctx.fontStretch = textStyle.fontStretch;
+    }
+    switch (textStyle.fontVariantCaps) {
+        case "normal": case "small-caps": case "all-small-caps":
+        case "petite-caps": case "all-petite-caps": case "unicase": case "titling-caps":
+            ctx.fontVariantCaps = textStyle.fontVariantCaps;
+    }
+    ctx.letterSpacing = textStyle.letterSpacing;
+    ctx.wordSpacing = textStyle.wordSpacing;
+    switch (textStyle.textRendering) {
+        case "auto": case "optimizeSpeed": case "optimizeLegibility": case "geometricPrecision":
+            ctx.textRendering = textStyle.textRendering;
+    }
 }
 
 function wrapPlainText(text: string, maxWidth: number, ctx: CanvasRenderingContext2D): string[] {

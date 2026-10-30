@@ -123,7 +123,7 @@ async function inlineExternalFontUrls(css: string, baseUrl: string): Promise<str
         if (!replacement) {
             return;
         }
-        embeddedCss = embeddedCss.replaceAll(replacement[0], replacement[1]);
+        embeddedCss = embeddedCss.split(replacement[0]).join(replacement[1]);
     });
 
     return embeddedCss;
