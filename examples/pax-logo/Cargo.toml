@@ -9,7 +9,7 @@ default-run = "pax-logo"
 title = "Animated Pax Logo"
 
 [dependencies]
-pax-kit = { version = "0.39.1", path = "../../pax-kit" }
+pax-kit = { version = "0.39.1", path = "../../pax-kit", features = ["shaders"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

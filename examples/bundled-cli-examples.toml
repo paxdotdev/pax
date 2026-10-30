@@ -2,9 +2,9 @@ default = "pax-logo"
 
 [[examples]]
 name = "pax-logo"
-description = "The animated Pax logo with a position slider, replay, and a light/dark background toggle."
+description = "The animated Pax logo with radiant light choreography, a disable toggle, position slider, replay, and light/dark backgrounds."
 source = "examples/pax-logo"
-caveats = "The reusable logo comes from pax-std; the project owns only its scene and controls."
+caveats = "Logo and shader come from pax-std; the scene owns choreography and controls. Radiance requires WGPU; CPU retains the plain reveal."
 
 [[examples]]
 name = "living-quilt"

@@ -421,7 +421,7 @@ The CLI includes complete project templates for a curated subset of examples:
 
 | Example | Starting point |
 | --- | --- |
-| `pax-logo` (default) | Animated standard-library logo with a position slider, replay, and a background toggle |
+| `pax-logo` (default) | Animated logo with radiant choreography, a disable flag, position slider, replay, and background toggle |
 | `living-quilt` | Interactive geometric tapestry with responsive components, motion, lighting, and GPU alpha masks |
 | `ink-and-light` | A responsive postcard with handwriting, local assets, and Rust interaction |
 | `increment` | A minimal counter for exploring the reactive update loop |

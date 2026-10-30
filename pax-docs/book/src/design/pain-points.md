@@ -1417,3 +1417,29 @@ Coordinating lifecycle entry with native presentation readiness remains open.
   `Enum(("Math", "round", ...))`. Replaced the unsupported helper with direct
   numeric interpolation. No language change; earlier validation would make this
   authoring mistake easier to identify.
+
+- 2026-10-29 — Reloading the static Corona release preview at `127.0.0.1:8053`
+  after rebuilding produced a blank page and `wasm.__wasm_bindgen_func_elem_18325
+  is not a function`. Expected the rebuilt JS/Wasm pair to load together; the
+  on-disk Wasm exports the referenced function. Opening the same server at
+  `localhost:8053` loaded successfully, suggesting stale browser assets. No
+  engine change; use the fresh origin for this preview (PAX-1053).
+
+- 2026-10-30 — `examples/create-example.sh logo-radiance` generated a libdev
+  `pax` helper with `pushd ../../pax-cli`. From the nested fixture, that resolves
+  to nonexistent `examples/pax-cli`, instead of the monorepo's `pax-cli`.
+  Expected the generated helper to account for fixture depth. Corrected this
+  fixture's helper to derive the root from its own path; the documented root
+  `pax-cli run --path ... --target web` command is unaffected (PAX-1053).
+
+- 2026-10-30 — New `pax-logo` web previews remained blank in the in-app
+  browser at `localhost:8056` and `:8057`. Temporary startup instrumentation
+  showed Wasm loading successfully but `init_web` remaining pending; the
+  same build with `?pax_renderer=cpu` started normally, and Chrome rendered
+  WebGPU correctly. Expected both browsers to mount the scene. Used Chrome
+  for GPU checks and removed the instrumentation; cause unresolved (PAX-1053).
+
+- 2026-10-30 — `pax-cli fmt examples/pax-logo/src` appends trailing spaces to
+  wrapped tag lines. The resulting file passes `fmt --check` but produces
+  whitespace warnings from `git diff --check`; stripping those spaces makes
+  the formatter check fail. Kept canonical formatter output (PAX-1053).

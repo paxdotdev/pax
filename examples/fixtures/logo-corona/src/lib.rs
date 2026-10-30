@@ -1,7 +1,5 @@
 use pax_kit::*;
 extern crate self as logo_corona;
-pub mod corona;
-pub use corona::Corona;
 
 pax_kit::runnable! { root: crate::Example }
 
@@ -13,6 +11,7 @@ pub struct Example {
     pub compare: Property<bool>,
     pub treated: Property<bool>,
     pub playing: Property<bool>,
+    pub tinted: Property<bool>,
     pub visible: Property<bool>,
     pub phase: Property<f64>,
     pub progress: Property<f64>,
@@ -36,15 +35,16 @@ impl Default for Example {
             compare: Property::new(true),
             treated: Property::new(true),
             playing: Property::new(true),
+            tinted: Property::new(false),
             visible: Property::new(true),
             phase: Property::new(0.),
             progress: Property::new(1.),
-            emission: Property::new(0.9),
-            reach: Property::new(105.),
-            amplitude: Property::new(0.65),
-            falloff: Property::new(1.2),
-            surface: Property::new(0.12),
-            speed: Property::new(1.),
+            emission: Property::new(1.),
+            reach: Property::new(20.),
+            amplitude: Property::new(0.8),
+            falloff: Property::new(2.7),
+            surface: Property::new(0.04),
+            speed: Property::new(2.),
             last_time: Property::new(0.),
             logo_width: Property::new(360.),
             panel_width: Property::new(900.),
@@ -99,6 +99,9 @@ impl Example {
     pub fn theme(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
         self.dark.set(!self.dark.get());
     }
+    pub fn tint(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
+        self.tinted.set(!self.tinted.get());
+    }
     pub fn comparison(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
         self.compare.set(!self.compare.get());
     }
@@ -129,11 +132,12 @@ impl Example {
         self.speed.set(1.);
     }
     pub fn quiet(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
-        self.emission.set(0.4);
-        self.reach.set(50.);
+        self.tinted.set(false);
+        self.emission.set(1.);
+        self.reach.set(20.);
         self.amplitude.set(0.8);
-        self.falloff.set(2.1);
+        self.falloff.set(2.7);
         self.surface.set(0.04);
-        self.speed.set(0.5);
+        self.speed.set(2.);
     }
 }

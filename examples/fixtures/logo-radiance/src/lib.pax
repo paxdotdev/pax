@@ -1,0 +1,126 @@
+if @gpu {
+    <Group width=0px height=0px @tick=self.animate/>
+}
+<Scroller width=100% height=100% autosize=true>
+    <Stacker width=100% autosize=true gutter=12px>
+        <Group height=24px width=100%/>
+        <Text class="eyebrow" x=50% width={(self.panel_width)px} height=20px text="PAX / LIGHT STUDIES / 03"/>
+        <Text class="title" x=50% width={(self.panel_width)px} height=54px text="Radiant aperture"/>
+        <Text class="copy" x=50% width={(self.panel_width)px} height=36px 
+            text="One light behind the mark. A slow passage from right to left."/>
+        <Group width=100% height={(self.stage_height)px} @viewport_proximity_change=self.visibility>
+            <Group x=50% y=50% anchor=50% width={(self.logo_width)px} height={(self.logo_width * 463.95 / 920.72)px}>
+                <Group width=920.72px height=463.95px scale={(self.logo_width / 920.72 * 100)%} layout_role=LayoutRole::Breakout>
+                    if self.marker {
+                        <Ellipse x={(self.light_x)px} y={(self.light_y)px} anchor=50% width=14px height=14px fill=rgb(137, 213, 255)/>
+                    }
+                    <RadiantAperture width=920.72px height=463.95px light_x={self.light_x} light_y={self.light_y} light_depth={self.depth} 
+                        brightness={self.treated ? self.brightness : 0.0} reach={self.reach} falloff={self.falloff} 
+                        transmission={self.transmission} polish={self.polish} foreground=rgb(248, 248, 245) background=rgb(10, 12, 16)>
+                        <AnimatedPaxLogo width=920.72px height=463.95px progress={self.progress} click_to_replay=false background_mode=LogoBackgroundMode::Dark 
+                            fill=rgb(10, 12, 16) letter_fill=rgb(248, 248, 245)/>
+                    </RadiantAperture>
+                </Group>
+            </Group>
+        </Group>
+        <Stacker x=50% width={(self.panel_width)px} autosize=true gutter=18px>
+            <Group width=100% height={self.small ? 86px : 36px}>
+                <Button class="button" width={self.small ? 48% : 23%} label={self.playing ? "Pause light" : "Resume light"} 
+                    @button_click=self.pause/>
+                <Button class="button" x={self.small ? 52% : 25.5%} width={self.small ? 48% : 23%} 
+                    label={self.marker ? "Hide light position" : "Show light position"} @button_click=self.marker/>
+                <Button class="button" x={self.small ? 0% : 51%} y={self.small ? 48px : 0px} width={self.small ? 48% : 23%} 
+                    label={self.treated ? "Show plain (A/B)" : "Show radiance (A/B)"} @button_click=self.treatment/>
+                <Button class="button" x={self.small ? 52% : 76.5%} y={self.small ? 48px : 0px} width={self.small ? 48% : 23%} 
+                    label="Reset study" @button_click=self.reset/>
+            </Group>
+            <Group width=100% height=56px>
+                <Text class="eyebrow" width=100% height=20px text="LIGHT PATH / RIGHT → LEFT → RIGHT / 18 SECONDS"/>
+                <Slider class="slider" y=28px width=100% height=24px value=bind:phase min=0.0 max=1.0 step=0.001 @slider_change=self.scrub_light/>
+            </Group>
+            <Group width=100% height=56px>
+                <Text class="copy" width=48% height=20px text={"Light X / " + self.light_x}/>
+                <Slider class="slider" id=light_x y=28px width=48% height=24px value=bind:light_x min=-200.0 max=1120.0 step=5.0 
+                    @slider_change=self.move_light/>
+                <Text class="copy" x=52% anchor_x=0% width=48% height=20px text={"Light Y / " + self.light_y}/>
+                <Slider class="slider" id=light_y x=52% anchor_x=0% y=28px width=48% height=24px value=bind:light_y min=-200.0 max=650.0 
+                    step=5.0 @slider_change=self.move_light/>
+            </Group>
+            <Group width=100% height=56px>
+                <Text class="copy" width=48% height=20px text={"Light depth / " + self.depth}/>
+                <Slider class="slider" id=depth y=28px width=48% height=24px value=bind:depth min=120.0 max=900.0 step=5.0/>
+                <Text class="copy" x=52% anchor_x=0% width=48% height=20px text={"Brightness / " + self.brightness}/>
+                <Slider class="slider" id=brightness x=52% anchor_x=0% y=28px width=48% height=24px value=bind:brightness min=0.0 max=6.0 
+                    step=0.05/>
+            </Group>
+            <Group width=100% height=56px>
+                <Text class="copy" width=48% height=20px text={"Reach / " + self.reach}/>
+                <Slider class="slider" id=reach y=28px width=48% height=24px value=bind:reach min=0.0 max=360.0 step=5.0/>
+                <Text class="copy" x=52% anchor_x=0% width=48% height=20px text={"Falloff / " + self.falloff}/>
+                <Slider class="slider" id=falloff x=52% anchor_x=0% y=28px width=48% height=24px value=bind:falloff min=0.5 max=4.0 step=0.05/>
+            </Group>
+            <Group width=100% height=56px>
+                <Text class="copy" width=48% height=20px text={"Transmission / " + self.transmission}/>
+                <Slider class="slider" id=transmission y=28px width=48% height=24px value=bind:transmission min=0.0 max=0.5 step=0.01/>
+                <Text class="copy" x=52% anchor_x=0% width=48% height=20px text={"Glass sheen / " + self.polish}/>
+                <Slider class="slider" id=polish x=52% anchor_x=0% y=28px width=48% height=24px value=bind:polish min=0.0 max=1.0 step=0.01/>
+            </Group>
+            <Group width=100% height=56px>
+                <Button class="button" width=27% label="Replay stencil" @button_click=self.replay/>
+                <Text class="eyebrow" x=31% anchor_x=0% width=69% height=20px text="LOGO REVEAL"/>
+                <Slider class="slider" x=31% anchor_x=0% y=28px width=69% height=24px value=bind:progress min=0.0 max=1.0 step=0.001 
+                    @slider_change=self.scrub_logo/>
+            </Group>
+            <Text class="copy" width=100% height=46px text={@gpu
+                ? "Projected light study / WebGPU. Drag the path or position to freeze and inspect."
+                : "CPU / plain-logo fallback. Projected light requires WebGPU."}/>
+            <Group width=100% height=30px/>
+        </Stacker>
+    </Stacker>
+</Scroller>
+<Rectangle width=100% height=100% fill=rgb(10, 12, 16)/>
+
+@settings {
+    @mount: mount
+    @tick: tick
+    .title {
+        style: {
+            font: "Georgia"
+            font_size: {self.small ? 32px : 42px}
+            fill: rgb(248, 248, 245)
+        }
+    }
+    .eyebrow {
+        style: {
+            font: "Arial"
+            font_size: 11px
+            fill: rgb(153, 158, 169)
+        }
+    }
+    .copy {
+        style: {
+            font: "Arial"
+            font_size: 13px
+            fill: rgb(153, 158, 169)
+        }
+    }
+    .slider {
+        accent: rgb(221, 224, 229)
+        background: rgb(45, 49, 58)
+        corner_radius: 12.0
+    }
+    .button {
+        height: 36px
+        anchor_x: 0%
+        anchor_y: 0%
+        color: rgb(35, 38, 46)
+        hover_color: rgb(53, 57, 66)
+        style: {
+            font: "Arial"
+            font_size: 12px
+            fill: rgb(248, 248, 245)
+            align_horizontal: TextAlignHorizontal::Center
+            align_vertical: TextAlignVertical::Center
+        }
+    }
+}

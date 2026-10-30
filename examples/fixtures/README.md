@@ -33,6 +33,7 @@ accepts `fixtures/<name>` and `examples/fixtures/<name>`.
 | [glow-buttons](glow-buttons) | Scoped lighting regression/study |
 | [loading-screen](loading-screen) | Custom startup component, cancellation, and coordinated native/canvas reveal |
 | [logo-corona](logo-corona) | Monochrome corona, animated logo stencil, and plain/treated comparison |
+| [logo-radiance](logo-radiance) | Moving point-light projection through the animated logo, with crisp source edges |
 | [marionette](marionette) | Jointed puppet and nested declarative timelines |
 | [mesh-gradients](mesh-gradients) | Gradient control points and reactive binding study |
 | [mouse-animation](mouse-animation) | Pointer-driven transform teaching example |

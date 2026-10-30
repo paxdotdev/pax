@@ -21,10 +21,31 @@ not arbitrary gradient or multicolor source content.
 The controls adjust emission opacity, maximum reach, flare-length variation,
 distance falloff, speed, and tonal depth within the core. Reach is measured in
 the logo's canonical local pixels; scaling its enclosing Group scales the entire
-treatment. The two presets offer different starting points for those controls.
+treatment. **Tuned default** restores the initial slider values, while
+**Conspicuous** provides a longer-reaching comparison.
 
-`Corona` is an example-owned shader primitive using Pax's existing experimental
-shader-container API. Its first pass constructs a contour-following emission
+| Control | Default |
+| --- | --- |
+| Emission | 1.00 |
+| Reach | 20 local px |
+| Flare amplitude | 0.80 |
+| Falloff | 2.70 |
+| Motion | 2.00× |
+| Surface | 0.04 |
+
+`Corona` is an experimental standard-library shader container, exported by
+`pax_std::shaders` and `pax_kit::*` with the `shaders` feature. Its default
+emission, reach, amplitude, falloff, and surface match the table above. The
+fixture owns motion speed and advances `phase` at 0.08 cycles per second with
+the default 2× speed; the reusable effect has no internal clock.
+
+**Try blue emission tint** demonstrates the optional `tint` property. With
+`tint=None` (the default), emissions follow `foreground`. A tint changes only
+the emissions, not the source colors or which regions emit; tint alpha scales
+emission coverage. `foreground` and `background` must still match the source.
+**Tuned default** also restores the source-color emission.
+
+Its first pass constructs a contour-following emission
 field at half resolution; its second pass retains the original full-resolution
 core and antialiasing. Both use the currently rendered stencil, including its
 masks and partial reveals. The emitting aperture is exactly the foreground-colored

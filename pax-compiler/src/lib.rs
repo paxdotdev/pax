@@ -1766,11 +1766,16 @@ mod tests {
         let manifest = fs::read_to_string(project.join("Cargo.toml")).unwrap();
         assert!(manifest.contains("name = \"generated-app\""));
         assert!(manifest.contains("title = \"generated-app\""));
-        assert!(manifest.contains(&format!(
-            "pax-kit = {{ version = \"{}\" }}",
-            env!("CARGO_PKG_VERSION")
-        )));
         let parsed = manifest.parse::<toml_edit::Document>().unwrap();
+        assert_eq!(
+            parsed["dependencies"]["pax-kit"]["version"].as_str(),
+            Some(env!("CARGO_PKG_VERSION"))
+        );
+        assert!(parsed["dependencies"]["pax-kit"]["features"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|feature| feature.as_str() == Some("shaders")));
         assert_created_debug_profile(&parsed, "generated-app", "pax-logo");
         assert!(parsed["dependencies"]
             .as_table()

@@ -12,7 +12,7 @@ example target.
 | [Living Quilt](living-quilt) | Expressive composition and interaction |
 | [Ink & Light](ink-and-light) | A responsive postcard with local assets and Rust interaction |
 | [Increment](increment) | A minimal template-to-Rust interaction |
-| [Pax Logo](pax-logo) | The default CLI starter: a standard-library logo, slider, and buttons |
+| [Pax Logo](pax-logo) | The default CLI starter: radiant logo choreography, disable toggle, slider, and replay |
 | [Liquid Glass](liquid-glass) | Apple native materials and the fallback on other targets |
 | [Materials](materials) | Lighting and material composition |
 | [Viewport Proximity](viewport-proximity) | Viewport events, data loading, and motion |

@@ -70,5 +70,6 @@ fn effect(p: vec2<f32>) -> vec4<f32> {
     let length = reach * mix(1.0, 0.28 + 0.72 * field, parameters.amplitude);
     let attenuation = pow(max(0.0, 1.0 - distance / max(length, 0.01)), parameters.falloff);
     let energy = clamp(parameters.emission * attenuation * (0.08 + 1.8 * field), 0.0, 0.95);
-    return vec4<f32>(parameters.foreground.rgb * energy, energy);
+    let alpha = energy * parameters.tint.a;
+    return vec4<f32>(parameters.tint.rgb * alpha, alpha);
 }

@@ -748,8 +748,8 @@ The [Frame](api/pax-std/core/frame.md), [Mask](api/pax-std/core/mask.md), and
 ## Experimental shader containers
 
 A userland primitive can filter its rendered descendants with a sequence of
-WGSL fragment passes. `pax_std::shaders` provides `GaussianBlur` and
-`Impressionist`, also exported by `pax_std::*` and `pax_kit::*`. Both use the
+WGSL fragment passes. `pax_std::shaders` provides `GaussianBlur`,
+`Impressionist`, `Corona`, and `RadiantAperture`, also exported by `pax_std::*` and `pax_kit::*`. They use the
 same public renderer extension API available to your own primitives. The
 `shader-studio` example imports these standard-library components.
 
@@ -943,4 +943,110 @@ Run the canonical example from the repository root:
 pax-cli run -p examples/fixtures/shader-studio -t web
 ```
 
+#### Corona
+
+`Corona` emits a moving, contour-following field around a two-color stencil.
+It works with arbitrary captured shapes, including internal boundaries, and
+keeps the full-resolution source geometry in front of the emissions. Clips,
+opacity, and partially revealed shapes inside the container contribute to the
+current stencil. The field is deterministic and periodic, with no simulation
+history.
+
+```pax
+<Corona width=400px height=260px tint=rgb(106,202,255) phase=0.25>
+    <Ellipse x=50% y=50% width=160px height=160px fill=WHITE/>
+</Corona>
+```
+
+`foreground` (white by default) and `background` (black by default) identify
+the source palette: supply the distinct, opaque solid colors actually used by
+the descendants. Foreground regions emit; background regions receive the
+emissions, as does transparent space. Detection is independent of luminance,
+so reversing both source colors also supports a dark mark on a light surface.
+Transparent areas, antialiasing, and source opacity are supported; arbitrary
+gradients or multicolor imagery are not suitable stencils for this effect.
+
+The optional `tint` defaults to `None`, following `foreground`. Setting it changes
+the emitted color without recoloring the source or changing its emitting shape.
+Tint alpha scales emission coverage. The `surface` control independently shades
+the source toward `background`; set it to zero to retain the original colors.
+
+| Property | Default | Range / meaning |
+| --- | --- | --- |
+| `emission` | 1.00 | Emission opacity, clamped to 0–1. |
+| `reach` | 20 | Maximum distance in container-local logical pixels, 0–120. |
+| `amplitude` | 0.80 | Flare-length variation, 0–1. |
+| `falloff` | 2.70 | Distance attenuation exponent, 0.5–5. |
+| `surface` | 0.04 | Source tonal depth, 0–0.35. |
+| `phase` | 0 | Motion position in cycles, wrapped to 0–1. |
+
+Advance `phase` from the owning component to animate; holding it fixed freezes
+the field while source changes can continue. The `logo-corona` fixture starts
+at 0.08 cycles per second (its 2× motion preset). There is no internal clock or
+automatic operating-system reduced-motion integration. Outer transforms scale
+the whole effect, including its local-pixel reach and field pattern.
+
+Corona uses two passes: a half-resolution emission search and a full-resolution
+source composite. Its 144-local-pixel capture padding stays fixed while tuning
+reach. This is an experimental optical treatment with a bounded contour search,
+not a physical light simulation; large captures still need application-specific
+performance checks. CPU rendering preserves the plain source. For a live
+comparison, run `pax-cli run --path examples/fixtures/logo-corona --target web`.
+
+See the [`Corona` API reference](api/pax-std/shaders/corona.md) for its properties.
+
 For the Rust extension contract, see [shader primitives](primitives.md#shader-primitives).
+
+
+#### Radiant aperture
+
+`RadiantAperture` projects a two-color stencil about a caller-positioned light
+behind its plane. Moving the shared light turns the whole fan coherently. The
+full-resolution silhouette stays crisp; background-colored coverage can
+transmit light and catch an obsidian-like polished sheen.
+
+```pax
+<RadiantAperture width=920.72px height=463.95px
+    foreground=WHITE background=BLACK
+    light_x=160.0 light_y=225.0 light_depth=340.0 brightness=1.70>
+    <AnimatedPaxLogo width=920.72px height=463.95px
+        background_mode=LogoBackgroundMode::Dark fill=BLACK letter_fill=WHITE
+        progress=1.0 click_to_replay=false/>
+</RadiantAperture>
+```
+
+Enable the `shaders` feature and match `foreground` and `background` to the
+source's distinct opaque solid colors. Arbitrary multicolor/gradient sources
+are unsupported. Transparent exteriors, antialiasing, masks, and partial
+reveals are captured. The shader has no internal clock; position and intensity
+can come from a timeline or application state.
+
+| Property | Default | Range / meaning |
+| --- | --- | --- |
+| `light_x`, `light_y` | 820, 185 | Container-local logical pixels |
+| `light_depth` | 340 | 120–900 local pixels behind the stencil |
+| `brightness` | 5 | 0–6; zero bypasses rays and glass shading |
+| `reach` | 320 | 0–360 local pixels of projected travel |
+| `falloff` | 1 | 0.5–4 distance attenuation exponent |
+| `transmission` | 0.16 | 0–0.5 light transmission through background-colored coverage |
+| `polish` | 0.55 | 0–1 moving sheen and narrow contour highlights |
+
+Setting transmission and polish to zero restores solid source coverage while
+retaining exterior rays. Glass transmission concerns this captured light
+field; it does not refract arbitrary scene content behind the container or
+change source alpha. The two-pass effect uses a half-resolution projection and
+a full-resolution source composite, with a fixed 376-pixel outset covering its
+tuning range. Scaling an enclosing Group scales the whole treatment.
+
+This is a stylized 2.5D scattering approximation, not a calibrated optical
+simulation. The WGPU-only capture, native-child, hit-region, and CPU fallback
+limitations above apply. Web debug and baked release builds are validated;
+native parity and production performance remain unqualified.
+
+The `logo-radiance` fixture provides direct material/light controls. The main
+`pax-logo` example enables the effect by default behind `radiance_enabled`,
+follows its unfurl with an accelerating slide left, dimming to brightness
+1.70 as it passes the original left endpoint. Its 12-second idle loop spans
+−20% to 120% of the original path. See [Animation & Motion](animation-motion.md#paths-interaction-and-motion-choices)
+for choreography ownership and the
+[`RadiantAperture` API reference](api/pax-std/shaders/radiant_aperture.md).

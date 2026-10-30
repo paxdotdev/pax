@@ -1,9 +1,36 @@
 # Animated Pax logo
 
-This is the default `pax-cli create` starter. Its `src/` contains only `lib.pax`
-(the scene and controls), `lib.rs` (state and handlers), and `main.rs` (native
-entry point). A slider scrubs the animation position; Replay and clicking the
-logo restart it; a button switches between light and dark backgrounds.
+This is the default `pax-cli create` starter. Its three source files contain
+the scene, controls, choreography clock, and native entry point. It starts on
+a dark background with `RadiantAperture` enabled around the canonical logo,
+including its obsidian-like letter treatment.
+
+The light follows the flag's left-to-right unfurl handoffs during the original
+1440 ms reveal. It then accelerates left, crosses the original path's 0%
+endpoint (x = 160) at 1960 ms, and eases into −20% at 2100 ms. Over that final
+140 ms of travel it dims from brightness 5 to **1.70**. The **12-second** idle
+cycle spans **−20% to 120%** of the study's original path: (x = 28, y = 233)
+to (x = 952, y = 177), returning smoothly with no rebound.
+
+**Replay**, or clicking the logo, restarts the complete sequence. Dragging the
+slider scrubs the original reveal and its light accompaniment and pauses the
+clock; Replay resumes from the beginning. The parent owns replay and sets the
+nested `AnimatedPaxLogo.click_to_replay=false` so the two clocks cannot diverge.
+
+**Disable radiance** renders the plain logo. To change the scene's startup
+flag, set `radiance_enabled: Property::new(false)` in `Example::default`.
+When disabled, the shader container is not mounted and the clock stops after
+the reveal. The scene also uses plain rendering on CPU; WGPU is required for
+radiance. The reusable `AnimatedPaxLogo` itself remains a plain component.
+The background toggle still reverses the palette.
+
+The starter enables the `shaders` Cargo feature on `pax-kit`. Both this scene
+and the separate `logo-radiance` tuning fixture use the shared standard-library
+`RadiantAperture`; the fixture retains its independent 18-second inspection
+path and brightness 5. See the [shader guide](../../pax-docs/book/src/compositing-effects.md#radiant-aperture)
+for properties and limitations. Native parity and production performance are
+not established by the web checks. System reduced-motion integration remains
+deferred to PAX-1048.
 
 `AnimatedPaxLogo` comes from `pax-std`, re-exported through `pax_kit`. Its geometry
 and animation source live in `pax-std/src/drawing/pax_logo/`, outside the starter.
@@ -14,12 +41,10 @@ while it is already playing. This uses the same `progress` property; a two-way
 binding keeps parent controls such as a scrubber in sync. Replay does not add
 automatic playback on mount.
 
-The replay handler resets and eases the same local progress view. Shared
-`Property::set` publications reach that view at a UI settlement boundary, so
-publishing a reset immediately before starting a local transition would use the
-old start value. External replay controls should likewise use
-`let progress = self.logo_progress.local(); progress.set(0.0); progress.ease_to(...)`
-after cancelling any active transition.
+The starter's `logo_light` timeline samples a parent-owned `playhead_ms`.
+It drives `logo_progress`, the introductory light path, and brightness. Rust
+advances that shared clock and derives the periodic idle position. Consumers
+using the plain reusable logo can still bind and ease its progress directly:
 
 ```pax
 <AnimatedPaxLogo width=920.72px height=463.95px

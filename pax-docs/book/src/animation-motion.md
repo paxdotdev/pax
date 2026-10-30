@@ -633,17 +633,49 @@ Scale an enclosing Group from the original 920.72 × 463.95 coordinate system.
 Click replay does not start animation on mount; the parent owns initial playback.
 For a settled drawing without animation masks or click behavior, use
 `StaticPaxLogo` with the same size and palette properties. The `pax-logo` starter
-owns only the surrounding scene and controls; no example-crate dependency is needed.
+owns the surrounding scene, controls, and light choreography; no example-crate
+dependency is needed to use the logo or shader.
+
+The starter enables `RadiantAperture` by default on a dark background. Its
+`radiance_enabled` property and **Disable radiance** button select the plain
+logo instead. One parent-owned clock drives the 1440 ms unfurl and its
+left-to-right light accompaniment, then an accelerating slide left. It crosses
+the original path's 0% endpoint (x = 160) at 1960 ms and eases into −20% at
+2100 ms, dimming from 5 to **1.70** over those final 140 ms. Idle oscillates
+between **−20% and 120%** every **12 seconds**, extending the original
+(160, 225)–(820, 185) path to (28, 233)–(952, 177). Replay and logo clicks restart the complete
+sequence; dragging the reveal slider pauses and samples both the reveal and
+its light. The nested logo disables its own click replay to preserve that
+single owner. WGPU applies radiance; CPU retains the original reveal.
 
 The separate `logo-corona` fixture explores a monochrome shader treatment around
 the same animated logo. It keeps the corona's periodic phase independent of
 `progress`, so pausing the field does not prevent replay or scrubbing. Its
-example-owned `Corona` primitive supports light and dark palettes. Rays spread
-from the foreground-colored aperture, including its internal letter boundaries.
+standard-library `Corona` primitive supports light and dark palettes and an
+optional emission `tint`. Rays spread from the foreground-colored aperture,
+including its internal letter boundaries.
+The fixture starts with emission 1.00, reach 20 local pixels, flare amplitude
+0.80, falloff 2.70, motion 2.00×, and surface 0.04. **Tuned default** restores
+these values after editing the sliders.
 WGPU renders the effect and CPU retains the plain source logo. Run
 `pax-cli run --path examples/fixtures/logo-corona --target web` from the repository
-to compare them. See [shader containers](compositing-effects.md#experimental-shader-containers)
+to compare them. See [Corona](compositing-effects.md#corona) for reusable properties
+and [shader containers](compositing-effects.md#experimental-shader-containers)
 for feature flags, capture boundaries, and native-overlap limits.
+
+The `logo-radiance` fixture offers a separate point-light study. A light behind
+the stencil pans right to left and back over 18 seconds; its shared position
+controls the direction of the projected fan. The original logo, including its
+dark letter silhouettes, stays crisp in front. The letters use a mostly opaque
+glass treatment with independent **Transmission** (initially 0.16) and
+**Glass sheen** (0.55) controls; setting both to zero restores solid letters.
+The glass transmits this effect's projected light, not arbitrary content behind
+the container. Path and position sliders pause the light for inspection, while
+depth changes divergence. Run
+`pax-cli run --path examples/fixtures/logo-radiance --target web` to explore it.
+The shared `RadiantAperture` effect approximates scattering through a shallow volume;
+it is not a full 3D refraction or caustics simulation. It uses the same WGPU
+shader-container restrictions and CPU plain-source fallback described above.
 
 For handwriting or a drawn-line reveal, animate `draw_start` and
 `draw_end` on Path or Handwriter. Drawing owns the

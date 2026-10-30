@@ -211,8 +211,9 @@ pax-cli create my-first-project
 
 Choose a destination that does not already exist. The CLI creates Pax Logo:
 a small scene with an animation-position slider, Replay, and a light/dark
-background toggle. Its three source files contain the scene, controls, and native
-entry point. The logo itself comes from `pax-std`, re-exported by `pax_kit`;
+background toggle. It starts with a radiant treatment on a dark background;
+**Disable radiance** selects the plain logo. Its three source files contain the
+scene, controls, light choreography, and native entry point. The logo itself comes from `pax-std`, re-exported by `pax_kit`;
 its geometry and animation sources stay out of your project. The starter is
 bundled with your CLI version; no repository checkout is needed.
 
@@ -240,7 +241,10 @@ scalar build option and custom compiler flags.
 
 Your first-run checkpoint is the animated Pax logo. Drag the slider to choose
 an animation position; click **Replay** or the logo to play it again. The button
-at the top switches between light and dark backgrounds.
+at the top switches between light and dark backgrounds. On WGPU, the light
+follows the unfurl, returns left, and settles into a quieter 12-second idle
+cycle. CPU renders the plain animation. Set `radiance_enabled` to false in
+`Example::default` to start with the shader disabled.
 A blank page or a build error means there's still something to resolve;
 see [When something goes wrong](#when-something-goes-wrong).
 
@@ -321,8 +325,10 @@ text="Play again"
 Save to see the label update in your running `pax-cli run` session. The label is
 part of your scene; the animation behind `AnimatedPaxLogo` is a standard-library
 component. Follow `@click=self.replay` on its enclosing Group into `src/lib.rs`
-to see how the button resets and animates `logo_progress`. The slider binds to
-that same property, so it also follows playback.
+to see how the button resets the shared `playhead_ms` clock. The `logo_light`
+timeline maps that clock to `logo_progress`, light position, and brightness.
+The slider displays logo progress; dragging it pauses and scrubs the reveal
+and light together.
 
 Bare `cargo run` requires rebuilding after source edits. Rust changes require
 rebuilding and restarting on either path. See

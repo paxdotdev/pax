@@ -48,8 +48,12 @@ macro_rules! effect_instance {
     };
 }
 
+pub mod corona;
 pub mod gaussian_blur;
 pub mod impressionist;
+pub mod radiant_aperture;
 
+pub use corona::*;
 pub use gaussian_blur::*;
 pub use impressionist::*;
+pub use radiant_aperture::*;

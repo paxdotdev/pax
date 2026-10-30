@@ -24,6 +24,7 @@ if @gpu {
             <Group x={self.compare && !self.small ? 75% : 50%} y=50% anchor=50% width={(self.logo_width)px} height={(self.logo_width * 463.95 / 920.72)px}>
                 <Group width=920.72px height=463.95px scale={(self.logo_width / 920.72 * 100)%} layout_role=LayoutRole::Breakout>
                     <Corona width=920.72px height=463.95px phase={self.phase}
+                        tint={self.tinted ? Some(rgb(106,202,255)) : None}
                         emission={self.treated ? self.emission : 0.0} reach={self.reach} amplitude={self.amplitude}
                         falloff={self.falloff} surface={self.treated ? self.surface : 0.0}
                         foreground={self.dark ? rgb(248,248,245) : rgb(10,12,16)}
@@ -49,7 +50,7 @@ if @gpu {
             </Group>
             <Group width=100% height=38px>
                 <Button class="button" width=31% label="Conspicuous" @button_click=self.bold/>
-                <Button class="button" x=34.5% width=31% label="Restrained" @button_click=self.quiet/>
+                <Button class="button" x=34.5% width=31% label="Tuned default" @button_click=self.quiet/>
                 <Button class="button" x=69% width=31% label={self.compare ? "Large view" : "Compare"} @button_click=self.comparison/>
             </Group>
             <Group width=100% height=56px>
@@ -70,6 +71,7 @@ if @gpu {
                 <Text x=52% anchor_x=0% width=48% height=20px text={"Surface / " + self.surface} class="copy"/>
                 <Slider id=surface x=52% anchor_x=0% y=28px width=48% height=24px value=bind:surface min=0.0 max=0.35 step=0.01 class="slider"/>
             </Group>
+            <Button class="button" width=100% label={self.tinted ? "Use source color" : "Try blue emission tint"} @button_click=self.tint/>
             <Text width=100% height=46px text={@gpu ? "WebGPU / live corona. The source logo and reveal are unchanged." : "CPU / plain-logo fallback. Corona requires WebGPU."} class="copy"/>
             <Group width=100% height=30px/>
         </Stacker>
