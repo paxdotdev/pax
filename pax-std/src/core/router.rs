@@ -1,7 +1,7 @@
 use crate::*;
 #[allow(unused)]
 use pax_engine::api::LocalProperty;
-use pax_engine::api::{Duration, Opacity, Property};
+use pax_engine::api::{Duration, Opacity, Property, Rotation};
 use pax_engine::pax;
 use pax_runtime::api::NodeContext;
 
@@ -292,5 +292,104 @@ impl RouteCard {
                 move || projected_children_count.get(),
                 &deps,
             ));
+    }
+}
+
+/// Route branch that turns live content around a cuboid's edge.
+///
+/// Use sibling `RouteCuboid` branches with the same `direction` and `duration`
+/// to form adjacent faces of one quarter-turn. The shell derives depth from
+/// the route's layout width for horizontal turns and height for vertical turns,
+/// keeping both endpoints fitted to their viewport. Contents remain mounted
+/// through the exit transition and unmount afterward, as with [`Route`].
+///
+/// This is a normal custom route shell, not a retained overlay like [`RouteCard`].
+/// Direction describes the outgoing face's motion. Keep it stable during a turn;
+/// browser Back/Forward uses the currently authored direction rather than
+/// inferring a reverse turn from history. Timelines use `InOutQuad` easing.
+///
+/// Requires GPU spatial composition. The orthographic view and native-layer
+/// restrictions of [`Cuboid`] also apply here. Clip the router's containing
+/// viewport with a [`Frame`] when the rotating silhouette should stay inside it.
+#[pax]
+#[engine_import_path("pax_engine")]
+#[custom(Default)]
+#[route_branch(path = "path", default = "default")]
+#[file("core/route_cuboid.pax")]
+pub struct RouteCuboid {
+    /// Static route pattern, scoped to the parent Router.
+    pub path: Property<String>,
+    /// Fallback branch used when no `path` branch matches.
+    pub r#default: Property<bool>,
+    /// Motion of the outgoing face. Defaults to Left.
+    pub direction: Property<RouteCuboidDirection>,
+    /// Enter/exit duration, shared by both faces of a turn. Defaults to 1200ms.
+    pub duration: Property<Duration>,
+    // Derived from the route's bounds and shared direction; callers need no face math.
+    pub _depth: Property<f64>,
+    pub _enter_x: Property<Rotation>,
+    pub _enter_y: Property<Rotation>,
+}
+
+/// Direction of the outgoing face in a [`RouteCuboid`] quarter-turn.
+#[pax]
+#[engine_import_path("pax_engine")]
+pub enum RouteCuboidDirection {
+    #[default]
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+impl Default for RouteCuboid {
+    fn default() -> Self {
+        Self {
+            path: Property::default(),
+            r#default: Property::new(false),
+            direction: Property::new(RouteCuboidDirection::Left),
+            duration: Property::new(Duration::Milliseconds(1200.into())),
+            _depth: Property::default(),
+            _enter_x: Property::default(),
+            _enter_y: Property::default(),
+        }
+    }
+}
+
+impl RouteCuboid {
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        let bounds = ctx.bounds_self.clone();
+        let direction = self.direction.local();
+        let deps = [bounds.untyped(), direction.untyped()];
+        self._depth.replace_with(LocalProperty::computed(
+            move || match direction.get() {
+                RouteCuboidDirection::Left | RouteCuboidDirection::Right => bounds.get().0,
+                RouteCuboidDirection::Up | RouteCuboidDirection::Down => bounds.get().1,
+            },
+            &deps,
+        ));
+        let direction = self.direction.local();
+        let deps = [direction.untyped()];
+        self._enter_x.replace_with(LocalProperty::computed(
+            move || {
+                Rotation::Degrees(match direction.get() {
+                    RouteCuboidDirection::Up => (-90.0).into(),
+                    RouteCuboidDirection::Down => 90.0.into(),
+                    _ => 0.0.into(),
+                })
+            },
+            &deps,
+        ));
+        let direction = self.direction.local();
+        self._enter_y.replace_with(LocalProperty::computed(
+            move || {
+                Rotation::Degrees(match direction.get() {
+                    RouteCuboidDirection::Left => 90.0.into(),
+                    RouteCuboidDirection::Right => (-90.0).into(),
+                    _ => 0.0.into(),
+                })
+            },
+            &deps,
+        ));
     }
 }

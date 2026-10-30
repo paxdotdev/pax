@@ -145,6 +145,13 @@ pub struct ResourceChurnStats {
     pub retained_nodes_visible: u64,
     pub retained_draw_batches: u64,
     pub retained_draws: u64,
+    /// Surface fragments painted by spatial composition in this sample.
+    pub spatial_fragments: u64,
+    /// Fragments requiring an additional stencil clip after a plane split.
+    pub spatial_clip_fragments: u64,
+    /// Color passes used by the spatial fragment painter, including screenshot mirrors.
+    /// Excludes frame clears, separate stencil syncs, and the group-opacity region path.
+    pub spatial_paint_passes: u64,
     pub retained_vector_draws: u64,
     pub retained_image_draws: u64,
 }
@@ -206,6 +213,9 @@ impl ResourceChurnStats {
         self.retained_nodes_visible += other.retained_nodes_visible;
         self.retained_draw_batches += other.retained_draw_batches;
         self.retained_draws += other.retained_draws;
+        self.spatial_fragments += other.spatial_fragments;
+        self.spatial_clip_fragments += other.spatial_clip_fragments;
+        self.spatial_paint_passes += other.spatial_paint_passes;
         self.retained_vector_draws += other.retained_vector_draws;
         self.retained_image_draws += other.retained_image_draws;
     }
@@ -230,6 +240,9 @@ impl ResourceChurnStats {
         stats.retained_nodes_visible = 0;
         stats.retained_draw_batches = 0;
         stats.retained_draws = 0;
+        stats.spatial_fragments = 0;
+        stats.spatial_clip_fragments = 0;
+        stats.spatial_paint_passes = 0;
         stats.retained_vector_draws = 0;
         stats.retained_image_draws = 0;
         stats != Self::default()

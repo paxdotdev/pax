@@ -111,6 +111,10 @@ export class RenderLayerManager {
         return ownershipChanged;
     }
 
+    removeElementMask(id: number) {
+        this.effects.updateMask(id, [], 0, 0);
+    }
+
     updateElementMask(
         element: HTMLElement,
         id: number,

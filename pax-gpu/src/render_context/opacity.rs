@@ -42,6 +42,12 @@ impl WgpuRenderer<'_> {
             .filter_map(|(_, id)| {
                 self.scene
                     .get(id)
+                    .filter(|node| match node {
+                        RetainedNode::Vector(node) => !node.buffers.geometry.indices.is_empty(),
+                        RetainedNode::Image(_) => true,
+                        #[cfg(feature = "shaders")]
+                        RetainedNode::Effect(node) => node.visible,
+                    })
                     .filter(|n| n.intersects_bounds(&viewport))
                     .map(|_| *id)
             })

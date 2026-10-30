@@ -3370,15 +3370,28 @@ fn empty_parent_alpha_masks_remain_transparent_to_nested_sources() {
 #[test]
 #[ignore = "requires a macOS Metal device"]
 fn intersecting_spatial_planes_preserve_transparency_clips_and_retained_updates() {
+    check_intersecting_spatial_planes(false);
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn spatial_screenshot_mirror_preserves_intersection_clip_order() {
+    check_intersecting_spatial_planes(true);
+}
+
+fn check_intersecting_spatial_planes(mirror: bool) {
     use pax_runtime_api::DepthPlane;
     let layer = MetalLayer::new();
-    let backend = pollster::block_on(unsafe {
+    let mut backend = pollster::block_on(unsafe {
         RenderBackend::to_core_animation_layer(
             layer.0.cast(),
             RenderConfig::new(true, 64, 32, [1.0, 1.0]),
         )
     })
     .expect("Metal backend");
+    if mirror {
+        backend.surface_config.usage.remove(TextureUsages::COPY_SRC);
+    }
     let device = backend.device.clone();
     let mut renderer = WgpuRenderer::new(backend);
     renderer.set_viewport(64.0, 32.0, [1.0, 1.0]);
@@ -3470,6 +3483,191 @@ fn intersecting_spatial_planes_preserve_transparency_clips_and_retained_updates(
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+fn disjoint_spatial_surfaces_share_clips_without_replaying_the_entire_scene() {
+    use pax_runtime_api::DepthPlane;
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 128, 96, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.set_viewport(128.0, 96.0, [1.0, 1.0]);
+    renderer.begin_node(1, 0, 0);
+    renderer.fill_path(
+        rect(0.0, 0.0, 128.0, 96.0),
+        Fill::Solid(Color::rgba(0.0, 0.0, 1.0, 1.0)),
+    );
+    renderer.end_node(1);
+    renderer.set_node_depth_plane(
+        1,
+        Some(DepthPlane {
+            presentation_layer: 0,
+            coefficients: [0.0, 0.0, -100.0],
+            backface: false,
+        }),
+    );
+    for i in 0..8_u32 {
+        let x = 8.0 + (i % 4) as f32 * 32.0;
+        let y = 12.0 + (i / 4) as f32 * 48.0;
+        renderer.begin_node(i + 2, i as i32 + 1, 0);
+        renderer.fill_path(
+            rect(x, y, 8.0, 8.0),
+            Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 0.5)),
+        );
+        renderer.end_node(i + 2);
+        let a = (i as f64 * 0.77).cos();
+        let b = (i as f64 * 0.77).sin();
+        renderer.set_node_depth_plane(
+            i + 2,
+            Some(DepthPlane {
+                presentation_layer: 0,
+                coefficients: [a, b, 30.0 - a * x as f64 - b * y as f64],
+                backface: false,
+            }),
+        );
+    }
+    // Empty clip owners still participate in clipping, but never in paint order.
+    for i in 20..40 {
+        renderer.begin_node(i, i as i32, 0);
+        renderer.end_node(i);
+        renderer.set_node_depth_plane(
+            i,
+            Some(DepthPlane {
+                presentation_layer: 0,
+                coefficients: [i as f64, -(i as f64), 13.0],
+                backface: false,
+            }),
+        );
+    }
+    renderer.request_screenshot_capture(0);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    let pixels = renderer.take_screenshot_capture(0).unwrap();
+    for i in 0..8 {
+        assert_pixel(
+            &pixels,
+            12 + (i % 4) * 32,
+            16 + (i / 4) * 48,
+            [128, 0, 128, 255],
+        );
+    }
+    assert_pixel(&pixels, 4, 4, [0, 0, 255, 255]);
+    let stats = renderer.take_resource_churn_stats();
+    assert!(
+        stats.retained_draws < 200,
+        "{} retained draws",
+        stats.retained_draws
+    );
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn repeated_local_intersections_bound_scene_replays() {
+    use pax_runtime_api::DepthPlane;
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 256, 128, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.set_viewport(256.0, 128.0, [1.0, 1.0]);
+    renderer.begin_node(1, 0, 0);
+    renderer.fill_path(
+        rect(0.0, 0.0, 256.0, 128.0),
+        Fill::Solid(Color::rgba(0.0, 0.0, 0.0, 1.0)),
+    );
+    renderer.end_node(1);
+    renderer.set_node_depth_plane(
+        1,
+        Some(DepthPlane {
+            presentation_layer: 0,
+            coefficients: [0.0, 0.0, -1000.0],
+            backface: false,
+        }),
+    );
+    // Eight independent intersections: each contains two translucent surfaces.
+    // Their equality lines must not split all the other solids' draw regions.
+    for i in 0..8u32 {
+        let x = (i % 4) as f32 * 64.0 + 12.0;
+        let y = (i / 4) as f32 * 64.0 + 12.0;
+        for side in 0..2u32 {
+            let id = 2 + i * 2 + side;
+            renderer.begin_node(id, id as i32, 0);
+            renderer.fill_path(
+                rect(x, y, 40.0, 40.0),
+                Fill::Solid(if side == 0 {
+                    Color::rgba(1.0, 0.0, 0.0, 0.5)
+                } else {
+                    Color::rgba(0.0, 0.0, 1.0, 0.5)
+                }),
+            );
+            renderer.end_node(id);
+        }
+    }
+    let mut max_draws = 0;
+    for frame in 0..120u32 {
+        for i in 0..8u32 {
+            let x = (i % 4) as f64 * 64.0 + 32.0;
+            let y = (i / 4) as f64 * 64.0 + 32.0;
+            let angle = i as f64 * 0.37 + frame as f64 * 0.015;
+            let (b, a) = angle.sin_cos();
+            renderer.set_node_depth_plane(
+                2 + i * 2,
+                Some(DepthPlane {
+                    presentation_layer: 0,
+                    coefficients: [a, b, -a * x - b * y],
+                    backface: false,
+                }),
+            );
+            renderer.set_node_depth_plane(3 + i * 2, Some(DepthPlane::default()));
+        }
+        renderer.request_screenshot_capture(frame);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let pixels = renderer.take_screenshot_capture(frame).unwrap();
+        for i in 0..8u32 {
+            let x = i % 4 * 64 + 32;
+            let y = i / 4 * 64 + 32;
+            let angle = i as f64 * 0.37 + frame as f64 * 0.015;
+            for dx in [-12i32, 12] {
+                let px = (x as i32 + dx) as u32;
+                let delta = angle.cos() * (dx as f64 + 0.5) + angle.sin() * 0.5;
+                if delta.abs() > 1.0 {
+                    assert_pixel(
+                        &pixels,
+                        px as usize,
+                        y as usize,
+                        if delta > 0.0 {
+                            [128, 0, 64, 255]
+                        } else {
+                            [64, 0, 128, 255]
+                        },
+                    );
+                }
+            }
+        }
+        assert_pixel(&pixels, 2, 2, [0, 0, 0, 255]);
+        let stats = renderer.take_resource_churn_stats();
+        max_draws = max_draws.max(stats.retained_draws);
+        assert!(
+            stats.retained_draws <= 80,
+            "frame {frame}: {} draws for 17 nodes",
+            stats.retained_draws
+        );
+    }
+    eprintln!("120 intersection frames: maximum {max_draws} retained draws for 17 nodes");
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
 fn spatial_group_opacity_and_backface_reuse_paint_without_stale_captures() {
     use pax_runtime_api::{DepthPlane, OpacityScope};
     let layer = MetalLayer::new();
@@ -3539,6 +3737,215 @@ fn spatial_group_opacity_and_backface_reuse_paint_without_stale_captures() {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+            RenderConfig::new(true, 160, 112, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    // These pixel assertions exercise inline stencil updates, not screenshot-mirror fallback.
+    assert!(backend.surface_supports_copy_src());
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.set_viewport(160.0, 112.0, [1.0, 1.0]);
+    let aperture = [[4.0, 5.0], [156.0, 9.0], [150.0, 107.0], [8.0, 103.0]];
+    let cube_faces = [
+        [[-1., -1., 1.], [1., -1., 1.], [1., 1., 1.], [-1., 1., 1.]],
+        [
+            [1., -1., -1.],
+            [-1., -1., -1.],
+            [-1., 1., -1.],
+            [1., 1., -1.],
+        ],
+        [[1., -1., 1.], [1., -1., -1.], [1., 1., -1.], [1., 1., 1.]],
+        [
+            [-1., -1., -1.],
+            [-1., -1., 1.],
+            [-1., 1., 1.],
+            [-1., 1., -1.],
+        ],
+        [
+            [-1., -1., -1.],
+            [1., -1., -1.],
+            [1., -1., 1.],
+            [-1., -1., 1.],
+        ],
+        [[-1., 1., 1.], [1., 1., 1.], [1., 1., -1.], [-1., 1., -1.]],
+    ];
+    let mut max_fragments = 0;
+    for frame in 0..24 {
+        renderer.begin_node(1, 0, 0);
+        renderer.fill_path(
+            rect(0., 0., 160., 112.),
+            Fill::Solid(Color::rgba(0., 0., 0., 1.)),
+        );
+        renderer.end_node(1);
+        renderer.set_node_depth_plane(
+            1,
+            Some(DepthPlane {
+                presentation_layer: 0,
+                coefficients: [0., 0., -1000.],
+                backface: false,
+            }),
+        );
+        renderer.begin_node(1000, 0, 0);
+        renderer.save();
+        renderer.clip(polygon_path(&aperture));
+        renderer.end_node(1000);
+        let mut oracle = Vec::new();
+        for cube in 0..2 {
+            let angle = frame as f64 * 0.09 + cube as f64 * 1.1;
+            let (sy, cy) = angle.sin_cos();
+            let (sx, cx) = (-0.31f64).sin_cos();
+            // Two tilted route panels, each with a nested solid and its own aperture.
+            let route = [
+                [12.0 + cube as f64 * 24.0, 15.0],
+                [139.0, 18.0],
+                [145.0, 98.0],
+                [16.0, 95.0],
+            ];
+            renderer.begin_node(1001 + cube, 0, 0);
+            renderer.save();
+            renderer.clip(polygon_path(&route));
+            renderer.end_node(1001 + cube);
+            let mut surfaces = vec![(
+                route.to_vec(),
+                DepthPlane {
+                    presentation_layer: 0,
+                    coefficients: [0.08 * (cube as f64 - 0.5), 0.02, -50.0],
+                    backface: false,
+                },
+                [0.2, 0.15, 0.1, 0.5],
+            )];
+            for (face, corners) in cube_faces.iter().enumerate() {
+                let world: Vec<[f64; 3]> = corners
+                    .iter()
+                    .map(|p| {
+                        let x = p[0] * 26.;
+                        let y = p[1] * 26. * cx - p[2] * 26. * sx;
+                        let z = p[1] * 26. * sx + p[2] * 26. * cx;
+                        [
+                            x * cy + z * sy + 61. + cube as f64 * 35.,
+                            y + 56.,
+                            -x * sy + z * cy + cube as f64 * 10.,
+                        ]
+                    })
+                    .collect();
+                let u: [f64; 3] = std::array::from_fn(|i| world[1][i] - world[0][i]);
+                let v: [f64; 3] = std::array::from_fn(|i| world[3][i] - world[0][i]);
+                let n = [
+                    u[1] * v[2] - u[2] * v[1],
+                    u[2] * v[0] - u[0] * v[2],
+                    u[0] * v[1] - u[1] * v[0],
+                ];
+                let a = -n[0] / n[2];
+                let b = -n[1] / n[2];
+                let plane = DepthPlane {
+                    presentation_layer: 0,
+                    coefficients: [a, b, world[0][2] - a * world[0][0] - b * world[0][1]],
+                    backface: n[2] < 0.,
+                };
+                let color = [
+                    (face % 3 == 0) as u8 as f64,
+                    (face % 3 == 1) as u8 as f64,
+                    (face % 3 == 2) as u8 as f64,
+                    0.5,
+                ];
+                surfaces.push((world.iter().map(|p| [p[0], p[1]]).collect(), plane, color));
+            }
+            for (i, (points, plane, color)) in surfaces.into_iter().enumerate() {
+                let id = 2 + cube * 7 + i as u32;
+                renderer.begin_node(id, id as i32, 0);
+                renderer.save();
+                // Sibling scissor changes must not constrain the next stencil push/pop.
+                renderer.clip(rect(10., 10., 140., 92.));
+                renderer.fill_path(
+                    polygon_path(&points),
+                    Fill::Solid(Color::rgba(
+                        color[0] as f32,
+                        color[1] as f32,
+                        color[2] as f32,
+                        color[3] as f32,
+                    )),
+                );
+                renderer.restore();
+                renderer.end_node(id);
+                renderer.set_node_depth_plane(id, Some(plane));
+                oracle.push((points, plane, color, route));
+            }
+            renderer.restore();
+        }
+        renderer.restore();
+        renderer.request_screenshot_capture(frame);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let pixels = renderer.take_screenshot_capture(frame).unwrap();
+        let mut samples = 0;
+        for y in (12..100).step_by(7) {
+            for x in (12..148).step_by(7) {
+                let p = [x as f64 + 0.5, y as f64 + 0.5];
+                if coverage(&aperture, p).1 {
+                    continue;
+                }
+                let mut layers = Vec::new();
+                let mut edge = false;
+                for (polygon, plane, color, route) in &oracle {
+                    let (inside, near) = coverage(polygon, p);
+                    let (in_route, near_route) = coverage(route, p);
+                    edge |= near || near_route;
+                    if inside && in_route && coverage(&aperture, p).0 {
+                        layers.push((plane.depth_at(p[0], p[1]), color, plane));
+                    }
+                }
+                if edge {
+                    continue;
+                }
+                layers.sort_by(|a, b| a.0.total_cmp(&b.0));
+                // MSAA pixels straddling an intersection blend both depth orders.
+                // Compare the center-depth oracle only away from those boundaries.
+                if layers.iter().enumerate().any(|(i, a)| {
+                    layers[..i].iter().any(|b| {
+                        let slope = (a.2.coefficients[0] - b.2.coefficients[0])
+                            .hypot(a.2.coefficients[1] - b.2.coefficients[1]);
+                        (a.0 - b.0).abs() < slope + 0.1
+                    })
+                }) {
+                    continue;
+                }
+                let mut rgb = [0.0; 3];
+                for (_, color, _) in layers {
+                    for i in 0..3 {
+                        rgb[i] = rgb[i] * (1. - color[3]) + color[i] * color[3];
+                    }
+                }
+                let offset = (y * 160 + x) * 4;
+                for i in 0..3 {
+                    let expected = (rgb[i] * 255.).round() as i32;
+                    assert!(
+                        (pixels.rgba[offset + i] as i32 - expected).abs() <= 3,
+                        "frame {frame}, ({x},{y}), channel {i}: {} != {expected}",
+                        pixels.rgba[offset + i]
+                    );
+                }
+                samples += 1;
+            }
+        }
+        assert!(samples > 80, "only {samples} interior samples");
+        let stats = renderer.take_resource_churn_stats();
+        max_fragments = max_fragments.max(stats.spatial_fragments);
+        assert_eq!(
+            stats.spatial_paint_passes, 1,
+            "clip changes must stay in one color pass"
+        );
+        assert!(
+            stats.retained_draws <= 200,
+            "frame {frame}: {} draws for 15 surfaces",
+            stats.retained_draws
+        );
+        assert!(stats.spatial_clip_fragments < stats.spatial_fragments);
+    }
+    eprintln!("nested cuboids: maximum {max_fragments} spatial fragments");
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
 fn overlay_domain_stays_above_world_depth_and_reorders_retained_paint() {
     use pax_runtime_api::DepthPlane;
     let layer = MetalLayer::new();
@@ -3563,6 +3970,7 @@ fn overlay_domain_stays_above_world_depth_and_reorders_retained_paint() {
     renderer.set_node_depth_plane(
         1,
         Some(DepthPlane {
+            presentation_layer: 0,
             coefficients: [1.0, 0.0, 1_000_000.0],
             ..Default::default()
         }),

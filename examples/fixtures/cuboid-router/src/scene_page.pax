@@ -1,0 +1,48 @@
+<Group width=100% height=100%>
+    <Text x=32px y=28px width=250px height=24px text={"CHAPTER " + self.number + " / LIVE SURFACE"}
+        style={font_size: 12px, fill: rgb(43, 65, 65)} />
+    <Text x=32px y=72px width={self.narrow ? 100% - 64px : 56%} height=160px text={self.title}
+        style={font_size: {self.narrow ? 38px : 58px}, fill: rgb(22, 43, 45)} />
+    <Text x=32px y=248px width={self.narrow ? 100% - 64px : 48%} height=60px text={self.caption}
+        style={font_size: 16px, fill: rgb(43, 65, 65)} />
+    <Textbox x=32px y=332px width={self.narrow ? 100% - 64px : 42%} height=36px text=bind:note />
+    <Button x=32px y=384px width=170px height=32px label={"Presses: " + self.clicks}
+        @button_click=self.press />
+    if self.show_solid {
+        <Group x={self.narrow ? 50% : 77%} y={self.narrow ? 100% - 175px : 50%}
+            anchor_y=50% width={self.narrow ? 180px : 200px} height={self.narrow ? 160px : 180px}>
+            <Cuboid width=100% height=100% depth={self.narrow ? 150px : 170px}
+                x=50% y=50% anchor_x=50% anchor_y=50%
+                rotate_x=-18deg rotate_y={(self.tilt)deg} fill=rgb(245, 241, 225)>
+                <CuboidFace side=CuboidSide::Front width=100% height=100%>
+                    <Text x=20px y=20px width=160px height=36px text="FRONT"
+                        style={font_size: 18px, fill: rgb(18, 67, 67)} />
+                    <Text x=20px y=72px width=160px height=60px text="Six faces. One live subtree."
+                        style={font_size: 15px, fill: rgb(18, 67, 67)} />
+                    <Rectangle width=100% height=100% fill=rgb(127, 186, 170) />
+                </CuboidFace>
+                <CuboidFace side=CuboidSide::Right width=100% height=100%>
+                    <Text x=16px y=20px width=130px height=32px text="RIGHT"
+                        style={font_size: 18px, fill: rgb(66, 49, 22)} />
+                    <Button x=16px y=80px width={self.narrow ? 110px : 130px} height=32px
+                        label={self.narrow ? "Live" : "Live button"}
+                        @button_click=self.press />
+                    <Rectangle width=100% height=100% fill=rgb(233, 186, 114) />
+                </CuboidFace>
+                <CuboidFace side=CuboidSide::Top width=100% height=100%>
+                    <Text x=20px y=36px width=160px height=36px text="TOP"
+                        style={font_size: 18px, fill: rgb(55, 48, 79)} />
+                    <Rectangle width=100% height=100% fill=rgb(190, 177, 219) />
+                </CuboidFace>
+            </Cuboid>
+        </Group>
+        <Slider x={self.narrow ? 50% : 66%} y={100% - 12px} anchor_y=100%
+            width={self.narrow ? 220px : 22%} height=36px
+            value=bind:tilt min=-160 max=160 />
+    }
+    <Rectangle width=100% height=100% fill={self.tone} />
+</Group>
+
+@settings {
+    @mount: mount
+}

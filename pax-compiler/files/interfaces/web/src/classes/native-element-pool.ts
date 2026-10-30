@@ -379,6 +379,12 @@ export class NativeElementPool {
         }
     }
 
+    private forgetNativeNode(id: number) {
+        // The SVG registry outlives individual DOM leaves and route branches.
+        this.layers.removeElementMask(id);
+        this.nodesLookup.delete(id);
+    }
+
     nativeMaskUpdate(patch: NativeMaskUpdatePatch) {
         let node: HTMLElement = this.nodesLookup.get(patch.id!)!;
         if (!node) {
@@ -456,7 +462,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.nodesLookup.delete(id);
+            this.forgetNativeNode(id);
         }
     }
 
@@ -500,7 +506,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.nodesLookup.delete(id);
+            this.forgetNativeNode(id);
         }
     }
 
@@ -551,7 +557,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.nodesLookup.delete(id);
+            this.forgetNativeNode(id);
         }
     }
 
@@ -712,7 +718,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.nodesLookup.delete(id);
+            this.forgetNativeNode(id);
         }
     }
 
@@ -826,7 +832,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.nodesLookup.delete(id);
+            this.forgetNativeNode(id);
         }
     }
 
@@ -904,7 +910,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.nodesLookup.delete(id);
+            this.forgetNativeNode(id);
         }
     }
 
@@ -983,7 +989,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.nodesLookup.delete(id);
+            this.forgetNativeNode(id);
         }
     }
 
@@ -1069,7 +1075,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.nodesLookup.delete(id);
+            this.forgetNativeNode(id);
         }
     }
 
@@ -1159,7 +1165,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.nodesLookup.delete(id);
+            this.forgetNativeNode(id);
         }
     }
 
@@ -1504,7 +1510,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.nodesLookup.delete(id);
+            this.forgetNativeNode(id);
         }
     }
 
@@ -3171,7 +3177,7 @@ export class NativeElementPool {
         this.scrollerHosts.delete(id);
         let parent = oldNode.parentElement!;
         parent.removeChild(oldNode);
-        this.nodesLookup.delete(id);
+        this.forgetNativeNode(id);
     }
 
     eventBlockerCreate(patch: AnyCreatePatch){
@@ -3226,7 +3232,7 @@ export class NativeElementPool {
         }
         let parent = oldNode.parentElement!;
         parent.removeChild(oldNode);
-        this.nodesLookup.delete(id);
+        this.forgetNativeNode(id);
     }
 
     async screenshot(patch: ScreenshotPatch, chassis: PaxChassisWeb) {

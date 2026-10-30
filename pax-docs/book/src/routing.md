@@ -424,6 +424,51 @@ that direct-load state deliberately: include the context the overlay needs,
 or place essential shared chrome outside the router. A browser history entry
 alone cannot reconstruct the previous mounted screen.
 
+### Cuboid route transitions
+
+`RouteCuboid` packages a directional quarter-turn with live content on the
+turning faces. Use it under an ordinary `Router`, just like the other route
+branch types:
+
+```pax
+<Frame width=100% height=100%>
+    <Router>
+        <RouteCuboid path="/" direction={self.direction} duration=1200ms>
+            <Home width=100% height=100% />
+        </RouteCuboid>
+        <RouteCuboid path="/notes" direction={self.direction} duration=1200ms>
+            <Notes width=100% height=100% />
+        </RouteCuboid>
+    </Router>
+</Frame>
+```
+
+Here `direction` is a `Property<RouteCuboidDirection>` on the containing
+component. `Left`, `Right`, `Up`, and `Down` describe the outgoing face's
+motion; the incoming face arrives from the opposite side. The defaults are
+`Left` and `1200ms`, with `InOutQuad` easing. `path`, `default`, route bindings,
+and nested matching work as they do on `Route`.
+
+For a continuous cube turn, both branches must be `RouteCuboid` with the same
+layout area, direction, and duration. Share the direction binding and keep
+it stable during the transition. Browser Back/Forward uses the currently
+authored direction; it does not automatically reverse it. The shell derives
+its pivot and depth from the viewport: width for a horizontal turn, height
+for a vertical turn. The contents supply their own background paint; the
+outer `Frame` clips the intermediate silhouette to the viewport.
+
+The outgoing route stays mounted until its exit completes, then unmounts.
+Later visits create a new instance under the ordinary route lifetime rules.
+This branch does not retain a background route as `RouteCard` and `RouteModal`
+do. GPU spatial composition is required; the current orthographic view and
+native-layer limitations still apply. See
+[Cuboids with live face content](layout-responsiveness.md#cuboids-with-live-face-content)
+for face geometry and the underlying attachment API.
+
+The [Cuboid Router example](https://github.com/paxproject/pax/tree/dev/examples/fixtures/cuboid-router)
+uses `RouteCuboid` with direction controls, native textboxes, and a nested
+solid. It holds direction controls during navigation initiated by the example.
+
 ## Custom route branches
 
 You can define route branch types in your application or a reusable Rust
@@ -508,6 +553,10 @@ matching syntax or a different retention policy would need changes to the
 router implementation. For deeper runtime behavior, Pax also exposes
 [primitive authoring](primitives.md#authoring-primitives), a
 separate extension point that custom route presentation usually does not need.
+
+[`RouteCuboid`](#cuboid-route-transitions) uses this same extension point in
+`pax-std`: its component shell supplies the face placement and lifecycle
+timelines, while the router supplies matching and branch lifetime.
 
 ## Web route metadata
 
@@ -642,5 +691,5 @@ for the hosting configuration and its verification checklist.
 - [Animation and Motion](animation-motion.md) — enter and exit lifecycles.
 - [Targets, Build, and Deployment](targets-build-deploy.md) — release output,
   direct links, and static hosting.
-- [Router, Route, RouteCard, and RouteModal reference](api/pax-std/core/router.md)
+- [Router and standard route branch reference](api/pax-std/core/router.md)
   and [Link reference](api/pax-std/core/link.md) — individual component fields.

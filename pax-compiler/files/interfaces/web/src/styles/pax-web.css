@@ -72,7 +72,9 @@
     transform-origin: top left;
     pointer-events: auto;
     position: absolute;
-    will-change: transform;
+    /* Let the browser rerasterize as projected scale changes. A permanent
+       transform hint can retain the tiny raster of an initially edge-on face. */
+    will-change: auto;
     contain: layout style paint;
 }
 
@@ -80,7 +82,6 @@
     /* See render-layer-context.ts: Blink/WebKit can cull masked native descendants
        too aggressively when paint containment stays enabled. */
     contain: layout style;
-    will-change: auto;
 }
 
 .pax-mount .clipping-container {

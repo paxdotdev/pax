@@ -240,6 +240,22 @@ Type: `u64`
 ##### `retained_draws`
 Type: `u64`
 
+##### `spatial_fragments`
+Type: `u64`
+
+Surface fragments painted by spatial composition in this sample.
+
+##### `spatial_clip_fragments`
+Type: `u64`
+
+Fragments requiring an additional stencil clip after a plane split.
+
+##### `spatial_paint_passes`
+Type: `u64`
+
+Color passes used by the spatial fragment painter, including screenshot mirrors.
+Excludes frame clears, separate stencil syncs, and the group-opacity region path.
+
 ##### `retained_vector_draws`
 Type: `u64`
 

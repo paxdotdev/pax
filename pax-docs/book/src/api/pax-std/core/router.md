@@ -71,6 +71,47 @@ Reserved easing tuning for the card enter/exit transition.
 
 ---
 
+### `RouteCuboid`
+Route branch that turns live content around a cuboid's edge.
+
+Use sibling `RouteCuboid` branches with the same `direction` and `duration`
+to form adjacent faces of one quarter-turn. The shell derives depth from
+the route's layout width for horizontal turns and height for vertical turns,
+keeping both endpoints fitted to their viewport. Contents remain mounted
+through the exit transition and unmount afterward, as with [`Route`].
+
+This is a normal custom route shell, not a retained overlay like [`RouteCard`].
+Direction describes the outgoing face's motion. Keep it stable during a turn;
+browser Back/Forward uses the currently authored direction rather than
+inferring a reverse turn from history. Timelines use `InOutQuad` easing.
+
+Requires GPU spatial composition. The orthographic view and native-layer
+restrictions of [`Cuboid`] also apply here. Clip the router's containing
+viewport with a [`Frame`] when the rotating silhouette should stay inside it.
+
+#### Properties
+##### `path`
+Type: `Property`<`String`>
+
+Static route pattern, scoped to the parent Router.
+
+##### `default`
+Type: `Property`<`bool`>
+
+Fallback branch used when no `path` branch matches.
+
+##### `direction`
+Type: `Property`<[`RouteCuboidDirection`](../../../api/pax-std/core/router.md#routecuboiddirection)>
+
+Motion of the outgoing face. Defaults to Left.
+
+##### `duration`
+Type: `Property`<[`Duration`](../../../api/pax-runtime-api/animation.md#duration)>
+
+Enter/exit duration, shared by both faces of a turn. Defaults to 1200ms.
+
+---
+
 ### `RouteModal`
 Stacked route branch consumed by a parent [`Router`].
 
@@ -145,3 +186,13 @@ Edge used by [`RouteCard`] transitions.
 ##### `Trailing`
 ##### `Top`
 ##### `Bottom`
+---
+
+### `RouteCuboidDirection`
+Direction of the outgoing face in a [`RouteCuboid`] quarter-turn.
+
+#### Variants
+##### `Left`
+##### `Right`
+##### `Up`
+##### `Down`

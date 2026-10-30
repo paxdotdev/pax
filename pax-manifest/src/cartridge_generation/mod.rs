@@ -578,6 +578,14 @@ impl PaxManifest {
         timeline_definition: &TimelineDefinition,
         track: &crate::TimelineTrackDefinition,
     ) -> u64 {
+        // Completion follows the track's clock. A millisecond transition must
+        // not also wait for a nominal 60fps frame count on a slower renderer.
+        if matches!(
+            Self::timeline_duration_clock_unit(timeline_definition, track),
+            TimelineClockUnit::Millis
+        ) {
+            return 0;
+        }
         let mut max_frame = 0;
         let has_literal_duration =
             Self::timeline_track_literal_duration(timeline_definition, track);
@@ -706,19 +714,26 @@ impl PaxManifest {
         timeline_definition: &TimelineDefinition,
         track: &crate::TimelineTrackDefinition,
     ) -> Option<u64> {
+        if matches!(
+            Self::timeline_duration_clock_unit(timeline_definition, track),
+            TimelineClockUnit::Frames
+        ) {
+            return None;
+        }
         let mut max_millis = Self::timeline_track_literal_duration(timeline_definition, track)
             .filter(|duration| !duration.is_frame_based())
             .map(|duration| duration.as_milliseconds_f64());
 
         for keyframe in track.keyframes() {
-            if let crate::TimelineMarker::Duration(duration) = keyframe.marker {
-                if !duration.is_frame_based() {
-                    max_millis = Some(
-                        max_millis
-                            .unwrap_or_default()
-                            .max(duration.as_milliseconds_f64()),
-                    );
-                }
+            let millis = match keyframe.marker {
+                crate::TimelineMarker::Frame(frame) => Some(
+                    pax_runtime_api::Duration::Frames((frame as f64).into()).as_milliseconds_f64(),
+                ),
+                crate::TimelineMarker::Duration(duration) => Some(duration.as_milliseconds_f64()),
+                crate::TimelineMarker::Percent(_) => None,
+            };
+            if let Some(millis) = millis {
+                max_millis = Some(max_millis.unwrap_or_default().max(millis));
             }
         }
 
@@ -755,6 +770,7 @@ impl PaxManifest {
             .duration
             .as_ref()
             .and_then(Self::literal_duration_value)
+            .filter(|duration| duration.is_frame_based())
             .map(|duration| duration.as_frames_f64().max(0.0).ceil() as u64)
             .unwrap_or_default();
         for element in &timeline_definition.elements {

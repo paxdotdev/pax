@@ -1,0 +1,13 @@
+<Frame
+    x={(self._surface.x)px} y={(self._surface.y)px}
+    anchor_x=50% anchor_y=50%
+    width={(self._surface.width)px} height={(self._surface.height)px}
+    translate_z={(self._surface.z)px}
+    rotate_x={(self._surface.rotate_x)deg} rotate_y={(self._surface.rotate_y)deg}
+>
+    slot()
+</Frame>
+
+@settings {
+    @mount: on_mount
+}

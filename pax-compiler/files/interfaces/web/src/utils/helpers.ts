@@ -132,6 +132,9 @@ export function invertAffineCoeffs(coeffs: number[]): number[] | undefined {
 ///  and then unroll into a comma-separated list, following column-major order
 ///
 export function packAffineCoeffsIntoMatrix3DString(coeffs: number[]) : string {
+    // Keep a composited surface under zero-sized clip wrappers without pinning
+    // its raster scale via will-change. The affine matrix alone can be reduced
+    // to a 2D operation by the browser, even when serialized as matrix3d.
     return "matrix3d(" + [
         //begin column 0
         coeffs[0].toFixed(6),
@@ -153,7 +156,7 @@ export function packAffineCoeffsIntoMatrix3DString(coeffs: number[]) : string {
         coeffs[5].toFixed(6),
         0,
         1
-    ].join(",") + ")";
+    ].join(",") + ") translateZ(0)";
 }
 
 

@@ -23,7 +23,7 @@ function harness() {
         querySelector() {return this.hasLinks ? {} : null;},
         parentElement: {removeChild(n) {n.isConnected=false;}},
     });
-    const layers = {addElement(leaf) {leaves.push(leaf);}};
+    const layers = {removeElementMask() {}, addElement(leaf) {leaves.push(leaf);}};
     const {NativeElementPool} = load('native-element-pool', {
         require: name => name.endsWith('initial-text-presentation') ? {InitialTextPresentation} : name.endsWith('supported-objects') ? {DIV: 'div', RENDER_LAYER_MANAGER: 'layers'} : {},
         console, setTimeout, queueMicrotask,

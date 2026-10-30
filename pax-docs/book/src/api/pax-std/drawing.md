@@ -3,6 +3,7 @@
 <!-- tags: api, pax-std -->
 
 ## Submodules
+- [drawing::cuboid](drawing/cuboid.md)
 - [drawing::ellipse](drawing/ellipse.md)
 - [drawing::handwriter](drawing/handwriter.md)
 - [drawing::lighting](drawing/lighting.md)

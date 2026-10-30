@@ -1,8 +1,10 @@
 //! Orthographic flat-surface composition. A projected intersection can change paint order
 //! within one primitive, so sorting whole nodes (or writing opaque depth) is insufficient.
-//! Partition at depth-equality lines, then use ordinary source-over inside each region.
+//! Split surfaces at depth-equality lines, then paint fragments in source-over order.
+//! Translucent group scopes retain the region compositor's contiguous-run semantics.
 use super::*;
 use crate::render_backend::capture::CaptureKey;
+use crate::render_backend::RetainedBatchSegment;
 use pax_runtime_api::DepthPlane;
 
 const PLANE_EPSILON: f64 = 1.0e-7;
@@ -59,17 +61,116 @@ impl WgpuRenderer<'_> {
             .map(|id| self.depth_planes.get(id).copied().unwrap_or_default())
             .collect();
         let (planes, membership) = unique_planes(&node_planes, &polygon);
-        let regions = partition(&planes, polygon);
-        let mut clips = Vec::with_capacity(regions.len());
+        let bounds: Vec<_> = nodes
+            .iter()
+            .map(|node| expand_box(self.scene[node].bounds(), 1.0))
+            .collect();
+        // Coplanar 2D content shares a coverage bound rather than making one
+        // partition for every ordinary rectangle in a large UI subtree.
+        let mut plane_bounds: Vec<Option<Box2D>> = vec![None; planes.len()];
+        for (index, bound) in bounds.iter().enumerate() {
+            let combined = &mut plane_bounds[membership[index]];
+            *combined = Some(combined.map(|old| old.union(bound)).unwrap_or(*bound));
+        }
+        let plane_bounds: Vec<_> = plane_bounds.into_iter().map(Option::unwrap).collect();
+        // At unit group opacity, a BSP painter can split each surface instead
+        // of replaying every overlapping surface in each ordering region.
+        // Keep the region path for group alpha: its contiguous-run semantics
+        // are defined per projected region, not by a global painter traversal.
+        let surface_painter = self
+            .opacity_scopes
+            .values()
+            .flatten()
+            .all(|scope| scope.opacity == 1.0);
+        let groups = if surface_painter {
+            surface_paint_groups(
+                &planes,
+                &plane_bounds,
+                &nodes,
+                &membership,
+                &bounds,
+                viewport,
+                |i| node_planes[i].coplanar_order(self.scene[&nodes[i]].z_index() as i64),
+            )
+        } else {
+            let cells = coverage_cells(viewport, &plane_bounds);
+            // Disjoint cells with the same visible paint order can share a single
+            // stencil union. Creating a GPU clip for every mathematical cell made
+            // even a few nested solids allocate thousands of tiny buffers per frame.
+            let mut groups: Vec<PaintGroup> = Vec::new();
+            let mut group_indices: HashMap<Vec<u32>, usize> = HashMap::new();
+            for (cell, candidates) in cells {
+                if candidates.is_empty() {
+                    continue;
+                }
+                let local_planes: Vec<_> = candidates.iter().map(|&i| planes[i]).collect();
+                for polygon in partition_overlaps(&local_planes, box_polygon(cell), |_, _| true) {
+                    let center = centroid(&polygon);
+                    let region_bounds = polygon_bounds(&polygon);
+                    let mut order: Vec<_> = (0..nodes.len())
+                        .filter(|&i| {
+                            candidates.contains(&membership[i])
+                                && boxes_intersect(&bounds[i], &region_bounds)
+                        })
+                        .collect();
+                    order.sort_by(|&a, &b| {
+                        node_planes[a].presentation_layer.cmp(&node_planes[b].presentation_layer)
+                            .then_with(|| planes[membership[a]].depth_at(center[0], center[1]).total_cmp(&planes[membership[b]].depth_at(center[0], center[1])))
+                            .then_with(|| {
+                                let order = |i: usize| {
+                                    node_planes[i]
+                                        .coplanar_order(self.scene[&nodes[i]].z_index() as i64)
+                                };
+                                order(a).cmp(&order(b))
+                            })
+                            .then_with(|| nodes[a].cmp(&nodes[b]))
+                    });
+                    let ordered: Vec<_> = order.into_iter().map(|i| nodes[i]).collect();
+                    if ordered.is_empty() {
+                        continue;
+                    }
+                    // Bound each union well below the stencil tessellator's u16 indices.
+                    let group = group_indices
+                        .get(&ordered)
+                        .copied()
+                        .filter(|&index| groups[index].vertices + polygon.len() <= 8192)
+                        .unwrap_or_else(|| {
+                            let index = groups.len();
+                            group_indices.insert(ordered.clone(), index);
+                            groups.push(PaintGroup {
+                                nodes: ordered,
+                                polygons: Vec::new(),
+                                vertices: 0,
+                                needs_clip: true,
+                            });
+                            index
+                        });
+                    groups[group].vertices += polygon.len();
+                    groups[group].polygons.push(polygon);
+                }
+            }
+            groups
+        };
+        self.resource_churn_stats.spatial_fragments += groups.len() as u64;
+        self.resource_churn_stats.spatial_clip_fragments +=
+            groups.iter().filter(|group| group.needs_clip).count() as u64;
+        let mut clips = Vec::with_capacity(groups.len());
         // Upload all clip transforms before encoding any draws: changing a uniform slot
         // partway through the frame would also change earlier queued draws using that slot.
-        for (index, polygon) in regions.iter().enumerate() {
-            let mut path = Path::builder();
-            path.begin(point(polygon[0][0] as f32, polygon[0][1] as f32));
-            for p in &polygon[1..] {
-                path.line_to(point(p[0] as f32, p[1] as f32));
+        for (index, group) in groups.iter().enumerate() {
+            if !group.needs_clip {
+                clips.push(None);
+                continue;
             }
-            path.close();
+            let polygons = &group.polygons;
+            let mut path = Path::builder();
+            for polygon in polygons {
+                path.begin(point(polygon[0][0] as f32, polygon[0][1] as f32));
+                for p in &polygon[1..] {
+                    path.line_to(point(p[0] as f32, p[1] as f32));
+                }
+                path.close();
+            }
             let geometry = tessellate_clip_geometry(&path.build(), self.tolerance);
             let signature = hash_clip_geometry(&geometry);
             let (key, id) = self
@@ -81,208 +182,47 @@ impl WgpuRenderer<'_> {
                     Transform2D::identity(),
                 )
                 .unwrap();
-            clips.push((key, signature, id));
+            clips.push(Some((key, signature, id)));
         }
         let expired: Vec<_> = self
             .spatial_clip_keys
             .iter()
             .copied()
-            .filter(|key| !clips.iter().any(|(new, _, _)| new == key))
+            .filter(|key| !clips.iter().flatten().any(|(new, _, _)| new == key))
             .collect();
         self.clip_arena.release_keys(&expired);
-        self.spatial_clip_keys = clips.iter().map(|(key, _, _)| *key).collect();
+        self.spatial_clip_keys = clips.iter().flatten().map(|(key, _, _)| *key).collect();
         self.clip_arena.flush_to_gpu(&mut self.render_backend);
-        for (index, polygon) in regions.iter().enumerate() {
-            let center = centroid(polygon);
-            let mut order: Vec<_> = (0..nodes.len()).collect();
-            order.sort_by(|&a, &b| {
-                node_planes[a]
-                    .presentation_layer
-                    .cmp(&node_planes[b].presentation_layer)
-                    .then_with(|| {
-                        planes[membership[a]]
-                            .depth_at(center[0], center[1])
-                            .total_cmp(&planes[membership[b]].depth_at(center[0], center[1]))
-                    })
-                    .then_with(|| {
-                        let order = |i: usize| {
-                            node_planes[i].coplanar_order(self.scene[&nodes[i]].z_index() as i64)
-                        };
-                        order(a).cmp(&order(b))
-                    })
-                    .then_with(|| nodes[a].cmp(&nodes[b]))
-            });
-            let ordered: Vec<_> = order.into_iter().map(|i| nodes[i]).collect();
-            self.spatial_region = Some((index, clips[index].1, clips[index].2));
-            let plan = self.opacity_plan_at_depth(&ordered, 0);
-            collect_opacity_group_keys(&plan, active);
-            self.draw_opacity_plan(&plan);
-        }
-        self.spatial_region = None;
-    }
-}
-
-fn unique_planes(planes: &[DepthPlane], viewport: &Polygon) -> (Vec<DepthPlane>, Vec<usize>) {
-    let mut unique: Vec<DepthPlane> = Vec::new();
-    let membership = planes
-        .iter()
-        .map(|plane| {
-            if let Some(index) = unique.iter().position(|other| {
-                plane.presentation_layer == other.presentation_layer
-                    && viewport.iter().all(|p| {
-                        (plane.depth_at(p[0], p[1]) - other.depth_at(p[0], p[1])).abs()
-                            <= PLANE_EPSILON
-                    })
-            }) {
-                index
-            } else {
-                unique.push(*plane);
-                unique.len() - 1
-            }
-        })
-        .collect();
-    (unique, membership)
-}
-
-fn centroid(polygon: &Polygon) -> [f64; 2] {
-    let n = polygon.len() as f64;
-    polygon
-        .iter()
-        .fold([0.0; 2], |sum, p| [sum[0] + p[0] / n, sum[1] + p[1] / n])
-}
-
-fn partition(planes: &[DepthPlane], viewport: Polygon) -> Vec<Polygon> {
-    let mut regions = vec![viewport];
-    for (index, a) in planes.iter().enumerate() {
-        for b in &planes[..index] {
-            if a.presentation_layer != b.presentation_layer {
-                continue;
-            }
-            let line = [
-                a.coefficients[0] - b.coefficients[0],
-                a.coefficients[1] - b.coefficients[1],
-                a.coefficients[2] - b.coefficients[2],
-            ];
-            if line[0] == 0.0 && line[1] == 0.0 {
-                continue;
-            }
-            regions = regions
-                .into_iter()
-                .flat_map(|polygon| {
-                    let distances: Vec<_> = polygon
-                        .iter()
-                        .map(|p| line[0] * p[0] + line[1] * p[1] + line[2])
-                        .collect();
-                    if !distances.iter().any(|d| *d > PLANE_EPSILON)
-                        || !distances.iter().any(|d| *d < -PLANE_EPSILON)
-                    {
-                        return vec![polygon];
-                    }
-                    [1.0, -1.0]
-                        .into_iter()
-                        .map(|sign| {
-                            let mut clipped = Vec::new();
-                            for i in 0..polygon.len() {
-                                let j = (i + 1) % polygon.len();
-                                let d = distances[i] * sign;
-                                let e = distances[j] * sign;
-                                if d >= 0.0 {
-                                    clipped.push(polygon[i]);
-                                }
-                                if (d > 0.0 && e < 0.0) || (d < 0.0 && e > 0.0) {
-                                    let t = d / (d - e);
-                                    clipped.push([
-                                        polygon[i][0] + t * (polygon[j][0] - polygon[i][0]),
-                                        polygon[i][1] + t * (polygon[j][1] - polygon[i][1]),
-                                    ]);
-                                }
-                            }
-                            clipped
-                        })
-                        .collect()
-                })
-                .collect();
-        }
-    }
-    regions
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    fn viewport() -> Polygon {
-        vec![[0.0, 0.0], [100.0, 0.0], [100.0, 100.0], [0.0, 100.0]]
-    }
-    fn plane(a: f64, b: f64, c: f64) -> DepthPlane {
-        DepthPlane {
-            presentation_layer: 0,
-            coefficients: [a, b, c],
-            backface: false,
-        }
-    }
-
-    #[test]
-    fn independent_presentation_domains_do_not_partition_each_other() {
-        let world = plane(1.0, 0.0, -50.0);
-        let overlay = DepthPlane {
-            presentation_layer: 1,
-            ..plane(0.0, 1.0, -50.0)
-        };
-        assert_eq!(partition(&[world, overlay], viewport()).len(), 1);
-        let same_depth_overlay = DepthPlane {
-            presentation_layer: 1,
-            ..world
-        };
-        assert_eq!(
-            unique_planes(&[world, same_depth_overlay], &viewport())
-                .0
-                .len(),
-            2
-        );
-    }
-
-    #[test]
-    fn crossing_planes_have_consistent_order_inside_each_region() {
-        let planes = [
-            plane(1.0, 0.0, -50.0),
-            plane(0.0, 1.0, -50.0),
-            plane(0.0, 0.0, 0.0),
+    fn coverage_cells_preserve_area_and_exact_candidate_membership() {
+        let viewport = Box2D::new(point(0.0, 0.0), point(100.0, 100.0));
+        let bounds = [
+            Box2D::new(point(-10.0, -10.0), point(120.0, 120.0)),
+            Box2D::new(point(10.0, 20.0), point(45.0, 70.0)),
+            Box2D::new(point(30.0, 40.0), point(80.0, 95.0)),
+            Box2D::new(point(90.0, 0.0), point(110.0, 10.0)),
         ];
-        let regions = partition(&planes, viewport());
-        assert_eq!(regions.len(), 6);
+        let cells = coverage_cells(viewport, &bounds);
         let mut area = 0.0;
-        for polygon in regions {
-            let center = centroid(&polygon);
-            for a in &planes {
-                for b in &planes {
-                    let delta = a.depth_at(center[0], center[1]) - b.depth_at(center[0], center[1]);
-                    for p in &polygon {
-                        let vertex_delta = a.depth_at(p[0], p[1]) - b.depth_at(p[0], p[1]);
-                        assert!(vertex_delta * delta >= -1e-7);
-                    }
+        for (cell, candidates) in &cells {
+            area += cell.width() * cell.height();
+            for dx in [0.01, 0.5, 0.99] {
+                for dy in [0.01, 0.5, 0.99] {
+                    let sample = point(
+                        cell.min.x + dx * cell.width(),
+                        cell.min.y + dy * cell.height(),
+                    );
+                    let expected: Vec<_> = bounds
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, b)| b.contains(sample).then_some(i))
+                        .collect();
+                    assert_eq!(*candidates, expected);
                 }
             }
-            area += (0..polygon.len())
-                .map(|i| {
-                    let a = polygon[i];
-                    let b = polygon[(i + 1) % polygon.len()];
-                    a[0] * b[1] - a[1] * b[0]
-                })
-                .sum::<f64>()
-                / 2.0;
         }
-        assert!((area - 10000.0).abs() < 1e-7);
-    }
-
-    #[test]
-    fn parallel_and_coplanar_planes_do_not_split() {
-        let source = [
-            plane(0.0, 0.0, 0.0),
-            plane(0.0, 0.0, 30.0),
-            plane(1e-12, 0.0, 30.0),
-        ];
-        let (planes, membership) = unique_planes(&source, &viewport());
-        assert_eq!(membership, vec![0, 1, 1]);
-        assert_eq!(partition(&planes, viewport()).len(), 1);
-    }
-}
+        assert_eq!(area, 10000.0);
+        for (index, (a, _)) in cells.iter().enumerate() {
+            for (b, _) in &cells[..index] {
+                assert!(a.intersection(b).is_none());
+            }
+        }

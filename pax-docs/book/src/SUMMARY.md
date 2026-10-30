@@ -64,6 +64,7 @@
       - [core::scroller](api/pax-std/core/scroller.md)
       - [core::text](api/pax-std/core/text.md)
     - [drawing](api/pax-std/drawing.md)
+      - [drawing::cuboid](api/pax-std/drawing/cuboid.md)
       - [drawing::ellipse](api/pax-std/drawing/ellipse.md)
       - [drawing::handwriter](api/pax-std/drawing/handwriter.md)
       - [drawing::lighting](api/pax-std/drawing/lighting.md)

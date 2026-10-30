@@ -1,0 +1,55 @@
+<Group width=100% height=100%>
+    <Text x=24px y=16px width=250px height=28px text="PAX / SPATIAL STUDIES"
+        style={font_size: 15px, fill: rgb(224, 230, 229)} />
+    if self.narrow {
+        <Text x={100% - 24px} y=20px anchor_x=100% width=76px height=20px text={self.direction_label}
+            style={font_size: 12px, fill: rgb(145, 160, 162)} />
+    } else {
+        <Text x=24px y=48px width=240px height=24px text={"CUBOID   /   TURN " + self.direction_label}
+            style={font_size: 12px, fill: rgb(145, 160, 162)} />
+    }
+    <Group x={self.narrow ? 24px : 100%} y={self.narrow ? 52px : 38px}
+        anchor_x={self.narrow ? 0% : 100%} anchor_y=0% width=300px height=36px>
+        <Button x=0px width=36px height=30px label="←" @button_click=self.left />
+        <Button x=42px width=36px height=30px label="→" @button_click=self.right />
+        <Button x=84px width=36px height=30px label="↑" @button_click=self.up />
+        <Button x=126px width=36px height=30px label="↓" @button_click=self.down />
+        <Group x=176px width=100px height=30px>
+            <Router>
+                <Route path="/">
+                    <Button width=100% height=30px label="Next route" @button_click=self.notes />
+                </Route>
+                <Route path="/notes">
+                    <Button width=100% height=30px label="Next route" @button_click=self.studio />
+                </Route>
+                <Route default=true>
+                    <Button width=100% height=30px label="Next route" @button_click=self.home />
+                </Route>
+            </Router>
+        </Group>
+    </Group>
+    <Frame x=24px y=96px width={100% - 48px} height={100% - 142px}>
+        <Router>
+            <RouteCuboid path="/" direction={self.direction} duration=1200ms>
+                <ScenePage title="A different point of view." number="01" tone=rgb(191, 224, 213)
+                    caption="Live UI on a solid's surface. Turn the route; keep the scene alive." />
+            </RouteCuboid>
+            <RouteCuboid path="/notes" direction={self.direction} duration=1200ms>
+                <ScenePage title="Room for your thoughts." number="02" tone=rgb(237, 210, 162)
+                    caption="The outgoing route remains mounted until its rotation completes." />
+            </RouteCuboid>
+            <RouteCuboid default=true direction={self.direction} duration=1200ms>
+                <ScenePage title="A new face. The same space." number="03" tone=rgb(198, 204, 232)
+                    caption="Each arriving face fits this viewport. No route screenshots." />
+            </RouteCuboid>
+        </Router>
+    </Frame>
+    <Text x=24px y=100% anchor_y=100% width={100% - 48px} height=36px
+        text="ORTHOGRAPHIC / LIVE NATIVE CONTROLS / 1.2s QUARTER TURN"
+        style={font_size: 11px, fill: rgb(145, 160, 162)} />
+    <Rectangle width=100% height=100% translate_z={(self.background_depth)px} fill=rgb(20, 27, 31) />
+</Group>
+
+@settings {
+    @mount: mount
+}

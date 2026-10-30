@@ -475,7 +475,9 @@ Removing the card from the conditional starts its exit. Pax retains the
 mounted instance until its exit finishes, then unmounts it. The application
 state has already changed; the retained visual gives the change time to
 read. Cleanup tied to unmount happens at actual unmount, not at the first
-request to leave.
+request to leave. Time-based lifecycle transitions finish on their millisecond
+clock even when rendering delivers fewer frames; frame-based transitions wait
+for the declared number of runtime ticks.
 
 The runtime enforces a five-second exit timeout to avoid retaining a node
 indefinitely. An exit that exceeds that limit can be truncated with a warning.

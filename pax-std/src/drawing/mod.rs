@@ -1,3 +1,4 @@
+pub mod cuboid;
 pub mod ellipse;
 pub mod handwriter;
 pub mod lighting;
@@ -6,6 +7,7 @@ pub mod path;
 pub mod pax_logo;
 pub mod rectangle;
 
+pub use cuboid::*;
 pub use ellipse::*;
 pub use handwriter::*;
 pub use lighting::*;

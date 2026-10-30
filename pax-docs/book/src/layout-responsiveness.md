@@ -479,7 +479,11 @@ tie. Surfaces have zero thickness in this checkpoint.
 A Frame remains a projected 2D aperture over its descendants. Its clip does
 not become a volume, and clipping does not flatten the descendants' depth.
 Native text and controls use their exact projected affine footprints and keep
-platform ownership through pose changes. The engine compares logical hit
+platform ownership through pose changes. On the web, changing projected scale
+allows native text and controls to rerasterize, including when a face arrives
+from an edge-on pose; permanent `will-change: transform` overrides can prevent
+that refresh. Unmounting a native element releases its mask and clip resources.
+The engine compares logical hit
 geometry at the pointer; it does not infer extra hit regions from shader pixels.
 See [Events and coordinates](event-handling-rust.md#events-and-coordinates).
 
@@ -506,13 +510,80 @@ This is a bounded first spatial implementation:
   emits a warning when spatial depth is requested; native occlusion and engine
   targeting follow that same fallback order. Use the GPU renderer for this
   example and for geometric depth.
-- Scene-camera selection, perspective presentation, solid primitives, spatial
+- Scene-camera selection, perspective presentation, spatial
   clipping volumes, and transformed lighting normals are not enabled by these
   properties. Shader containers and detached mask-source captures retain their
   existing raster composition semantics.
-- Projected depth partitions are intended for modest numbers of intersecting
-  flat planes. Many mutually intersecting planes increase composition work;
-  this is not a mesh-scene renderer.
+- With fully opaque group scopes, the GPU compositor splits intersecting
+  surfaces into ordered fragments and batches their clip changes and paint
+  into one render pass. Individual fills can still be translucent. Coplanar
+  content shares a plane, and unsplit surfaces need no extra spatial clip.
+  Translucent group scopes retain projected-region composition to preserve
+  the contiguous-run opacity behavior described above; complex intersections
+  with group opacity can therefore be substantially more expensive.
+  These paths target modest numbers of intersecting flat planes, rather than
+  general mesh scenes. Screenshot mirroring on targets without surface-copy
+  support uses separate passes to preserve the same clip ordering.
+
+### Cuboids with live face content
+
+`Cuboid` supplies six rectangular surfaces with real spatial placement. Its
+`width` and `height` follow normal layout; `depth` is an absolute length in
+logical pixels (100px by default). Local Z runs from `-depth / 2` to
+`+depth / 2`. Rotation uses the existing XY anchors and local Z=0, so a centered
+XY anchor rotates around the solid's center. `translate_z` moves the whole
+solid independently of its depth. Negative or non-finite depth collapses to
+zero; depth percentages are not supported.
+
+```pax
+<Cuboid width=320px height=200px depth=180px
+    x=50% y=50% anchor_x=50% anchor_y=50%
+    rotate_x=15deg rotate_y=-30deg fill=rgb(230, 232, 225)>
+    <CuboidFace side=CuboidSide::Front width=100% height=100%>
+        <Textbox x=20px y=30px width={100% - 40px} height=36px
+            text="This is a live control" />
+    </CuboidFace>
+    <CuboidFace side=CuboidSide::Right width=100% height=100%>
+        <Text x=16px y=20px width={100% - 32px} height=40px text="Right face" />
+        <Rectangle width=100% height=100% fill=rgb(225, 180, 110) />
+    </CuboidFace>
+</Cuboid>
+```
+
+`fill` paints every face, using the existing layered fill/material model.
+`fill=[]` leaves just authored content. `CuboidFace` places a live subtree on
+the chosen side of its nearest owning Cuboid. Contents are clipped to a
+projected rectangular face aperture. Changing the side, dimensions, or pose
+moves the same mounted content; it does not take a screenshot or duplicate
+controls. Multiple containers on one side use normal coplanar paint order.
+Intermediate components can contain face declarations, and nested Cuboids
+provide their own face geometry.
+
+| Side | Content dimensions | Outward direction before rotation |
+| --- | --- | --- |
+| Front / Back | width × height | +Z / −Z |
+| Left / Right | depth × height | −X / +X |
+| Top / Bottom | width × depth | −Y / +Y |
+
+Each face's local coordinates are upright when viewed from outside that face.
+The shared fill sits beneath authored face content. Flat Rectangle/Ellipse
+elements keep their existing behavior; only Cuboid introduces these six
+surfaces. The spatial backend restrictions above still apply, including CPU
+paint ordering, separate native/scroller layers, group opacity, and lighting
+normals. Face orientation affects geometry, picking and depth; it does not yet
+add transformed lighting normals to the material shader.
+
+For a rotating route transition in a viewport of width W and height H, use
+depth W for a horizontal quarter-turn or H for a vertical quarter-turn. The
+incoming face then ends at W × H without stretching its content. A fixed
+non-square cuboid cannot make all six sides the same viewport dimensions.
+See the [Cuboid Router fixture](https://github.com/paxproject/pax/tree/dev/examples/fixtures/cuboid-router)
+and [RouteCuboid](routing.md#cuboid-route-transitions) for a reusable route
+branch that computes this geometry and supplies normal enter/exit timelines:
+
+```sh
+pax-cli run --path examples/fixtures/cuboid-router --target web
+```
 
 ### Spatial math for engine integrations
 

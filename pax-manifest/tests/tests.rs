@@ -1004,6 +1004,54 @@ mod tests {
     }
 
     #[test]
+    fn lifecycle_completion_uses_the_authored_clock_after_baking() {
+        // Slow rendering must not extend a wall-clock exit to 72 rendered frames.
+        for (duration, marker, frames, millis) in [
+            ("1200ms", "100%", 0, Some(1200)),
+            ("1.2s", "72", 0, Some(1200)),
+            ("72", "1200ms", 72, None),
+        ] {
+            let owner = TypeId::build_singleton("Example", Some("Example"));
+            let group = TypeId::build_singleton("Group", Some("Group"));
+            let source = format!(r#"
+                <Group id=panel @out=@timeline {{
+                    duration: {duration},
+                    opacity: {{0: 1, {marker}: 0}},
+                }} />
+            "#);
+            let (_, component) = assemble_component_definition(
+                ParsingContext::default(), &source, false,
+                HashMap::from([("Group".to_string(), group)]),
+                "crate", owner.clone(), "example.pax", file!(),
+            );
+            let manifest = PaxManifest {
+                components: BTreeMap::from([(owner.clone(), component)]),
+                main_component_type_id: owner.clone(),
+                type_table: Default::default(), assets_dirs: vec![],
+                engine_import_path: "pax_engine".to_string(),
+            };
+            let rich = pax_manifest::binary::from_slice(
+                &pax_manifest::binary::to_vec(&manifest).unwrap()).unwrap();
+            let program = pax_manifest::program_ir::ProgramIR::from_manifest(&manifest);
+            let program = pax_manifest::program_ir::binary::from_slice(
+                &pax_manifest::program_ir::binary::to_vec(&program).unwrap()).unwrap();
+            let mut baked = manifest.clone();
+            let component = baked.components.get_mut(&owner).unwrap();
+            component.template = program.components[&owner].template.clone();
+            component.settings = program.components[&owner].settings.clone();
+            component.timelines = program.components[&owner].timelines.clone();
+            for manifest in [&manifest, &rich, &baked] {
+                let template = manifest.components[&owner].template.as_ref().unwrap();
+                let panel = template_node_id_by_id(template, "panel");
+                let config = manifest.get_template_node_transition_config(&owner, &panel);
+                assert!(config.has_exit);
+                assert_eq!(config.exit_frame_count, frames, "{duration} / {marker}");
+                assert_eq!(config.exit_millis_count, millis, "{duration} / {marker}");
+            }
+        }
+    }
+
+    #[test]
     fn test_parse_with_extra() {
         let res = utils::parse_value("{5 + 3}this_shouldn't succeed");
         assert!(matches!(res, Err(_)));

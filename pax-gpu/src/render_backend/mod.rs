@@ -645,6 +645,12 @@ pub(crate) struct RetainedBatchRun<'a> {
     pub draws: Vec<RetainedDraw<'a>>,
 }
 
+pub(crate) struct RetainedBatchSegment<'a> {
+    pub run: RetainedBatchRun<'a>,
+    pub stencil_depth: u32,
+    pub clips: Vec<stencil::ClipDraw<'a>>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ScissorRect {
     pub min_x: f32,
@@ -2179,7 +2185,57 @@ impl<'w> RenderBackend<'w> {
         }
     }
 
+    pub(crate) fn draw_retained_segments(
+        &mut self,
+        segments: Vec<RetainedBatchSegment<'_>>,
+    ) -> u64 {
+        if segments.is_empty() {
+            return 0;
+        }
+        // Screenshot mirrors share the stencil texture with the presentation target.
+        // Draw each segment to both targets before advancing that shared stack.
+        if self.should_render_capture_target() {
+            let mut passes = 0;
+            for segment in segments {
+                self.sync_stencil_stack(segment.stencil_depth, &segment.clips);
+                if physical_scissor_rect(
+                    segment.run.scissor,
+                    self.globals.dpr,
+                    self.globals.origin,
+                    self.surface_config.width,
+                    self.surface_config.height,
+                )
+                .is_some()
+                {
+                    passes += 2;
+                }
+                self.draw_retained_batch_runs(&[segment.run]);
+            }
+            return passes;
+        }
+        let mut runs = Vec::with_capacity(segments.len());
+        let mut syncs = Vec::with_capacity(segments.len());
+        for segment in segments {
+            syncs.push(self.stencil_renderer.prepare_stencil_stack_sync(
+                &self.device,
+                segment.stencil_depth,
+                &segment.clips,
+            ));
+            runs.push(segment.run);
+        }
+        self.draw_retained_batch_runs_with_sync(&runs, &syncs);
+        1
+    }
+
     pub(crate) fn draw_retained_batch_runs(&mut self, runs: &[RetainedBatchRun<'_>]) {
+        self.draw_retained_batch_runs_with_sync(runs, &[]);
+    }
+
+    fn draw_retained_batch_runs_with_sync(
+        &mut self,
+        runs: &[RetainedBatchRun<'_>],
+        syncs: &[stencil::PreparedStencilSync],
+    ) {
         if runs.iter().all(|run| run.draws.is_empty()) {
             return;
         }
@@ -2196,10 +2252,11 @@ impl<'w> RenderBackend<'w> {
                 )
             })
             .collect();
-        if runs
-            .iter()
-            .zip(physical_scissors.iter())
-            .all(|(run, scissor)| run.draws.is_empty() || scissor.is_none())
+        if syncs.is_empty()
+            && runs
+                .iter()
+                .zip(physical_scissors.iter())
+                .all(|(run, scissor)| run.draws.is_empty() || scissor.is_none())
         {
             return;
         }
@@ -2236,7 +2293,22 @@ impl<'w> RenderBackend<'w> {
                 multiview_mask: None,
             });
 
-            for (run, scissor) in runs.iter().zip(physical_scissors.iter()) {
+            for (index, (run, scissor)) in runs.iter().zip(physical_scissors.iter()).enumerate() {
+                if let Some(sync) = syncs.get(index).filter(|sync| !sync.is_empty()) {
+                    // Stencil mutations cover their full geometry, independent of the
+                    // preceding drawable's scissor. Color and clips stay in one pass.
+                    render_pass.set_scissor_rect(
+                        0,
+                        0,
+                        self.surface_config.width.max(1),
+                        self.surface_config.height.max(1),
+                    );
+                    self.stencil_renderer.encode_prepared_stencil_sync(
+                        &mut render_pass,
+                        sync,
+                        true,
+                    );
+                }
                 let Some(scissor) = scissor else {
                     continue;
                 };
