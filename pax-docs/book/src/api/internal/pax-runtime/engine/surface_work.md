@@ -112,6 +112,13 @@ in the runtime/backend and are selected again at every service boundary.
 Begin drawing after a settled tick. Multiple ticks/completions in one
 display epoch share preparation accounting, including its first-job grant.
 
+##### `continue_epoch`
+<pre><code class="api-signature language-rust ignore">pub fn continue_epoch(&amp;mut self, epoch: u32)</code></pre>
+
+Continue the same settled scene in a new display epoch. Preparation gets
+a fresh allowance, but expensive completed setup must not restart merely
+because it consumed an entire previous slice.
+
 ---
 
 ### `SurfaceWorkBudget`

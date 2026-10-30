@@ -1539,7 +1539,7 @@ pub trait DefinitionToInstanceTraverser {
         let descriptor = self
             .get_component_descriptor(&type_id)
             .expect(&format!("No component descriptor for type: {}", type_id));
-        let prototypical_common_properties = crate::CommonPropertiesInit::Default;
+        let mut prototypical_common_properties = crate::CommonPropertiesInit::Default;
         let mut prototypical_properties = crate::PropertiesInit::DescriptorDefault(descriptor);
 
         // pull handlers for this component
@@ -1576,6 +1576,11 @@ pub trait DefinitionToInstanceTraverser {
             &mut component_self_timeline_properties,
         );
         if !component_self_timeline_properties.is_empty() {
+            // Roots bypass build_template_node, so their self tracks need the
+            // common-property binder too (for opacity, transforms, etc.).
+            prototypical_common_properties = crate::CommonPropertiesInit::Inline {
+                defined_properties: component_self_timeline_properties.clone(),
+            };
             prototypical_properties = crate::PropertiesInit::DescriptorInline {
                 descriptor,
                 defined_properties: component_self_timeline_properties,

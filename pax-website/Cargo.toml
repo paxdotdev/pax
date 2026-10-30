@@ -8,6 +8,7 @@ repository = "https://github.com/paxdotdev/pax"
 publish = false
 
 [package.metadata.pax]
+loader = true
 title = "Pax — A declarative language for native and web UI"
 
 [package.metadata.pax.web]

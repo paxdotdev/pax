@@ -1,3 +1,6 @@
+import {sharedWorkBudget, requestPreparationFrame} from "./utils/shared-work-budget";
+import {startLoadingApplication} from "./loading";
+import {abortable} from "./utils/abortable";
 import type {PaxChassisWeb} from "./types/pax-chassis-web";
 import {ObjectManager} from "./pools/object-manager";
 import {
@@ -58,50 +61,10 @@ import { CooperativeRenderScheduler } from "./utils/cooperative-render";
 
 declare global { interface Window { chassis?: PaxChassisWeb; } }
 
-let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
-let nativePool = new NativeElementPool(objectManager);
-let initializedChassis = false;
-let renderLoopStarting = false;
-let renderLoopStarted = false;
-let frameInProgress = false;
-let startupScheduler: StartupScheduler | undefined;
-let startupPresented = false;
-let startupViewportPresented = false;
-let startupWork: StartupWork | undefined;
-let startupFeedbackFrameReady = false;
-let mountYieldEnabled = false;
-let cooperativeRender: CooperativeRenderScheduler | undefined;
-let renderEpoch = 0;
-let hiddenTabPumpHandle: number | null = null;
-let pendingAsyncInterruptFlush = false;
-const frameScheduler = new FrameScheduler(new URLSearchParams(window.location.search).get("pax_suspended") === "1");
-
-/** Suspend frame updates and drawing while retaining the mounted application.
- * Hosts may call this before Wasm finishes loading. Resuming schedules one frame;
- * elapsed-time-based animations can advance to the current time on resume.
- */
-export function setSuspended(suspended: boolean) {
-    if (suspended) cooperativeRender?.invalidate();
-    frameScheduler.setSuspended(suspended);
-    if (!suspended) startupScheduler?.request();
-}
-let currentChassis: PaxChassisWeb | null = null;
-let currentMount: Element | null = null;
-let currentExtensionlessUrl: string | null = null;
-let teardownEventListeners: (() => void) | null = null;
-let teardownResizeHandler: (() => void) | null = null;
-let teardownHiddenTabPump: (() => void) | null = null;
-let teardownRouteLocationSync: (() => void) | null = null;
-let liveSession: MountSession | null = null;
-const surfaceTraceEnabled = typeof window !== "undefined"
-    && new URLSearchParams(window.location.search).has("pax_surface_trace");
-const perfTraceEnabled = surfaceTraceEnabled
-    && new URLSearchParams(window.location.search).has("pax_scroll_perf");
-
 export interface WebInitOptions {
     element: HTMLElement;
     cartridgeUrl: string;
-    /** Application-defined bytes copied before initialization; maximum 64 KiB. */
+    /** Application-defined bytes validated and copied at call time; maximum 64 KiB. */
     startupData?: Uint8Array;
     /** Canonical runnable root, e.g. "crate::App"; optional for a single root. */
     entry?: string;
@@ -120,6 +83,153 @@ export interface WebInitOptions {
 /** Owns one mounted region. `closed` observes independently driven cleanup. */
 export interface MountedApp { readonly closed: Promise<void>; close(): void; request(bytes: Uint8Array): Promise<Uint8Array>; }
 
+
+export type Glue = typeof import("./types/pax-cartridge") & {
+    init_loading_screen?: (host: any) => Promise<any>;
+};
+export interface ApplicationSurface extends MountedApp {
+    readonly region: HTMLDivElement;
+    readonly chassis: PaxChassisWeb | null;
+    reveal(): boolean;
+    publish(): boolean;
+    presentationReady(): boolean;
+}
+export type ApplicationOptions = WebInitOptions & {
+    glue: Glue; loader?: boolean; holdPresentation?: boolean;
+};
+const hosts = new Set<ReturnType<typeof createApplicationHost>>();
+type CartridgeLoad = {promise: Promise<Glue>; controller: AbortController; users: number; settled: boolean};
+const glueLoads = new Map<string, CartridgeLoad>();
+const shutdownObservers = new WeakMap<object, Set<(pending: number) => void>>();
+async function loadCartridge(url: string, signal?: AbortSignal): Promise<Glue> {
+    signal?.throwIfAborted();
+    const key = new URL(`${url}.js`, document.baseURI).href;
+    let load = glueLoads.get(key);
+    if (!load) {
+        const controller = new AbortController();
+        const promise = Promise.resolve().then(async () => {
+            const glue = await import(key) as Glue;
+            controller.signal.throwIfAborted();
+            const response = await fetch(new URL(`${url}_bg.wasm`, document.baseURI), {signal: controller.signal});
+            if (!response.ok) throw new Error(`Failed to fetch WASM binary: HTTP ${response.status}`);
+            await glue.default({module_or_path: response});
+            const observers = new Set<(pending: number) => void>();
+            shutdownObservers.set(glue, observers);
+            let queued = false;
+            glue.pax_set_shutdown_waker(() => {
+                if (queued) return;
+                queued = true;
+                queueMicrotask(() => {
+                    queued = false;
+                    const count = glue.pax_pump_shutdowns();
+                    observers.forEach(observer => observer(count));
+                });
+            });
+            return glue;
+        });
+        const created: CartridgeLoad = {promise, controller, users: 0, settled: false};
+        glueLoads.set(key, created);
+        promise.then(() => { created.settled = true; }, () => {
+            created.settled = true;
+            if (glueLoads.get(key) === created) glueLoads.delete(key);
+        });
+        load = created;
+    }
+    if (load.controller.signal.aborted && !load.settled) {
+        // wasm-bindgen's module state is shared. Never overlap a new initializer
+        // with an abandoned one that may still be completing installation.
+        await abortable(load.promise.catch(() => undefined), signal);
+        return loadCartridge(url, signal);
+    }
+    load.users++;
+    try { return await abortable(load.promise, signal); }
+    finally {
+        if (--load.users === 0 && !load.settled) load.controller.abort();
+    }
+}
+
+let globallySuspended = new URLSearchParams(window.location.search).get("pax_suspended") === "1";
+export function setSuspended(suspended: boolean) {
+    globallySuspended = suspended;
+    hosts.forEach(host => host.setSuspended(suspended));
+}
+export async function init_web(options: WebInitOptions): Promise<MountedApp> {
+    if (!(options.element instanceof HTMLElement) || options.element.ownerDocument !== document) {
+        throw new Error("Pax requires an HTMLElement in the current document");
+    }
+    options.signal?.throwIfAborted();
+    if (options.startupData !== undefined && (!(options.startupData instanceof Uint8Array) || options.startupData.byteLength > 65536)) {
+        throw new Error("startupData must be Uint8Array of at most 64 KiB");
+    }
+    if (options.entry !== undefined && typeof options.entry !== "string") {
+        throw new Error("entry must name a declared runnable root");
+    }
+    // Retain this snapshot through bootstrap, loader preparation and retries.
+    options = {...options, startupData: options.startupData?.slice(),
+        cartridgeUrl: new URL(options.cartridgeUrl, document.baseURI).href};
+    const glue = await loadCartridge(options.cartridgeUrl, options.signal);
+    options.signal?.throwIfAborted();
+    if (glue.init_loading_screen) return startLoadingApplication(options, glue, createApplicationHost);
+    return createApplicationHost().initApplication({...options, glue});
+}
+export function mount(selector_or_element: string | HTMLElement, extensionlessUrl: string): Promise<MountedApp> {
+    const element = typeof selector_or_element === "string" ? document.querySelector(selector_or_element) : selector_or_element;
+    if (!(element instanceof HTMLElement)) return Promise.reject(new Error("Pax mount element not found"));
+    return init_web({element, cartridgeUrl: extensionlessUrl, pageScroll: true, documentRouting: true});
+}
+
+const nativeMessageOwners = new WeakMap<PaxChassisWeb, (messages: any[], manager: ObjectManager) => void>();
+/** Forward native messages to the host that owns this chassis. */
+export function processMessages(messages: any[], chassis: PaxChassisWeb, manager: ObjectManager) {
+    const process = nativeMessageOwners.get(chassis);
+    if (!process) throw new Error("Pax chassis is not mounted");
+    process(messages, manager);
+}
+
+function createApplicationHost() {
+let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
+let nativePool = new NativeElementPool(objectManager);
+let initializedChassis = false;
+let renderLoopStarting = false;
+let renderLoopStarted = false;
+let frameInProgress = false;
+let startupScheduler: StartupScheduler | undefined;
+let startupPresented = false;
+let startupRenderStarted = false;
+let ordinaryRenderPending = false;
+let startupViewportPresented = false;
+let startupWork: StartupWork | undefined;
+let startupFeedbackFrameReady = false;
+let mountYieldEnabled = false;
+let cooperativeRender: CooperativeRenderScheduler | undefined;
+let renderEpoch = 0;
+let hiddenTabPumpHandle: number | null = null;
+let pendingAsyncInterruptFlush = false;
+const frameScheduler = new FrameScheduler(globallySuspended);
+
+/** Suspend frame updates and drawing while retaining the mounted application.
+ * Hosts may call this before Wasm finishes loading. Resuming schedules one frame;
+ * elapsed-time-based animations can advance to the current time on resume.
+ */
+function setSuspended(suspended: boolean) {
+    if (suspended) cooperativeRender?.invalidate();
+    frameScheduler.setSuspended(suspended);
+    if (!suspended) startupScheduler?.request();
+}
+let currentChassis: PaxChassisWeb | null = null;
+let currentMount: Element | null = null;
+let currentExtensionlessUrl: string | null = null;
+let teardownEventListeners: (() => void) | null = null;
+let teardownResizeHandler: (() => void) | null = null;
+let teardownHiddenTabPump: (() => void) | null = null;
+let teardownRouteLocationSync: (() => void) | null = null;
+let liveSession: MountSession | null = null;
+const surfaceTraceEnabled = typeof window !== "undefined"
+    && new URLSearchParams(window.location.search).has("pax_surface_trace");
+const perfTraceEnabled = surfaceTraceEnabled
+    && new URLSearchParams(window.location.search).has("pax_scroll_perf");
+
+
 class MountSession implements MountedApp {
     readonly mounted: Promise<void>;
     private resolveMounted!: () => void;
@@ -130,8 +240,16 @@ class MountSession implements MountedApp {
     private starting = true;
     private abort = () => this.close();
     private pump: (() => number) | null = null;
+    private ownerClosed: boolean | undefined;
+    observeOwner(chassis: PaxChassisWeb) {
+        this.ownerClosed = false;
+        void chassis.application_closed().then(() => {
+            this.ownerClosed = true;
+            this.cleanupWake(this.pump?.() ?? 0);
+        });
+    }
     readonly region: HTMLDivElement;
-    constructor(readonly options: WebInitOptions) {
+    constructor(readonly options: ApplicationOptions) {
         this.closed = new Promise(resolve => { this.acknowledge = resolve; });
         this.mounted = new Promise((resolve, reject) => {
             this.resolveMounted = resolve; this.rejectMounted = reject;
@@ -141,6 +259,11 @@ class MountSession implements MountedApp {
         this.region = document.createElement("div");
         this.region.className = "pax-mount";
         this.region.tabIndex = 0;
+        if (options.holdPresentation) {
+            this.region.setAttribute("data-pax-preparing", "");
+            this.region.inert = true;
+            this.region.setAttribute("aria-hidden", "true");
+        }
         options.element.appendChild(this.region);
         options.signal?.addEventListener("abort", this.abort, {once: true});
     }
@@ -152,16 +275,44 @@ class MountSession implements MountedApp {
     checkOpen() {
         if (this.closing || this.options.signal?.aborted) throw new DOMException("Pax initialization cancelled", "AbortError");
     }
+    get chassis() { return currentChassis; }
+    presentationReady() {
+        if (!currentChassis || this.closing) return false;
+        return (!mountYieldEnabled || startupPresented) && nativePool.startupTextReady()
+            && nativePool.startupSurfacesReady() && currentChassis.prepare_startup_presentation();
+    }
+    reveal() {
+        if (!currentChassis || this.closing) return false;
+        if (!this.options.holdPresentation) return true;
+        if (!this.presentationReady()) return false;
+        currentChassis.publish_application();
+        this.options.holdPresentation = false;
+        runFrame(currentChassis, this.region);
+        this.region.removeAttribute("data-pax-preparing");
+        startupScheduler?.dispose(); startupScheduler = undefined; startupWork = undefined;
+        return true;
+    }
+    publish() {
+        if (!this.reveal()) return false;
+        // The prepared scene can animate beneath the exiting loader, but input
+        // and accessibility are released only once that overlay is gone.
+        this.region.inert = false;
+        this.region.removeAttribute("aria-hidden");
+        return true;
+    }
     didMount() { this.resolveMounted(); }
     failStartup(error: unknown) { this.rejectMounted(error); this.close(); }
     finishStartup() {
         this.starting = false;
         this.cleanupWake(this.pump?.() ?? 0);
     }
+    readonly cleanupObserver = (pending: number) => this.cleanupWake(pending);
     installPump(pump: () => number) { this.pump = pump; }
     cleanupWake(pending: number) {
-        if (!this.closing || this.starting || pending !== 0) return;
+        if (!this.closing || this.starting || (this.ownerClosed === undefined ? pending !== 0 : !this.ownerClosed)) return;
         if (liveSession === this) liveSession = null;
+        shutdownObservers.get(this.options.glue)?.delete(this.cleanupObserver);
+        hosts.delete(host);
         this.acknowledge();
     }
     /** Remove only Pax's region. Idempotent and never waits on the host thread. */
@@ -180,23 +331,15 @@ class MountSession implements MountedApp {
  * cleanup. Importing this library or a cartridge never mounts an application.
  * The caller owns the container, page layout and browser event loop.
  */
-export async function init_web(options: WebInitOptions): Promise<MountedApp> {
+async function initApplication(options: ApplicationOptions): Promise<ApplicationSurface> {
     if (liveSession !== null) throw new Error("Pax supports one live mount; await closed before mounting another");
     if (!(options.element instanceof HTMLElement) || options.element.ownerDocument !== document) {
         throw new Error("Pax requires an HTMLElement in the current document");
     }
-    if (options.startupData !== undefined && (!(options.startupData instanceof Uint8Array) || options.startupData.byteLength > 65536)) {
-        throw new Error("startupData must be Uint8Array of at most 64 KiB");
-    }
-    if (options.entry !== undefined && typeof options.entry !== "string") {
-        throw new Error("entry must name a declared runnable root");
-    }
     const startup = readStartupOptions(options.yieldMount);
     const wheelEvents = readWheelEvents(options.wheelEvents);
-    mountYieldEnabled = startup.yieldMount;
-    // Snapshot caller-owned bytes before module/network awaits can interleave
-    // with application mutations to the original buffer.
-    const session = new MountSession({...options, wheelEvents, startupData: options.startupData?.slice()});
+    mountYieldEnabled = options.holdPresentation === true || startup.yieldMount;
+    const session = new MountSession({...options, wheelEvents});
     liveSession = session;
     try {
         session.checkOpen();
@@ -229,11 +372,6 @@ function withProfileMeasure<T>(name: string, fn: () => T): T {
 }
 
 /** Compatibility spelling; new hosts should call init_web with explicit inputs. */
-export function mount(selector_or_element: string | HTMLElement, extensionlessUrl: string): Promise<MountedApp> {
-    const element = typeof selector_or_element === "string" ? document.querySelector(selector_or_element) : selector_or_element;
-    return init_web({element: element as HTMLElement, cartridgeUrl: extensionlessUrl, pageScroll: true, documentRouting: true});
-}
-
 function ensureInterfaceStylesheet(extensionlessUrl: string) {
     const href = new URL("pax-interface-web.css", extensionlessUrl).href;
     let alreadyLoaded = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
@@ -248,34 +386,22 @@ function ensureInterfaceStylesheet(extensionlessUrl: string) {
 }
 
 async function loadWasmModule(extensionlessUrl: string, session: MountSession): Promise<void> {
-    const glueCodeUrl = new URL(`${extensionlessUrl}.js`, document.baseURI);
-    const wasmUrl = new URL(`${extensionlessUrl}_bg.wasm`, document.baseURI);
-    const glue = await import(glueCodeUrl.href) as typeof import("./types/pax-cartridge");
-    session.checkOpen();
-    const response = await fetch(wasmUrl.href, {signal: session.options.signal});
-    if (!response.ok) throw new Error(`Failed to fetch WASM binary: HTTP ${response.status}`);
-    await glue.default({module_or_path: await response.arrayBuffer()});
+    const glue = session.options.glue;
     session.checkOpen();
     session.installPump(() => glue.pax_pump_shutdowns());
-    let queued = false;
-    glue.pax_set_shutdown_waker(() => {
-        if (queued) return;
-        queued = true;
-        queueMicrotask(() => {
-            queued = false;
-            session.cleanupWake(glue.pax_pump_shutdowns());
-        });
-    });
+    shutdownObservers.get(glue)!.add(session.cleanupObserver);
     // The explicit Wasm entry invokes this host capability only after its typed
     // initializer succeeds. JS owns the chassis from that call onward, including
     // partial attachment failures; no GC finalizer is relied on for close.
-    await glue.init_web({entry: session.options.entry, startupData: session.options.startupData, yieldMount: mountYieldEnabled, mount: (chassis: PaxChassisWeb) => {
+    const initialize = session.options.loader ? glue.init_loading_screen! : glue.init_web;
+    await initialize({checkOpen: () => session.checkOpen(), entry: session.options.entry, startupData: session.options.startupData, yieldMount: mountYieldEnabled, mount: (chassis: PaxChassisWeb) => {
         try { session.checkOpen(); } catch (error) { chassis.free(); throw error; }
         resetHostState();
         currentChassis = chassis;
+        session.observeOwner(chassis);
         currentMount = session.region;
         currentExtensionlessUrl = extensionlessUrl;
-        window.chassis = chassis;
+        if (!session.options.loader) window.chassis = chassis;
         attachChassis(chassis, session.region);
         return session;
     }});
@@ -299,10 +425,11 @@ function disposeCurrentChassis() {
     startupWork = undefined;
     currentMount?.removeAttribute("data-pax-startup");
     const chassis = currentChassis;
+    if (chassis) nativeMessageOwners.delete(chassis);
     // Revoke routing before running disposers, which can trigger host callbacks.
     currentChassis = null;
     currentMount = null;
-    delete window.chassis;
+    if (window.chassis === chassis) delete window.chassis;
     const disposers = [() => frameScheduler.clear(), teardownHiddenTabPump,
         teardownRouteLocationSync, teardownResizeHandler, teardownEventListeners,
         () => chassis?.set_surface_ready_callback(undefined),
@@ -331,7 +458,10 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element, session
 }
 
 function attachChassis(chassis: PaxChassisWeb, mount: Element) {
+    nativeMessageOwners.set(chassis, (messages, manager) => processMessages(messages, chassis, manager));
     startupPresented = false;
+    startupRenderStarted = false;
+    ordinaryRenderPending = false;
     startupViewportPresented = false;
     startupFeedbackFrameReady = false;
     if (chassis.startup_pending()) mount.setAttribute("data-pax-startup", "");
@@ -352,7 +482,12 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
         frameInProgress = true;
         startupFeedbackFrameReady = false;
         try {
-            return withProfileMeasure("startupSlice", () => work.service(4));
+            if (sharedWorkBudget.remaining <= 0) {
+                requestPreparationFrame(() => startupScheduler?.request());
+                return false;
+            }
+            startupRenderStarted = false;
+            return sharedWorkBudget.run(4, budget => withProfileMeasure("startupSlice", () => work.service(budget)));
         } catch (error) {
             liveSession?.failStartup(error);
             return false;
@@ -393,7 +528,12 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
                     }
                     nativePool.syncRenderSurfaceLayouts(true);
                 }
-                const report = chassis.service_render_work(3.0);
+                if (sharedWorkBudget.remaining <= 0) {
+                    ordinaryRenderPending = true;
+                    return {pending: true, allowance_exhausted: true};
+                }
+                const report = sharedWorkBudget.run(3, budget => chassis.service_render_work(budget));
+                ordinaryRenderPending = report.pending && !report.blocked;
                 if (surfaceTraceEnabled) nativePool.recordRenderWork(report, performance.now() - start);
                 return report;
             } finally {
@@ -543,6 +683,9 @@ function requestFrameFlush(chassis: PaxChassisWeb, mount: Element) {
     }
     if (startupWork && !startupPresented) {
         startupScheduler?.request();
+        // Hidden browsers may suspend rAF entirely. The timer pump must also
+        // advance measurement/publication after the mounting queue settles.
+        if (document.hidden) runFrame(chassis, mount);
     } else if (mountYieldEnabled && !document.hidden) {
         frameScheduler.schedule(() => renderLoop(chassis, mount));
     } else {
@@ -576,6 +719,7 @@ function progressStartupFrame(chassis: PaxChassisWeb, mount: Element, sceneReady
 function runStartupFrame(chassis: PaxChassisWeb, mount: Element) {
     nativePool.sampleFrameInputs();
     if (startupWork?.patchesPending || !chassis.prepare_startup_presentation()) {
+        startupRenderStarted = false;
         startupFeedbackFrameReady = false;
         startupScheduler?.request();
         progressStartupFrame(chassis, mount, false);
@@ -609,17 +753,26 @@ function runStartupFrame(chassis: PaxChassisWeb, mount: Element) {
         initializeChassis(chassis, mount);
         withProfileMeasure("startupPresentation", () => {
             nativePool.syncRenderSurfaceLayouts();
-            chassis.render();
+            let renderPending = false;
+            if (liveSession?.options.holdPresentation) {
+                if (startupRenderStarted) chassis.continue_render_work(renderEpoch);
+                else { chassis.begin_render_work(renderEpoch); startupRenderStarted = true; }
+                renderPending = sharedWorkBudget.remaining <= 0 || sharedWorkBudget.run(3,
+                    budget => chassis.service_render_work(budget)).pending;
+            } else { chassis.render(); }
             mount.removeAttribute("data-pax-startup");
             nativePool.finishTextFrame(first || complete);
             startupViewportPresented = true;
             chassis.resume_startup_after_presentation();
             if (complete) {
+                if (liveSession?.options.holdPresentation && (renderPending || !nativePool.startupSurfacesReady())) return;
                 startupPresented = true;
                 chassis.finish_startup_presentation();
-                startupScheduler?.dispose();
-                startupScheduler = undefined;
-                startupWork = undefined;
+                if (!liveSession?.options.holdPresentation) {
+                    startupScheduler?.dispose();
+                    startupScheduler = undefined;
+                    startupWork = undefined;
+                }
                 liveSession?.didMount();
             } else {
                 startupFeedbackFrameReady = false;
@@ -645,10 +798,32 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
         runStartupFrame(chassis, mount);
         return;
     }
+    if (liveSession?.options.holdPresentation) {
+        if (!chassis.prepare_startup_presentation() || startupWork?.patchesPending) {
+            startupPresented = false;
+            runStartupFrame(chassis, mount);
+        }
+        return;
+    }
     frameInProgress = true;
     try {
         nativePool.beginTraceFrame(renderEpoch);
         initializeChassis(chassis, mount);
+        if (ordinaryRenderPending) {
+            nativePool.sampleFrameInputs();
+            if (!chassis.has_pending_properties() && chassis.render_work_is_settled()) {
+                // Finish a settled scene across display frames before another
+                // tick invalidates its setup. New input/property work still
+                // takes the ordinary settlement path below.
+                nativePool.syncRenderSurfaceLayouts(true);
+                if (!chassis.has_pending_properties() && chassis.render_work_is_settled()) {
+                    chassis.continue_render_work(renderEpoch);
+                    cooperativeRender!.beginFrame();
+                    nativePool.finishTextFrame();
+                    return;
+                }
+            }
+        }
         withProfileMeasure("renderLoopFrame", () => {
             if (chassis.startup_input_pending()) chassis.replay_startup_input();
             nativePool.sampleFrameInputs();
@@ -667,6 +842,7 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             });
             // draw canvas elements
             withProfileMeasure("render", () => {
+                ordinaryRenderPending = false;
                 chassis.begin_render_work(renderEpoch);
                 cooperativeRender!.beginFrame();
             });
@@ -700,7 +876,7 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element) {
 }
 
 
-export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
+function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
     // Native patches can change ancestor clipping/placement without changing a
     // Rust tile-plan generation. No DOM observation survives application patches.
     nativePool.invalidateSurfaceHostObservation();
@@ -925,4 +1101,9 @@ function processMessage(unwrapped_msg: any, chassis: PaxChassisWeb, objectManage
         patch.fromPatch(msg);
         nativePool.screenshot(patch, chassis);
     }
+}
+
+    const host = {initApplication, setSuspended};
+    hosts.add(host);
+    return host;
 }

@@ -87,6 +87,34 @@ pub(super) fn with_current_graph<R>(f: impl FnOnce(&PropertyGraph) -> R) -> R {
     f(&graph)
 }
 
+pub(super) fn registered_clock(millis: bool) -> Option<LocalProperty<u64>> {
+    ACTIVE_GRAPH.with(|active| {
+        active.borrow().as_ref().and_then(|graph| {
+            if millis {
+                graph.inner.millis_clock.borrow().clone()
+            } else {
+                graph.inner.frame_clock.borrow().clone()
+            }
+        })
+    })
+}
+
+pub(super) fn register_clock(prop: &LocalProperty<u64>, millis: bool) -> bool {
+    ACTIVE_GRAPH.with(|active| {
+        let active = active.borrow();
+        let Some(graph) = active.as_ref() else {
+            return false;
+        };
+        let clock = if millis {
+            &graph.inner.millis_clock
+        } else {
+            &graph.inner.frame_clock
+        };
+        *clock.borrow_mut() = Some(prop.clone());
+        true
+    })
+}
+
 pub(super) fn current_graph_id() -> Option<u64> {
     ACTIVE_GRAPH.with(|active| active.borrow().as_ref().map(|graph| graph.inner.id))
 }
@@ -291,6 +319,8 @@ struct GraphInner {
     owners: RefCell<HashMap<u64, HashSet<u64>>>,
     scopes: RefCell<HashMap<u64, std::rc::Weak<BindingScopeInner>>>,
     closed: Cell<bool>,
+    frame_clock: RefCell<Option<LocalProperty<u64>>>,
+    millis_clock: RefCell<Option<LocalProperty<u64>>>,
 }
 
 impl Drop for GraphInner {
@@ -331,6 +361,8 @@ impl PropertyGraph {
                 owners: RefCell::new(HashMap::new()),
                 scopes: RefCell::new(HashMap::new()),
                 closed: Cell::new(false),
+                frame_clock: RefCell::new(None),
+                millis_clock: RefCell::new(None),
             }),
         }
     }

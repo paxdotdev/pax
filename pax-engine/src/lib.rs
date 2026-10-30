@@ -44,3 +44,7 @@ mod declarative_macros {
         };
     }
 }
+
+#[cfg(feature = "web")]
+#[doc(hidden)]
+pub use wasm_split_helpers;

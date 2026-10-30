@@ -1,0 +1,44 @@
+<Group x=50% y=50% width=200px height=160px>
+    <Group x={(50% + 5px)} anchor_x=50% y=0px width=158.4px height=79.818px anchor_y=0px>
+        <Rectangle width=100% height=100% fill=TRANSPARENT @click=self.replay/>
+        <Group width=920.72px height=463.95px anchor=0px scale={(158.4 / 920.72 * 100)%}>
+            <StaticPaxLogo width=920.72px height=463.95px
+                background_mode=LogoBackgroundMode::Dark
+                fill=BLACK letter_fill={rgb(238, 238, 238)}/>
+        </Group>
+    </Group>
+
+    if @loading.phase == "failed" || @loading.phase == "cancelled" {
+        if @loading.can_retry {
+            <Button x=50% y=204px width=100px height=30px anchor_y=0px
+                label="Retry" color={rgb(40, 40, 40)} hover_color={rgb(65, 65, 65)}
+                style={TextStyle { font: "Arial", font_size: 13px, fill: WHITE,
+                    align_horizontal: TextAlignHorizontal::Center,
+                    align_vertical: TextAlignVertical::Center,
+                    align_multiline: TextAlignHorizontal::Center }}
+                @button_click=self.retry/>
+        }
+        <Text x=50% y=162px width=280px height=32px anchor_y=0px
+            selectable=false text={@loading.phase == "failed" ? "Unable to load application" : "Loading cancelled"}
+            style={TextStyle { font: "Arial", font_size: 13px, fill: WHITE,
+                align_horizontal: TextAlignHorizontal::Center }}/>
+    }
+
+    <Group x=50% y=134px width=184px height=5px anchor_y=0px>
+        <Rectangle id=progress_fill x=0px anchor_x=0px
+            width={(self.display_fraction * 100)%} height=100%
+            corner_radius=2.5 fill={rgb(232, 232, 232)}/>
+        <Rectangle width=100% height=100% corner_radius=2.5 fill={rgb(49, 49, 49)}/>
+    </Group>
+</Group>
+<Rectangle width=100% height=100% fill=BLACK/>
+
+@settings {
+    @mount: on_mount
+    @out: fade_out
+}
+@timeline fade_out {
+    duration: 250ms,
+    self { opacity: { 0%: 1, InOutQuad, 100%: 0 } }
+    #progress_fill { width: { 0%: {@base}, InOutQuad, 100%: 100% } }
+}

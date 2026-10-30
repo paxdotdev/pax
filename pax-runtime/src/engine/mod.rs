@@ -31,10 +31,10 @@ pub mod surface_scheduling;
 pub mod surface_work;
 // TODO move these to not be in engine - make separate crates?
 pub mod pax_gpu_render_context;
-pub mod vello_render_context;
 mod recorded_drawing;
 #[cfg(test)]
 mod render_lifecycle_tests;
+pub mod vello_render_context;
 
 /// The atomic unit of rendering; also the container for each unique tuple of computed properties.
 /// Represents an expanded node, that is "expanded" in the context of computed properties and repeat expansion.
@@ -266,7 +266,7 @@ impl std::fmt::Debug for Globals {
     }
 }
 
-/// Singleton struct storing everything related to properties computation & rendering
+/// One application scene and its reactive/runtime state. Rendering services are supplied by the host.
 pub struct PaxEngine {
     pub runtime_context: Rc<RuntimeContext>,
     pub root_expanded_node: Option<Rc<ExpandedNode>>,
@@ -481,6 +481,76 @@ impl PaxEngine {
         root_node
     }
 
+    /// Mount a loading component with its own contextual expression scope.
+    /// This only installs the loader; staged application preparation is separate.
+    #[doc(hidden)]
+    pub fn mount_loading_component(
+        &mut self,
+        component: Rc<ComponentInstance>,
+        loading: pax_runtime_api::LoadingContext,
+    ) -> Rc<ExpandedNode> {
+        let _graph = self.runtime_context.property_graph.enter();
+        self.unmount();
+        let scope = self
+            .runtime_context
+            .globals()
+            .stack_frame()
+            .push_loading(loading);
+        let root = ExpandedNode::initialize_root_in_scope(component, &self.runtime_context, scope);
+        self.runtime_context.register_root_expanded_node(&root);
+        self.root_expanded_node = Some(root.clone());
+        root
+    }
+
+    /// Keep entry animations at their initial state while this application prepares.
+    /// Hosts must also gate its canvas/native presentation and user input.
+    pub fn hold_presentation(&mut self) {
+        assert!(self.root_expanded_node.is_none(), "hold before mounting");
+        self.runtime_context.presentation_held.set(true);
+    }
+
+    /// Start this application's entry transitions at its publication boundary.
+    /// The host's clock must remain paused until this call.
+    pub fn publish_presentation(&mut self) {
+        if !self.runtime_context.presentation_held.get() {
+            return;
+        }
+        self.prepare_presentation_entry();
+        self.runtime_context.presentation_held.set(false);
+    }
+
+    // Stage the first @in keyframe while clocks and input remain held. Its
+    // native patches and canvas capture must pass the same publication gate,
+    // otherwise revealing can flash the pre-transition scene for one frame.
+    fn prepare_presentation_entry(&self) {
+        let ctx = &self.runtime_context;
+        if !ctx.presentation_held.get() || ctx.presentation_entry_prepared.replace(true) {
+            return;
+        }
+        let _graph = ctx.property_graph.enter();
+        ctx.presentation_held.set(false);
+        if let Some(root) = &self.root_expanded_node {
+            root.start_enter_transition_tree(ctx);
+        }
+        ctx.presentation_held.set(true);
+    }
+
+    /// Start the root's authored exit transitions without destroying its lifetime.
+    pub fn begin_presentation_exit(&mut self) {
+        let _graph = self.runtime_context.property_graph.enter();
+        if let Some(root) = &self.root_expanded_node {
+            root.start_exit_transition_tree(&self.runtime_context);
+        }
+    }
+
+    /// Whether every authored exit in the mounted root has completed.
+    pub fn presentation_exit_complete(&self) -> bool {
+        let _graph = self.runtime_context.property_graph.enter();
+        self.root_expanded_node
+            .as_ref()
+            .is_none_or(|root| root.exit_transition_tree_complete(&self.runtime_context))
+    }
+
     /// Detach the mounted root component tree, leaving the runtime kernel empty.
     pub fn unmount(&mut self) {
         let _graph = self.runtime_context.property_graph.enter();
@@ -641,7 +711,9 @@ impl PaxEngine {
 
         let globals = ctx.globals();
         let time = &globals.elapsed_frames;
-        time.set(time.get() + 1);
+        if !ctx.presentation_held.get() {
+            time.set(time.get() + 1);
+        }
         globals
             .elapsed_millis
             .set(saturating_u128_to_u64((globals.get_elapsed_millis)()));
@@ -1615,6 +1687,12 @@ mod tests {
     }
 
     fn empty_component() -> Rc<ComponentInstance> {
+        component_with_transition_config(Default::default())
+    }
+
+    fn component_with_transition_config(
+        transition_config: pax_manifest::cartridge_generation::ComponentTransitionConfig,
+    ) -> Rc<ComponentInstance> {
         <ComponentInstance as InstanceNode>::instantiate(InstantiationArgs {
             prototypical_common_properties: crate::CommonPropertiesInit::Default,
             prototypical_properties: crate::PropertiesInit::Factory(Box::new(|_, _| {
@@ -1627,7 +1705,7 @@ mod tests {
             template_node_identifier: None,
             template_node_type_id: None,
             template_node_selector_info: None,
-            transition_config: Default::default(),
+            transition_config,
             properties_scope: crate::PropertiesScopeInit::None,
         })
     }
@@ -1725,6 +1803,139 @@ mod tests {
             Some(root.id)
         );
         let _ = engine.tick();
+    }
+
+    #[test]
+    fn loading_context_is_scoped_to_loader_and_expires_on_unmount() {
+        use pax_runtime_api::loading::LoadingController;
+        use pax_runtime_api::{LoadingDownload, LoadingState};
+        let mut engine = crate::test_support::empty_engine(
+            (320.0, 240.0),
+            Platform::Web,
+            OS::Mac,
+            Box::new(|| 0),
+            layer_tiling::ScrollerTilingPolicy::default(),
+        );
+        let _graph = engine.runtime_context.property_graph.enter();
+        let controller = LoadingController::new();
+        let attempt = controller.begin(LoadingState::default()).unwrap();
+        let root = engine.mount_loading_component(empty_component(), controller.context());
+        let context = root.get_node_context(&engine.runtime_context);
+        assert!(context.loading().is_some());
+        let descendant_scope = root.stack.push(Default::default());
+        let expression = descendant_scope.resolve_symbol("@loading").unwrap();
+        let state = LoadingState {
+            download: LoadingDownload {
+                received_bytes: 42,
+                total_bytes: Some(100),
+            },
+            ..Default::default()
+        };
+        controller.publish(&attempt, state.clone());
+        assert_eq!(
+            expression.get_as_pax_value(),
+            pax_runtime_api::ToPaxValue::to_pax_value(state)
+        );
+        let application_root = engine.mount_root_component(empty_component());
+        assert!(application_root
+            .get_node_context(&engine.runtime_context)
+            .loading()
+            .is_none());
+        assert!(application_root.stack.resolve_symbol("@loading").is_none());
+        assert!(context.loading().is_none());
+    }
+
+    #[test]
+    fn concurrent_applications_keep_lifetime_clock_and_entry_independent() {
+        use pax_runtime_api::application::ApplicationInstance;
+        use pax_runtime_api::{AppOptions, AppPhase, StopReason, TargetInfo};
+        fn make(held: bool) -> PaxEngine {
+            let owner = ApplicationInstance::prepare(
+                TargetInfo::new(Platform::Web, OS::Mac),
+                AppOptions::default(),
+            )
+            .unwrap();
+            let entered = owner.enter();
+            owner.initialize(|_| Ok(())).unwrap();
+            let mut engine = crate::test_support::empty_engine(
+                (320.0, 240.0),
+                Platform::Web,
+                OS::Mac,
+                Box::new(|| 0),
+                layer_tiling::ScrollerTilingPolicy::default(),
+            );
+            if held {
+                engine.hold_presentation();
+                engine.enable_resumable_startup();
+            }
+            engine.mount_root_component(component_with_transition_config(
+                pax_manifest::cartridge_generation::ComponentTransitionConfig {
+                    has_enter: true,
+                    enter_frame_count: 10,
+                    has_exit: true,
+                    exit_frame_count: 3,
+                    timeout_ms: 5000,
+                    ..Default::default()
+                },
+            ));
+            drop(entered);
+            engine.activate_application();
+            engine
+        }
+        let mut loader = make(false);
+        let mut main = make(true);
+        assert_ne!(
+            loader.runtime_context.property_graph.id(),
+            main.runtime_context.property_graph.id()
+        );
+        assert_ne!(
+            loader.root_expanded_node.as_ref().unwrap().id,
+            main.root_expanded_node.as_ref().unwrap().id
+        );
+        for _ in 0..5 {
+            loader.tick();
+            main.service_startup(4.0, || 0.0);
+        }
+        assert_eq!(loader.runtime_context.globals().elapsed_frames.get(), 5);
+        assert_eq!(main.runtime_context.globals().elapsed_frames.get(), 0);
+        let root = main.root_expanded_node.as_ref().unwrap().clone();
+        assert_ne!(
+            root.transition_phase.get(),
+            pax_manifest::cartridge_generation::TRANSITION_PHASE_ENTER
+        );
+        for _ in 0..8 {
+            if main.prepare_startup_presentation() {
+                break;
+            }
+            main.service_startup(4.0, || 0.0);
+        }
+        assert_eq!(
+            root.transition_phase.get(),
+            pax_manifest::cartridge_generation::TRANSITION_PHASE_ENTER
+        );
+        assert_eq!(root.transition_playhead.get(), 0.0);
+        assert_eq!(main.runtime_context.globals().elapsed_frames.get(), 0);
+        main.publish_presentation();
+        assert_eq!(
+            root.transition_phase.get(),
+            pax_manifest::cartridge_generation::TRANSITION_PHASE_ENTER
+        );
+        assert_eq!(root.transition_playhead.get(), 0.0);
+        main.tick();
+        assert_eq!(root.transition_playhead.get(), 1.0);
+        loader.begin_presentation_exit();
+        assert!(!loader.presentation_exit_complete());
+        for _ in 0..3 {
+            loader.tick();
+        }
+        assert!(loader.presentation_exit_complete());
+        loader.shutdown(StopReason::HostClosed);
+        assert_eq!(
+            main.runtime_context.application.context().phase(),
+            AppPhase::Active
+        );
+        main.tick();
+        assert_eq!(root.transition_playhead.get(), 2.0);
     }
 
     #[test]

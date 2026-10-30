@@ -186,6 +186,38 @@ pub fn build_program_catalog_from_sources(
     build_program_catalog(project_path, &mut registry, options)
 }
 
+/// Build a separate root definition graph for a configured loading component.
+/// The path is resolved in the application's crate-root scope, including re-exports.
+#[doc(hidden)]
+pub fn build_component_manifest_from_sources(
+    project_path: &Path,
+    packages: &[SourcePackage],
+    root: &str,
+    options: BuildManifestOptions,
+    sources: crate::configured_source::Sources,
+) -> Result<PaxManifest> {
+    let mut registry = build_source_registry(packages, sources)?;
+    registry.ensure_root_package_scanned()?;
+    let scope = registry
+        .runnables
+        .iter()
+        .find(|r| r.package_name == registry.root_package_name)
+        .ok_or_else(|| eyre!("loading component requires an application root"))?
+        .scope
+        .clone();
+    let scope = registry
+        .scopes
+        .get(&scope.import_root)
+        .cloned()
+        .unwrap_or(scope);
+    let path = registry.resolve_declared_root(root, &scope, &mut HashSet::new())?;
+    let item = registry.items_by_import_path[&path].clone();
+    if !matches!(item.kind, PaxItemKind::FullComponent { .. }) {
+        return Err(eyre!("loader must name a Pax component with a template"));
+    }
+    build_definitions(project_path, &mut registry, &[item], options)
+}
+
 /// Resolve a component library's source dependencies without constructing UI
 /// instances. The frontend collects dependency helpers through Rust's own crate
 /// paths, without asking Cargo to resolve a second dependency graph.
@@ -2429,6 +2461,7 @@ impl StaticRegistry {
                     | "alloc"
                     | "pax_kit"
                     | "pax_engine"
+                    | "pax_std"
                     | "pax_runtime_api"
                     | "pax_runtime"
                     | "pax_manifest"
@@ -2854,6 +2887,45 @@ struct PaxConfig {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn loading_component_graph_excludes_application_only_definitions() {
+        let source = r#"
+            #[pax] #[primitive("pax_std::core::blank_component::BlankComponent")]
+            pub struct BlankComponent {}
+            #[pax] #[inlined(<BlankComponent />)] pub struct Boot {}
+            #[pax] #[inlined(<BlankComponent />)] pub struct AppOnly {}
+            #[pax] #[inlined(<AppOnly />)] pub struct Main {}
+            runnable! { root: Main }
+        "#;
+        let (directory, _) = catalog_fixture(source);
+        let entry = directory.path().join("lib.rs").canonicalize().unwrap();
+        let package = SourcePackage {
+            entry: entry.clone(),
+            manifest_dir: directory.path().into(),
+            name: "fixture".into(),
+            crate_name: "fixture".into(),
+            dependencies: Default::default(),
+            links: Default::default(),
+        };
+        let manifest = build_component_manifest_from_sources(
+            directory.path(),
+            &[package],
+            "crate::Boot",
+            Default::default(),
+            [(entry, syn::parse_file(source).unwrap())].into(),
+        )
+        .unwrap();
+        let names: Vec<_> = manifest
+            .components
+            .keys()
+            .map(|id| id.get_unique_identifier())
+            .collect();
+        assert!(names.iter().any(|name| name.contains("Boot")));
+        assert!(!names
+            .iter()
+            .any(|name| name.contains("AppOnly") || name.contains("Main")));
+    }
+
     #[test]
     fn configured_inline_pax_retains_original_whitespace_and_unicode() {
         let source = r##"

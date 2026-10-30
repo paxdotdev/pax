@@ -15,6 +15,7 @@ function session() {
         export function create(options) { return liveSession = new MountSession(options); }
     `, {loader: 'ts', format: 'cjs'}).code, {
         module, exports: module.exports, DOMException,
+        shutdownObservers: new WeakMap(), hosts: new Set(), host: {},
         document: {createElement: () => ({remove() { removals++; }})},
         disposeCurrentChassis() { disposals++; },
     });
@@ -60,4 +61,47 @@ test('startup service failure preserves its original error and closes the region
     h.app.finishStartup();
     await h.app.closed;
     assert.equal(h.disposals(), 1);
+});
+
+test('revealing beneath a loader starts presentation once but retains input until publication', () => {
+    const state = {ready: false, unpaused: 0, frames: 0, disposed: 0};
+    const attributes = new Map();
+    const region = {
+        inert: false,
+        setAttribute(name, value) { attributes.set(name, value); },
+        removeAttribute(name) { attributes.delete(name); },
+    };
+    const module = {exports: {}};
+    vm.runInNewContext(transformSync(`
+        let liveSession = null;
+        const currentChassis = {
+            prepare_startup_presentation: () => state.ready,
+            publish_application() { state.unpaused++; },
+        };
+        const mountYieldEnabled = true, startupPresented = true;
+        const nativePool = {startupTextReady: () => true, startupSurfacesReady: () => true};
+        let startupScheduler = {dispose() { state.disposed++; }}, startupWork = {};
+        function runFrame() { state.frames++; }
+        ${owner}
+        export const app = new MountSession({element: {appendChild() {}}, holdPresentation: true});
+    `, {loader: 'ts', format: 'cjs'}).code, {
+        module, exports: module.exports, state,
+        document: {createElement: () => region},
+    });
+    const {app} = module.exports;
+    assert.equal(app.reveal(), false);
+    assert.ok(attributes.has('data-pax-preparing'));
+    state.ready = true;
+    assert.equal(app.reveal(), true);
+    assert.equal(attributes.has('data-pax-preparing'), false);
+    assert.equal(region.inert, true);
+    assert.equal(attributes.get('aria-hidden'), 'true');
+    assert.equal(state.unpaused, 1);
+    assert.equal(state.frames, 1);
+    assert.equal(app.reveal(), true);
+    assert.equal(app.publish(), true);
+    assert.equal(region.inert, false);
+    assert.equal(attributes.has('aria-hidden'), false);
+    assert.equal(state.unpaused, 1);
+    assert.equal(state.disposed, 1);
 });

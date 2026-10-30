@@ -11,12 +11,20 @@ use toml_edit::{Document, Item, Table};
 mod apple_plist;
 use apple_plist::{apply_apple_plists, plist_overlay};
 
+/// The application's opt-in Web loading component.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LoaderComponent {
+    Default,
+    Custom(String),
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct PaxProjectMetadata {
     manifest_dir: PathBuf,
     package_name: Option<String>,
     package_version: Option<String>,
     common: CommonMetadata,
+    loader: Option<LoaderComponent>,
     dev: DevMetadata,
     web: WebMetadata,
     ios: AppleMetadata,
@@ -102,6 +110,11 @@ pub fn apply_copied_interface_metadata(
 }
 
 impl PaxProjectMetadata {
+    /// Loading is disabled when metadata omits `loader` or sets it to false.
+    pub fn loader(&self) -> Option<&LoaderComponent> {
+        self.loader.as_ref()
+    }
+
     pub(crate) fn web_server_owned_prefixes(&self) -> &[String] {
         &self.web.server_owned_prefixes
     }
@@ -333,6 +346,19 @@ fn load_project_metadata_from_toml(
         return Ok(metadata);
     };
 
+    metadata.loader = match pax.get("loader") {
+        None => None,
+        Some(item) if item.as_bool() == Some(false) => None,
+        Some(item) if item.as_bool() == Some(true) => Some(LoaderComponent::Default),
+        Some(item) if item.as_str().is_some_and(|path| !path.trim().is_empty()) => {
+            Some(LoaderComponent::Custom(item.as_str().unwrap().into()))
+        }
+        _ => {
+            return Err(eyre!(
+                "package.metadata.pax.loader must be false, true, or a Rust component path"
+            ))
+        }
+    };
     metadata.common = parse_common_metadata(pax, "package.metadata.pax", manifest_dir)?;
     if let Some(dev) = child_table(pax, "dev", "package.metadata.pax.dev")? {
         metadata.dev = parse_dev_metadata(dev, "package.metadata.pax.dev")?;
@@ -985,6 +1011,30 @@ fn image_has_transparency(image: &image::DynamicImage) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn loader_metadata_is_opt_in_and_preserves_component_paths() {
+        assert_eq!(load("[package]").loader(), None);
+        assert_eq!(
+            load("[package.metadata.pax]\nloader = false").loader(),
+            None
+        );
+        assert_eq!(
+            load("[package.metadata.pax]\nloader = true").loader(),
+            Some(&LoaderComponent::Default)
+        );
+        assert_eq!(
+            load("[package.metadata.pax]\nloader = \"crate::BootScreen\"").loader(),
+            Some(&LoaderComponent::Custom("crate::BootScreen".into()))
+        );
+        for value in ["0", "[]", "\"\"", "\"   \""] {
+            assert!(load_project_metadata_from_toml(
+                Path::new("."),
+                &format!("[package.metadata.pax]\nloader = {value}")
+            )
+            .is_err());
+        }
+    }
 
     #[test]
     fn server_owned_prefixes_are_validated_and_normalized() {

@@ -8,6 +8,9 @@ pub use async_runtime::{
     AsyncError, AsyncLimits, AsyncScope, Closed, Completion, GuardedPublisher, TaskControl,
     TaskOutcome, TaskStatus, TrySendError, UiSender, UiSubscription,
 };
+pub mod loading;
+pub use loading::{LoadingContext, LoadingDownload, LoadingPhase, LoadingState};
+
 pub mod application_shutdown;
 pub use application_shutdown::{ShutdownComplete, ShutdownTicket};
 pub mod application;

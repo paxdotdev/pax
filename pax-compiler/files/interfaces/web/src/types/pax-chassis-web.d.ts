@@ -7,6 +7,15 @@ export function wasm_memory(): any;
 /**
 */
 export class PaxChassisWeb {
+  accept_startup_measurements(): boolean;
+  resume_startup_after_presentation(): void;
+  application_closed(): Promise<void>;
+  publish_application(): void;
+  begin_presentation_exit(): void;
+  presentation_exit_complete(): boolean;
+  loading_update(phase: string, received: number, total: number | undefined, error: string | undefined, retry: boolean, cancel: boolean): void;
+  take_loading_request(): string | undefined;
+
   request(bytes: Uint8Array): Promise<Uint8Array>;
   free(): void;
   set_property_waker(callback: () => void): void;
@@ -65,6 +74,7 @@ export class PaxChassisWeb {
 */
   render(): void;
   begin_render_work(epoch: number): void;
+  continue_render_work(epoch: number): void;
   render_work_is_settled(): boolean;
   service_render_work(slice_ms: number): import('../utils/cooperative-render').RenderWorkResult & {
     blocker: string | null; units: number; ordinary_layers: number; atomic_fallbacks: number;

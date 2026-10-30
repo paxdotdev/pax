@@ -525,6 +525,55 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
     }
     let project = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let packages = source_packages(&request);
+    let owner_package = package(session)?;
+    let loader = match owner_package
+        .metadata
+        .get("pax")
+        .and_then(|p| p.get("loader"))
+    {
+        None | Some(serde_json::Value::Bool(false)) => None,
+        Some(serde_json::Value::Bool(true)) => {
+            Some("pax_std::loading_screen::DefaultLoadingScreen".to_string())
+        }
+        Some(serde_json::Value::String(path)) if !path.trim().is_empty() => Some(path.clone()),
+        _ => {
+            return Err(eyre!(
+                "package.metadata.pax.loader must be false, true, or a Rust component path"
+            ))
+        }
+    };
+    // Loader and application definitions must have independent reachability roots.
+    let mut loader_manifest = None;
+    let loader_snippet = if let Some(root) = loader
+        .as_ref()
+        .filter(|_| request.snapshot.facts["target_arch = \"wasm32\""])
+    {
+        let mut manifest = match pax_codegen::static_analysis::build_component_manifest_from_sources(
+            &project,
+            &packages,
+            root,
+            pax_codegen::static_analysis::BuildManifestOptions {
+                is_designtime: crate::designtime_enabled(),
+            },
+            all_sources.clone(),
+        ) {
+            Ok(manifest) => manifest,
+            Err(error) => return request_dependency(&request, error),
+        };
+        manifest.engine_import_path = request.engine.clone();
+        for component in manifest.components.values_mut() {
+            component.is_main_component = component.type_id == manifest.main_component_type_id;
+        }
+        let snippet = pax_codegen::generate(
+            &manifest,
+            crate::designtime_enabled(),
+            !crate::designtime_enabled(),
+        );
+        loader_manifest = Some(manifest);
+        snippet
+    } else {
+        String::new()
+    };
     let catalog = match pax_codegen::static_analysis::build_program_catalog_from_sources(
         &project,
         &packages,
@@ -551,6 +600,17 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
     if crate::is_root_crate() {
         if let Some(path) = std::env::var_os("PAX_MANIFEST_OUTPUT") {
             let path = PathBuf::from(path);
+            // Packaging metadata stays separate from both runtime definition graphs.
+            if let Some(loader_manifest) = &loader_manifest {
+                let loader_path = path.with_file_name("manifest-loader-web.json");
+                let bytes = manifest_bytes(loader_manifest)?;
+                if std::fs::read(&loader_path).ok().as_deref() != Some(bytes.as_slice()) {
+                    std::fs::write(&loader_path, bytes)?;
+                }
+                output.push_str(&format!(
+                    "const _: &[u8] = include_bytes!({loader_path:?});"
+                ));
+            }
             let bytes = manifest_bytes(&manifest)?;
             if std::fs::read(&path).ok().as_deref() != Some(bytes.as_slice()) {
                 std::fs::write(&path, bytes)?;
@@ -644,6 +704,8 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
         .unwrap();
     let adapter = crate::TemplateArgsCartridge {
         catalog: true,
+        loader,
+        loader_snippet,
         web_entrypoint: pax_codegen::project_layout::web_entrypoint(
             &package.id.repr,
             &library.name,

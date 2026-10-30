@@ -103,7 +103,7 @@ Type: `HashMap`<`String`, `Vec`<[`Handler`](../../../api/internal/pax-runtime/en
 ---
 
 ### `PaxEngine`
-Singleton struct storing everything related to properties computation & rendering
+One application scene and its reactive/runtime state. Rendering services are supplied by the host.
 
 #### Properties
 ##### `runtime_context`
@@ -170,6 +170,17 @@ Contains all rendering and runtime logic.
 Activates the mounted application exactly once. Candidate hosts defer this
 until their revision is committed.
 
+##### `begin_presentation_exit`
+<pre><code class="api-signature language-rust ignore">pub fn begin_presentation_exit(&amp;mut self)</code></pre>
+
+Start the root's authored exit transitions without destroying its lifetime.
+
+##### `hold_presentation`
+<pre><code class="api-signature language-rust ignore">pub fn hold_presentation(&amp;mut self)</code></pre>
+
+Keep entry animations at their initial state while this application prepares.
+Hosts must also gate its canvas/native presentation and user input.
+
 ##### `mount_root_component`
 <pre><code class="api-signature language-rust ignore">pub fn mount_root_component(&amp;mut self, main_component_instance: Rc&lt;<a href="../../../api/internal/pax-runtime/component.md#componentinstance">ComponentInstance</a>&gt;) -&gt; Rc&lt;ExpandedNode&gt;</code></pre>
 
@@ -185,6 +196,17 @@ Capture reads current properties and inherited rendering hooks; cached
 replay needs no component callbacks. Reselect after each submission while
 the allowance permits. Blocked layers wait until the next pass without
 preventing eligible siblings from using the remaining allowance.
+
+##### `presentation_exit_complete`
+<pre><code class="api-signature language-rust ignore">pub fn presentation_exit_complete(&amp;self) -&gt; bool</code></pre>
+
+Whether every authored exit in the mounted root has completed.
+
+##### `publish_presentation`
+<pre><code class="api-signature language-rust ignore">pub fn publish_presentation(&amp;mut self)</code></pre>
+
+Start this application's entry transitions at its publication boundary.
+The host's clock must remain paused until this call.
 
 ##### `render_with_surface_preparation`
 <pre><code class="api-signature language-rust ignore">pub fn render_with_surface_preparation(&amp;mut self, rcs: &amp;mut dyn <a href="../../../api/pax-runtime-api/rendering.md#rendercontext">RenderContext</a>, budget: &amp;mut <a href="../../../api/internal/pax-runtime/engine/surface_work.md#surfaceworkbudget">SurfaceWorkBudget</a>, now_ms: impl Fn() -&gt; f64, observe: &amp;mut dyn FnMut(&amp;&#39;static str)) -&gt; (<a href="../../../api/internal/pax-runtime/engine/surface_work.md#surfaceworkreport">SurfaceWorkReport</a>, <a href="../../../api/internal/pax-runtime/engine/surface_work.md#surfaceworkreport">SurfaceWorkReport</a>)</code></pre>

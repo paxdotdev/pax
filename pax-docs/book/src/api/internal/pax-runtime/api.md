@@ -210,6 +210,13 @@ Return the interface for this node's containing component, when present.
 
 Shared map where completed screenshot captures are published by id.
 
+##### `loading`
+<pre><code class="api-signature language-rust ignore">pub fn loading(&amp;self) -&gt; Option&lt;<a href="../../../api/pax-runtime-api/loading.md#loadingcontext">LoadingContext</a>&gt;</code></pre>
+
+Loading state and supported actions for a node in the loading component.
+Returns `None` in the main application, after unmount, or after loading
+closes. Descendants inherit the same context as `@loading` in Pax.
+
 ##### `local_point`
 <pre><code class="api-signature language-rust ignore">pub fn local_point(&amp;self, p: Point2&lt;<a href="../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;) -&gt; Point2&lt;<a href="../../../api/internal/pax-runtime/engine/node_interface.md#nodelocal">NodeLocal</a>&gt;</code></pre>
 

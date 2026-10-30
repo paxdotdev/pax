@@ -144,6 +144,18 @@ impl NodeContext {
         self.runtime_context.application.context()
     }
 
+    /// Loading state and supported actions for a node in the loading component.
+    /// Returns `None` in the main application, after unmount, or after loading
+    /// closes. Descendants inherit the same context as `@loading` in Pax.
+    pub fn loading(&self) -> Option<LoadingContext> {
+        self.expanded_node
+            .upgrade()
+            .filter(|node| node.stores.generation() == self.store_generation)?;
+        self.expression_stack
+            .loading()
+            .filter(|loading| loading.snapshot().is_some())
+    }
+
     /// Convert a window-space point into this node's local coordinate space, including any
     /// presentation offsets inherited from ancestor scrollers.
     pub fn local_point(&self, p: Point2<Window>) -> Point2<NodeLocal> {

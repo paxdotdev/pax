@@ -1252,6 +1252,10 @@ export class NativeElementPool {
         });
     }
 
+    startupSurfacesReady(): boolean {
+        return this.surfaceCoordinator?.presentationReady() ?? false;
+    }
+
     startupTextReady(): boolean {
         // Previewed text may be visible already, but its latest measurement
         // must still settle before startup releases queued input.

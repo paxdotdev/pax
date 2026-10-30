@@ -293,6 +293,9 @@ impl PaxEngine {
         if self.runtime_context.startup.borrow().blocks_presentation() {
             return false;
         }
+        if !self.startup_pending() {
+            self.prepare_presentation_entry();
+        }
         let ctx = &self.runtime_context;
         let _graph = ctx.property_graph.enter();
         ctx.reconsider_startup_deferred();
@@ -483,7 +486,7 @@ impl PaxEngine {
                     Phase::Clock => {
                         name = "clock_events";
                         let globals = ctx.globals();
-                        if !ctx.startup.borrow().clock_advanced {
+                        if !ctx.presentation_held.get() && !ctx.startup.borrow().clock_advanced {
                             ctx.startup.borrow_mut().clock_advanced = true;
                             globals.elapsed_frames.set(globals.elapsed_frames.get() + 1);
                             globals

@@ -9,6 +9,7 @@ provide the browsing ontology used by the generated API docs.
 
 ## Submodules
 - [async_runtime](async_runtime.md)
+- [loading](loading.md)
 - [application_shutdown](application_shutdown.md)
 - [application](application.md)
 - [animation](animation.md)

@@ -466,7 +466,7 @@ test('geometry observations expire on resize, plan/policy changes, and native pa
     viewport.innerWidth = 900; viewport.devicePixelRatio = 1;
     delete viewport.visualViewport;
     const index = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
-    assert.match(index, /export function processMessages[\s\S]*?nativePool\.invalidateSurfaceHostObservation\(\)/);
+    assert.match(index, /function processMessages[\s\S]*?nativePool\.invalidateSurfaceHostObservation\(\)/);
 });
 
 test('a recycled canvas at the same tile address receives a fresh renderer', () => {

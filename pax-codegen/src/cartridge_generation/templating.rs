@@ -209,7 +209,7 @@ mod tests {
                 "#[allow(dead_code, non_snake_case, non_upper_case_globals, unused_imports, unused_variables)]\nmod __pax_generated_cartridge"
             ));
             assert!(generated.contains(
-                "use __pax_generated_cartridge::{init_definition_to_instance_traverser, init_manifest};"
+                "use self::__pax_generated_cartridge::{init_definition_to_instance_traverser, init_manifest};"
             ));
             assert!(generated.contains("std::cell::Ref<'_, pax_manifest::PaxManifest>"));
             assert!(!generated.contains("std::cell::Ref<pax_manifest::PaxManifest>"));

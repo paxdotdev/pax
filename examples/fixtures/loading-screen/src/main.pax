@@ -1,0 +1,13 @@
+<Textbox x=50% y=65% width=280px height=40px text=bind:note/>
+<Text x=50% y=40% width=360px height=50px text="Application ready"
+    style={TextStyle { font: "Arial", font_size: 28px, fill: WHITE,
+        align_horizontal: TextAlignHorizontal::Center }}/>
+<Rectangle x=50% y=80% width=50px height=50px fill={rgb(240, 145, 60)}
+    rotate=@timeline { duration: 1800ms, 0: 0deg, 100%: 360deg }/>
+<Rectangle width=100% height=100% fill={rgb(24, 31, 41)}/>
+
+@settings { @in: arrive }
+@timeline arrive {
+    duration: 600ms,
+    self { opacity: { 0%: 0, OutQuad, 100%: 1 } }
+}

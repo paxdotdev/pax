@@ -28,6 +28,8 @@ pub enum InternalDefinitions {
 #[template(path = "../templates/cartridge.stpl", escape = false)]
 pub struct TemplateArgsCartridge {
     pub catalog: bool,
+    pub loader: Option<String>,
+    pub loader_snippet: String,
     pub web_entrypoint: String,
     pub root_path: String,
     pub initializer: String,
@@ -73,6 +75,8 @@ mod tests {
             cartridge: if root {
                 TemplateArgsCartridge {
                     catalog: false,
+                    loader: None,
+                    loader_snippet: String::new(),
                     web_entrypoint: "init_web".into(),
                     root_path: "EmbeddedExample".into(),
                     initializer: "example_init".into(),

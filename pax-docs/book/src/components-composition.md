@@ -808,6 +808,133 @@ For an advanced alternative that implements an element directly through the
 Rust runtime, read [Primitives](primitives.md). That chapter covers when to
 use a primitive, how to author one, and its rendering and lifecycle responsibilities.
 
+## Loading-context components (experimental)
+
+`DefaultLoadingScreen` is an ordinary Pax component: a still Pax logo and an
+unlabeled progress bar on black. It consumes the same scoped state as a custom
+loading component. The normal screen uses vectors; failure and retry controls
+use native text with a system font. Its optional `@replay` event lets a preview
+restart its simulation when the logo is clicked. It does not restart a real
+application download by itself.
+
+Web applications opt in through the selected UI library's `Cargo.toml`:
+
+```toml
+[package.metadata.pax]
+loader = true # false (the default), true, or "crate::BootScreen"
+```
+
+`true` selects `DefaultLoadingScreen`. A component path selects a templated Pax
+component initialized through `Default`; it does not need its own `runnable!`.
+There is at most one configured loader per UI library. The CLI emits a bootstrap
+Wasm containing the runtime and loader, and a second `split_application.wasm`
+containing the application code and definitions. Both files come from the same
+build and must be deployed together, with the generated JavaScript and assets.
+This is not a stable ABI between independently versioned runtime cartridges.
+
+This experimental packaging uses the upstream Leptos/Yew splitter. Install
+`wasm_split_cli_support` 0.2.4 with its binary feature and a `wasm-bindgen-cli`
+version matching the project's resolved `wasm-bindgen` dependency:
+
+```sh
+cargo +1.95.0 install wasm_split_cli_support --version 0.2.4 --features build-binary --locked
+cargo install wasm-bindgen-cli --version 0.2.129 --locked
+pax-cli run --path my-app --target web --release
+```
+
+`PAX_WASM_SPLIT` and `PAX_WASM_BINDGEN` can select explicit executables. Normal
+builds without a loader retain their existing packaging path. The bootstrap
+must finish loading before a Pax component can render; progress covers the
+second Wasm download. Append `?pax_loader_ms=5000` to a preview URL to artificially
+slow that stream for inspection. Remove it to observe real loading behavior.
+
+The web host mounts the loader in its own application lifetime and keeps it
+active while the main application prepares in a hidden, inert surface. Native
+controls retain layout for font and measurement feedback, but cannot receive
+input or appear in the accessibility tree. Publication waits for mount work,
+native measurement, and submission of the initial visible canvas surfaces.
+It does not wait for every offscreen asset or application-defined async task.
+Then the main canvas and native elements become visible together beneath the
+loader, and the main application's `@in` begins with its clock unpaused while
+the loader's `@out` runs. The default loader fades its opacity over 250 ms.
+Application input and accessibility remain blocked until the loader exits;
+the `init_web` promise resolves after this handoff.
+
+Mount and render continuations share a soft work budget across hosted
+applications. Drawing that exhausts an allowance continues across display
+frames; input or property changes first return through normal settlement.
+A synchronous Rust initializer, event handler, Wasm installation,
+or indivisible browser/GPU operation can still block the UI thread; a loader
+cannot make arbitrary synchronous work preemptible. Move expensive application
+work into yielding tasks where appropriate.
+
+This integration currently targets web, in development and release builds.
+Native chassis still initialize the main application directly. The loading-state
+API is portable, but native preparation and coordinated publication need chassis
+integration before they can use this metadata. Invoking a loading component in
+an ordinary application tree does not create the host loading scope.
+See the [custom loading-screen fixture](../../../examples/fixtures/loading-screen)
+for a complete component with cancellation and exit/entry timelines.
+
+Within a loading scope, a custom component can bind progress without polling:
+
+```pax
+<Group width=184px height=5px>
+    <Rectangle width={((@loading.download.fraction ?? 0) * 100)%}
+        height=100% fill=WHITE/>
+    <Rectangle width=100% height=100% fill={rgb(49, 49, 49)}/>
+</Group>
+```
+
+`@loading` is inherited by the loader's descendants, not by the main application.
+Its fields are:
+
+| Field | Meaning |
+| --- | --- |
+| `phase` | `"downloading"`, `"preparing"`, `"ready"`, `"revealing"`, `"active"`, `"failed"`, or `"cancelled"`. |
+| `download.received_bytes` | Decoded application-module bytes received in this attempt. |
+| `download.total_bytes` | Optional expected decoded size; not compressed transfer size. |
+| `download.fraction` | Optional fraction in 0–1. Unknown or zero total yields `None`. |
+| `error` | Optional failure message. |
+| `can_retry`, `can_cancel` | Actions the host can currently accept safely. |
+
+A completed download is not a ready application. There is no overall percentage
+for compilation, mounting or rendering. The default screen dedicates the first
+67% of its bar to download progress and the remaining 33% to initialization.
+Without a known positive total, the same fill gradually approaches 62%.
+During initialization it advances from 67% toward 95%, slowing as it approaches
+that limit and never moving backward within an attempt. This is visual activity,
+not a measured initialization percentage;
+it does not change `@loading.download.fraction`. Once ready, the loader's 250 ms
+exit timeline fills the remaining width to 100% as the entire screen fades away.
+A retry or preview replay starts a new progress cycle.
+
+Rust handlers access the same state through `ctx.loading()`. This returns `None`
+outside the loading scope, after node unmount, or after the host closes loading.
+Use `snapshot()` for an optional current `LoadingState`, or `observe()` for a
+one-way reactive property that can be passed to `ctx.subscribe`. Editing a
+snapshot or the observation does not mutate host state. Closing the loading
+experience changes the observation to `None`.
+
+For example, a custom Retry button can call:
+
+```rust
+pub fn retry(&mut self, ctx: &NodeContext, _event: Event<ButtonClick>) {
+    if let Some(loading) = ctx.loading() {
+        loading.retry();
+    }
+}
+```
+
+`retry()` and `cancel()` return whether the request was accepted. Requests are
+queued for the host, not executed reentrantly from the handler. Only one action
+can be pending; the capabilities become false until the host publishes its next
+state. A Cancel accepted during preparation still takes effect if mounting
+finishes before the host drains the request: that attempt is closed without
+revealing the application, and an available Retry starts a fresh attempt.
+A saved handle does not keep the host alive. Async completions from a retired
+attempt cannot update a new attempt's state.
+
 ## Read more
 
 You can now give a reusable view its own interface, choose the owner of its

@@ -3,6 +3,7 @@ pub mod core;
 pub mod drawing;
 pub mod forms;
 pub mod layout;
+pub mod loading_screen;
 pub mod media;
 pub mod reference;
 #[cfg(feature = "shaders")]
@@ -13,6 +14,7 @@ pub use core::*;
 pub use drawing::*;
 pub use forms::*;
 pub use layout::*;
+pub use loading_screen::*;
 pub use media::*;
 pub use reference::*;
 #[cfg(feature = "shaders")]

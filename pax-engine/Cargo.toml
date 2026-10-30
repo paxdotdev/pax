@@ -26,6 +26,7 @@ serde_json = {version = "1.0.95", optional = true}
 wasm-bindgen = {version = "0.2.92", optional=true}
 wasm-bindgen-futures = {version = "0.4.42", optional=true}
 log = "0.4.20"
+wasm_split_helpers = { version = "=0.2.3", optional = true }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 # backtrace 0.3.76 uses dyld declarations that libc 0.2.190 hides on iOS.
@@ -40,6 +41,6 @@ json = ["dep:serde_json"]
 gpu = ["pax-chassis-web?/gpu"]
 cpu = ["pax-chassis-web?/cpu"]
 designtime = ["json", "dep:pax-designtime", "pax-language/parser", "pax-manifest/designtime", "pax-runtime/designtime", "pax-chassis-web?/designtime", "pax-chassis-macos?/designtime", "pax-chassis-ios?/designtime", "pax-macro/designtime"]
-web = ["dep:pax-chassis-web", "dep:wasm-bindgen", "dep:wasm-bindgen-futures"]
+web = ["dep:wasm_split_helpers", "dep:pax-chassis-web", "dep:wasm-bindgen", "dep:wasm-bindgen-futures"]
 macos = ["dep:pax-chassis-macos", "dep:pax-chassis-common"]
 ios = ["dep:pax-chassis-ios", "dep:pax-chassis-common"]

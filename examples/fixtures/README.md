@@ -31,6 +31,7 @@ accepts `fixtures/<name>` and `examples/fixtures/<name>`.
 | [fireworks](fireworks) | Scroll-driven procedural motion; dependency of legacy examples |
 | [game-of-life](game-of-life) | Editable grid and Rust simulation state |
 | [glow-buttons](glow-buttons) | Scoped lighting regression/study |
+| [loading-screen](loading-screen) | Custom startup component, cancellation, and coordinated native/canvas reveal |
 | [marionette](marionette) | Jointed puppet and nested declarative timelines |
 | [mesh-gradients](mesh-gradients) | Gradient control points and reactive binding study |
 | [mouse-animation](mouse-animation) | Pointer-driven transform teaching example |

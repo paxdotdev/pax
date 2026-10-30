@@ -449,6 +449,11 @@ Here `self` targets the NoteCard instance itself, including its position
 within the calling template. The named timelines can also use `#id` or
 `.class` selectors for elements inside NoteCard's template.
 
+Common-property tracks such as `self.opacity` also apply to application roots.
+For example, a [custom loading screen](components-composition.md#loading-context-components-experimental)
+can fade its entire tree with a root `@out`; the web host starts that exit once
+the prepared application is visible beneath it.
+
 Add a `Property<bool>` named `show_note` to a parent and toggle it from an
 event handler. This conditional placement gives the card something to
 enter and leave:

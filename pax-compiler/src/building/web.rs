@@ -1,3 +1,5 @@
+#[path = "web_loading.rs"]
+mod loading;
 use crate::building::web_public::{
     existing_project_public_dir, materialize_public_dir, project_public_dir, validate_public_dir,
 };
@@ -83,11 +85,17 @@ fn print_web_bundle_stats(build_dest: &std::path::Path, build_mode_name: &str) {
     let include_gzip = build_mode_name != "debug";
     let stats_result = [
         "pax-cartridge_bg.wasm",
+        "split_application.wasm",
         "pax-cartridge.js",
         "pax-interface-web.js",
     ]
     .into_iter()
-    .zip(["wasm", "cartridge js", "interface js"])
+    .zip([
+        "bootstrap wasm",
+        "application wasm",
+        "cartridge js",
+        "interface js",
+    ])
     .filter_map(|(filename, label)| {
         collect_bundle_stat(build_dest, label, filename, include_gzip).transpose()
     })
@@ -387,6 +395,21 @@ pub(crate) fn compile_web_cartridge(
     let build_mode_name = web_build_mode(ctx);
 
     let interface_path = pax_dir.join(INTERFACE_DIR_NAME).join("web");
+
+    if crate::project_metadata::load_project_metadata(&layout.cartridge_dir)?
+        .loader()
+        .is_some()
+    {
+        loading::compile(
+            ctx,
+            pax_dir,
+            &layout,
+            &interface_path,
+            &process_child_ids,
+            timings,
+        )?;
+        return Ok((interface_path, build_mode_name));
+    }
 
     // wasm-pack build
     let mut cmd = Command::new("wasm-pack");

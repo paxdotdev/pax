@@ -1,7 +1,7 @@
 use std::{
     any::Any,
     cell::RefCell,
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     rc::Rc,
 };
 
@@ -33,9 +33,9 @@ pub struct EffectDrainReport {
 thread_local! {
     // Global property table used to store data backing dirty-dag
     pub(crate) static PROPERTY_TABLE: PropertyTable = PropertyTable::default();
-    // Global frame timestamp.
+    // Fallback clock for standalone local properties without an entered graph.
     pub(crate) static PROPERTY_TIME: RefCell<LocalProperty<u64>> = RefCell::new(LocalProperty::new(0));
-    // Global wall-clock timestamp in milliseconds.
+    // Fallback millisecond clock for standalone local properties.
     pub(crate) static PROPERTY_MILLIS: RefCell<LocalProperty<u64>> = RefCell::new(LocalProperty::new(0));
 }
 
@@ -113,10 +113,8 @@ pub(crate) struct PropertyTable {
     debug_names: RefCell<SparseSecondaryMap<PropertyId, String>>,
     effect_debug_names: RefCell<HashMap<PropertyId, String>>,
     effect_properties: RefCell<HashSet<PropertyId>>,
-    queued_effects: RefCell<VecDeque<PropertyId>>,
-    queued_effect_set: RefCell<HashSet<PropertyId>>,
-    queued_cutoffs: RefCell<VecDeque<PropertyId>>,
-    queued_cutoff_set: RefCell<HashSet<PropertyId>>,
+    queued_effects: RefCell<super::work_queue::WorkQueue>,
+    queued_cutoffs: RefCell<super::work_queue::WorkQueue>,
     retirement_watchers: RefCell<
         HashMap<PropertyId, HashMap<(u64, u64), std::sync::Weak<super::shared_graph::GraphInbox>>>,
     >,
@@ -323,9 +321,9 @@ impl PropertyTable {
         overwrite: bool,
     ) {
         let mut should_reconnect_inbound = false;
-        let (time_id, curr_time) = PROPERTY_TIME.with_borrow(|time| (time.untyped.id, time.get()));
+        let (time_id, curr_time) = super::with_frame_clock(|time| (time.untyped.id, time.get()));
         let (millis_id, curr_millis) =
-            PROPERTY_MILLIS.with_borrow(|time| (time.untyped.id, time.get()));
+            super::with_millis_clock(|time| (time.untyped.id, time.get()));
         self.with_property_data_mut(id, |property_data: &mut PropertyData| {
             let typed_data = property_data.typed_data::<T>();
             let transition_manager = typed_data.transition_manager.get_or_insert_with(|| {
@@ -351,9 +349,9 @@ impl PropertyTable {
     }
 
     pub fn cancel_transitions<T: PropertyValue>(&self, id: PropertyId) {
-        let (time_id, curr_time) = PROPERTY_TIME.with_borrow(|time| (time.untyped.id, time.get()));
+        let (time_id, curr_time) = super::with_frame_clock(|time| (time.untyped.id, time.get()));
         let (millis_id, curr_millis) =
-            PROPERTY_MILLIS.with_borrow(|time| (time.untyped.id, time.get()));
+            super::with_millis_clock(|time| (time.untyped.id, time.get()));
         let has_transition = self.with_property_data(id, |property_data| {
             property_data
                 .typed_data
@@ -508,6 +506,10 @@ impl PropertyTable {
             });
         });
 
+        let owner = self.work_owner(source_id);
+        self.queued_effects.borrow_mut().reassign(source_id, owner);
+        self.queued_cutoffs.borrow_mut().reassign(source_id, owner);
+
         // Reconnect the new dependencies and enqueue any dirty upstream cutoffs.
         self.connect_inbound(source_id);
 
@@ -560,8 +562,8 @@ impl PropertyTable {
                 )),
                 PropertyType::Literal => {
                     let tm = typed_data.transition_manager.as_mut()?;
-                    let curr_time = PROPERTY_TIME.with_borrow(|time| time.get());
-                    let curr_millis = PROPERTY_MILLIS.with_borrow(|time| time.get());
+                    let curr_time = super::with_frame_clock(|time| time.get());
+                    let curr_millis = super::with_millis_clock(|time| time.get());
                     let value = tm.compute_eased_value(curr_time, curr_millis);
                     if let Some(interp_value) = value {
                         typed_data.value = interp_value;
@@ -634,7 +636,7 @@ impl PropertyTable {
     pub fn remove_entry(&self, id: PropertyId) {
         let res = {
             self.unregister_effect(id);
-            self.queued_cutoff_set.borrow_mut().remove(&id);
+            self.queued_cutoffs.borrow_mut().remove(&id);
             self.disconnect_outbound(id);
             self.disconnect_inbound(id);
             let Ok(mut sm) = self.property_map.try_borrow_mut() else {
@@ -695,11 +697,7 @@ impl PropertyTable {
 
     pub(crate) fn has_pending_effects(&self) -> bool {
         let owner = super::shared_graph::current_graph_id();
-        self.queued_effect_set
-            .borrow()
-            .iter()
-            .chain(self.queued_cutoff_set.borrow().iter())
-            .any(|id| self.work_belongs_to_graph(*id, owner))
+        self.queued_effects.borrow().len(owner) > 0 || self.queued_cutoffs.borrow().len(owner) > 0
     }
 
     pub(crate) fn drain_effects(&self, max_iterations: usize) -> usize {
@@ -799,8 +797,14 @@ impl PropertyTable {
             }
         }
 
-        report.remaining = self.queued_effects.borrow().len();
-        report.remaining_cutoffs = self.queued_cutoffs.borrow().len();
+        report.remaining = self
+            .queued_effects
+            .borrow()
+            .len(super::shared_graph::current_graph_id());
+        report.remaining_cutoffs = self
+            .queued_cutoffs
+            .borrow()
+            .len(super::shared_graph::current_graph_id());
         report.budget_exhausted =
             work_ran == max_iterations && (report.remaining > 0 || report.remaining_cutoffs > 0);
         report.top_effects = effect_counts.into_iter().collect();
@@ -830,48 +834,36 @@ impl PropertyTable {
         }
     }
 
+    fn work_owner(&self, id: PropertyId) -> Option<u64> {
+        self.property_map
+            .borrow()
+            .get(id)
+            .and_then(|entry| entry.data.as_ref())
+            .and_then(|data| data.owner_graph)
+    }
+
     fn enqueue_effect(&self, id: PropertyId) {
-        let mut queued_set = self.queued_effect_set.borrow_mut();
-        if queued_set.insert(id) {
-            self.queued_effects.borrow_mut().push_back(id);
-        }
+        self.queued_effects
+            .borrow_mut()
+            .push(id, self.work_owner(id));
     }
 
     fn pop_queued_effect(&self) -> Option<PropertyId> {
-        let id = self.pop_owned_work(&self.queued_effects)?;
-        self.queued_effect_set.borrow_mut().remove(&id);
-        Some(id)
+        self.queued_effects
+            .borrow_mut()
+            .pop(super::shared_graph::current_graph_id())
     }
 
     pub(crate) fn enqueue_cutoff(&self, id: PropertyId) {
-        let mut queued_set = self.queued_cutoff_set.borrow_mut();
-        if queued_set.insert(id) {
-            self.queued_cutoffs.borrow_mut().push_back(id);
-        }
+        self.queued_cutoffs
+            .borrow_mut()
+            .push(id, self.work_owner(id));
     }
 
     fn pop_queued_cutoff(&self) -> Option<PropertyId> {
-        let id = self.pop_owned_work(&self.queued_cutoffs)?;
-        self.queued_cutoff_set.borrow_mut().remove(&id);
-        Some(id)
-    }
-
-    fn pop_owned_work(&self, queue: &RefCell<VecDeque<PropertyId>>) -> Option<PropertyId> {
-        let owner = super::shared_graph::current_graph_id();
-        let mut queue = queue.borrow_mut();
-        let position = queue
-            .iter()
-            .position(|id| self.work_belongs_to_graph(*id, owner))?;
-        queue.remove(position)
-    }
-
-    fn work_belongs_to_graph(&self, id: PropertyId, owner: Option<u64>) -> bool {
-        let map = self.property_map.borrow();
-        let graph = map
-            .get(id)
-            .and_then(|entry| entry.data.as_ref())
-            .and_then(|data| data.owner_graph);
-        owner.is_none() || graph.is_none() || graph == owner
+        self.queued_cutoffs
+            .borrow_mut()
+            .pop(super::shared_graph::current_graph_id())
     }
 
     fn work_enabled(&self, id: PropertyId) -> bool {
@@ -885,7 +877,7 @@ impl PropertyTable {
     fn unregister_effect(&self, id: PropertyId) {
         self.effect_properties.borrow_mut().remove(&id);
         self.effect_debug_names.borrow_mut().remove(&id);
-        self.queued_effect_set.borrow_mut().remove(&id);
+        self.queued_effects.borrow_mut().remove(&id);
     }
 
     fn is_registered_effect(&self, id: PropertyId) -> bool {

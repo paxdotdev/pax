@@ -213,9 +213,14 @@ The container must belong to the current document and have an explicit usable
 size. Pax follows its bounds, clips inside the region and routes input relative
 to it. CSS transforms on the container or its ancestors are not supported.
 `pageScroll` and `documentRouting` default to false for embedding; the standalone
-page enables them to own page scrolling, history and metadata. With document
+page and compatibility `Pax.mount(element, cartridgeUrl)` entry enable them to
+own page scrolling, history and metadata. With document
 routing disabled, a bubbling `pax-navigate` event carries `{url, target}` for the
 host to handle. Aborting `signal` cancels startup or closes an existing mount.
+During bootstrap loading, cancellation rejects that invocation promptly. Other
+callers sharing the same cartridge continue loading; the bootstrap fetch is
+aborted when its last interested caller cancels. An immediate retry waits for
+any abandoned Wasm initialization to settle before reusing or restarting it.
 Startup failures reject the Promise and initiate retained cleanup. Failed native
 preparation similarly returns an error; it can leave cleanup pending even though
 no mount handle was returned. A retry is rejected while that cleanup is pending.
@@ -226,8 +231,10 @@ prevent native wheel scrolling; this overrides generated `wheel_events` metadata
 Cancellation can delay scrolling because the browser waits for JavaScript.
 See [wheel input policy](scrolling-viewports.md#wheel-input-policy).
 
-Only one live mount is supported per host runtime. A second prepare/mount is an
+Native hosts support one live mount per runtime. A second prepare/mount is an
 error, including while cleanup is pending. Await `closed` before replacing it.
+On web, separate `init_web` calls own independent mounted regions and can share
+the same cartridge's bootstrap download and initialized Wasm runtime.
 Hidden/zero-size regions retain application state and cleanup scheduling.
 Collapsing a native region does not prevent readiness or queued UI delivery;
 its host skips drawable acquisition until the region has nonzero bounds. Closing
@@ -239,8 +246,11 @@ No raw-surface-only or shared-wgpu-device adapter is provided.
 
 Use `pax_kit::init_with!(pax_kit::host::InitOptions { startup_data, ..Default::default() })` on Apple,
 or `startupData: Uint8Array` in web options. The cartridge reads `InitContext::startup_data()` and
-validates its own encoding. Inputs are copied before initialization. Empty data
-is the default; buffers are limited to 64 KiB.
+validates its own encoding. Inputs are copied before initialization; on web,
+`init_web` validates and copies the buffer when called, before any download or
+loader wait. Later mutations to the caller's buffer do not affect initialization
+or a loading-screen retry. Empty data is the default; buffers are limited to
+64 KiB.
 
 An initializer can install one explicit request handler with
 `cx.on_host_request(|bytes| -> AppResult<Vec<u8>> { ... })`. A mounted host calls

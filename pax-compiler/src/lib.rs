@@ -358,6 +358,17 @@ fn prepare_cartridge_sources_with_timings(
 
     let mut userland_manifest = compile_selected_manifest(ctx, &layout, &pax_dir, timings)?;
     println!("{} 🔎 Loaded compiler-selected manifest", *PAX_BADGE);
+    let loader_manifest: Option<PaxManifest> = if ctx.target == RunTarget::Web
+        && project_metadata::load_project_metadata(&layout.cartridge_dir)?
+            .loader()
+            .is_some()
+    {
+        Some(serde_json::from_slice(&fs::read(
+            pax_dir.join("manifest-loader-web.json"),
+        )?)?)
+    } else {
+        None
+    };
 
     if ctx.target == RunTarget::Web {
         timings.record("web route metadata", || {
@@ -372,12 +383,21 @@ fn prepare_cartridge_sources_with_timings(
 
     if ctx.target == RunTarget::Web {
         let mut fonts = collect_web_font_sources(&userland_manifest);
+        if let Some(loader) = &loader_manifest {
+            fonts.extend(collect_web_font_sources(loader));
+        }
         fonts.sort_by(|a, b| (&a.family, &a.url).cmp(&(&b.family, &b.url)));
+        fonts.dedup_by(|a, b| a == b);
         let path = pax_dir.join(INTERFACE_DIR_NAME).join("web/pax-fonts.json");
         fs::write(path, serde_json::to_vec(&fonts)?)?;
     }
 
-    let merged_manifest = userland_manifest.clone();
+    let mut merged_manifest = userland_manifest.clone();
+    if let Some(loader) = loader_manifest {
+        merged_manifest.assets_dirs.extend(loader.assets_dirs);
+        merged_manifest.assets_dirs.sort();
+        merged_manifest.assets_dirs.dedup();
+    }
 
     pax_codegen::add_runtime_root(&mut userland_manifest);
 

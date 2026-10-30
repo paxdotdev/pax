@@ -1892,6 +1892,108 @@ impl DefinitionToInstanceTraverser for Traverser {
 }
 
 #[test]
+fn root_exit_opacity_binds_and_reaches_children_in_rich_and_binary_manifests() {
+    use pax_manifest::{
+        ComponentDefinition, ComponentTemplate, PaxManifest, TimelineSelectorBlockDefinition, Token,
+    };
+    let token = |value: &str| Token::new_without_location(value.into());
+    let root_type = TypeId::build_singleton("test::Root", Some("Root"));
+    let leaf_type = TypeId::build_singleton("test::Probe", Some("Probe"));
+    let mut template = ComponentTemplate::new(root_type.clone(), None);
+    template.add_root_node_back(TemplateNodeDefinition {
+        type_id: leaf_type.clone(),
+        ..Default::default()
+    });
+    let component = |type_id, template, is_main_component| ComponentDefinition {
+        type_id,
+        template,
+        is_main_component,
+        is_primitive: false,
+        is_struct_only_component: false,
+        module_path: "test".into(),
+        primitive_instance_import_path: None,
+        settings: None,
+        timelines: vec![],
+        route_branch: None,
+    };
+    let mut root = component(root_type.clone(), Some(template), true);
+    root.settings = Some(vec![SettingsBlockElement::Transition(
+        token("out"),
+        token("fade"),
+    )]);
+    root.timelines = vec![TimelineDefinition {
+        name: Some(token("fade")),
+        duration: Some(expression("250ms")),
+        elements: vec![TimelineBlockElement::SelectorBlock(
+            token("self"),
+            TimelineSelectorBlockDefinition {
+                elements: vec![TimelineSelectorElement::Track(
+                    token("opacity"),
+                    TimelineTrackDefinition {
+                        elements: vec![
+                            TimelineTrackElement::Keyframe(TimelineKeyframe {
+                                marker: TimelineMarker::Percent(0.0),
+                                value: literal(1.0),
+                                easing: Some(token("Linear")),
+                            }),
+                            TimelineTrackElement::Keyframe(TimelineKeyframe {
+                                marker: TimelineMarker::Percent(100.0),
+                                value: literal(0.0),
+                                easing: None,
+                            }),
+                        ],
+                        ..Default::default()
+                    },
+                )],
+            },
+        )],
+        ..Default::default()
+    }];
+    let rich = PaxManifest {
+        components: BTreeMap::from([
+            (root_type.clone(), root),
+            (leaf_type.clone(), component(leaf_type, None, false)),
+        ]),
+        main_component_type_id: root_type,
+        type_table: HashMap::new(),
+        assets_dirs: vec![],
+        engine_import_path: "pax_engine".into(),
+    };
+    let binary =
+        pax_manifest::binary::from_slice(&pax_manifest::binary::to_vec(&rich).unwrap()).unwrap();
+    for manifest in [rich, binary] {
+        for supplied_properties in [false, true] {
+            let (mut engine, _) = fixture();
+            let traverser = Traverser::new(manifest.clone());
+            let instance = if supplied_properties {
+                traverser.get_main_component_with_properties(
+                    "root",
+                    Rc::new(RefCell::new(Probe::default().to_pax_any())),
+                )
+            } else {
+                traverser.get_main_component("root")
+            };
+            let root = engine.mount_root_component(instance);
+            let leaf = root.children.get()[0].clone();
+            assert_eq!(leaf.computed_opacity.get(), 1.0);
+            engine.begin_presentation_exit();
+            for (millis, opacity) in [(0, 1.0), (125, 0.5), (250, 0.0)] {
+                engine.runtime_context.globals().elapsed_millis.set(millis);
+                assert!(
+                    (root.computed_opacity.get() - opacity).abs() < 1e-6,
+                    "root at {millis}ms"
+                );
+                assert!(
+                    (leaf.computed_opacity.get() - opacity).abs() < 1e-6,
+                    "child at {millis}ms"
+                );
+                assert_eq!(engine.presentation_exit_complete(), millis == 250);
+            }
+        }
+    }
+}
+
+#[test]
 fn rich_and_binary_manifests_build_the_same_shared_node_local_plan() {
     use pax_manifest::{
         ComponentDefinition, ComponentTemplate, PaxManifest, SettingsConditionalBlock,

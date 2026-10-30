@@ -66,12 +66,68 @@ pub struct PreparedWebRenderer {
     pub(crate) policy: WebSurfacePolicy,
     pub(crate) installed: InstalledSurfaces,
     pub(crate) renderer: Box<dyn RenderContext>,
+    pub(crate) family: std::rc::Rc<WebRendererFamily>,
+    pub(crate) hold: bool,
+    pub(crate) loading: Option<pax_runtime::api::loading::LoadingController>,
+}
+
+// One device/resource service, with independent retained scene/layer state.
+pub(crate) struct WebRendererFamily {
+    window: Window,
+    policy: WebSurfacePolicy,
+    gpu: std::rc::Rc<futures_util::lock::Mutex<Option<pax_gpu::render_backend::SharedGpuContext>>>,
+}
+
+impl PreparedWebRenderer {
+    pub fn hold_presentation(mut self) -> Self {
+        self.hold = true;
+        self
+    }
+    pub fn loading(mut self) -> Self {
+        self.loading = Some(pax_runtime::api::loading::LoadingController::new());
+        self
+    }
+    fn scene(family: std::rc::Rc<WebRendererFamily>) -> Self {
+        let policy = family.policy.clone();
+        let installed: InstalledSurfaces = Default::default();
+        let renderer: Box<dyn RenderContext> = if policy.browser.use_cpu_fallback() {
+            Box::new(get_cpu_render_context(
+                family.window.clone(),
+                policy.clone(),
+                installed.clone(),
+            ))
+        } else {
+            Box::new(get_gpu_render_context(
+                family.window.clone(),
+                policy.clone(),
+                installed.clone(),
+                family.gpu.clone(),
+            ))
+        };
+        Self {
+            policy,
+            installed,
+            renderer,
+            family,
+            hold: false,
+            loading: None,
+        }
+    }
+}
+
+thread_local! {
+    static RENDERER_FAMILY: std::rc::Rc<futures_util::lock::Mutex<std::rc::Weak<WebRendererFamily>>> = Default::default();
 }
 
 /// Select WebGPU or Vello CPU for this session. Automatic selection falls back
 /// when adapter/device initialization fails. `?pax_renderer=cpu|gpu|auto` can
 /// override selection for testing; an explicitly requested GPU must initialize.
 pub async fn prepare_renderer() -> Result<PreparedWebRenderer, JsValue> {
+    let family_slot = RENDERER_FAMILY.with(Clone::clone);
+    let mut family_slot = family_slot.lock().await;
+    if let Some(family) = family_slot.upgrade() {
+        return Ok(PreparedWebRenderer::scene(family));
+    }
     use pax_gpu::render_backend::{RenderBackend, RenderConfig};
     let window = web_sys::window().ok_or_else(|| JsValue::from_str("missing browser window"))?;
     let document = window
@@ -120,36 +176,13 @@ pub async fn prepare_renderer() -> Result<PreparedWebRenderer, JsValue> {
     }
     let policy = WebSurfacePolicy::new(browser);
     policy.observe_backend_limit(limit);
-    let installed = std::rc::Rc::new(std::cell::RefCell::new(Default::default()));
-    let renderer: Box<dyn RenderContext> = if browser.use_cpu_fallback() {
-        // A failed GPU probe may already own its canvas context. Verify CPU
-        // presentation on a fresh canvas, never on that consumed target.
-        let canvas = document
-            .create_element("canvas")?
-            .dyn_into::<HtmlCanvasElement>()?;
-        canvas
-            .get_context("2d")?
-            .ok_or_else(|| JsValue::from_str("Canvas2D pixel presentation unavailable"))?;
-        log::info!("render backend: using Vello CPU browser renderer");
-        Box::new(get_cpu_render_context(
-            window,
-            policy.clone(),
-            installed.clone(),
-        ))
-    } else {
-        log::info!("render backend: using WebGPU browser renderer");
-        Box::new(get_gpu_render_context(
-            window,
-            policy.clone(),
-            installed.clone(),
-            shared,
-        ))
-    };
-    Ok(PreparedWebRenderer {
+    let family = std::rc::Rc::new(WebRendererFamily {
+        window,
         policy,
-        installed,
-        renderer,
-    })
+        gpu: std::rc::Rc::new(futures_util::lock::Mutex::new(shared)),
+    });
+    *family_slot = std::rc::Rc::downgrade(&family);
+    Ok(PreparedWebRenderer::scene(family))
 }
 
 struct WebCpuSurface {
@@ -250,7 +283,9 @@ fn get_gpu_render_context(
     window: Window,
     policy: WebSurfacePolicy,
     installed: InstalledSurfaces,
-    shared: Option<pax_gpu::render_backend::SharedGpuContext>,
+    browser_context: std::rc::Rc<
+        futures_util::lock::Mutex<Option<pax_gpu::render_backend::SharedGpuContext>>,
+    >,
 ) -> impl RenderContext {
     let surface_policy = policy.browser;
     use pax_gpu::{
@@ -261,7 +296,6 @@ fn get_gpu_render_context(
     // Every browser canvas in this chassis can use the same WebGPU device.
     // Keep it across cold-row eviction; pixel textures still have weak cache ownership.
     // The async mutex prevents concurrent first rows from each creating a device.
-    let browser_context = std::rc::Rc::new(futures_util::lock::Mutex::new(shared));
     let priority_document = window.document().unwrap();
     let priority_installed = installed.clone();
     PaxGpuRenderer::new(move |layer, request| {

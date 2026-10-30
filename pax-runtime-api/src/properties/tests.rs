@@ -657,3 +657,38 @@ fn disconnect_temporary_and_duplicate_dependencies_preserves_other_edge_order() 
     drop(middle);
     assert!(outbound().is_empty());
 }
+
+#[test]
+fn applications_ease_against_their_own_clock() {
+    fn create() -> (PropertyGraph, LocalProperty<u64>, LocalProperty<f64>) {
+        let graph = PropertyGraph::new(|| {});
+        let _entered = graph.enter();
+        register_time(&LocalProperty::new(0));
+        let millis = LocalProperty::new(0);
+        register_millis(&millis);
+        let value = LocalProperty::new(0.0);
+        value.ease_to(
+            10.0,
+            Duration::Milliseconds(100.into()),
+            EasingCurve::Linear,
+        );
+        drop(_entered);
+        (graph, millis, value)
+    }
+    let (loader, loader_clock, loader_value) = create();
+    let (app, app_clock, app_value) = create();
+    {
+        let _entered = loader.enter();
+        loader_clock.set(50);
+        assert_eq!(loader_value.get(), 5.0);
+    }
+    {
+        let _entered = app.enter();
+        assert_eq!(app_value.get(), 0.0);
+        app_clock.set(20);
+        assert_eq!(app_value.get(), 2.0);
+    }
+    let _entered = loader.enter();
+    loader_clock.set(80);
+    assert_eq!(loader_value.get(), 8.0);
+}

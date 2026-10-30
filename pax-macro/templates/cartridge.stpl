@@ -9,13 +9,18 @@
     pub async fn init_web(host: JsValue) -> Result<JsValue, JsValue> {
         let mount = <%= engine_import_path %>::pax_chassis_web::web_mount_callback(&host)?;
         let yield_mount = <%= engine_import_path %>::pax_chassis_web::web_yield_mount(&host)?;
-        <% if catalog { %>
+        <% if catalog && loader.is_none() { %>
         let requested_entry = <%= engine_import_path %>::pax_chassis_web::web_runnable_entry(&host)?;
         let entry = __pax_select_entry(&requested_entry).map_err(|error| JsValue::from_str(&error))?;
         <% } %>
         std::panic::set_hook(Box::new(<%= engine_import_path %>::pax_chassis_web::console_error_panic_hook::hook));
         <%= engine_import_path %>::pax_chassis_web::init_console_logging();
         let prepared_renderer = <%= engine_import_path %>::pax_chassis_web::web_render_contexts::prepare_renderer().await?;
+        <% if loader.is_some() { %>
+        let prepared_renderer = prepared_renderer.hold_presentation();
+        let chassis = __pax_prepare_application(host, yield_mount, prepared_renderer).await
+            .map_err(|error| JsValue::from_str(&format!("application module loading failed: {error:?}")))??;
+        <% } else { %>
         let application = <%= engine_import_path %>::api::application::ApplicationInstance::prepare(
             <%= engine_import_path %>::pax_chassis_web::application_target(),
             <%= engine_import_path %>::pax_chassis_web::web_init_options(&host)?,
@@ -39,10 +44,87 @@
             <%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new(definition_to_instance_traverser, root, yield_mount, prepared_renderer)
         };
         <% } %>
-        // Ambient graph selection must never survive a JavaScript await.
         drop(_application);
+        <% } %>
         <%= engine_import_path %>::pax_chassis_web::mount_web_chassis(chassis, mount).await
     }
+
+    <% if let Some(loader_path) = &loader { %>
+    mod __pax_loader {
+        use super::*;
+        <%= loader_snippet %>
+        pub(super) fn traverser() -> Box<dyn <%= engine_import_path %>::pax_runtime::DefinitionToInstanceTraverser> {
+            <% if build_config.designtime { %>
+            __pax_generated_cartridge::init_offline_definition_to_instance_traverser(init_manifest())
+            <% } else { %>
+            init_definition_to_instance_traverser(init_manifest())
+            <% } %>
+        }
+    }
+
+    #[wasm_bindgen(js_name = <%= format!("{}_loader", web_entrypoint) %>)]
+    pub async fn init_loading_screen(host: JsValue) -> Result<JsValue, JsValue> {
+        let mount = <%= engine_import_path %>::pax_chassis_web::web_mount_callback(&host)?;
+        std::panic::set_hook(Box::new(<%= engine_import_path %>::pax_chassis_web::console_error_panic_hook::hook));
+        <%= engine_import_path %>::pax_chassis_web::init_console_logging();
+        let prepared = <%= engine_import_path %>::pax_chassis_web::web_render_contexts::prepare_renderer().await?;
+        let application = <%= engine_import_path %>::api::application::ApplicationInstance::prepare(
+            <%= engine_import_path %>::pax_chassis_web::application_target(), Default::default(),
+        ).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let entered = application.enter();
+        let root: <%= loader_path %> = application.initialize(|_| Ok(Default::default()))
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let root = std::rc::Rc::new(std::cell::RefCell::new(<%= engine_import_path %>::api::pax_value::ToFromPaxAny::to_pax_any(root)));
+        application.retain_root(root.clone());
+        let traverser = __pax_loader::traverser();
+        let yield_mount = <%= engine_import_path %>::pax_chassis_web::web_yield_mount(&host)?;
+        let chassis = <%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::<% if build_config.designtime { %>new_designtime<% } else { %>new<% } %>(traverser, root, yield_mount, prepared.hold_presentation().loading());
+        drop(entered);
+        <%= engine_import_path %>::pax_chassis_web::mount_web_chassis(chassis, mount).await
+    }
+
+    #[<%= engine_import_path %>::wasm_split_helpers::wasm_split(application, fallible,
+        wasm_split_path = <%= engine_import_path %>::wasm_split_helpers)]
+    #[inline(never)]
+    fn __pax_prepare_application(
+        host: JsValue,
+        yield_mount: bool,
+        prepared_renderer: <%= engine_import_path %>::pax_chassis_web::web_render_contexts::PreparedWebRenderer,
+    ) -> Result<Result<<%= engine_import_path %>::pax_chassis_web::PaxChassisWeb, JsValue>, <%= engine_import_path %>::wasm_split_helpers::SplitLoaderError> {
+        Ok((|| {
+        <%= engine_import_path %>::pax_chassis_web::web_check_open(&host)?;
+        <% if catalog { %>
+        let requested_entry = <%= engine_import_path %>::pax_chassis_web::web_runnable_entry(&host)?;
+        let entry = __pax_select_entry(&requested_entry).map_err(|error| JsValue::from_str(&error))?;
+        <% } %>
+        let application = <%= engine_import_path %>::api::application::ApplicationInstance::prepare(
+            <%= engine_import_path %>::pax_chassis_web::application_target(),
+            <%= engine_import_path %>::pax_chassis_web::web_init_options(&host)?,
+        ).map_err(|error| JsValue::from_str(&format!("application initialization failed: {error}")))?;
+        let _application = application.enter();
+        let root: <%= root_path %> = application.initialize(<%= initializer %>)
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        let root = std::rc::Rc::new(std::cell::RefCell::new(<%= engine_import_path %>::api::pax_value::ToFromPaxAny::to_pax_any(root)));
+        application.retain_root(root.clone());
+
+        <% if build_config.designtime { %>
+        let chassis = {
+            let userland_manifest = <% if catalog { %>init_manifest_for(entry)<% } else { %>init_manifest()<% } %>;
+            let userland_definition_to_instance_traverser = init_definition_to_instance_traverser(userland_manifest);
+            <%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new_designtime(userland_definition_to_instance_traverser, root, yield_mount, prepared_renderer)
+        };
+        <% } else { %>
+        let chassis = {
+            let manifest = <% if catalog { %>init_manifest_for(entry)<% } else { %>init_manifest()<% } %>;
+            let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest);
+            <%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new(definition_to_instance_traverser, root, yield_mount, prepared_renderer)
+        };
+        <% } %>
+        drop(_application);
+        Ok(chassis)
+        })())
+    }
+    <% } %>
 
     //cdylib exports
     pub use <%= engine_import_path %>::pax_chassis_web::*;

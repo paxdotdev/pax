@@ -7,8 +7,8 @@ import {transformSync} from 'esbuild';
 // Exercise the real host boundary, including rAF's last feedback check.
 const source = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
 const runFrame = source.slice(source.indexOf('function progressStartupFrame('), source.indexOf('function renderLoop ('));
-function harness() {
-    const state = {patchesPending: true, enginePending: false, textReady: false, remainderPending: false, needsNextFlowChild: false, measurementChecks: 0, wakes: 0, ticks: 0, events: []};
+function harness(holdPresentation = false) {
+    const state = {holdPresentation, renderPending: false, surfacesReady: true, patchesPending: true, enginePending: false, textReady: false, remainderPending: false, needsNextFlowChild: false, measurementChecks: 0, wakes: 0, ticks: 0, events: []};
     const chassis = {
         prepare_startup_presentation: () => !state.enginePending,
         accept_startup_measurements: () => {
@@ -21,6 +21,8 @@ function harness() {
         tick: () => { state.ticks++; return []; },
         render: () => state.events.push('render'),
         begin_render_work: () => state.events.push('begin-render-work'),
+        continue_render_work: () => state.events.push('continue-render-work'),
+        service_render_work: () => ({pending: state.renderPending}),
         finish_startup_presentation: () => state.events.push('input-ready'),
     };
     const mount = {removeAttribute: () => state.events.push('reveal')};
@@ -29,17 +31,22 @@ function harness() {
         let currentChassis = chassis, currentMount = mount;
         let frameInProgress = false, startupPresented = false, startupViewportPresented = false, startupFeedbackFrameReady = false;
         let pendingAsyncInterruptFlush = false;
+        let startupRenderStarted = false;
+        let ordinaryRenderPending = false;
         const mountYieldEnabled = true, perfTraceEnabled = false;
         const frameScheduler = {suspended: false};
         let startupWork = state;
         let startupScheduler = {request() { state.wakes++; }, dispose() { state.events.push('disposed'); }};
-        const liveSession = {didMount() { state.events.push('mounted'); }};
+        const liveSession = {options: {holdPresentation: state.holdPresentation},
+            didMount() { state.events.push('mounted'); }, failStartup(error) { throw error; }};
+        const sharedWorkBudget = {remaining: 4, run(budget, callback) { return callback(budget); }};
         const objectManager = {};
         const renderEpoch = 0;
         const cooperativeRender = {beginFrame() { state.events.push('render-slice'); }};
         const nativePool = {
             beginTraceFrame() {},
             sampleFrameInputs() {}, startupTextReady: () => state.textReady,
+            startupSurfacesReady: () => state.surfacesReady,
             syncRenderSurfaceLayouts() {},
             finishTextFrame(settled) { state.events.push(settled ? 'settled-text' : 'ordinary-text'); },
         };
@@ -69,6 +76,27 @@ test('publication waits for patches, fonts, and a quiet feedback frame without a
     assert.deepEqual(h.state.events, ['render', 'reveal', 'settled-text', 'resume', 'input-ready', 'disposed', 'mounted']);
     assert.equal(h.state.ticks, 0);
     h.frame(); assert.equal(h.state.ticks, 1);
+});
+
+test('held application continues expensive rendering across frames before declaring readiness', () => {
+    const h = harness(true);
+    h.state.patchesPending = false;
+    h.state.textReady = true;
+    h.state.renderPending = true;
+    h.frame(); h.frame(); h.frame();
+    assert.equal(h.state.events.filter(e => e === 'begin-render-work').length, 1);
+    assert.ok(h.state.events.includes('continue-render-work'));
+    assert.ok(!h.state.events.includes('mounted'));
+    h.state.renderPending = false;
+    h.state.surfacesReady = false;
+    h.frame();
+    assert.ok(!h.state.events.includes('mounted'));
+    h.state.surfacesReady = true;
+    h.frame();
+    assert.ok(h.state.events.includes('mounted'));
+    assert.ok(!h.state.events.includes('disposed'));
+    h.frame();
+    assert.equal(h.state.ticks, 0, 'a prepared application still waits for publication');
 });
 
 test('a detached mount cannot publish from a stale animation-frame callback', () => {
@@ -141,4 +169,22 @@ test('flow continuation is admitted only after native measurement and a quiet fr
     h.frame(); h.frame();
     assert.ok(h.state.events.includes('mounted'));
     assert.equal(h.state.ticks, 0);
+});
+
+test('a hidden startup receives a presentation opportunity without waiting for rAF', () => {
+    const flush = source.slice(source.indexOf('function requestFrameFlush('),
+        source.indexOf('// After the coordinated first reveal'));
+    for (const hidden of [true, false]) {
+        const calls = [];
+        const chassis = {}, mount = {};
+        vm.runInNewContext(transformSync(`
+            const currentChassis = chassis, currentMount = mount;
+            const frameInProgress = false, startupWork = {}, startupPresented = false;
+            const startupScheduler = {request() { calls.push('work'); }};
+            function runFrame() { calls.push('presentation'); }
+            ${flush}
+            requestFrameFlush(chassis, mount);
+        `, {loader: 'ts'}).code, {chassis, mount, calls, document: {hidden}});
+        assert.deepEqual(calls, hidden ? ['work', 'presentation'] : ['work']);
+    }
 });

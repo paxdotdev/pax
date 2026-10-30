@@ -1,0 +1,15 @@
+[package]
+name = "loading-screen"
+version = "0.39.1"
+edition = "2021"
+publish = false
+
+[package.metadata.pax]
+title = "Custom Pax loading screen"
+loader = "crate::BootScreen"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pax-kit = { version = "0.39.1", path = "../../../pax-kit" }

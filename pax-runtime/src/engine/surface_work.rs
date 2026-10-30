@@ -120,13 +120,21 @@ impl RenderWorkState {
     /// Begin drawing after a settled tick. Multiple ticks/completions in one
     /// display epoch share preparation accounting, including its first-job grant.
     pub fn begin(&mut self, epoch: u32) {
-        if self.epoch != Some(epoch) {
-            self.preparation = SurfaceWorkReport::default();
-            self.epoch = Some(epoch);
-        }
+        self.continue_epoch(epoch);
         self.setup_complete = false;
         self.urgent_complete = false;
         self.attempted_layers.clear();
+    }
+
+    /// Continue the same settled scene in a new display epoch. Preparation gets
+    /// a fresh allowance, but expensive completed setup must not restart merely
+    /// because it consumed an entire previous slice.
+    pub fn continue_epoch(&mut self, epoch: u32) {
+        if self.epoch != Some(epoch) {
+            self.preparation = SurfaceWorkReport::default();
+            self.attempted_layers.clear();
+            self.epoch = Some(epoch);
+        }
     }
 }
 
@@ -190,5 +198,22 @@ mod tests {
         // A later epoch with cheap work is not poisoned by the overrun.
         assert!(budget.admits(1, 0.5));
         assert!(!budget.admits(2, 4.0));
+    }
+}
+
+#[cfg(test)]
+mod continuation_tests {
+    use super::*;
+    #[test]
+    fn new_display_epoch_preserves_completed_startup_setup() {
+        let mut state = RenderWorkState::default();
+        state.begin(1);
+        state.setup_complete = true;
+        state.preparation.submitted = 1;
+        state.continue_epoch(2);
+        assert!(state.setup_complete);
+        assert_eq!(state.preparation.submitted, 0);
+        state.begin(2);
+        assert!(!state.setup_complete, "a new scene must still reconcile");
     }
 }

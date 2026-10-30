@@ -146,6 +146,8 @@ fn render_generated_cartridge(
     };
     let adapter = TemplateArgsCartridge {
         catalog: false,
+        loader: None,
+        loader_snippet: String::new(),
         web_entrypoint: "init_web".into(),
         root_path: "super::__PaxSelectedRoot".into(),
         initializer: "super::__pax_initialize".into(),

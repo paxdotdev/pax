@@ -1,3 +1,4 @@
+mod work_queue;
 use serde::{Deserialize, Serialize};
 use std::{marker::PhantomData, rc::Rc};
 
@@ -18,10 +19,10 @@ use self::properties_table::{PropertyType, PROPERTY_MILLIS, PROPERTY_TIME};
 pub use local_property::LocalProperty;
 pub use properties_table::EffectDrainReport;
 use properties_table::PROPERTY_TABLE;
+pub(crate) use shared_graph::owner_initializer;
 #[doc(hidden)]
 pub use shared_graph::{BindingScope, BindingScopeGuard};
 pub use shared_graph::{PropertyGraph, PropertyGraphGuard};
-pub(crate) use shared_graph::owner_initializer;
 pub use shared_property::{Property, Published, SharedPropertyValue};
 pub use untyped_property::UntypedProperty;
 
@@ -113,18 +114,39 @@ pub fn property_has_direct_outbound(source: &UntypedProperty, outbound: &Untyped
     PROPERTY_TABLE.with(|t| t.has_direct_outbound(source.id, outbound.id))
 }
 
-// Registers the runtime clock property used by transition/easing machinery.
+/// Registers the frame clock for the entered application graph.
+/// Without an entered graph, registers the standalone fallback clock.
 pub fn register_time(prop: &LocalProperty<u64>) {
-    PROPERTY_TIME.with_borrow_mut(|time| *time = prop.clone());
+    if !shared_graph::register_clock(prop, false) {
+        PROPERTY_TIME.with_borrow_mut(|time| *time = prop.clone());
+    }
 }
 
-// Registers the runtime wall clock property used by time-based transition/easing machinery.
+/// Registers the millisecond clock for the entered application graph.
+/// Without an entered graph, registers the standalone fallback clock.
 pub fn register_millis(prop: &LocalProperty<u64>) {
-    PROPERTY_MILLIS.with_borrow_mut(|time| *time = prop.clone());
+    if !shared_graph::register_clock(prop, true) {
+        PROPERTY_MILLIS.with_borrow_mut(|time| *time = prop.clone());
+    }
+}
+
+fn with_frame_clock<R>(read: impl FnOnce(&LocalProperty<u64>) -> R) -> R {
+    if let Some(clock) = shared_graph::registered_clock(false) {
+        read(&clock)
+    } else {
+        PROPERTY_TIME.with_borrow(read)
+    }
+}
+fn with_millis_clock<R>(read: impl FnOnce(&LocalProperty<u64>) -> R) -> R {
+    if let Some(clock) = shared_graph::registered_clock(true) {
+        read(&clock)
+    } else {
+        PROPERTY_MILLIS.with_borrow(read)
+    }
 }
 
 /// Current runtime frame used to distinguish initial binding from later changes.
 #[doc(hidden)]
 pub fn current_frame() -> u64 {
-    PROPERTY_TIME.with_borrow(|time| time.get())
+    with_frame_clock(|time| time.get())
 }

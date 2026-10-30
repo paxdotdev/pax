@@ -37,6 +37,19 @@ pub(super) fn init_definition_to_instance_traverser(initial_manifest: pax_manife
     Box::new({{ definition_to_instance_traverser_struct_id }}::new(initial_manifest))
 }
 
+{% if is_designtime %}
+// Loader definitions belong to a different application from the editable program.
+// Keep their manager local so its manifest cannot replace the design-server document.
+pub(super) fn init_offline_definition_to_instance_traverser(manifest: pax_manifest::PaxManifest) -> Box<dyn {{ engine_import_path }}::pax_runtime::cartridge::DefinitionToInstanceTraverser> {
+    register_helper_functions();
+    let manager = {{ engine_import_path }}::pax_designtime::DesigntimeManager::new_offline(manifest.clone());
+    Box::new({{ definition_to_instance_traverser_struct_id }} {
+        manifest: RefCell::new(manifest),
+        designtime_manager: Some(std::rc::Rc::new(RefCell::new(manager))),
+    })
+}
+{% endif %}
+
 pub struct {{ cartridge_struct_id }} {}
 
 impl {{ engine_import_path }}::pax_runtime::cartridge::PaxCartridge for {{ cartridge_struct_id }} {
@@ -118,4 +131,4 @@ impl {{ engine_import_path }}::pax_runtime::DefinitionToInstanceTraverser for {{
 }
 
 #[allow(unused_imports)]
-use __pax_generated_cartridge::{init_definition_to_instance_traverser, init_manifest};
+use self::__pax_generated_cartridge::{init_definition_to_instance_traverser, init_manifest};

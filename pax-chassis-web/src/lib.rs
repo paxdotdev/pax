@@ -38,9 +38,12 @@ use_RefCell!();
 mod browser_surface_policy;
 mod image_loading;
 mod installed_surfaces;
+mod loading;
 mod surface_metrics;
 mod surface_scheduling;
 pub mod web_render_contexts;
+#[doc(hidden)]
+pub use loading::web_check_open;
 
 use crate::browser_surface_policy::WebSurfacePolicy;
 use pax_runtime::PaxEngine;
@@ -53,8 +56,8 @@ pub use {console_error_panic_hook, console_log};
 
 use pax_runtime::api::{
     Click, ContextMenu, DoubleClick, Drop, KeyDown, KeyPress, KeyUp, KeyboardEventArgs,
-    ModifierKey, MouseButton, MouseCancel, MouseDown, MouseEventArgs, MouseMove, MouseUp, Scroll, Touch,
-    TouchCancel, TouchEnd, TouchMove, TouchStart, Wheel,
+    ModifierKey, MouseButton, MouseCancel, MouseDown, MouseEventArgs, MouseMove, MouseUp, Scroll,
+    Touch, TouchCancel, TouchEnd, TouchMove, TouchStart, Wheel,
 };
 
 #[cfg(feature = "designtime")]
@@ -240,6 +243,9 @@ pub(crate) fn read_dev_console_entries_json(since_seq: Option<u64>, limit: usize
 #[wasm_bindgen]
 pub struct PaxChassisWeb {
     render_context: Box<dyn RenderContext>,
+    _renderer_host: Rc<web_render_contexts::WebRendererFamily>,
+    presentation_clock: Rc<loading::PresentationClock>,
+    loading: Option<loading::LoadingOwner>,
     surface_policy: WebSurfacePolicy,
     installed_surfaces: installed_surfaces::InstalledSurfaces,
     surface_activity: RefCell<pax_runtime::engine::surface_scheduling::ScrollActivityTracker>,
@@ -401,10 +407,16 @@ impl PaxChassisWeb {
         userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
         root: Rc<RefCell<pax_runtime::api::pax_value::PaxAny>>,
         yield_mount: bool,
-        prepared: web_render_contexts::PreparedWebRenderer,
+        mut prepared: web_render_contexts::PreparedWebRenderer,
     ) -> Self {
+        let renderer_host = prepared.family.clone();
+        let hold = prepared.hold;
+        let loading = prepared.loading.take().map(loading::LoadingOwner::new);
         let (width, height, os_info, surface_policy, installed_surfaces, get_time, renderer) =
             Self::init_common(prepared);
+        let presentation_clock = Rc::new(loading::PresentationClock::new(get_time, hold));
+        let clock = presentation_clock.clone();
+        let get_time: Box<dyn Fn() -> u128> = Box::new(move || clock.now());
         let query_string = window()
             .unwrap()
             .location()
@@ -428,13 +440,23 @@ impl PaxChassisWeb {
         engine
             .runtime_context
             .edit_globals(|globals| globals.renderer_is_gpu = renderer.is_gpu());
+        if hold {
+            engine.hold_presentation();
+        }
         if yield_mount {
             engine.enable_resumable_startup();
         }
         engine
             .runtime_context
             .set_userland_root_instance_node(Some(userland_main_component_instance.clone()));
-        let root = engine.mount_root_component(userland_main_component_instance);
+        let root = if let Some(loading) = &loading {
+            engine.mount_loading_component(
+                userland_main_component_instance,
+                loading.controller.context(),
+            )
+        } else {
+            engine.mount_root_component(userland_main_component_instance)
+        };
         engine
             .runtime_context
             .set_userland_root_expanded_node(Some(root));
@@ -446,6 +468,9 @@ impl PaxChassisWeb {
             surface_work_budget: pax_runtime::engine::surface_work::SurfaceWorkBudget::new(4.0),
             render_work: Default::default(),
             render_context: renderer,
+            _renderer_host: renderer_host,
+            presentation_clock,
+            loading,
             surface_policy,
             installed_surfaces,
             surface_activity: RefCell::new(Default::default()),
@@ -468,10 +493,16 @@ impl PaxChassisWeb {
         definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
         root: Rc<RefCell<pax_runtime::api::pax_value::PaxAny>>,
         yield_mount: bool,
-        prepared: web_render_contexts::PreparedWebRenderer,
+        mut prepared: web_render_contexts::PreparedWebRenderer,
     ) -> Self {
+        let renderer_host = prepared.family.clone();
+        let hold = prepared.hold;
+        let loading = prepared.loading.take().map(loading::LoadingOwner::new);
         let (width, height, os_info, surface_policy, installed_surfaces, get_time, renderer) =
             Self::init_common(prepared);
+        let presentation_clock = Rc::new(loading::PresentationClock::new(get_time, hold));
+        let clock = presentation_clock.clone();
+        let get_time: Box<dyn Fn() -> u128> = Box::new(move || clock.now());
 
         let main_component_instance = definition_to_instance_traverser
             .get_main_component_with_properties(USERLAND_COMPONENT_ROOT, root);
@@ -486,10 +517,17 @@ impl PaxChassisWeb {
         engine
             .runtime_context
             .edit_globals(|globals| globals.renderer_is_gpu = renderer.is_gpu());
+        if hold {
+            engine.hold_presentation();
+        }
         if yield_mount {
             engine.enable_resumable_startup();
         }
-        engine.mount_root_component(main_component_instance);
+        if let Some(loading) = &loading {
+            engine.mount_loading_component(main_component_instance, loading.controller.context());
+        } else {
+            engine.mount_root_component(main_component_instance);
+        }
 
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
 
@@ -498,6 +536,9 @@ impl PaxChassisWeb {
             surface_work_budget: pax_runtime::engine::surface_work::SurfaceWorkBudget::new(4.0),
             render_work: Default::default(),
             render_context: renderer,
+            _renderer_host: renderer_host,
+            presentation_clock,
+            loading,
             surface_policy,
             installed_surfaces,
             surface_activity: RefCell::new(Default::default()),
@@ -511,7 +552,9 @@ impl PaxChassisWeb {
         }
     }
 
-    fn init_common(prepared: web_render_contexts::PreparedWebRenderer) -> (
+    fn init_common(
+        prepared: web_render_contexts::PreparedWebRenderer,
+    ) -> (
         f64,
         f64,
         OS,
@@ -534,6 +577,7 @@ impl PaxChassisWeb {
             policy: surface_policy,
             installed: installed_surfaces,
             renderer,
+            ..
         } = prepared;
         let start = Instant::now();
         let get_time = Box::new(move || start.elapsed().as_millis());
@@ -976,13 +1020,10 @@ impl PaxChassisWeb {
                 false
             }
             NativeInterrupt::Click(args) => {
-                if let Some(topmost_node) = engine
-                    .runtime_context
-                    .mouse_click_target(
-                        MouseButton::from(args.button.clone()),
-                        Point2::new(args.x, args.y),
-                    )
-                {
+                if let Some(topmost_node) = engine.runtime_context.mouse_click_target(
+                    MouseButton::from(args.button.clone()),
+                    Point2::new(args.x, args.y),
+                ) {
                     let args_click = Click {
                         mouse: MouseEventArgs {
                             x: args.x,
@@ -1381,13 +1422,10 @@ impl PaxChassisWeb {
                 engine.global_dispatch_select_start(SelectStart {})
             }
             NativeInterrupt::MouseMove(args) => {
-                if let Some(topmost_node) = engine
-                    .runtime_context
-                    .mouse_move_target(
-                        MouseButton::from(args.button.clone()),
-                        Point2::new(args.x, args.y),
-                    )
-                {
+                if let Some(topmost_node) = engine.runtime_context.mouse_move_target(
+                    MouseButton::from(args.button.clone()),
+                    Point2::new(args.x, args.y),
+                ) {
                     let args_mouse_move = MouseMove {
                         mouse: MouseEventArgs {
                             x: args.x,
@@ -1448,13 +1486,10 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::MouseDown(args) => {
-                if let Some(topmost_node) = engine
-                    .runtime_context
-                    .mouse_down_target(
-                        MouseButton::from(args.button.clone()),
-                        Point2::new(args.x, args.y),
-                    )
-                {
+                if let Some(topmost_node) = engine.runtime_context.mouse_down_target(
+                    MouseButton::from(args.button.clone()),
+                    Point2::new(args.x, args.y),
+                ) {
                     let args_mouse_down = MouseDown {
                         mouse: MouseEventArgs {
                             x: args.x,
@@ -1477,14 +1512,11 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::MouseUp(args) => {
-                if let Some(topmost_node) = engine
-                    .runtime_context
-                    .mouse_up_target(
-                        MouseButton::from(args.button.clone()),
-                        Point2::new(args.x, args.y),
-                        false,
-                    )
-                {
+                if let Some(topmost_node) = engine.runtime_context.mouse_up_target(
+                    MouseButton::from(args.button.clone()),
+                    Point2::new(args.x, args.y),
+                    false,
+                ) {
                     let args_mouse_up = MouseUp {
                         mouse: MouseEventArgs {
                             x: args.x,
@@ -1507,14 +1539,11 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::MouseCancel(args) => {
-                if let Some(topmost_node) = engine
-                    .runtime_context
-                    .mouse_up_target(
-                        MouseButton::from(args.button.clone()),
-                        Point2::new(args.x, args.y),
-                        true,
-                    )
-                {
+                if let Some(topmost_node) = engine.runtime_context.mouse_up_target(
+                    MouseButton::from(args.button.clone()),
+                    Point2::new(args.x, args.y),
+                    true,
+                ) {
                     let args_mouse_cancel = MouseCancel {
                         mouse: MouseEventArgs {
                             x: args.x,
@@ -1580,7 +1609,10 @@ impl PaxChassisWeb {
             }
         };
 
-        InterruptResult { prevent_default, wheel_cancellable }
+        InterruptResult {
+            prevent_default,
+            wheel_cancellable,
+        }
     }
 
     pub fn tick(&mut self) -> JsValue {
@@ -1607,6 +1639,11 @@ impl PaxChassisWeb {
     /// allowance if another tick already ran in this display-frame epoch.
     pub fn begin_render_work(&mut self, epoch: u32) {
         self.render_work.begin(epoch);
+    }
+
+    /// Replenish a display allowance without restarting a held startup scene.
+    pub fn continue_render_work(&mut self, epoch: u32) {
+        self.render_work.continue_epoch(epoch);
     }
 
     /// Read-only continuation guard after the host samples native input. Scroll
@@ -1725,6 +1762,7 @@ impl PaxChassisWeb {
     }
 
     pub fn prepare_startup_presentation(&mut self) -> bool {
+        self.drain_render_surface_updates();
         self.engine.borrow_mut().prepare_startup_presentation()
     }
 
@@ -1976,6 +2014,10 @@ impl PaxChassisWeb {
             return JsValue::NULL;
         };
 
+        let mut plan = plan;
+        for surface in &mut plan.surfaces {
+            surface.id = format!("pax-{}-{}", ctx.property_graph.id(), surface.id);
+        }
         js_value_serde::to_value(&WebLayerCanvasPlan::new(
             plan,
             density,

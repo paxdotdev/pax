@@ -11,12 +11,12 @@ use crate::api::math::Point2;
 use crate::constants::{
     ACCEL_HANDLERS, BUTTON_CLICK_HANDLERS, CHECKBOX_CHANGE_HANDLERS, CLICK_HANDLERS,
     CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, DROP_HANDLERS, FOCUSED_HANDLERS, GYRO_HANDLERS,
-    KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS, KEY_UP_HANDLERS, MOUSE_DOWN_HANDLERS,
-    MOUSE_CANCEL_HANDLERS, MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS, MOUSE_OVER_HANDLERS, MOUSE_UP_HANDLERS,
-    PHOTO_PICKER_CHANGE_HANDLERS, SCROLL_HANDLERS, SELECT_START_HANDLERS, SLIDER_CHANGE_HANDLERS,
-    TAP_HANDLERS, TEXTBOX_CHANGE_HANDLERS, TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS,
-    TOUCH_CANCEL_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS,
-    WHEEL_HANDLERS,
+    KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS, KEY_UP_HANDLERS, MOUSE_CANCEL_HANDLERS,
+    MOUSE_DOWN_HANDLERS, MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS, MOUSE_OVER_HANDLERS,
+    MOUSE_UP_HANDLERS, PHOTO_PICKER_CHANGE_HANDLERS, SCROLL_HANDLERS, SELECT_START_HANDLERS,
+    SLIDER_CHANGE_HANDLERS, TAP_HANDLERS, TEXTBOX_CHANGE_HANDLERS, TEXTBOX_INPUT_HANDLERS,
+    TEXT_INPUT_HANDLERS, TOUCH_CANCEL_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS,
+    TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use_RefCell!();
 use crate::cartridge::{evaluate_timeline_duration, CommonPropertiesBindMode};
@@ -56,9 +56,10 @@ struct ChildStructure {
 
 use crate::api::{
     Accel, Axis, ButtonClick, CheckboxChange, Click, CommonProperties, ContextMenu, DoubleClick,
-    Drop, Event, Gyro, KeyDown, KeyPress, KeyUp, LayoutRole, MouseCancel, MouseDown, MouseMove, MouseOut,
-    MouseOver, MouseUp, NodeContext, PhotoPickerChange, RenderContext, Scroll, Size, SliderChange,
-    TextboxChange, TextboxInput, TouchCancel, TouchEnd, TouchMove, TouchStart, Wheel, Window,
+    Drop, Event, Gyro, KeyDown, KeyPress, KeyUp, LayoutRole, MouseCancel, MouseDown, MouseMove,
+    MouseOut, MouseOver, MouseUp, NodeContext, PhotoPickerChange, RenderContext, Scroll, Size,
+    SliderChange, TextboxChange, TextboxInput, TouchCancel, TouchEnd, TouchMove, TouchStart, Wheel,
+    Window,
 };
 use pax_manifest::cartridge_generation::{
     TRANSITION_GENERATION_SYMBOL, TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT,
@@ -838,13 +839,15 @@ impl ExpandedNode {
     }
 
     pub fn initialize_root(template: Rc<ComponentInstance>, ctx: &Rc<RuntimeContext>) -> Rc<Self> {
-        let root_node = Self::new(
-            template,
-            ctx.globals().stack_frame(),
-            ctx,
-            Weak::new(),
-            Weak::new(),
-        );
+        Self::initialize_root_in_scope(template, ctx, ctx.globals().stack_frame())
+    }
+
+    pub(crate) fn initialize_root_in_scope(
+        template: Rc<ComponentInstance>,
+        ctx: &Rc<RuntimeContext>,
+        scope: Rc<RuntimePropertiesStackFrame>,
+    ) -> Rc<Self> {
+        let root_node = Self::new(template, scope, ctx, Weak::new(), Weak::new());
         root_node.bind_to_parent_bounds(ctx);
         Rc::clone(&root_node).recurse_mount(ctx);
         root_node
@@ -1408,8 +1411,13 @@ impl ExpandedNode {
     /// only mounted attachments, without forcing reactive structural expansion.
     pub fn presentation_children(&self, context: &RuntimeContext) -> Vec<Rc<ExpandedNode>> {
         if context.startup.borrow().is_active() {
-            self.current_attached_children().into_iter().filter(|c| c.attached.get() > 0).collect()
-        } else { self.children.get() }
+            self.current_attached_children()
+                .into_iter()
+                .filter(|c| c.attached.get() > 0)
+                .collect()
+        } else {
+            self.children.get()
+        }
     }
 
     pub(crate) fn rescue_exiting_child_matching(
@@ -1455,7 +1463,11 @@ impl ExpandedNode {
         self.attached.get() > 0 && Self::has_child(&borrow!(self.active_children), child)
     }
 
-    pub(crate) fn finish_pending_child(self: &Rc<Self>, child: &Rc<Self>, context: &Rc<RuntimeContext>) {
+    pub(crate) fn finish_pending_child(
+        self: &Rc<Self>,
+        child: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+    ) {
         self.sync_mounted_children_from_active_and_exiting();
         child.trigger_bound_enter_transitions_for_mounted_sources_recursive(context);
         self.mark_non_reactive_update_subtree_dirty();
@@ -1541,6 +1553,9 @@ impl ExpandedNode {
         context: &Rc<RuntimeContext>,
         requested_source: Option<&UniqueTemplateNodeIdentifier>,
     ) -> bool {
+        if context.presentation_held.get() {
+            return false;
+        }
         let instance_node = borrow!(self.instance_node);
         let transition_config = instance_node.base().transition_config();
         if !transition_config.has_enter
@@ -1762,7 +1777,10 @@ impl ExpandedNode {
         }
     }
 
-    fn start_exit_transition_tree(self: &Rc<Self>, context: &Rc<RuntimeContext>) -> bool {
+    pub(crate) fn start_exit_transition_tree(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+    ) -> bool {
         let mut started = self.start_self_exit_transition(context);
         for child in borrow!(self.mounted_children).iter() {
             started |= child.start_exit_transition_tree(context);
@@ -1770,7 +1788,10 @@ impl ExpandedNode {
         started
     }
 
-    fn start_enter_transition_tree(self: &Rc<Self>, context: &Rc<RuntimeContext>) -> bool {
+    pub(crate) fn start_enter_transition_tree(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+    ) -> bool {
         let was_exiting = self.transition_phase.get() == TRANSITION_PHASE_EXIT;
         let started_here = self.start_self_enter_transition_for_source(context, None);
         if was_exiting && !started_here {
@@ -1954,7 +1975,10 @@ impl ExpandedNode {
             .replace_with(LocalProperty::new_with_name((), "enter transition cleanup"));
     }
 
-    fn exit_transition_tree_complete(self: &Rc<Self>, context: &Rc<RuntimeContext>) -> bool {
+    pub(crate) fn exit_transition_tree_complete(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+    ) -> bool {
         self.self_exit_transition_complete(context)
             && borrow!(self.mounted_children)
                 .iter()
@@ -2059,7 +2083,9 @@ impl ExpandedNode {
         let mut bindings_changed = false;
         for child in new_children.iter() {
             let previous_parent = borrow!(child.render_parent).upgrade();
-            let parent_changed = previous_parent.as_ref().is_some_and(|parent| parent.id != self.id);
+            let parent_changed = previous_parent
+                .as_ref()
+                .is_some_and(|parent| parent.id != self.id);
             let is_reparented = child.attached.get() > 0 && parent_changed;
             if is_reparented {
                 child.mark_canvas_subtree_dirty_for_reparent(context, true);
@@ -2908,10 +2934,16 @@ impl ExpandedNode {
                 // ImportSettings subtree was prepared. Refresh that dependency
                 // before creating mount-time subscriptions or running user code.
                 if let Some(owner) = self.containing_component.upgrade() {
-                    let discovery = owner.imported_settings_observer.borrow().as_ref()
+                    let discovery = owner
+                        .imported_settings_observer
+                        .borrow()
+                        .as_ref()
                         .map(|(effect, _)| effect.clone());
-                    if let Some(discovery) = discovery { discovery.get(); }
-                    else { owner.sync_imported_settings(context); }
+                    if let Some(discovery) = discovery {
+                        discovery.get();
+                    } else {
+                        owner.sync_imported_settings(context);
+                    }
                     self.rebind_imported_settings(context);
                 }
             }
@@ -3777,7 +3809,12 @@ impl ExpandedNode {
     );
     dispatch_event_handler!(dispatch_mouse_down, MouseDown, MOUSE_DOWN_HANDLERS, true);
     dispatch_event_handler!(dispatch_mouse_up, MouseUp, MOUSE_UP_HANDLERS, true);
-    dispatch_event_handler!(dispatch_mouse_cancel, MouseCancel, MOUSE_CANCEL_HANDLERS, true);
+    dispatch_event_handler!(
+        dispatch_mouse_cancel,
+        MouseCancel,
+        MOUSE_CANCEL_HANDLERS,
+        true
+    );
     dispatch_event_handler!(dispatch_mouse_move, MouseMove, MOUSE_MOVE_HANDLERS, true);
     dispatch_event_handler!(dispatch_mouse_over, MouseOver, MOUSE_OVER_HANDLERS, false);
     dispatch_event_handler!(dispatch_mouse_out, MouseOut, MOUSE_OUT_HANDLERS, false);

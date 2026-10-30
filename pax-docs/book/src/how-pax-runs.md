@@ -237,7 +237,8 @@ Set `yield_mount = true` under `[package.metadata.pax.web]` to use incremental
 initial mounting on ordinary URLs. It defaults to false; custom JavaScript hosts
 can override the generated setting with `init_web({..., yieldMount: true})`.
 For diagnostics, `?pax_mount_yield=1` forces it on and `?pax_mount_yield=0` forces
-it off, taking precedence over both settings. Other query values are ignored.
+it off, taking precedence over both settings. A configured loading screen always
+uses incremental mounting for its hidden application. Other query values are ignored.
 This remains experimental for development and release web cartridges; Apple
 chassis do not enable it. The host resolves the option once and passes it into
 either cartridge's initializer. It adds no template syntax or baked manifest
@@ -250,7 +251,15 @@ another. Ordinary tasks leave opportunities for font downloads and resize events
 to deliver feedback during mounting. Browser animation frames publish
 completed scene work. A service call does not itself advance the application
 frame clock or repeat `@mount`, `@tick`, or `@pre_render` handlers. Wall time still
-passes during initialization, so this does not pause elapsed-time animations.
+passes during ordinary initialization, so this does not pause elapsed-time animations.
+When a [loading screen](components-composition.md#loading-context-components-experimental)
+is configured, the loader and main application instead have independent clocks
+and reactive graphs. The main clock stays paused through preparation, then starts
+when the prepared scene becomes visible beneath the exiting loader. Input stays
+blocked until that exit finishes. Their rendering scenes are independent while sharing
+the runtime's GPU device. Cooperative preparation and rendering share a 4 ms
+allowance per animation-frame opportunity across these hosted applications;
+an indivisible callback can exceed this soft budget.
 The `init_web` Promise waits for mounting and the initial presentation gate;
 aborting its signal cancels pending slices and rejects initialization while
 cleanup proceeds.

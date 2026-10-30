@@ -308,6 +308,7 @@ its sources.
 | `@target` | Boolean platform and operating-system facts, such as `web`, `native`, `macos`, `ios`, `iphone`, and `ipad`. |
 | `@gpu`, `@cpu` | Complementary booleans identifying the renderer selected before app mount. |
 | `@frames`, `@millis` | Runtime frame count and elapsed time in milliseconds. |
+| `@loading` | Structured startup state, only inside a host-installed [loading scope](components-composition.md#loading-context-components-experimental). Experimental; ordinary application trees have no loading scope. |
 | `@gyro`, `@accel` | Device orientation and acceleration readings, where supplied by the target and permitted by the user. |
 
 Viewport orientation and shape fields also have short aliases, including

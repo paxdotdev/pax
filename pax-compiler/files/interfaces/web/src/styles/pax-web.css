@@ -163,3 +163,6 @@
 [data-pax-startup] * {
     visibility: hidden !important;
 }
+
+/* Keep layout and native measurement alive without publishing input or pixels. */
+.pax-mount[data-pax-preparing] { opacity: 0 !important; pointer-events: none !important; }

@@ -33,6 +33,12 @@ Type: `Rc`<[`RuntimePropertiesStackFrame`](../../../api/internal/pax-runtime/pro
 Shared context for properties pass recursion
 
 #### Properties
+##### `presentation_held`
+Type: `Cell`<`bool`>
+
+A host may prepare this application while another application is visible.
+Lifetime and measurement work continue; entry animations wait for publication.
+
 ##### `application`
 Type: `ApplicationInstance`
 

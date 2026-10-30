@@ -21,6 +21,17 @@ export class SurfaceCoordinator {
     private lastCanvasActiveStates = new Map<string, boolean>();
     private lastCanvasLayerCounts = new Map<number, number>();
     private revision = 0;
+    private requiredForPresentation = new Set<string>();
+
+    presentationReady(): boolean {
+        for (const id of this.requiredForPresentation) {
+            const canvas = this.canvases.get(id);
+            if (!canvas || canvas.dataset.surfaceConfiguredGeneration !== canvas.dataset.surfaceGeneration
+                || !canvas.dataset.surfaceContentRevision
+                || canvas.dataset.surfaceSubmittedRevision !== canvas.dataset.surfaceContentRevision) return false;
+        }
+        return true;
+    }
 
     constructor(private canvases: Map<string, HTMLCanvasElement>,
         private layers: RenderLayerManager, private refresh: (layers: number[]) => void,
@@ -31,9 +42,15 @@ export class SurfaceCoordinator {
     sync(planProvider: (layer: number) => LayerCanvasPlan | null | undefined) {
         this.begin();
         const desired: string[] = [];
+        this.requiredForPresentation.clear();
         this.layers.syncLayerCanvasLayouts(layer => {
             const plan = planProvider(layer);
-            if (plan) desired.push(...plan.surfaces.map(s => s.id));
+            if (plan) {
+                desired.push(...plan.surfaces.map(s => s.id));
+                if (plan.active) for (const surface of plan.surfaces) {
+                    if (surface.replayPriority <= 0) this.requiredForPresentation.add(surface.id);
+                }
+            }
             return plan;
         }, (retiredLayers) => this.refresh(retiredLayers));
         // Publication follows every retirement/allocation/placement operation,

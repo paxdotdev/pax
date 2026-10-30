@@ -1,0 +1,24 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {surfaceRequire} from './surface-test-loader.mjs';
+const {SurfaceCoordinator} = surfaceRequire('./surface-coordinator');
+test('publication requires configured and submitted visible surfaces, but not warm tiles', () => {
+    const canvases=new Map();
+    const layers={syncLayerCanvasLayouts(provider){provider(0);}};
+    const owner=new SurfaceCoordinator(canvases,layers,()=>{});
+    owner.sync(()=>({active:true,surfaces:[{id:'visible',replayPriority:0},{id:'warm',replayPriority:2}]}));
+    assert.equal(owner.presentationReady(),false);
+    const canvas={dataset:{surfaceGeneration:'1',surfaceContentRevision:'7'}};
+    canvases.set('visible',canvas);
+    assert.equal(owner.presentationReady(),false);
+    canvas.dataset.surfaceConfiguredGeneration='1';
+    assert.equal(owner.presentationReady(),false);
+    canvas.dataset.surfaceSubmittedRevision='7';
+    assert.equal(owner.presentationReady(),true);
+    canvas.dataset.surfaceContentRevision='8';
+    assert.equal(owner.presentationReady(),false,'a changed scene needs a fresh submission');
+    canvas.dataset.surfaceSubmittedRevision='8';
+    assert.equal(owner.presentationReady(),true);
+    canvas.dataset.surfaceGeneration='2';
+    assert.equal(owner.presentationReady(),false,'a resized surface needs configuration');
+});

@@ -103,12 +103,15 @@ struct LayerLightRecipients {
 
 /// Shared context for properties pass recursion
 pub struct RuntimeContext {
+    /// A host may prepare this application while another application is visible.
+    /// Lifetime and measurement work continue; entry animations wait for publication.
+    pub presentation_held: Cell<bool>,
+    pub(crate) presentation_entry_prepared: Cell<bool>,
     pub(crate) startup: RefCell<crate::engine::startup::Startup>,
     pub(crate) replaying_startup_input: RefCell<Option<crate::engine::startup::StartupInput>>,
     pub application: pax_runtime_api::application::ApplicationInstance,
     /// Owner-thread bridge for application properties.
     pub property_graph: pax_runtime_api::PropertyGraph,
-    next_uid: Cell<ExpandedNodeIdentifier>,
     messages: RefCell<Vec<NativeMessage>>,
     globals: RefCell<Globals>,
     root_expanded_node: RefCell<Weak<ExpandedNode>>,
@@ -261,12 +264,19 @@ impl RuntimeContext {
     pub fn new(globals: Globals) -> Self {
         let application =
             pax_runtime_api::application::ApplicationInstance::for_runtime(globals.target);
+        {
+            let graph = application.property_graph();
+            let _entered = graph.enter();
+            pax_runtime_api::properties::register_time(&globals.elapsed_frames);
+            pax_runtime_api::properties::register_millis(&globals.elapsed_millis);
+        }
         Self {
             property_graph: application.property_graph(),
+            presentation_held: Cell::new(false),
+            presentation_entry_prepared: Cell::new(false),
             startup: Default::default(),
             replaying_startup_input: Default::default(),
             application,
-            next_uid: Cell::new(ExpandedNodeIdentifier(0)),
             messages: RefCell::new(Vec::new()),
             globals: RefCell::new(globals),
             root_expanded_node: RefCell::new(Weak::new()),
@@ -317,12 +327,19 @@ impl RuntimeContext {
     pub fn new(globals: Globals, userland: Rc<ComponentInstance>) -> Self {
         let application =
             pax_runtime_api::application::ApplicationInstance::for_runtime(globals.target);
+        {
+            let graph = application.property_graph();
+            let _entered = graph.enter();
+            pax_runtime_api::properties::register_time(&globals.elapsed_frames);
+            pax_runtime_api::properties::register_millis(&globals.elapsed_millis);
+        }
         Self {
             property_graph: application.property_graph(),
+            presentation_held: Cell::new(false),
+            presentation_entry_prepared: Cell::new(false),
             startup: Default::default(),
             replaying_startup_input: Default::default(),
             application,
-            next_uid: Cell::new(ExpandedNodeIdentifier(0)),
             messages: RefCell::new(Vec::new()),
             globals: RefCell::new(globals),
             root_expanded_node: RefCell::new(Weak::new()),
@@ -375,13 +392,20 @@ impl RuntimeContext {
     pub fn new_empty(globals: Globals) -> Self {
         let application =
             pax_runtime_api::application::ApplicationInstance::for_runtime(globals.target);
+        {
+            let graph = application.property_graph();
+            let _entered = graph.enter();
+            pax_runtime_api::properties::register_time(&globals.elapsed_frames);
+            pax_runtime_api::properties::register_millis(&globals.elapsed_millis);
+        }
         Self {
             property_graph: application.property_graph(),
+            presentation_held: Cell::new(false),
+            presentation_entry_prepared: Cell::new(false),
             startup: Default::default(),
             replaying_startup_input: Default::default(),
             wheel_regions: Default::default(),
             application,
-            next_uid: Cell::new(ExpandedNodeIdentifier(0)),
             messages: RefCell::new(Vec::new()),
             globals: RefCell::new(globals),
             root_expanded_node: RefCell::new(Weak::new()),
@@ -2032,14 +2056,25 @@ impl RuntimeContext {
     }
     /// Capture recipients without dispatching hover events or evaluating pending
     /// structural children. A missing hit stays missing when the event is replayed.
-    pub fn capture_startup_input(&self, ray: Option<Point2<Window>>) -> crate::engine::startup::StartupInput {
+    pub fn capture_startup_input(
+        &self,
+        ray: Option<Point2<Window>>,
+    ) -> crate::engine::startup::StartupInput {
         // No scene has been published during this first conservative bootstrap.
         // Clicking its background must not later activate an unseen control.
         let ray = ray.filter(|_| !self.startup.borrow().is_active());
-        let target = ray.and_then(|ray| self.get_elements_beneath_ray(None, ray, true, vec![], false)
-            .first().map(|node| node.id));
-        let recipients = self.node_cache.borrow().eid_to_node.values()
-            .map(|node| (node.id, node.mount_epoch.get())).collect();
+        let target = ray.and_then(|ray| {
+            self.get_elements_beneath_ray(None, ray, true, vec![], false)
+                .first()
+                .map(|node| node.id)
+        });
+        let recipients = self
+            .node_cache
+            .borrow()
+            .eid_to_node
+            .values()
+            .map(|node| (node.id, node.mount_epoch.get()))
+            .collect();
         crate::engine::startup::StartupInput { recipients, target }
     }
 
@@ -2049,7 +2084,9 @@ impl RuntimeContext {
         ray: Point2<Window>,
     ) -> Option<Rc<ExpandedNode>> {
         if let Some(input) = self.replaying_startup_input.borrow().as_ref() {
-            return input.target.and_then(|id| self.get_expanded_node_by_eid(id))
+            return input
+                .target
+                .and_then(|id| self.get_expanded_node_by_eid(id))
                 .filter(|node| self.accepts_startup_input(node));
         }
         let res = self.get_elements_beneath_ray(None, ray, true, vec![], false);
@@ -2083,10 +2120,14 @@ impl RuntimeContext {
     }
 
     pub fn gen_uid(&self) -> ExpandedNodeIdentifier {
-        let val = self.next_uid.get();
-        let next_val = ExpandedNodeIdentifier(val.0 + 1);
-        self.next_uid.set(next_val);
-        val
+        // Native DOM/mask identities must not collide between applications in
+        // the same runtime. Allocation is local to the runtime's owner thread.
+        thread_local! { static NEXT_NODE: Cell<u32> = const { Cell::new(0) }; }
+        NEXT_NODE.with(|next| {
+            let id = next.get();
+            next.set(id.checked_add(1).expect("expanded node identity exhausted"));
+            ExpandedNodeIdentifier(id)
+        })
     }
 
     pub fn enqueue_native_message(&self, message: NativeMessage) {
@@ -2198,6 +2239,7 @@ fn template_path_from_root(node: &Option<Rc<ExpandedNode>>) -> Vec<Rc<ExpandedNo
 
 pub struct RuntimePropertiesStackFrame {
     symbols_within_frame: HashMap<String, Variable>,
+    loading: Option<pax_runtime_api::LoadingContext>,
     parent: Option<Rc<RuntimePropertiesStackFrame>>,
 }
 
@@ -2205,6 +2247,7 @@ impl RuntimePropertiesStackFrame {
     pub fn new(symbols_within_frame: HashMap<String, Variable>) -> Rc<Self> {
         Rc::new(Self {
             symbols_within_frame,
+            loading: None,
             parent: None,
         })
     }
@@ -2212,8 +2255,26 @@ impl RuntimePropertiesStackFrame {
     pub fn push(self: &Rc<Self>, symbols_within_frame: HashMap<String, Variable>) -> Rc<Self> {
         Rc::new(RuntimePropertiesStackFrame {
             symbols_within_frame,
+            loading: None,
             parent: Some(Rc::clone(self)),
         })
+    }
+
+    /// Install loading state only in the loading component's expression ancestry.
+    /// Ordinary application roots never inherit this context.
+    #[doc(hidden)]
+    pub fn push_loading(self: &Rc<Self>, loading: pax_runtime_api::LoadingContext) -> Rc<Self> {
+        Rc::new(Self {
+            symbols_within_frame: HashMap::from([("@loading".into(), loading.as_variable())]),
+            loading: Some(loading),
+            parent: Some(self.clone()),
+        })
+    }
+
+    pub(crate) fn loading(&self) -> Option<pax_runtime_api::LoadingContext> {
+        self.loading
+            .clone()
+            .or_else(|| self.parent.as_ref()?.loading())
     }
 
     pub fn pop(self: &Rc<Self>) -> Option<Rc<Self>> {
