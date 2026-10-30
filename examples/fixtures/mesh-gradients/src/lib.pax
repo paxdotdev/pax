@@ -109,11 +109,11 @@
                 }
                 material: {Material::unlit()}
             }/>
-            <Handwriter width=100% height=100% text="creative" font=HandwriterFont::EMSLeague smoothing=PathSmoothing::Strong
+            <Handwriter width=100% height=100% font=HandwriterFont::EMSLeague smoothing=PathSmoothing::Strong
                 draw_end={self.progress} stroke={
                     paint: WHITE
                     width: 6px
-                }/>
+                }>creative</Handwriter>
         </Mask>
         <Text width=100% height=42px
             style={

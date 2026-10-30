@@ -520,6 +520,22 @@ model. `Handwriter` is a higher-level component that turns text into paths
 using bundled stroke fonts, with the same draw-range controls. See its
 [API reference](api/pax-std/drawing/handwriter.md) for font and text options.
 
+Handwriter accepts a [text body](template-language.md#text-bodies), including
+multiline text and reactive expressions:
+
+```pax
+<Handwriter width=320px height=100px font=HandwriterFont::HersheyScript1>
+    First line
+    Second line
+</Handwriter>
+```
+
+The body sets its existing `text` property. Physical newlines start additional
+baselines. For compatibility, Handwriter's renderer also interprets a literal
+backslash followed by `n` as a line break, even when supplied in a raw string.
+Prefer physical newlines for new text. This is Handwriter-specific rendering
+behavior; ordinary Text does not perform that conversion.
+
 ### Bring in an SVG
 
 SVG import converts supported vector artwork into Pax Paths at build time.

@@ -185,7 +185,6 @@
                 width=88%
                 height=100%
                 anchor_x=50%
-                text="wild swans"
                 font=HandwriterFont::EMSLeague
                 line_height=1.0
                 smoothing=PathSmoothing::Strong
@@ -210,8 +209,7 @@
                     0: 0%,
                     45%: 100%,
                     100%: 100%,
-                }
-            />
+                }>wild swans</Handwriter>
         </Group>
 
         <Group width=100% height=124px>
@@ -220,7 +218,6 @@
                 width=100%
                 height=100%
                 anchor_x=50%
-                text="The silver apples of the moon,\nThe golden apples of the sun."
                 font=HandwriterFont::HersheyScript1
                 line_height=1.15
                 stroke={
@@ -244,8 +241,10 @@
                     0: 0%,
                     45%: 100%,
                     100%: 100%,
-                }
-            />
+                }>
+                The silver apples of the moon,
+                The golden apples of the sun.
+            </Handwriter>
         </Group>
 
         <Group width=100% height=136px>

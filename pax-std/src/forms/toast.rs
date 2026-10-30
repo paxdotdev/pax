@@ -15,7 +15,11 @@ const IN_OUT_TIME: u64 = 10;
     if self.shown {
         <Group x=100% y={y_pos} width=400px height={height}>
             <Group x=50% y=50% width={100%-20px} height={100%-20px}>
-                <Text x=40px height=100% width=70% align={TextAlignHorizontal::Left}>{message}</Text>
+                <Text x=20px height=100% width={100% - 120px} style={
+                    fill: WHITE
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_vertical: TextAlignVertical::Center
+                }>{message}</Text>
                 <Button width=70px height=30px x=90% y=50% @button_click=handle_trigger>{"Undo"}</Button>
                 <Rectangle fill=rgb(20, 20, 20)
                 corner_radius=15.0/>
@@ -31,7 +35,8 @@ const IN_OUT_TIME: u64 = 10;
 pub struct Toast {
     /// Whether the toast is currently shown.
     pub shown: Property<bool>,
-    /// The message to display in the toast.
+    /// The message to display, supplied as a `message` attribute or an element body.
+    #[pax(content)]
     pub message: Property<String>,
     /// The height of the toast.
     pub height: Property<Size>,

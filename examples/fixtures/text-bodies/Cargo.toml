@@ -23,4 +23,3 @@ designtime = ["pax-kit/designtime"]
 name = "text-bodies"
 path = "src/main.rs"
 required-features = ["standalone"]
-

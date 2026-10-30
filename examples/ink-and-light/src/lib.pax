@@ -81,7 +81,6 @@
             width={is_compact ? 82% : 62%}
             height={is_compact ? 19% : 34%}
             anchor_x=50%
-            text="Hello, Pax,"
             font=HandwriterFont::HersheyScript1
             line_height=1.0
             smoothing=PathSmoothing::Strong
@@ -91,8 +90,7 @@
                 cap: StrokeCap::Round
                 join: StrokeJoin::Round
             }
-            draw_end={greeting_progress}
-        />
+            draw_end={greeting_progress}>Hello, Pax,</Handwriter>
 
         <Text
             id=message

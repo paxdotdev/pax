@@ -31,9 +31,9 @@ already used by the website's Handwriter:
         50%: rgb(240, 0, 185)
         100%: rgb(250, 230, 0)
     }/>
-    <Handwriter width=100% height=100% text="creative"
+    <Handwriter width=100% height=100%
         font=HandwriterFont::EMSLeague draw_end={self.progress}
-        stroke={paint: WHITE, width: 5px}/>
+        stroke={paint: WHITE, width: 5px}>creative</Handwriter>
 </Mask>
 ```
 

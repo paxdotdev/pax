@@ -10,7 +10,7 @@ A confirmation dialog, a modal dialog that asks the user to confirm an action wi
 ##### `text`
 Type: `Property`<`String`>
 
-Prompt text shown in the dialog.
+Prompt text shown in the dialog, supplied as a `text` attribute or an element body.
 
 ##### `open`
 Type: `Property`<`bool`>

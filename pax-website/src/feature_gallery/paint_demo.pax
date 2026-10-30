@@ -13,13 +13,13 @@
                 }
                 material: {Material::unlit()}
             }/>
-            <Handwriter width=100% height=100% text="Pax" font=HandwriterFont::EMSLeague smoothing=PathSmoothing::Strong
+            <Handwriter width=100% height=100% font=HandwriterFont::EMSLeague smoothing=PathSmoothing::Strong
                 draw_end={self.progress} stroke={
                     paint: WHITE
                     width: 7px
                     cap: StrokeCap::Round
                     material: {Material::unlit()}
-                }/>
+                }>Pax</Handwriter>
         </Mask>
     } else {
         <Path x=24px y=24px width={100% - 48px} height=104px fill=[] draw_end={self.progress} stroke=[

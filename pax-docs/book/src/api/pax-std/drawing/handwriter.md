@@ -14,7 +14,10 @@ animate the visible writing range.
 ##### `text`
 Type: `Property`<`String`>
 
-Text to render. Newline characters create additional baselines.
+Text to render, supplied as an attribute or an element body.
+Physical newlines create additional baselines. For compatibility, the
+renderer also treats a literal backslash followed by `n` as a newline,
+including in raw string values; prefer physical newlines for new text.
 
 ##### `font`
 Type: `Property`<[`HandwriterFont`](../../../api/pax-std/drawing/handwriter.md#handwriterfont)>

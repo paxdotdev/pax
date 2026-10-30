@@ -24,6 +24,22 @@ for example `<Button width=120px height=40px>Save</Button>`. This sets the exist
 continue to use the existing Markdown renderer. Text bodies do not change a
 control's native accessibility or editing behavior.
 
+`Toast` accepts its `message` as a body, and `ConfirmationDialog` accepts its
+prompt `text` the same way:
+
+```pax
+<Toast width=100% y=100%>Changes saved.</Toast>
+<ConfirmationDialog width=100% height=100% open=true>Discard these changes?</ConfirmationDialog>
+```
+
+These forms only assign the existing text properties. Toast keeps its existing
+message-driven show/hide behavior, and the dialog still uses `open` to control
+visibility. Whole-body expressions work too, such as
+`<Toast width=100% y=100%>{self.status}</Toast>`; use the property attribute
+when a two-way binding is needed.
+Both components display light text on their dark panels. The dialog prompt
+wraps within the area above its response buttons.
+
 ## A small editable form
 
 Let's add a settings form to Field notes. A name, a location preference, a

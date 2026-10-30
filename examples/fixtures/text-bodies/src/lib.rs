@@ -7,6 +7,8 @@ pax_kit::runnable! { root: crate::Example }
 pub struct Example {
     pub count: Property<usize>,
     pub note: Property<String>,
+    pub notifications: Property<usize>,
+    pub dialog_open: Property<bool>,
 }
 
 impl Example {
@@ -16,6 +18,14 @@ impl Example {
 
     pub fn increment(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
         self.count.set(self.count.get() + 1);
+    }
+
+    pub fn notify(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
+        self.notifications.set(self.notifications.get() + 1);
+    }
+
+    pub fn confirm(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
+        self.dialog_open.set(true);
     }
 }
 

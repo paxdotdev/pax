@@ -13,7 +13,8 @@ use pax_engine::*;
         <Group x=50% y=50% width=300px height=170px>
             <Button width=80px height=30px anchor_y=100% anchor_x=100% y={100%-20px} x={100% -80px -20px -20px} @button_click=handle_yes>{"Yes"}</Button>
             <Button width=80px height=30px anchor_y=100% anchor_x=100% y={100% -20px} x={100% -20px} @button_click=handle_no>{"No"}</Button>
-            <Text x=20px y=20px height=15px width=100px>{text}</Text>
+            <Text x=20px y=20px height={100% - 80px} width={100% - 40px}
+                style={fill: WHITE}>{text}</Text>
             <Rectangle fill=rgb(20, 20, 20)
             corner_radius=15.0/>
         </Group>
@@ -22,7 +23,8 @@ use pax_engine::*;
 )]
 #[custom(Default)]
 pub struct ConfirmationDialog {
-    /// Prompt text shown in the dialog.
+    /// Prompt text shown in the dialog, supplied as a `text` attribute or an element body.
+    #[pax(content)]
     pub text: Property<String>,
     /// Whether the dialog is visible.
     pub open: Property<bool>,

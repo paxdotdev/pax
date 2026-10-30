@@ -15,7 +15,7 @@ Whether the toast is currently shown.
 ##### `message`
 Type: `Property`<`String`>
 
-The message to display in the toast.
+The message to display, supplied as a `message` attribute or an element body.
 
 ##### `height`
 Type: `Property`<[`Size`](../../../api/pax-runtime-api/layout.md#size)>

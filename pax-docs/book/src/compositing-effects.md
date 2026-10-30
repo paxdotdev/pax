@@ -276,9 +276,9 @@ Handwriter can reveal a colored surface as its generated stroke is drawn:
 ```pax
 <Mask width=300px height=100px alpha=true>
     <Rectangle width=100% height=100% fill=rgb(0, 220, 235)/>
-    <Handwriter width=100% height=100% text="Pax"
+    <Handwriter width=100% height=100%
         stroke={paint: WHITE, width: 5px}
-        draw_end=@timeline { duration: 2s, 0: 0%, 100%: 100% }/>
+        draw_end=@timeline { duration: 2s, 0: 0%, 100%: 100% }>Pax</Handwriter>
 </Mask>
 ```
 

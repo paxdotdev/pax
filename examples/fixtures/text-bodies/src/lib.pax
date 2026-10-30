@@ -1,21 +1,37 @@
-<Group x=24px y=24px width={100% - 48px} height={100% - 48px}>
-    <Text class="heading" width=100% height=48px>Text, as authored</Text>
-    <Text class="caption" y=56px width=100% height=30px>Literal bodies · raw strings · reactive content</Text>
-    <Text class="copy" id=ordinary y=110px width=100% height=100px>
-        Shared indentation disappears.
-            This line keeps its extra four spaces.
-        Unicode: café 🚀 · References: &lt;Text&gt; &#123;value&#125; &amp;
-    </Text>
-    <Text class="copy" id=raw y=222px width=100% height=94px>{r#"  Raw content keeps these two spaces.
+<ConfirmationDialog width=100% height=100% open=bind:dialog_open>Continue?</ConfirmationDialog>
+if self.notifications > 0 {
+    <Toast width=100% y=100%>{"Saved change " + self.notifications}</Toast>
+}
+<Scroller width=100% height=100% scroll_height=928px>
+    <Group x=24px y=24px width={100% - 48px} height=880px>
+        <Text class="heading" width=100% height=48px>Text, as authored</Text>
+        <Text class="caption" y=56px width=100% height=30px>Literal bodies · raw strings · reactive content</Text>
+        <Text class="copy" id=ordinary y=110px width=100% height=100px>
+            Shared indentation disappears.
+                This line keeps its extra four spaces.
+            Unicode: café 🚀 · References: &lt;Text&gt; &#123;value&#125; &amp;
+        </Text>
+        <Text class="copy" id=raw y=222px width=100% height=94px>{r#"  Raw content keeps these two spaces.
     And these four. <Text>{braces}</Text> & \n
 "#}</Text>
-    <Text class="copy" id=markdown y=320px width=100% height=40px markdown=true>Markdown is explicit: **bold** and *emphasis*.</Text>
-    <Notice id=custom y=370px width=100% height=40px>A custom receiver uses the same body syntax.</Notice>
-    <Button id=increment y=425px width=240px height=44px @button_click=self.increment>{"Clicked " + self.count + " times"}</Button>
-    <Text class="copy" id=editable y=495px width=100% height=40px editable=true text=bind:note/>
-    <Text class="copy" id=echo y=550px width=100% height=40px>{"Live echo: " + self.note}</Text>
-    <Rectangle width=100% height=100% fill=rgb(249, 247, 241)/>
-</Group>
+        <Text class="copy" id=markdown y=320px width=100% height=40px markdown=true>Markdown is explicit: **bold** and *emphasis*.</Text>
+        <Notice id=custom y=370px width=100% height=40px>A custom receiver uses the same body syntax.</Notice>
+        <Button id=increment y=425px width=240px height=44px @button_click=self.increment>{"Clicked " + self.count + " times"}</Button>
+        <Text class="copy" id=editable y=495px width=100% height=40px editable=true text=bind:note/>
+        <Text class="copy" id=echo y=550px width=100% height=40px>{"Live echo: " + self.note}</Text>
+        <Text class="caption" y=605px width=100% height=30px>Handwriter · Toast · ConfirmationDialog</Text>
+        <Handwriter id=handwriter y=650px width={@viewport.width < 600 ? 100% : 480px} height=100px font=HandwriterFont::HersheyScript1 stroke={
+            paint: rgb(27, 44, 51)
+            width: 2px
+        }>
+            Handwritten body
+            Second line
+        </Handwriter>
+        <Button id=notify y=780px width=180px height=44px @button_click=self.notify>Show toast</Button>
+        <Button id=confirm x=200px y=780px width=200px height=44px @button_click=self.confirm>Open dialog</Button>
+        <Rectangle width=100% height=100% fill=rgb(249, 247, 241)/>
+    </Group>
+</Scroller>
 
 @settings {
     @mount: mount

@@ -96,7 +96,8 @@ its signature, event data, and state updates.
 
 ## Text bodies
 
-`Text` and `Button` accept text between their opening and closing tags:
+`Text`, `Button`, `Handwriter`, `Toast`, and `ConfirmationDialog` accept text
+between their opening and closing tags:
 
 ```pax
 <Text width=240px height=40px>Hello, world.</Text>
@@ -110,7 +111,8 @@ read the containing component's state. Inline interpolation such as
 A scalar body cannot be mixed with child elements or template control flow.
 Structural children and slots retain their existing behavior.
 
-Bodies assign an ordinary property: `Text.text`, `Button.label`, or a custom
+Bodies assign an ordinary property: `Text.text`, `Button.label`,
+`Handwriter.text`, `Toast.message`, `ConfirmationDialog.text`, or a custom
 component's [content receiver](components-composition.md#receiving-text-content).
 The attribute forms still work, including `text=bind:note` for editable text.
 Do not supply both a body and its receiving attribute on the same tag. A body

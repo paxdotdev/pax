@@ -18,7 +18,11 @@ use pax_runtime::api::NodeContext;
 #[custom(Default)]
 #[file("drawing/handwriter.pax")]
 pub struct Handwriter {
-    /// Text to render. Newline characters create additional baselines.
+    /// Text to render, supplied as an attribute or an element body.
+    /// Physical newlines create additional baselines. For compatibility, the
+    /// renderer also treats a literal backslash followed by `n` as a newline,
+    /// including in raw string values; prefer physical newlines for new text.
+    #[pax(content)]
     pub text: Property<String>,
     /// Bundled stroke font used to draw `text`.
     pub font: Property<HandwriterFont>,
@@ -870,6 +874,20 @@ mod tests {
         assert_eq!(
             normalize_text_newlines("one\\ntwo\nthree"),
             "one\ntwo\nthree"
+        );
+    }
+
+    #[test]
+    fn physical_newlines_match_legacy_template_newlines() {
+        let physical = "First line\nSecond line";
+        let legacy = r"First line\nSecond line";
+        assert_eq!(
+            render_handwriter_text(physical, HandwriterFont::HersheyScript1, 1.2),
+            render_handwriter_text(legacy, HandwriterFont::HersheyScript1, 1.2)
+        );
+        assert_eq!(
+            normalize_text_newlines(physical),
+            normalize_text_newlines(legacy)
         );
     }
 
