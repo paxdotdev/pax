@@ -252,7 +252,7 @@ impl ResourceChurnStats {
 /// Retained scene renderer that records Pax vector/image commands and flushes them through wgpu.
 ///
 /// Transform and clip identities remain stable until their owning node releases them.
-/// GPU uniform pages grow with scene demand; the 480-entry page size is not a scene
+/// GPU uniform pages grow with scene demand; the 160-entry page size is not a scene
 /// limit. Moving or fading retained geometry updates transform pages without
 /// retessellating or uploading vertex/index buffers.
 pub struct WgpuRenderer<'w> {
@@ -711,9 +711,7 @@ impl TransformArena {
                 self.dirty = true;
                 slot
             });
-            if self.slots[slot as usize].transform != transform.transform
-                || (self.slots[slot as usize].opacity - transform.opacity).abs() > f32::EPSILON
-            {
+            if self.slots[slot as usize] != *transform {
                 self.slots[slot as usize] = *transform;
                 self.dirty = true;
             }
@@ -958,12 +956,14 @@ impl<'w> WgpuRenderer<'w> {
         );
         let Some(PendingNode {
             kind: PendingNodeKind::Vector(buffers),
+            lighting_surface,
             ..
         }) = self.ensure_vector_node()
         else {
             return;
         };
         buffers.ops.push(PendingVectorOp {
+            lighting_surface: *lighting_surface,
             path,
             fill: stroke.fill,
             material,
@@ -1022,12 +1022,14 @@ impl<'w> WgpuRenderer<'w> {
         let geometry_signature = hash_vector_path(&path, PendingVectorOpKind::Fill, smoothing);
         let Some(PendingNode {
             kind: PendingNodeKind::Vector(buffers),
+            lighting_surface,
             ..
         }) = self.ensure_vector_node()
         else {
             return;
         };
         buffers.ops.push(PendingVectorOp {
+            lighting_surface: *lighting_surface,
             path,
             fill,
             material,
@@ -1633,6 +1635,19 @@ impl<'w> WgpuRenderer<'w> {
         self.render_backend.take_screenshot_capture(request_id)
     }
 
+    /// Set the current draw's unprojected frame without changing retained path geometry.
+    pub fn set_node_lighting_surface(
+        &mut self,
+        node_id: u32,
+        surface: Option<pax_runtime_api::LightingSurface>,
+    ) {
+        if let Some(node) = &mut self.current_node {
+            if node.id == node_id {
+                node.lighting_surface = surface;
+            }
+        }
+    }
+
     pub fn begin_node(&mut self, node_id: u32, mut z_index: i32, light_mask: u32) -> bool {
         if let Some(recording) = self.source_recordings.last_mut() {
             z_index = recording.nodes.len() as i32;
@@ -1643,6 +1658,7 @@ impl<'w> WgpuRenderer<'w> {
             id: node_id,
             z_index,
             light_mask,
+            lighting_surface: None,
             owned_clip_keys: Vec::new(),
             kind: PendingNodeKind::Empty,
         });
@@ -1679,6 +1695,7 @@ impl<'w> WgpuRenderer<'w> {
             }
             PendingNodeKind::Vector(buffers) => {
                 let lighting_dependencies = LightingDependencies::from_ops(&buffers.ops);
+                let (bounds, spatial_coverage) = compute_vector_node_extent(&buffers.ops);
                 let geometry_signatures = buffers
                     .ops
                     .iter()
@@ -1757,7 +1774,8 @@ impl<'w> WgpuRenderer<'w> {
                         existing.transform_signature = transform_signature;
                         existing.transform_layout_signature = transform_layout_signature;
                         existing.resource_key = resource_key;
-                        existing.bounds = compute_vector_node_bounds(&buffers.ops);
+                        existing.bounds = bounds;
+                        existing.spatial_coverage = spatial_coverage;
                         Some(RetainedNode::Vector(existing))
                     }
                     Some(_) => {
@@ -1782,7 +1800,8 @@ impl<'w> WgpuRenderer<'w> {
                             transform_keys,
                             clip_stack: buffers.clip_stack,
                             z_index: pending_z_index,
-                            bounds: compute_vector_node_bounds(&buffers.ops),
+                            bounds,
+                            spatial_coverage,
                             resource_dirty: VectorResourceDirty {
                                 geometry: true,
                                 primitives: true,
@@ -1820,7 +1839,8 @@ impl<'w> WgpuRenderer<'w> {
                             transform_keys,
                             clip_stack: buffers.clip_stack,
                             z_index: pending_z_index,
-                            bounds: compute_vector_node_bounds(&buffers.ops),
+                            bounds,
+                            spatial_coverage,
                             resource_dirty: VectorResourceDirty {
                                 geometry: true,
                                 primitives: true,
@@ -2267,6 +2287,7 @@ struct PendingNode {
     id: u32,
     z_index: i32,
     light_mask: u32,
+    lighting_surface: Option<pax_runtime_api::LightingSurface>,
     owned_clip_keys: Vec<ClipArenaKey>,
     kind: PendingNodeKind,
 }
@@ -2287,6 +2308,7 @@ struct PendingVectorOp {
     fill: Fill,
     material: Material,
     light_mask: u32,
+    lighting_surface: Option<pax_runtime_api::LightingSurface>,
     transform: Transform2D,
     opacity: f32,
     kind: PendingVectorOpKind,
@@ -2363,6 +2385,7 @@ struct RetainedVectorNode {
     clip_stack: Vec<ClipReference>,
     z_index: i32,
     bounds: Box2D,
+    spatial_coverage: Vec<[f64; 2]>,
     resource_dirty: VectorResourceDirty,
     geometry_signatures: Vec<u64>,
     fill_signature: u64,
@@ -2428,26 +2451,22 @@ fn record_retained_batch_stats(stats: &mut ResourceChurnStats, draws: &[Retained
     }
 }
 
+fn op_gpu_transform(op: &PendingVectorOp) -> GpuTransform {
+    GpuTransform {
+        transform: op.transform.to_arrays(),
+        opacity: op.opacity,
+        ..GpuTransform::default()
+    }
+    .with_lighting(op.lighting_surface)
+}
+
 fn build_local_transform_table(ops: &[PendingVectorOp]) -> Vec<GpuTransform> {
     let mut transforms = vec![GpuTransform::default()];
     for op in ops {
-        let transform = GpuTransform {
-            transform: op.transform.to_arrays(),
-            opacity: op.opacity,
-            ..GpuTransform::default()
-        };
-        if transform.transform == GpuTransform::default().transform
-            && (transform.opacity - GpuTransform::default().opacity).abs() <= f32::EPSILON
-        {
-            continue;
+        let transform = op_gpu_transform(op);
+        if !transforms.contains(&transform) {
+            transforms.push(transform);
         }
-        if transforms.iter().any(|existing| {
-            existing.transform == transform.transform
-                && (existing.opacity - transform.opacity).abs() <= f32::EPSILON
-        }) {
-            continue;
-        }
-        transforms.push(transform);
     }
     transforms
 }
@@ -2481,7 +2500,7 @@ fn rebuild_vector_buffers(
     let mut next_material_id: u32 = 0;
 
     for op in ops {
-        let transform_id = push_transform_with_opacity(buffers, op.transform, op.opacity);
+        let transform_id = push_gpu_transform(buffers, op_gpu_transform(op));
         let prim_id = if reuse_fill {
             push_primitive_with_existing_fill(
                 buffers,
@@ -3003,30 +3022,17 @@ fn append_cpu_buffers(dst: &mut CpuBuffers, src: &CpuBuffers) {
     dst.materials.extend(src.materials.iter().copied());
 }
 
-fn push_transform_with_opacity(
-    buffers: &mut CpuBuffers,
-    transform: Transform2D,
-    opacity: f32,
-) -> u32 {
-    if transform == Transform2D::identity() && (opacity - 1.0).abs() <= f32::EPSILON {
-        0
-    } else {
-        let transform_arrays = transform.to_arrays();
-        if let Some(transform_id) = buffers.transforms.iter().position(|existing| {
-            existing.transform == transform_arrays
-                && (existing.opacity - opacity).abs() <= f32::EPSILON
-        }) {
-            return transform_id as u32;
-        }
-
-        let transform_id = buffers.transforms.len() as u32;
-        buffers.transforms.push(GpuTransform {
-            transform: transform_arrays,
-            opacity,
-            ..GpuTransform::default()
-        });
-        transform_id
+fn push_gpu_transform(buffers: &mut CpuBuffers, transform: GpuTransform) -> u32 {
+    if let Some(index) = buffers
+        .transforms
+        .iter()
+        .position(|existing| *existing == transform)
+    {
+        return index as u32;
     }
+    let index = buffers.transforms.len() as u32;
+    buffers.transforms.push(transform);
+    index
 }
 
 fn would_exceed_batch_capacity(dst: &CpuBuffers, src: &CpuBuffers) -> bool {
@@ -3066,7 +3072,7 @@ fn hash_vector_transforms(ops: &[PendingVectorOp]) -> u64 {
     let mut hasher = DefaultHasher::new();
     ops.len().hash(&mut hasher);
     for op in ops {
-        hash_transform_bits(&op.transform, op.opacity, &mut hasher);
+        bytemuck::bytes_of(&op_gpu_transform(op)).hash(&mut hasher);
     }
     hasher.finish()
 }
@@ -3080,8 +3086,9 @@ fn hash_transform_ids(transform_ids: &[u32]) -> u64 {
     hasher.finish()
 }
 
-fn compute_vector_node_bounds(ops: &[PendingVectorOp]) -> Box2D {
+fn compute_vector_node_extent(ops: &[PendingVectorOp]) -> (Box2D, Vec<[f64; 2]>) {
     let mut bounds: Option<Box2D> = None;
+    let mut coverage = Vec::with_capacity(ops.len() * 4);
     for op in ops {
         let Some(path_bounds) = path_control_bounds(&op.path) else {
             continue;
@@ -3089,13 +3096,26 @@ fn compute_vector_node_bounds(ops: &[PendingVectorOp]) -> Box2D {
         let mut op_bounds = transform_box(path_bounds, &op.transform);
         if let PendingVectorOpKind::Stroke(width, _, _) = op.kind {
             op_bounds = expand_box(op_bounds, width * 0.5);
+            coverage.extend(spatial::box_polygon(expand_box(op_bounds, 1.0)));
+        } else {
+            // Preserve the projected parallelogram instead of its screen-aligned box.
+            // A near-edge-on plane extrapolates to enormous false depths in that box.
+            for p in spatial::box_polygon(path_bounds) {
+                let p = op
+                    .transform
+                    .transform_point(point(p[0] as f32, p[1] as f32));
+                coverage.push([p.x as f64, p.y as f64]);
+            }
         }
         bounds = Some(match bounds {
             Some(existing) => union_boxes(existing, op_bounds),
             None => op_bounds,
         });
     }
-    bounds.unwrap_or_else(empty_box)
+    (
+        bounds.unwrap_or_else(empty_box),
+        spatial::convex_hull(coverage),
+    )
 }
 
 fn path_control_bounds(path: &Path) -> Option<Box2D> {
@@ -3305,15 +3325,6 @@ fn push_unique_scalar(values: &mut Vec<f32>, value: f32, epsilon: f32) {
     {
         values.push(value);
     }
-}
-
-fn hash_transform_bits<H: Hasher>(transform: &Transform2D, opacity: f32, state: &mut H) {
-    for row in transform.to_arrays() {
-        for value in row {
-            value.to_bits().hash(state);
-        }
-    }
-    opacity.to_bits().hash(state);
 }
 
 fn hash_fill_bits<H: Hasher>(fill: &Fill, state: &mut H) {
@@ -4490,6 +4501,7 @@ mod tests {
             (hole.build(), 84.0),
         ] {
             let op = PendingVectorOp {
+                lighting_surface: None,
                 geometry_signature: hash_vector_path(
                     &path,
                     PendingVectorOpKind::Fill,
@@ -4524,6 +4536,7 @@ mod tests {
     fn vector_geometry_cache_reuses_tessellation_and_remaps_primitive_ids() {
         let path = rect_path(10.0, 5.0);
         let op = PendingVectorOp {
+            lighting_surface: None,
             path: path.clone(),
             fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
             material: Material::default(),
@@ -4541,6 +4554,7 @@ mod tests {
         };
         let ops = vec![
             PendingVectorOp {
+                lighting_surface: None,
                 path,
                 fill: Fill::Solid(Color::rgba(0.0, 1.0, 0.0, 1.0)),
                 material: Material::default(),
@@ -4619,6 +4633,7 @@ mod tests {
         let geometry_signature = hash_vector_path(&path, kind, PathSmoothing::None);
         let ops = vec![
             PendingVectorOp {
+                lighting_surface: None,
                 path: path.clone(),
                 fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
                 material: Material::default(),
@@ -4631,6 +4646,7 @@ mod tests {
                 smoothing: PathSmoothing::None,
             },
             PendingVectorOp {
+                lighting_surface: None,
                 path,
                 fill: Fill::Solid(Color::rgba(0.0, 1.0, 0.0, 1.0)),
                 material: Material::default(),
@@ -4673,6 +4689,7 @@ mod tests {
         let path = two_closed_rects_path(10.0, 5.0, 20.0);
         let kind = PendingVectorOpKind::Stroke(1.0, StrokeCap::Butt, StrokeJoin::Miter);
         let op = PendingVectorOp {
+            lighting_surface: None,
             path: path.clone(),
             fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
             material: Material::default(),
@@ -4729,6 +4746,7 @@ mod tests {
         let geometry_signature = hash_vector_path(&path, kind, PathSmoothing::None);
         let make_ops = |draw_range| {
             vec![PendingVectorOp {
+                lighting_surface: None,
                 path: path.clone(),
                 fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
                 material: Material::default(),
@@ -4787,6 +4805,7 @@ mod tests {
         let geometry_signature = hash_vector_path(&path, kind, PathSmoothing::None);
         let make_ops = |draw_range| {
             vec![PendingVectorOp {
+                lighting_surface: None,
                 path: path.clone(),
                 fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
                 material: Material::default(),
@@ -4813,6 +4832,7 @@ mod tests {
         let unsmoothed = hash_vector_path(&path, kind, PathSmoothing::None);
         let smoothed = hash_vector_path(&path, kind, PathSmoothing::Strong);
         let make_op = |smoothing, geometry_signature| PendingVectorOp {
+            lighting_surface: None,
             path: path.clone(),
             fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
             material: Material::default(),

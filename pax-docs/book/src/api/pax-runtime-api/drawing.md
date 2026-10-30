@@ -327,12 +327,14 @@ Positional or directional light shape.
 ##### `position`
 Type: `Vector3`
 
-Position in logical canvas pixels for point lights.
+Position in unprojected world pixels for point lights. Contributors supply
+the unscrolled world position; collected layer lighting adjusts source
+minus target scroll displacement while retaining world axes.
 
 ##### `direction`
 Type: `Vector3`
 
-Direction in scene space for directional lights.
+Direction in unprojected world axes for directional lights.
 
 ##### `color`
 Type: [`Color`](../../api/pax-runtime-api/color.md#color)

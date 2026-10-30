@@ -12,7 +12,7 @@ use pax_runtime::api::NodeContext;
 ///
 /// Uses the experimental GPU spatial compositor, including its native-layer
 /// restrictions. The current view is orthographic; materials retain the current
-/// renderer's lighting behavior rather than introducing a separate solid shader.
+/// renderer's material model with the position and oriented normal of each face.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[file("drawing/cuboid.pax")]

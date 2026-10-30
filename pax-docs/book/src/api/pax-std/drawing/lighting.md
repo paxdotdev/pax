@@ -49,12 +49,12 @@ Light intensity multiplier.
 ##### `radius`
 Type: `Property`<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
 
-Radius for point-light attenuation.
+Point-light attenuation radius in world pixels; ancestor scale does not resize it.
 
 ##### `z`
 Type: `Property`<[`Depth`](../../../api/pax-runtime-api/drawing.md#depth)>
 
-Logical scene depth in pixels.
+Local depth in pixels, transformed with the light and its ancestors.
 
 ##### `shape`
 Type: `Property`<[`LightShape`](../../../api/pax-runtime-api/drawing.md#lightshape)>
@@ -64,7 +64,7 @@ Positional or directional light shape.
 ##### `direction`
 Type: `Property`<`Vector3`>
 
-Direction for directional lights.
+Local direction for directional lights, transformed with the light's ancestors.
 
 ##### `enabled`
 Type: `Property`<`bool`>

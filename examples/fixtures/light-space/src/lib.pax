@@ -1,0 +1,73 @@
+<Scroller width=100% height=100% scroll_height=1440px scroll_pos_y=bind:self.scroll_y>
+    <Group width=100% height=1440px anchor=0%>
+        <Group width=100% height=178px translate_z=1000px>
+            <Text class="eyebrow" x=32px y=25px width=380px height=22px text="PAX / STUDIES IN DIMENSION" />
+            <Text class="title" x=32px y=62px width={100% - 64px} height=78px text="Light changes space." />
+            <Text class="copy" x=34px y=143px width={100% - 68px} height=24px text="Live surfaces. Moving light. An ordinary Pax tree." />
+        </Group>
+        <Frame x=24px y=190px width={100% - 48px} height=540px>
+            <LightFrame width=100% height=100%>
+                <Group x=26px y=24px width={100% - 52px} height=70px translate_z=1100px>
+                    <Text class="stage_eyebrow" width=300px height=22px text="01 / A MATERIAL, IN MOTION" />
+                    <Text class="stage_copy" y=30px width={100% - 150px} height=40px text="Every face wears the same gold." />
+                    <Button x=100% width=130px height=34px label={self.playing ? "Pause motion" : "Play motion"} @button_click=self.play />
+                </Group>
+                <Cuboid x=50% y=54% width=280px height=220px depth=170px
+                    fill={paint: rgb(228, 170, 81), material: {Material::glossy(0.45)}}
+                    opacity={self.fade} rotate_x={(-16.0 + self.scroll_y * 0.035)deg}
+                    rotate_y=@timeline { duration: 12000ms, playhead: {self.clock}, loop: true,
+                        0%: -32deg, InOutQuad, 50%: 18deg, InOutQuad, 100%: -32deg }
+                >
+                    <CuboidFace side=CuboidSide::Front width=100% height=100%>
+                        <Text class="eyebrow" x=20px y=22px width=240px height=24px text="A LIVE SURFACE" />
+                        <Text class="ink" x=20px y=60px width=240px height=50px text="Make yourself at home."
+                            style={font: "Georgia", font_size: 24px} />
+                        <Textbox x=20px y=124px width=240px height=34px text=bind:self.note />
+                        <Button x=20px y=174px width=160px height=30px label={"Keep in touch / " + self.presses} @button_click=self.press />
+                    </CuboidFace>
+                </Cuboid>
+                <LightSource x=32% y=10% width=1px height=1px z=420px radius=1500px
+                    color=rgb(255, 228, 190) intensity={self.power} />
+                <AmbientLight color=rgb(170, 192, 255) intensity=0.35 />
+                <Group x=26px y=100% anchor_y=100% width={100% - 52px} height=76px translate_z=1100px>
+                    <Button width=118px height=32px label={self.fade < 0.9 ? "Restore solid" : "Fade solid"} @button_click=self.fade />
+                    <Slider x=150px y=4px width={100% - 150px} height=24px min=0.0 max=3.0 step=0.05 value=bind:self.power accent=rgb(231, 186, 106) />
+                    <Text class="stage_eyebrow" y=45px width=100% height=18px text="SCROLL TO CHANGE YOUR POINT OF VIEW" />
+                </Group>
+                <Rectangle width=100% height=100% translate_z=-1500px fill={paint: rgb(23, 38, 72), material: {Material::unlit()}} />
+            </LightFrame>
+        </Frame>
+        <Group x=32px y=778px width={100% - 64px} height=145px translate_z=1000px>
+            <Text class="eyebrow" width=300px height=22px text="02 / THE LIGHT HAS A HOME" />
+            <Text class="ink" y=42px width=100% height=54px text={@viewport.width < 650 ? "Light follows the group." : "Move the parent. Move the light."}
+                style={font: "Georgia", font_size: {@viewport.width < 650 ? 28px : 36px}} />
+            <Text class="copy" y=106px width=100% height=40px text="A light inherits its group's pose. Scroll to swing the lamp across the surface." />
+        </Group>
+        <Frame x=24px y=930px width={100% - 48px} height=370px>
+            <LightFrame width=100% height=100%>
+                <Group width=100% height=100% rotate_y={(-38.0 + self.scroll_y * 0.08)deg}>
+                    <LightSource x=50% y=30% width=1px height=1px z=280px radius=700px color=rgb(255, 232, 192) intensity=2.3 />
+                    <Ellipse x=50% y=30% width=14px height=14px translate_z=280px fill={paint: rgb(255, 240, 190), material: {Material::unlit()}} />
+                </Group>
+                <Text class="stage_eyebrow" x=24px y=25px width=300px height=22px text="ONE TRANSFORM / LIGHT + MARKER" translate_z=500px />
+                <Rectangle x=50% y=55% width=70% height=180px rotate_x=15deg
+                    fill={paint: rgb(135, 165, 196), material: {Material::metallic(0.6)}} />
+                <Rectangle width=100% height=100% translate_z=-1500px fill={paint: rgb(23, 38, 72), material: {Material::unlit()}} />
+            </LightFrame>
+        </Frame>
+        <Text class="copy" x=34px y=1340px width={100% - 68px} height=54px
+            text="Made of light, geometry, and live UI. No screenshots. No separate scene wrapper." translate_z=1000px />
+        <Rectangle width=100% height=100% translate_z=-2000px fill={paint: rgb(244, 239, 227), material: {Material::unlit()}} />
+    </Group>
+</Scroller>
+
+@settings {
+    @mount: mount
+    @pre_render: tick
+    .ink { style: {fill: rgb(35, 45, 55)} }
+    .stage_eyebrow { style: {font_size: 11px, fill: rgb(237, 233, 220)} }
+    .stage_copy { style: {font_size: 15px, fill: rgb(237, 233, 220)} }
+    .eyebrow { style: {font_size: 11px, fill: rgb(35, 45, 55)} }
+    .copy { style: {font_size: 15px, fill: rgb(35, 45, 55)} }
+    .title { style: {font: "Georgia", font_size: {@viewport.width < 650 ? 32px : 62px}, fill: rgb(35, 45, 55)} }
+}

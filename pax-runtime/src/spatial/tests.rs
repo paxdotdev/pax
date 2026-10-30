@@ -657,3 +657,27 @@ fn scrolling_on_a_tilted_plane_preserves_its_world_depth_plane() {
         .iter()
         .all(|v| v.is_finite()));
 }
+
+#[test]
+fn lighting_frame_retains_depth_and_perpendicular_normals_under_shear() {
+    let t = Transform3::<NodeLocal, Window>::translate(Vector3::new(12., 17., 80.))
+        * Transform3::<NodeLocal>::rotate_y(0.65)
+        * Transform3::<NodeLocal>::new([
+            2., 0., 0., 0., 0.7, 3., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1.,
+        ]);
+    let g = SpatialGeometry::new(t, (20., 30.));
+    let s = g.lighting_surface().unwrap();
+    assert_eq!(s.origin, [12., 17., 80.]);
+    for tangent in [s.tangent_x, s.tangent_y] {
+        let dot: f32 = tangent.into_iter().zip(s.normal).map(|(a, b)| a * b).sum();
+        assert!(dot.abs() < 1e-6);
+    }
+    assert!((s.normal.iter().map(|n| n * n).sum::<f32>() - 1.).abs() < 1e-6);
+    let p = t.project_point(Point3::new(3., 5., 0.)).unwrap();
+    for (i, expected) in [p.x, p.y, p.z].into_iter().enumerate() {
+        let actual = s.origin[i] + s.tangent_x[i] * 3. + s.tangent_y[i] * 5.;
+        assert!((actual as f64 - expected).abs() < 1e-5);
+    }
+    let flat = SpatialGeometry::new(Transform3::scale(Vector3::new(-2., 3., 1.)), (20., 30.));
+    assert_eq!(flat.lighting_surface().unwrap().normal, [0., 0., 1.]);
+}

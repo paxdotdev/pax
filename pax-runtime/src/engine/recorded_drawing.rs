@@ -28,6 +28,7 @@ pub(super) enum Command {
     EndSource,
     Opacity(u32, Vec<OpacityScope>),
     Depth(u32, Option<pax_runtime_api::DepthPlane>),
+    LightingSurface(u32, Option<pax_runtime_api::LightingSurface>),
     Fill {
         path: Path,
         bounds: Rect,
@@ -94,6 +95,7 @@ impl Command {
             Self::EndSource => gpu.end_alpha_source(),
             Self::Opacity(id, scopes) => gpu.set_node_opacity_scopes(*id, scopes),
             Self::Depth(id, plane) => gpu.set_node_depth_plane(*id, *plane),
+            Self::LightingSurface(id, surface) => gpu.set_node_lighting_surface(*id, *surface),
             Self::Fill {
                 path,
                 bounds,

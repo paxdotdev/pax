@@ -41,6 +41,7 @@ accepts `fixtures/<name>` and `examples/fixtures/<name>`.
 | [path-drawing](path-drawing) | SVG import, path stroking and drawing studies |
 | [pick-up-sticks](pick-up-sticks) | Interactive game with vector animation |
 | [route-card](route-card) | Route transitions and modal/card integration example |
+| [light-space](light-space) | World-space materials, transformed lights, and live UI on a moving solid |
 | [cuboid-router](cuboid-router) | Live Cuboid faces and directional quarter-turn route transitions |
 | [router-playground](router-playground) | Nested routing and navigation teaching example |
 | [runtime-settings-themes](runtime-settings-themes) | Dynamic theme providers and transitions teaching example |

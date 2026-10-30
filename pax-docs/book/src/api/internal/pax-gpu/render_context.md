@@ -331,7 +331,7 @@ Type: [`StrokeJoin`](../../../api/pax-runtime-api/drawing.md#strokejoin)
 Retained scene renderer that records Pax vector/image commands and flushes them through wgpu.
 
 Transform and clip identities remain stable until their owning node releases them.
-GPU uniform pages grow with scene demand; the 480-entry page size is not a scene
+GPU uniform pages grow with scene demand; the 160-entry page size is not a scene
 limit. Moving or fading retained geometry updates transform pages without
 retessellating or uploading vertex/index buffers.
 
@@ -421,6 +421,11 @@ Retained nodes, resources, and the tile's pixels remain intact.
 <pre><code class="api-signature language-rust ignore">pub fn reset_retained_scene(&amp;mut self)</code></pre>
 
 Drop retained scene state for a surface that has been rebound to a new tile origin.
+
+##### `set_node_lighting_surface`
+<pre><code class="api-signature language-rust ignore">pub fn set_node_lighting_surface(&amp;mut self, node_id: u32, surface: Option&lt;<a href="../../../api/pax-runtime-api/rendering.md#lightingsurface">LightingSurface</a>&gt;)</code></pre>
+
+Set the current draw's unprojected frame without changing retained path geometry.
 
 ##### `set_node_opacity_scopes`
 <pre><code class="api-signature language-rust ignore">pub fn set_node_opacity_scopes(&amp;mut self, node_id: u32, scopes: &amp;[<a href="../../../api/pax-runtime-api/rendering.md#opacityscope">OpacityScope</a>])</code></pre>

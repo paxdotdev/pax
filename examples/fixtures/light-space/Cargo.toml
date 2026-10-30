@@ -1,0 +1,25 @@
+[package]
+publish = false
+name = "light-space"
+version = "0.39.1"
+edition = "2021"
+default-run = "light-space"
+
+[package.metadata.pax]
+title = "Light / Space"
+
+[dependencies]
+pax-kit = { version = "0.39.1", path = "../../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "light-space"
+path = "src/main.rs"
+required-features = ["standalone"]

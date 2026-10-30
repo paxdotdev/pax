@@ -78,11 +78,16 @@ pub(crate) struct GpuGradient {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, Pod, Zeroable)]
+#[derive(Debug, Copy, Clone, PartialEq, Pod, Zeroable)]
 pub(crate) struct GpuTransform {
     pub transform: [[f32; 2]; 3],
     pub opacity: f32,
     pub _pad: f32,
+    pub lighting_x: [f32; 4],
+    pub lighting_y: [f32; 4],
+    pub lighting_origin: [f32; 4],
+    // w distinguishes an explicit world frame from the legacy immediate-draw path.
+    pub lighting_normal: [f32; 4],
 }
 
 impl Default for GpuTransform {
@@ -91,6 +96,10 @@ impl Default for GpuTransform {
             transform: Transform2D::identity().to_arrays(),
             opacity: 1.0,
             _pad: 0.0,
+            lighting_x: [1., 0., 0., 0.],
+            lighting_y: [0., 1., 0., 0.],
+            lighting_origin: [0.; 4],
+            lighting_normal: [0., 0., 1., 0.],
         }
     }
 }
@@ -125,5 +134,20 @@ impl GpuVertex {
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &ATTRIBS,
         }
+    }
+}
+
+impl GpuTransform {
+    pub(crate) fn with_lighting(
+        mut self,
+        surface: Option<pax_runtime_api::LightingSurface>,
+    ) -> Self {
+        if let Some(s) = surface {
+            self.lighting_x = [s.tangent_x[0], s.tangent_x[1], s.tangent_x[2], 0.];
+            self.lighting_y = [s.tangent_y[0], s.tangent_y[1], s.tangent_y[2], 0.];
+            self.lighting_origin = [s.origin[0], s.origin[1], s.origin[2], 0.];
+            self.lighting_normal = [s.normal[0], s.normal[1], s.normal[2], 1.];
+        }
+        self
     }
 }

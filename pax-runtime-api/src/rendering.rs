@@ -35,6 +35,18 @@ pub struct OpacityScope {
 
 impl crate::Interpolatable for OpacityScope {}
 
+/// Unprojected lighting frame of a planar draw, in logical world pixels.
+/// Geometry stays local: `origin + x * tangent_x + y * tangent_y` supplies its
+/// shading position independently of canvas tiles, captures, or projection.
+/// The oriented normal is unit length and perpendicular to both tangents.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LightingSurface {
+    pub origin: [f32; 3],
+    pub tangent_x: [f32; 3],
+    pub tangent_y: [f32; 3],
+    pub normal: [f32; 3],
+}
+
 /// Depth of a flat surface as `z = x*a + y*b + c` in canvas-content coordinates.
 /// Positive depth is toward the default orthographic viewer. Coplanar surfaces
 /// retain paint order; a spatial back face reverses its planar layer stack.
@@ -61,13 +73,26 @@ impl DepthPlane {
     pub fn coplanar_order(self, authored_order: i64) -> (bool, i64) {
         (
             !self.backface,
-            if self.backface { !authored_order } else { authored_order },
+            if self.backface {
+                !authored_order
+            } else {
+                authored_order
+            },
         )
     }
 }
 
 /// The drawing contract shared by Pax runtime backends.
 pub trait RenderContext {
+    /// Supplies the current node's local-to-world shading frame. Call after begin
+    /// and before paint. Backends without material lighting may ignore it.
+    fn set_node_lighting_surface(
+        &mut self,
+        _layer: usize,
+        _node_id: u32,
+        _surface: Option<LightingSurface>,
+    ) {
+    }
     /// Supplies retained planar depth for an orthographically projected node.
     /// `None` restores the ordinary 2D plane. Called after beginning the node.
     fn set_node_depth_plane(&mut self, _layer: usize, _node_id: u32, _plane: Option<DepthPlane>) {}

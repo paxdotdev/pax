@@ -4,6 +4,7 @@ use crate::render_backend::ScissorRect;
 
 pub(super) enum OpacityPlan {
     Draw(Vec<u32>),
+    SurfaceDraw(Vec<(u32, Option<u32>)>),
     Group {
         key: CaptureKey,
         opacity: f32,
@@ -77,7 +78,33 @@ impl WgpuRenderer<'_> {
             .copied()
             .filter(|id| self.scene[id].intersects_bounds(&viewport))
             .collect();
-        let nodes = visible.as_slice();
+        self.opacity_plan_for_draws_in_domain(&visible, depth, None, globals)
+    }
+
+    // Spatial draws are already visibility-filtered. Each occurrence can have a different
+    // BSP clip, so repeated node IDs must remain distinct in both the plan and cache key.
+    pub(super) fn opacity_plan_for_draws(
+        &self,
+        nodes: &[u32],
+        depth: usize,
+        spatial_clips: Option<&[Option<(u64, u32)>]>,
+    ) -> Vec<OpacityPlan> {
+        self.opacity_plan_for_draws_in_domain(
+            nodes,
+            depth,
+            spatial_clips,
+            &self.render_backend.globals,
+        )
+    }
+
+    fn opacity_plan_for_draws_in_domain(
+        &self,
+        nodes: &[u32],
+        depth: usize,
+        spatial_clips: Option<&[Option<(u64, u32)>]>,
+        globals: &crate::render_backend::data::GpuGlobals,
+    ) -> Vec<OpacityPlan> {
+        debug_assert!(spatial_clips.is_none_or(|clips| clips.len() == nodes.len()));
         let mut plan = Vec::new();
         let mut start = 0;
         while start < nodes.len() {
@@ -97,8 +124,10 @@ impl WgpuRenderer<'_> {
                 end += 1;
             }
             let run = &nodes[start..end];
+            let run_clips = spatial_clips.map(|clips| &clips[start..end]);
             if let Some(scope) = scope {
-                let children = self.opacity_plan_in_domain(run, depth + 1, globals);
+                let children =
+                    self.opacity_plan_for_draws_in_domain(run, depth + 1, run_clips, globals);
                 let mut hash = DefaultHasher::new();
                 // Lighting, resolution, and clip transforms change cached pixels. The boundary's
                 // own alpha intentionally does not: it is applied only when sampling the cache.
@@ -106,6 +135,14 @@ impl WgpuRenderer<'_> {
                 self.spatial_region
                     .map(|(_, signature, _)| signature)
                     .hash(&mut hash);
+                // A fragment's clip can move while its retained node stays unchanged.
+                // Distinguish the BSP plan from an ordinary unsplit opacity capture too.
+                run_clips.is_some().hash(&mut hash);
+                if let Some(clips) = run_clips {
+                    for clip in clips {
+                        clip.map(|(signature, _)| signature).hash(&mut hash);
+                    }
+                }
                 for id in run {
                     self.hash_opacity_content(*id, &mut hash);
                     if let Some(scopes) = self.opacity_scopes.get(id) {
@@ -130,17 +167,34 @@ impl WgpuRenderer<'_> {
                 plan.push(OpacityPlan::Group {
                     // Separate runs preserve ordering for content which escapes its parent's
                     // normal render position (including unclippable descendants).
-                    key: self.spatial_region.map_or(
-                        CaptureKey::Opacity(scope.node_id, run[0]),
-                        |(region, _, _)| CaptureKey::SpatialOpacity(scope.node_id, run[0], region),
-                    ),
+                    key: if run_clips.is_some() && scope.opacity != 1.0 {
+                        // This scope is proven contiguous. Its first BSP fragment can
+                        // change on every pose without changing the capture's identity.
+                        CaptureKey::SpatialGroup(scope.node_id)
+                    } else {
+                        self.spatial_region.map_or(
+                            CaptureKey::Opacity(scope.node_id, run[0]),
+                            |(region, _, _)| {
+                                CaptureKey::SpatialOpacity(scope.node_id, run[0], region)
+                            },
+                        )
+                    },
                     opacity: scope.opacity,
                     signature: hash.finish(),
                     bounds,
                     children,
                 });
             } else {
-                plan.push(OpacityPlan::Draw(run.to_vec()));
+                plan.push(if let Some(clips) = run_clips {
+                    OpacityPlan::SurfaceDraw(
+                        run.iter()
+                            .zip(clips)
+                            .map(|(id, clip)| (*id, clip.map(|(_, id)| id)))
+                            .collect(),
+                    )
+                } else {
+                    OpacityPlan::Draw(run.to_vec())
+                });
             }
             start = end;
         }
@@ -204,6 +258,11 @@ impl WgpuRenderer<'_> {
         for entry in plan {
             match entry {
                 OpacityPlan::Draw(nodes) => self.draw_retained_nodes(nodes),
+                OpacityPlan::SurfaceDraw(draws) => self.draw_surface_fragments(
+                    draws
+                        .iter()
+                        .map(|(id, clip)| (std::slice::from_ref(id), *clip)),
+                ),
                 OpacityPlan::Group {
                     key,
                     opacity,

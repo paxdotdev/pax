@@ -8,6 +8,7 @@ use wgpu::Buffer;
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub(crate) enum CaptureKey {
     Opacity(u32, u32),
+    SpatialGroup(u32),
     SpatialOpacity(u32, u32, usize),
     Alpha(u32),
     #[cfg(feature = "shaders")]
@@ -20,7 +21,7 @@ impl CaptureKey {
             Self::Alpha(_) => true,
             #[cfg(feature = "shaders")]
             Self::EffectSource(_) => true,
-            Self::Opacity(..) | Self::SpatialOpacity(..) => false,
+            Self::Opacity(..) | Self::SpatialGroup(..) | Self::SpatialOpacity(..) => false,
         }
     }
 }
@@ -264,11 +265,9 @@ impl RenderBackend<'_> {
         self.retained_surfaces.as_mut().unwrap().stack.push(scratch);
         let load = self.take_color_load_op();
         let (view, resolve) = self.current_color_attachment_view_clones();
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Clear capture scratch"),
-            });
+        // Keep clears, retained paint, copies, and composition in submission order
+        // without consuming one unsubmitted Metal command buffer per capture.
+        let mut encoder = self.take_retained_encoder();
         {
             let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Clear capture scratch"),
@@ -287,7 +286,7 @@ impl RenderBackend<'_> {
                 multiview_mask: None,
             });
         }
-        self.enqueue_command_buffer(encoder.finish());
+        self.retained_encoder = Some(encoder);
     }
 
     pub(crate) fn end_capture(&mut self, key: CaptureKey, signature: u64, bounds: ScissorRect) {
@@ -309,9 +308,28 @@ impl RenderBackend<'_> {
         signature: u64,
         rect: (u32, u32, u32, u32),
     ) {
+        let mut encoder = self.take_retained_encoder();
         let surfaces = self.retained_surfaces.as_mut().unwrap();
         let mut scratch = surfaces.stack.pop().unwrap();
-        let size = (rect.2, rect.3);
+        // Opacity capacity follows the physical surface; shader source capacity
+        // follows the bounded hysteresis policy below. Alpha sources stay exact.
+        let opacity = matches!(
+            key,
+            CaptureKey::Opacity(..) | CaptureKey::SpatialGroup(..) | CaptureKey::SpatialOpacity(..)
+        );
+        let size = if opacity {
+            let previous = surfaces.groups.get(&key);
+            (
+                rect.2.next_multiple_of(64)
+                    .max(previous.map_or(0, |g| g.texture.width()))
+                    .min(self.surface_config.width),
+                rect.3.next_multiple_of(64)
+                    .max(previous.map_or(0, |g| g.texture.height()))
+                    .min(self.surface_config.height),
+            )
+        } else {
+            (rect.2, rect.3)
+        };
         #[cfg(feature = "shaders")]
         let size = if matches!(key, CaptureKey::EffectSource(_)) {
             // Small geometry changes must not replace the source and every dependent
@@ -393,11 +411,6 @@ impl RenderBackend<'_> {
         group.rect = rect;
         group.signature = signature;
         group.domain_size = (self.surface_config.width, self.surface_config.height);
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Cache subtree"),
-            });
         encoder.copy_texture_to_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &scratch.texture,
@@ -418,7 +431,7 @@ impl RenderBackend<'_> {
         );
         scratch.initialized = false;
         surfaces.scratch.push(scratch);
-        self.enqueue_command_buffer(encoder.finish());
+        self.retained_encoder = Some(encoder);
     }
 
     pub(crate) fn draw_capture(&mut self, key: CaptureKey, opacity: f32) {
@@ -432,6 +445,7 @@ impl RenderBackend<'_> {
             let (view, resolve) = target.color_attachment_views();
             targets.push(((view.clone(), resolve.cloned()), load));
         }
+        let mut encoder = self.take_retained_encoder();
         let surfaces = self.retained_surfaces.as_ref().unwrap();
         let group = &surfaces.groups[&key];
         let (x, y, w, h) = group.rect;
@@ -439,13 +453,15 @@ impl RenderBackend<'_> {
         let right = (x + w) as f32 / self.surface_config.width as f32 * 2.0 - 1.0;
         let top = 1.0 - y as f32 / self.surface_config.height as f32 * 2.0;
         let bottom = 1.0 - (y + h) as f32 / self.surface_config.height as f32 * 2.0;
+        let u = w as f32 / group.texture.width() as f32;
+        let v = h as f32 / group.texture.height() as f32;
         let vertices = [
             (left, top, 0., 0.),
-            (left, bottom, 0., 1.),
-            (right, top, 1., 0.),
-            (right, top, 1., 0.),
-            (left, bottom, 0., 1.),
-            (right, bottom, 1., 1.),
+            (left, bottom, 0., v),
+            (right, top, u, 0.),
+            (right, top, u, 0.),
+            (left, bottom, 0., v),
+            (right, bottom, u, v),
         ]
         .map(|(x, y, u, v)| Vertex {
             position: [x, y],
@@ -454,11 +470,6 @@ impl RenderBackend<'_> {
         });
         self.queue
             .write_buffer(&group.vertices, 0, bytemuck::cast_slice(&vertices));
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Present opacity group"),
-            });
         for ((view, resolve), load) in &targets {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Present opacity group"),
@@ -481,7 +492,7 @@ impl RenderBackend<'_> {
             pass.set_vertex_buffer(0, group.vertices.slice(..));
             pass.draw(0..6, 0..1);
         }
-        self.enqueue_command_buffer(encoder.finish());
+        self.retained_encoder = Some(encoder);
     }
 }
 
@@ -493,6 +504,12 @@ impl RenderBackend<'_> {
                 .retained_surfaces
                 .as_ref()
                 .is_some_and(|s| !s.scratch.is_empty())
+    }
+
+    pub(crate) fn capture_texture_for_test(&self, key: CaptureKey) -> Texture {
+        self.retained_surfaces.as_ref().unwrap().groups[&key]
+            .texture
+            .clone()
     }
 
     pub(crate) fn alpha_capture_count(&self) -> usize {

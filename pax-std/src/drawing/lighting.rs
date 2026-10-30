@@ -1,4 +1,3 @@
-use kurbo::Point;
 use pax_engine::api::LocalProperty;
 use pax_engine::*;
 use pax_runtime::api::{
@@ -9,8 +8,6 @@ use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use std::rc::Rc;
-
-use crate::common::canvas_surface_transform;
 
 /// A non-rendering container that keeps descendant lights from escaping its subtree.
 ///
@@ -71,13 +68,13 @@ pub struct LightSource {
     pub color: Property<Color>,
     /// Light intensity multiplier.
     pub intensity: Property<f64>,
-    /// Radius for point-light attenuation.
+    /// Point-light attenuation radius in world pixels; ancestor scale does not resize it.
     pub radius: Property<Size>,
-    /// Logical scene depth in pixels.
+    /// Local depth in pixels, transformed with the light and its ancestors.
     pub z: Property<Depth>,
     /// Positional or directional light shape.
     pub shape: Property<LightShape>,
-    /// Direction for directional lights.
+    /// Local direction for directional lights, transformed with the light's ancestors.
     pub direction: Property<Vector3>,
     /// Whether this light contributes to the scene.
     pub enabled: Property<bool>,
@@ -129,7 +126,7 @@ impl InstanceNode for LightSourceInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
-        let tab = expanded_node.transform_and_bounds.clone();
+        let geometry = expanded_node.spatial_geometry();
         let (color, intensity, radius, z, shape, direction, enabled) = expanded_node
             .with_properties_unwrapped(|properties: &mut LightSource| {
                 (
@@ -144,7 +141,7 @@ impl InstanceNode for LightSourceInstance {
             });
 
         let deps = &[
-            tab.untyped(),
+            geometry.untyped(),
             color.untyped(),
             intensity.untyped(),
             radius.untyped(),
@@ -168,20 +165,23 @@ impl InstanceNode for LightSourceInstance {
     fn resolve_scene_light(
         &self,
         expanded_node: &ExpandedNode,
-        context: &RuntimeContext,
+        _context: &RuntimeContext,
     ) -> Option<SceneLight> {
         expanded_node.with_properties_unwrapped(|properties: &mut LightSource| {
             if !properties.enabled.local().get() {
                 return None;
             }
 
-            let tab = expanded_node.transform_and_bounds.get();
-            let center = Point::new(tab.bounds.0 * 0.5, tab.bounds.1 * 0.5);
-            let point = canvas_surface_transform(expanded_node, context) * center;
+            let geometry = expanded_node.spatial_geometry().get();
+            let (position, direction) = light_pose(
+                geometry,
+                properties.z.local().get().to_float(),
+                properties.direction.local().get(),
+            )?;
             Some(SceneLight {
                 shape: properties.shape.local().get(),
-                position: Vector3::new(point.x, point.y, properties.z.local().get().to_float()),
-                direction: properties.direction.local().get(),
+                position,
+                direction,
                 color: properties.color.local().get(),
                 intensity: properties.intensity.local().get().max(0.0),
                 radius: properties
@@ -310,5 +310,61 @@ impl InstanceNode for AmbientLightInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
+    }
+}
+
+// Keep positional and directional lights in the same unprojected frame as materials.
+fn light_pose(
+    geometry: pax_runtime::SpatialGeometry,
+    z: f64,
+    direction: Vector3,
+) -> Option<(Vector3, Vector3)> {
+    let transform = geometry.world_transform();
+    if !transform.is_affine() {
+        return None;
+    }
+    let point = transform.project_point(pax_runtime::api::math::Point3::new(
+        geometry.bounds.0 * 0.5,
+        geometry.bounds.1 * 0.5,
+        z,
+    ))?;
+    let [dx, dy, dz, _] =
+        transform.transform_homogeneous([direction.x, direction.y, direction.z, 0.]);
+    if ![dx, dy, dz].iter().all(|v| v.is_finite()) {
+        return None;
+    }
+    Some((
+        Vector3::new(point.x, point.y, point.z),
+        Vector3::new(dx, dy, dz),
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pax_runtime::api::{
+        math::{Transform3, Vector3 as GeometricVector},
+        Window,
+    };
+    use pax_runtime::{node_interface::NodeLocal, SpatialGeometry};
+
+    #[test]
+    fn spatial_light_inherits_parent_pose_and_local_depth() {
+        let parent =
+            Transform3::<NodeLocal, Window>::translate(GeometricVector::new(100., 200., 300.))
+                * Transform3::<NodeLocal>::rotate_y(std::f64::consts::FRAC_PI_2);
+        let geometry = SpatialGeometry::new(parent, (20., 40.));
+        let (position, direction) = light_pose(geometry, 50., Vector3::new(0., 0., -1.)).unwrap();
+        for (a, b) in [
+            (position.x, 150.),
+            (position.y, 220.),
+            (position.z, 290.),
+            (direction.x, -1.),
+            (direction.y, 0.),
+            (direction.z, 0.),
+        ] {
+            assert!((a - b).abs() < 1e-9, "{a} != {b}");
+        }
+        assert!(light_pose(geometry, f64::NAN, Vector3::new(0., 0., -1.)).is_none());
     }
 }

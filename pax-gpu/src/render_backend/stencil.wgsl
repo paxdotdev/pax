@@ -14,10 +14,14 @@ struct StencilTransform {
     zy: f32,
     opacity: f32,
     _pad1: f32,
+    lighting_x: vec4<f32>,
+    lighting_y: vec4<f32>,
+    lighting_origin: vec4<f32>,
+    lighting_normal: vec4<f32>,
 };
 
 struct StencilTransforms {
-    transforms: array<StencilTransform, 480>,
+    transforms: array<StencilTransform, 160>,
 };
 
 @group(0) @binding(0) var<uniform> globals: Globals;
@@ -33,7 +37,7 @@ fn vs_main(
     @location(1) transform_id: u32,
 ) -> VertexOutput {
 	var out: VertexOutput;
-    let stencil_transform = stencil_transforms.transforms[transform_id % 480u];
+    let stencil_transform = stencil_transforms.transforms[transform_id % 160u];
     let t_p_x = position.x * stencil_transform.xx + position.y * stencil_transform.yx + stencil_transform.zx;
     let t_p_y = position.x * stencil_transform.xy + position.y * stencil_transform.yy + stencil_transform.zy;
     var pos = vec2<f32>(t_p_x, t_p_y);

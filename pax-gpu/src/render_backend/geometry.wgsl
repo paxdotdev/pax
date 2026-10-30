@@ -33,10 +33,14 @@ struct Transform {
     zy: f32,
     opacity: f32,
     _pad1: f32,
+    lighting_x: vec4<f32>,
+    lighting_y: vec4<f32>,
+    lighting_origin: vec4<f32>,
+    lighting_normal: vec4<f32>,
 }
 
 struct Transforms {
-    transforms: array<Transform, 480>,
+    transforms: array<Transform, 160>,
 }
 
 
@@ -110,7 +114,7 @@ struct GpuVertex {
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
 	@location(0) @interpolate(flat) prim_id: u32,
-    @location(1) world_position: vec2<f32>,
+    @location(1) world_position: vec3<f32>,
     @location(2) path_progress: f32,
     @location(3) local_position: vec2<f32>,
 };
@@ -137,7 +141,10 @@ fn vs_main(
     pos.y *= -1.0;
 
     out.prim_id = model.prim_id;
-    out.world_position = vec2<f32>(t_p_x, t_p_y);
+    out.world_position = vec3<f32>(t_p_x, t_p_y, 0.0);
+    if m.lighting_normal.w != 0.0 {
+        out.world_position = m.lighting_origin.xyz + p.x * m.lighting_x.xyz + p.y * m.lighting_y.xyz;
+    }
     out.path_progress = model.path_progress;
     out.local_position = p;
     out.clip_position = vec4<f32>(pos, 0.0, 1.0);
@@ -154,9 +161,11 @@ fn scene_primitive(id: u32) -> Primitive {
 // Identity is shared by every page and never aliases an allocated scene transform.
 fn scene_transform(id: u32) -> Transform {
     if id == 0u {
-        return Transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0);
+        return Transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0,
+            vec4<f32>(1.0, 0.0, 0.0, 0.0), vec4<f32>(0.0, 1.0, 0.0, 0.0),
+            vec4<f32>(0.0), vec4<f32>(0.0, 0.0, 1.0, 0.0));
     }
-    return transforms.transforms[id % 480u];
+    return transforms.transforms[id % 160u];
 }
 
 // Fragment shader
@@ -200,6 +209,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         color,
         materials.materials[primitive.material_id],
         in.world_position,
+        scene_transform(primitive.transform_id).lighting_normal.xyz,
         primitive.light_mask,
     );
     return color;
@@ -208,7 +218,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 fn apply_lighting(
     color: vec4<f32>,
     material: Material,
-    world_position: vec2<f32>,
+    world_position: vec3<f32>,
+    normal: vec3<f32>,
     light_mask: u32,
 ) -> vec4<f32> {
     if scene_lighting.flags.x == 0u {
@@ -229,8 +240,7 @@ fn apply_lighting(
     if eligible_light_mask == 0u && scene_lighting.flags.z == 0u {
         return color;
     }
-    let surface_position = vec3<f32>(world_position, 0.0);
-    let normal = vec3<f32>(0.0, 0.0, 1.0);
+    let surface_position = world_position;
     let view_dir = vec3<f32>(0.0, 0.0, 1.0);
     var lighting = scene_lighting.ambient.rgb * scene_lighting.ambient.a * ambient_coeff;
 
@@ -258,7 +268,8 @@ fn apply_lighting(
         }
 
         let diffuse = max(dot(normal, light_dir), 0.0);
-        let half_dir = normalize(light_dir + view_dir);
+        let half_sum = light_dir + view_dir;
+        let half_dir = half_sum / max(length(half_sum), 0.0001);
         let shininess = mix(96.0, 8.0, roughness);
         let specular = pow(max(dot(normal, half_dir), 0.0), shininess);
         lighting += light.color.rgb * light.color.a * attenuation *

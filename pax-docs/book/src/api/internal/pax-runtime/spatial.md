@@ -50,6 +50,13 @@ boundaries still govern whether two surfaces may be composited together.
 
 Whether this value requires the spatial path rather than exact 2D affine arithmetic.
 
+##### `lighting_surface`
+<pre><code class="api-signature language-rust ignore">pub fn lighting_surface(self) -&gt; Option&lt;<a href="../../../api/pax-runtime-api/rendering.md#lightingsurface">LightingSurface</a>&gt;</code></pre>
+
+World shading coordinates, independent of orthographic projection and tiles.
+Crossed tangents retain the surface's facing under shear and reflection;
+ordinary 2D reflections preserve the legacy +Z lighting normal.
+
 ##### `new`
 <pre><code class="api-signature language-rust ignore">pub fn new(transform: <a href="../../../api/pax-runtime-api/math/spatial.md#transform3">Transform3</a>&lt;<a href="../../../api/internal/pax-runtime/engine/node_interface.md#nodelocal">NodeLocal</a>, <a href="../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;, bounds: (f64, f64)) -&gt; Self</code></pre>
 

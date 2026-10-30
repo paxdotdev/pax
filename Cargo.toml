@@ -222,6 +222,9 @@ opt-level = 0
 [profile.dev.package.logo-radiance]
 opt-level = 0
 
+[profile.dev.package.light-space]
+opt-level = 0
+
 [profile.dev.package.cuboid-router]
 opt-level = 0
 
@@ -236,6 +239,7 @@ text-bodies = { path = "examples/fixtures/text-bodies", default-features = false
 overlay-transfer = { path = "examples/fixtures/overlay-transfer", default-features = false }
 spatial-workbench = { path = "examples/fixtures/spatial-workbench", default-features = false }
 logo-radiance = { path = "examples/fixtures/logo-radiance", default-features = false }
+light-space = { path = "examples/fixtures/light-space", default-features = false }
 led-oscilloscope = { path = "examples/led-oscilloscope", default-features = false }
 shader-studio = { path = "examples/fixtures/shader-studio", default-features = false }
 pax-kit = { path = "pax-kit", features = ["host", "designtime"] }
@@ -477,3 +481,7 @@ path = "examples/fixtures/logo-radiance.rs"
 [[example]]
 name = "cuboid-router"
 path = "examples/fixtures/cuboid-router.rs"
+
+[[example]]
+name = "light-space"
+path = "examples/fixtures/light-space.rs"

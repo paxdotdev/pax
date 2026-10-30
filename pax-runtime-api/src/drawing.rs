@@ -786,9 +786,11 @@ impl HelperFunctions for SceneAmbientLight {}
 pub struct SceneLight {
     /// Positional or directional light shape.
     pub shape: LightShape,
-    /// Position in logical canvas pixels for point lights.
+    /// Position in unprojected world pixels for point lights. Contributors supply
+    /// the unscrolled world position; collected layer lighting adjusts source
+    /// minus target scroll displacement while retaining world axes.
     pub position: Vector3,
-    /// Direction in scene space for directional lights.
+    /// Direction in unprojected world axes for directional lights.
     pub direction: Vector3,
     /// Light color.
     pub color: Color,

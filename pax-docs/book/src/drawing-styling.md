@@ -685,7 +685,8 @@ component instances:
 ```
 
 LightSource is a non-rendering resource; it does not draw a visible lamp.
-Its point-light position uses its local center plus the authored depth.
+Its point-light position uses its local center plus the authored depth,
+transformed through its own pose and ancestor groups.
 Use pixel values for `radius` and `z`. Depth here affects lighting, not the
 element order established by the template. Directional lights are also
 available through `shape=LightShape::Directional` and a `direction` vector.
@@ -753,6 +754,65 @@ of this API. Keep information legible when lighting is absent.
 Try [Materials in Compositing and Effects](compositing-effects.md#lighting-and-other-effects)
 to compare surface responses as scrolling moves a light through the scene.
 The source tabs show the material parameters and scroll-driven light position.
+
+### Spatial lighting
+
+Materials on tilted surfaces use their actual world position and oriented
+normal. A rotating Cuboid can use one paint on all six faces; the light creates
+the differences between them. Existing 2D geometry keeps its default +Z normal,
+including ordinary 2D reflections. No authored lights still means the familiar
+unlit appearance.
+
+```pax
+<LightFrame width=100% height=100%>
+    <Cuboid x=50% y=50% width=240px height=200px depth=160px
+        rotate_x=-18deg rotate_y=-30deg
+        fill={paint: rgb(228, 170, 81), material: {Material::glossy(0.45)}} />
+    <Group width=100% height=100% rotate_y=20deg>
+        <LightSource x=40% y=20% width=1px height=1px
+            z=350px radius=900px intensity=1.8 />
+    </Group>
+</LightFrame>
+```
+
+`LightSource.z` is a local offset, so rotating its group also rotates that
+offset into X/Y. `translate_z` moves the light's coordinate frame like any
+other node. A directional light's `direction` is local and follows the same
+linear transform (without translation). Radius remains a distance in world
+pixels; scaling a parent moves the light but does not scale its authored
+radius. LightFrame still determines which descendants a light can reach.
+
+The GPU shades in world axes independently of tile origins and capture
+rebasing. Scrolling a tilted container carries the light displacement through
+all three axes. Rigid pose changes update retained shading and transform data;
+they do not require retessellating the local paths. Surface normals stay
+perpendicular under nonuniform scale and shear. Back faces retain their
+oriented normal; this is not automatic two-sided lighting. The current
+implicit orthographic view looks along -Z, so specular response uses +Z as the
+surface-to-viewer direction.
+
+Native text and controls keep their platform appearance, and bitmap Images
+remain unlit. A live panel on a face is still interactive. This checkpoint
+adds no cast shadows, texture-map material inputs, or camera authoring API.
+General group transparency across interleaved surfaces remains subject to the
+[spatial composition limits](layout-responsiveness.md#rotating-flat-surfaces-in-3d).
+
+Try [Light / Space](https://github.com/paxproject/pax/tree/dev/examples/fixtures/light-space):
+
+```sh
+pax-cli run --path examples/fixtures/light-space --target web
+```
+
+Its shared timeline moves a lit solid with live controls; scrolling changes
+the pose and swings a light attached to a second group. The fade control also
+exercises the current group-opacity path, whose cost can exceed opaque-group
+composition. Materials and spatial depth require the GPU renderer.
+
+Custom Rust light primitives now return unscrolled world positions and
+directions from `resolve_scene_light`, rather than canvas-local positions.
+Read the node's retained `spatial_geometry()` and transform the light there;
+the runtime applies layer reachability and scrolling. This internal-coordinate
+migration does not change ordinary flat `.pax` light declarations.
 
 ## Read more
 

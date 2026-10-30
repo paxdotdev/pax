@@ -51,6 +51,37 @@ impl From<TransformAndBounds<NodeLocal, Window>> for SpatialGeometry {
 }
 
 impl SpatialGeometry {
+    /// World shading coordinates, independent of orthographic projection and tiles.
+    /// Crossed tangents retain the surface's facing under shear and reflection;
+    /// ordinary 2D reflections preserve the legacy +Z lighting normal.
+    pub fn lighting_surface(self) -> Option<pax_runtime_api::LightingSurface> {
+        let transform = self.world_transform();
+        if !transform.is_affine() {
+            return None;
+        }
+        let m = transform.coeffs();
+        let normal = if self.is_spatial() {
+            let n = self.plane()?.normal();
+            [n.x as f32, n.y as f32, n.z as f32]
+        } else {
+            [0., 0., 1.]
+        };
+        let surface = pax_runtime_api::LightingSurface {
+            origin: [m[12] as f32, m[13] as f32, m[14] as f32],
+            tangent_x: [m[0] as f32, m[1] as f32, m[2] as f32],
+            tangent_y: [m[4] as f32, m[5] as f32, m[6] as f32],
+            normal,
+        };
+        surface
+            .origin
+            .iter()
+            .chain(&surface.tangent_x)
+            .chain(&surface.tangent_y)
+            .chain(&surface.normal)
+            .all(|v| v.is_finite())
+            .then_some(surface)
+    }
+
     /// Whether this value requires the spatial path rather than exact 2D affine arithmetic.
     pub fn is_spatial(self) -> bool {
         matches!(self.transform, RetainedTransform::Spatial(_))

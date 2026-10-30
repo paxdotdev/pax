@@ -15,7 +15,7 @@ use pax_runtime_api::{
     MouseOver, RenderContext, SceneLight, SceneLighting, Variable,
 };
 use_RefCell!();
-use kurbo::{Affine, Point};
+use kurbo::Affine;
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -71,14 +71,13 @@ impl Interpolatable for ExpandedNodeIdentifier {}
 
 fn transform_scene_light_for_layer(
     mut light: SceneLight,
-    source_to_root: Affine,
-    root_to_target: Affine,
+    source_scroll: [f64; 3],
+    target_scroll: [f64; 3],
 ) -> SceneLight {
     if matches!(light.shape, LightShape::Point) {
-        let point = Point::new(light.position.x, light.position.y);
-        let point = root_to_target * (source_to_root * point);
-        light.position.x = point.x;
-        light.position.y = point.y;
+        light.position.x += source_scroll[0] - target_scroll[0];
+        light.position.y += source_scroll[1] - target_scroll[1];
+        light.position.z += source_scroll[2] - target_scroll[2];
     }
     light
 }
@@ -1598,8 +1597,8 @@ impl RuntimeContext {
             return SceneLighting::with_default_ambient(Vec::new());
         }
         self.reconcile_light_recipients();
-        let layer_to_root_transforms = self.layer_to_root_transforms(layer);
-        let root_to_target = layer_to_root_transforms[&layer].inverse();
+        let layer_scrolls = self.lighting_layer_scrolls(layer);
+        let target_scroll = layer_scrolls[&layer];
         let node_cache = borrow!(self.node_cache);
         let mut scoped_lights = Vec::new();
         let mut topmost_ambient = None;
@@ -1613,7 +1612,7 @@ impl RuntimeContext {
             }
             let occlusion = node.occlusion.get();
             let source_layer = occlusion.render_layer_id;
-            let Some(source_to_root) = layer_to_root_transforms.get(&source_layer) else {
+            let Some(source_scroll) = layer_scrolls.get(&source_layer) else {
                 continue;
             };
 
@@ -1630,7 +1629,7 @@ impl RuntimeContext {
                         occlusion.z_index,
                         node.id,
                         Self::nearest_light_frame(node),
-                        transform_scene_light_for_layer(light, *source_to_root, root_to_target),
+                        transform_scene_light_for_layer(light, *source_scroll, target_scroll),
                     ));
                 }
             }
@@ -1765,32 +1764,45 @@ impl RuntimeContext {
         frames
     }
 
-    fn layer_to_root_transforms(&self, layer: usize) -> HashMap<usize, Affine> {
-        let mut transforms = HashMap::new();
-        transforms.insert(layer, self.layer_to_root_transform(layer));
-
-        let mut current_layer = layer;
+    // Lighting stays in world axes. Subtract the target layer's scroll displacement
+    // from lights so retained local geometry needs no replay merely because it scrolls.
+    // A tilted scroller contributes all three components of its local scroll vector.
+    fn lighting_layer_scrolls(&self, layer: usize) -> HashMap<usize, [f64; 3]> {
+        let mut chain = Vec::new();
+        let mut current = layer;
         let mut visited = HashSet::new();
-        while let Some(owner_id) = self.get_layer_scroller_owner(current_layer) {
-            if !visited.insert(current_layer) {
-                break;
-            }
-            let Some(owner_node) = self.get_expanded_node_by_eid(owner_id) else {
+        while visited.insert(current) {
+            let Some(owner) = self
+                .get_layer_scroller_owner(current)
+                .and_then(|id| self.get_expanded_node_by_eid(id))
+            else {
                 break;
             };
-            let owner_layer = owner_node.occlusion.get().render_layer_id;
-            transforms
-                .entry(owner_layer)
-                .or_insert_with(|| self.layer_to_root_transform(owner_layer));
-            if owner_layer == current_layer {
-                break;
-            }
-            current_layer = owner_layer;
+            let (x, y) = self.scroller_presentation_offset(&owner);
+            let m = owner.spatial_geometry.get().world_transform().coeffs();
+            chain.push((
+                current,
+                [
+                    -m[0] * x - m[4] * y,
+                    -m[1] * x - m[5] * y,
+                    -m[2] * x - m[6] * y,
+                ],
+            ));
+            current = owner.occlusion.get().render_layer_id;
         }
-
-        transforms
+        let mut result = HashMap::from([(current, [0.; 3])]);
+        let mut sum = [0.; 3];
+        for (layer, delta) in chain.into_iter().rev() {
+            for i in 0..3 {
+                sum[i] += delta[i];
+            }
+            result.insert(layer, sum);
+        }
+        result.entry(layer).or_insert([0.; 3]);
+        result
     }
 
+    #[cfg(test)]
     fn layer_to_root_transform(&self, layer: usize) -> Affine {
         let mut transform = Affine::IDENTITY;
         let mut current_layer = layer;
@@ -3473,6 +3485,18 @@ mod light_scope_tests {
             300.0
         );
         assert_eq!(context.canvas_node_light_mask(surface.id), 1);
+        assert_eq!(context.lighting_mask_node_visits.get(), visits);
+
+        // A quarter-turned scroller moves through world Z, not world Y.
+        nodes[1]
+            .spatial_geometry
+            .replace_with(LocalProperty::new(crate::SpatialGeometry::new(
+                pax_runtime_api::math::Transform3::rotate_x(std::f64::consts::FRAC_PI_2),
+                (100., 100.),
+            )));
+        let tilted = context.collect_scene_lighting_for_layer(1);
+        assert!((tilted.lights[0].position.y - before.lights[0].position.y).abs() < 1e-9);
+        assert!((tilted.lights[0].position.z - before.lights[0].position.z - 300.).abs() < 1e-9);
         assert_eq!(context.lighting_mask_node_visits.get(), visits);
 
         // Move the recipient into an unrelated layer. It must lose its old mask

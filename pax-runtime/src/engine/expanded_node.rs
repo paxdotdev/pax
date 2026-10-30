@@ -828,6 +828,11 @@ macro_rules! dispatch_event_handler {
 }
 
 impl ExpandedNode {
+    /// Retained world geometry before camera, tile, and scroll presentation.
+    pub fn spatial_geometry(&self) -> LocalProperty<crate::SpatialGeometry> {
+        self.spatial_geometry.clone()
+    }
+
     /// Whether this live node supplies a mask rather than visible scene content.
     pub fn is_render_source(&self) -> bool {
         self.render_source_owner.get().is_some()

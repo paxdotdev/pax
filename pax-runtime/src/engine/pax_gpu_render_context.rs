@@ -1218,7 +1218,7 @@ impl PaxGpuRenderer {
             {
                 let total_us = flush_start.elapsed().as_micros();
                 let line = format!(
-                    "[pax-gpu-flush] layer={} surfaces={} targeted={} targeted_surfaces={} dirty_surfaces={} command_buffers={} cleanup_surfaces={} present_surfaces={} total_us={} encode_us={} submit_us={} cleanup_us={} present_us={} flushes={} retained_nodes={}/{} retained_batches={} retained_draws={} vector_draws={} image_draws={} batch_flushes={} geometry_rebuilds={} geometry_cache_hits={} geometry_cache_misses={} geometry_cache_evictions={} geometry_cache_bytes={} tessellated_vertices={} tessellated_indices={} cached_vertices_reused={} cached_indices_reused={} resource_creates={} resource_updates={} resource_recreates={} create_bytes={} update_bytes={} cache_hits={} cache_misses={} cache_evictions={} cache_bytes={} texture_creates={} texture_bytes={} texture_cache_hits={}",
+                    "[pax-gpu-flush] layer={} surfaces={} targeted={} targeted_surfaces={} dirty_surfaces={} command_buffers={} cleanup_surfaces={} present_surfaces={} total_us={} encode_us={} submit_us={} cleanup_us={} present_us={} flushes={} retained_nodes={}/{} retained_batches={} retained_draws={} vector_draws={} image_draws={} batch_flushes={} geometry_rebuilds={} geometry_cache_hits={} geometry_cache_misses={} geometry_cache_evictions={} geometry_cache_bytes={} tessellated_vertices={} tessellated_indices={} cached_vertices_reused={} cached_indices_reused={} resource_creates={} resource_updates={} resource_recreates={} create_bytes={} update_bytes={} cache_hits={} cache_misses={} cache_evictions={} cache_bytes={} texture_creates={} texture_bytes={} texture_cache_hits={} spatial_fragments={} spatial_clips={} spatial_passes={} opacity_renders={} opacity_cache_hits={}",
                     layer,
                     indices.len(),
                     used_targeted_replay,
@@ -1261,6 +1261,11 @@ impl PaxGpuRenderer {
                     resource_stats.texture_creates,
                     resource_stats.texture_upload_bytes,
                     resource_stats.texture_cache_hits,
+                    resource_stats.spatial_fragments,
+                    resource_stats.spatial_clip_fragments,
+                    resource_stats.spatial_paint_passes,
+                    resource_stats.opacity_group_renders,
+                    resource_stats.opacity_group_cache_hits,
                 );
                 log::trace!("{}", line);
                 #[cfg(not(target_arch = "wasm32"))]
@@ -1604,13 +1609,7 @@ impl PaxGpuRenderer {
                             if let Some(Some(lighting)) =
                                 self.last_scene_lighting.borrow().get(layer_index)
                             {
-                                renderer.renderer.set_scene_lighting(
-                                    translate_scene_lighting_for_surface(
-                                        lighting,
-                                        surface.origin_x,
-                                        surface.origin_y,
-                                    ),
-                                );
+                                renderer.renderer.set_scene_lighting(lighting.clone());
                             }
                         }
                         let previous_bounds = renderer.coverage_bounds();
@@ -2380,14 +2379,7 @@ impl RenderContext for PaxGpuRenderer {
                     return;
                 }
                 for (index, renderer) in target.renderers.iter_mut().enumerate() {
-                    if renderer
-                        .renderer
-                        .set_scene_lighting(translate_scene_lighting_for_surface(
-                            &lighting,
-                            renderer.origin_x,
-                            renderer.origin_y,
-                        ))
-                    {
+                    if renderer.renderer.set_scene_lighting(lighting.clone()) {
                         self.mark_render_surfaces_dirty(layer, [index]);
                     }
                 }
@@ -2615,6 +2607,15 @@ impl RenderContext for PaxGpuRenderer {
         let inherited = inherited.or_else(|| self.shader_effect_scopes.last());
         let scopes = &scopes[inherited.map_or(0, |s| s.1).min(scopes.len())..];
         self.apply_drawing_command(layer, DrawingCommand::Opacity(node_id, scopes.to_vec()));
+    }
+
+    fn set_node_lighting_surface(
+        &mut self,
+        layer: usize,
+        node_id: u32,
+        surface: Option<pax_runtime_api::LightingSurface>,
+    ) {
+        self.apply_drawing_command(layer, DrawingCommand::LightingSurface(node_id, surface));
     }
 
     fn set_node_depth_plane(
@@ -3151,21 +3152,6 @@ fn to_pax_gpu_scene_lighting(lighting: &SceneLighting) -> PixelSceneLighting {
             })
             .collect(),
     }
-}
-
-fn translate_scene_lighting_for_surface(
-    lighting: &PixelSceneLighting,
-    origin_x: f32,
-    origin_y: f32,
-) -> PixelSceneLighting {
-    let mut lighting = lighting.clone();
-    for light in &mut lighting.lights {
-        if matches!(light.shape, PixelLightShape::Point) {
-            light.position[0] -= origin_x;
-            light.position[1] -= origin_y;
-        }
-    }
-    lighting
 }
 
 /// Convert a runtime API color into the `pax-gpu` render-context color.

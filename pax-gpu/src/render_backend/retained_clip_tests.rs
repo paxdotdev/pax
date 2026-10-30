@@ -3737,6 +3737,395 @@ fn spatial_group_opacity_and_backface_reuse_paint_without_stale_captures() {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+fn opacity_texture_capacity_survives_silhouette_resizing() {
+    use super::capture::CaptureKey;
+    let layer = MetalLayer::new();
+    let mut backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 160, 96, [1., 1.]),
+        )
+    })
+    .expect("Metal backend");
+    let key = CaptureKey::Opacity(1, 1);
+    assert!(!backend.capture_is_cached(key, 0));
+    let mut previous = None;
+    for (frame, (width, height)) in [(32, 20), (31, 21), (60, 24), (70, 30), (31, 20)]
+        .into_iter()
+        .enumerate()
+    {
+        backend.begin_capture();
+        backend.end_capture_rect(key, frame as u64, (0, 0, width, height));
+        let texture = backend.capture_texture_for_test(key);
+        if let Some(previous) = previous {
+            if frame == 3 {
+                assert_ne!(texture, previous);
+            } else {
+                assert_eq!(texture, previous);
+            }
+        }
+        assert!(texture.width() <= 160 && texture.height() <= 96);
+        previous = Some(texture);
+        backend.submit_pending_commands();
+    }
+    backend
+        .device
+        .poll(wgpu::PollType::wait_indefinitely())
+        .unwrap();
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn near_edge_on_group_uses_projected_coverage_without_false_interleaving() {
+    use pax_runtime_api::{DepthPlane, OpacityScope};
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 32, [1., 1.]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.set_viewport(64., 32., [1., 1.]);
+    renderer.begin_node(1, 0, 0);
+    renderer.fill_path(
+        rect(0., 0., 64., 32.),
+        Fill::Solid(Color::rgba(0., 1., 0., 1.)),
+    );
+    renderer.end_node(1);
+    renderer.set_node_depth_plane(
+        1,
+        Some(DepthPlane {
+            presentation_layer: 0,
+            coefficients: [0., 0., -100.],
+            backface: false,
+        }),
+    );
+    for (frame, degrees) in [80.0f64, 89., 89.9, 89.99, 90.01, 90.1, 91., 100.]
+        .into_iter()
+        .enumerate()
+    {
+        let (s, c) = degrees.to_radians().sin_cos();
+        let (sx, cx) = 0.4f64.sin_cos();
+        let a = -s / c;
+        let b = sx / (c * cx);
+        renderer.begin_node(2, 1, 0);
+        renderer.save();
+        renderer.transform(crate::Transform2D::new(
+            c as f32,
+            0.,
+            (s * sx) as f32,
+            cx as f32,
+            20.,
+            4.,
+        ));
+        renderer.fill_path(
+            rect(0., 0., 30., 20.),
+            Fill::Solid(Color::rgba(1., 0., 0., 1.)),
+        );
+        renderer.restore();
+        renderer.end_node(2);
+        renderer.set_node_depth_plane(
+            2,
+            Some(DepthPlane {
+                presentation_layer: 0,
+                coefficients: [a, b, -a * 20. - b * 4.],
+                backface: c < 0.,
+            }),
+        );
+        renderer.set_node_opacity_scopes(
+            2,
+            &[OpacityScope {
+                node_id: 10,
+                opacity: 0.5,
+            }],
+        );
+        renderer.request_screenshot_capture(frame as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let capture = renderer.take_screenshot_capture(frame as u32).unwrap();
+        assert_pixel(&capture, 50, 16, [0, 255, 0, 255]);
+        let stats = renderer.take_resource_churn_stats();
+        assert_eq!(stats.opacity_group_renders, 1, "pose {degrees}");
+        assert_eq!(stats.spatial_paint_passes, 2, "pose {degrees}");
+        assert_eq!(
+            stats.spatial_clip_fragments, 0,
+            "the backdrop never crosses this surface"
+        );
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn distant_tilted_panel_does_not_fragment_a_translucent_group_into_captures() {
+    use pax_runtime_api::{DepthPlane, OpacityScope};
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 96, [1., 1.]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.set_viewport(64., 96., [1., 1.]);
+    for (id, path, color, plane) in [
+        (
+            1,
+            rect(0., 0., 64., 96.),
+            Color::rgba(0., 0., 0., 1.),
+            [0., 0., -100.],
+        ),
+        // Its infinite plane crosses the group above; its finite pixels do not.
+        (
+            2,
+            rect(0., 60., 64., 30.),
+            Color::rgba(0., 1., 0., 1.),
+            [0., 1., -20.],
+        ),
+        (
+            3,
+            rect(10., 10., 30., 20.),
+            Color::rgba(1., 0., 0., 1.),
+            [0., 0., -5.],
+        ),
+        (
+            4,
+            rect(10., 10., 30., 20.),
+            Color::rgba(0., 0., 1., 1.),
+            [0., 0., 5.],
+        ),
+    ] {
+        renderer.begin_node(id, id as i32, 0);
+        renderer.fill_path(path, Fill::Solid(color));
+        renderer.end_node(id);
+        renderer.set_node_depth_plane(
+            id,
+            Some(DepthPlane {
+                presentation_layer: 0,
+                coefficients: plane,
+                backface: false,
+            }),
+        );
+        if id >= 3 {
+            renderer.set_node_opacity_scopes(
+                id,
+                &[OpacityScope {
+                    node_id: 10,
+                    opacity: 0.5,
+                }],
+            );
+        }
+    }
+    renderer.request_screenshot_capture(0);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    let capture = renderer.take_screenshot_capture(0).unwrap();
+    for y in [12, 18, 22, 28] {
+        assert_pixel(&capture, 20, y, [0, 0, 128, 255]);
+    }
+    assert_pixel(&capture, 20, 70, [0, 255, 0, 255]);
+    let stats = renderer.take_resource_churn_stats();
+    assert_eq!(stats.opacity_group_renders, 1);
+    assert!(stats.retained_draws <= 8, "{stats:?}");
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn many_opacity_captures_share_encoding_without_exhausting_metal_queue() {
+    use pax_runtime_api::OpacityScope;
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 100, 80, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.set_viewport(100., 80., [1., 1.]);
+    renderer.begin_node(1000, -1, 0);
+    renderer.fill_path(
+        rect(0., 0., 100., 80.),
+        Fill::Solid(Color::rgba(0., 0., 0., 1.)),
+    );
+    renderer.end_node(1000);
+    // Separate capture clear/copy/present encoders used to exhaust Metal's pool
+    // of unsubmitted command buffers before flush could submit any of them.
+    for id in 0..80 {
+        renderer.begin_node(id, id as i32, 0);
+        renderer.fill_path(
+            rect((id % 10 * 10) as f32, (id / 10 * 10) as f32, 10., 10.),
+            Fill::Solid(Color::rgba(1., 0., 0., 1.)),
+        );
+        renderer.end_node(id);
+        renderer.set_node_opacity_scopes(
+            id,
+            &[OpacityScope {
+                node_id: id,
+                opacity: 0.5,
+            }],
+        );
+    }
+    renderer.request_screenshot_capture(0);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    let capture = renderer.take_screenshot_capture(0).unwrap();
+    for y in (5..80).step_by(10) {
+        for x in (5..100).step_by(10) {
+            assert_pixel(&capture, x, y, [128, 0, 0, 255]);
+        }
+    }
+    assert_eq!(
+        renderer.take_resource_churn_stats().opacity_group_renders,
+        80
+    );
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn spatial_opacity_reuses_alpha_but_invalidates_changed_fragment_clips() {
+    use pax_runtime_api::{DepthPlane, OpacityScope};
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 32, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.set_viewport(64.0, 32.0, [1.0, 1.0]);
+    for (id, color) in [
+        (1, Color::rgba(1., 0., 0., 1.)),
+        (2, Color::rgba(0., 0., 1., 1.)),
+        (3, Color::rgba(0., 1., 0., 1.)),
+    ] {
+        renderer.begin_node(id, id as i32, 0);
+        renderer.fill_path(rect(0., 0., 64., 32.), Fill::Solid(color));
+        renderer.end_node(id);
+    }
+    // Alpha-only changes reuse the capture. Moving the intersection changes only
+    // fragment clips, and an outside plane then forces the interleaved fallback.
+    for (frame, (alpha, crossing, outside_z)) in [
+        (0.5, 32., -100.),
+        (0.25, 32., -100.),
+        (0.5, 16., -100.),
+        (0.5, 16., 0.),
+        (0.5, 32., -100.),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        for (id, slope) in [(1, 1.), (2, -1.)] {
+            renderer.set_node_depth_plane(
+                id,
+                Some(DepthPlane {
+                    presentation_layer: 0,
+                    coefficients: [slope, 0., -crossing * slope],
+                    backface: false,
+                }),
+            );
+            renderer.set_node_opacity_scopes(
+                id,
+                &[OpacityScope {
+                    node_id: 10,
+                    opacity: alpha,
+                }],
+            );
+        }
+        renderer.set_node_depth_plane(
+            3,
+            Some(DepthPlane {
+                presentation_layer: 0,
+                coefficients: [0., 0., outside_z],
+                backface: false,
+            }),
+        );
+        renderer.request_screenshot_capture(frame as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let pixels = renderer.take_screenshot_capture(frame as u32).unwrap();
+        for x in [8, 24, 48] {
+            let red = x as f64 + 0.5 > crossing;
+            let expected = [
+                if red { alpha } else { 0. },
+                1. - alpha,
+                if red { 0. } else { alpha },
+            ];
+            for channel in 0..3 {
+                let actual = pixels.rgba[(16 * 64 + x) * 4 + channel] as f32;
+                assert!(
+                    (actual - expected[channel] * 255.).abs() < 1.1,
+                    "frame {frame}, x={x}: {actual}, expected {expected:?}"
+                );
+            }
+        }
+        let stats = renderer.take_resource_churn_stats();
+        if frame == 1 {
+            assert_eq!(stats.opacity_group_renders, 0);
+            assert_eq!(stats.opacity_group_cache_hits, 1);
+        } else if frame != 3 {
+            assert_eq!(stats.opacity_group_renders, 1);
+        } else {
+            assert!(
+                stats.opacity_group_renders > 1,
+                "outside plane must split the scope"
+            );
+        }
+        if frame > 0 {
+            assert_eq!(stats.vector_geometry_rebuilds, 0);
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn nested_rotating_cuboids_bound_spatial_work_and_match_depth_oracle() {
+    check_nested_rotating_cuboids(false);
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn fading_spatial_group_matches_depth_oracle_with_one_capture() {
+    check_nested_rotating_cuboids(true);
+}
+
+fn check_nested_rotating_cuboids(grouped: bool) {
+    use pax_runtime_api::{DepthPlane, OpacityScope};
+    let polygon_path = |points: &[[f64; 2]]| {
+        let mut path = Path::builder();
+        path.begin(point(points[0][0] as f32, points[0][1] as f32));
+        for p in &points[1..] {
+            path.line_to(point(p[0] as f32, p[1] as f32));
+        }
+        path.close();
+        path.build()
+    };
+    // Signed edge distance also excludes antialiased boundary pixels from the oracle.
+    let coverage = |points: &[[f64; 2]], p: [f64; 2]| {
+        let distances: Vec<_> = (0..points.len())
+            .map(|i| {
+                let a = points[i];
+                let b = points[(i + 1) % points.len()];
+                ((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]))
+                    / (b[0] - a[0]).hypot(b[1] - a[1])
+            })
+            .collect();
+        (
+            distances.iter().all(|d| *d >= 0.0) || distances.iter().all(|d| *d <= 0.0),
+            distances.iter().any(|d| d.abs() < 1.0),
+        )
+    };
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
             RenderConfig::new(true, 160, 112, [1.0, 1.0]),
         )
     })
@@ -3781,8 +4170,9 @@ fn spatial_group_opacity_and_backface_reuse_paint_without_stale_captures() {
         renderer.set_node_depth_plane(
             1,
             Some(DepthPlane {
-                presentation_layer: 0,
-                coefficients: [0., 0., -1000.],
+                // Keep even near-edge-on bounding-plane extrapolations ahead of
+                // this backdrop: this case specifically checks the contiguous path.
+                coefficients: [0., 0., -1.0e6],
                 backface: false,
             }),
         );
@@ -3869,6 +4259,15 @@ fn spatial_group_opacity_and_backface_reuse_paint_without_stale_captures() {
                 renderer.restore();
                 renderer.end_node(id);
                 renderer.set_node_depth_plane(id, Some(plane));
+                if grouped {
+                    renderer.set_node_opacity_scopes(
+                        id,
+                        &[OpacityScope {
+                            node_id: 2000,
+                            opacity: 0.25 + (frame % 3) as f32 * 0.25,
+                        }],
+                    );
+                }
                 oracle.push((points, plane, color, route));
             }
             renderer.restore();
@@ -3916,6 +4315,11 @@ fn spatial_group_opacity_and_backface_reuse_paint_without_stale_captures() {
                         rgb[i] = rgb[i] * (1. - color[3]) + color[i] * color[3];
                     }
                 }
+                if grouped {
+                    for channel in &mut rgb {
+                        *channel *= 0.25 + (frame % 3) as f64 * 0.25;
+                    }
+                }
                 let offset = (y * 160 + x) * 4;
                 for i in 0..3 {
                     let expected = (rgb[i] * 255.).round() as i32;
@@ -3932,9 +4336,11 @@ fn spatial_group_opacity_and_backface_reuse_paint_without_stale_captures() {
         let stats = renderer.take_resource_churn_stats();
         max_fragments = max_fragments.max(stats.spatial_fragments);
         assert_eq!(
-            stats.spatial_paint_passes, 1,
-            "clip changes must stay in one color pass"
+            stats.spatial_paint_passes,
+            if grouped { 2 } else { 1 },
+            "clip changes must stay in one color pass per target"
         );
+        assert_eq!(stats.opacity_group_renders, u64::from(grouped));
         assert!(
             stats.retained_draws <= 200,
             "frame {frame}: {} draws for 15 surfaces",
@@ -3943,6 +4349,135 @@ fn spatial_group_opacity_and_backface_reuse_paint_without_stale_captures() {
         assert!(stats.spatial_clip_fragments < stats.spatial_fragments);
     }
     eprintln!("nested cuboids: maximum {max_fragments} spatial fragments");
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn spatial_lighting_uses_world_depth_and_normal_without_retessellation() {
+    use crate::{LightShape, Material, SceneLight, SceneLighting};
+    use pax_runtime_api::LightingSurface;
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 32, 32, [1., 1.]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let mut lighting = SceneLighting {
+        active: true,
+        ambient_intensity: 0.,
+        lights: vec![SceneLight {
+            shape: LightShape::Point,
+            position: [1016.5, 2016.5, 100.],
+            direction: [0., 0., -1.],
+            color: Color::rgba(1., 1., 1., 1.),
+            intensity: 1.,
+            radius: 100.,
+        }],
+        ..Default::default()
+    };
+    let material = Material::custom(0., 1., 0., 0.5, Color::rgba(0., 0., 0., 1.), 0.);
+    // World coordinates deliberately differ from raster coordinates: a tile/capture
+    // rebase must never move a material relative to its light.
+    for (frame, z, normal, expected) in [
+        (0, 0., [0., 0., 1.], 0),
+        (1, 50., [0., 0., 1.], 64),
+        (2, 50., [1., 0., 0.], 0),
+        (3, 50., [0., 0., -1.], 0),
+    ] {
+        renderer.set_scene_lighting(lighting.clone());
+        renderer.begin_node(1, 1, 1);
+        renderer.set_node_lighting_surface(
+            1,
+            Some(LightingSurface {
+                origin: [1000., 2000., z],
+                tangent_x: [1., 0., 0.],
+                tangent_y: [0., 1., 0.],
+                normal,
+            }),
+        );
+        renderer.fill_path_with_material_and_opacity(
+            rect(0., 0., 32., 32.),
+            Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+            material,
+            1.,
+        );
+        renderer.end_node(1);
+        renderer.request_screenshot_capture(frame);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let capture = renderer.take_screenshot_capture(frame).unwrap();
+        let pixel = &capture.rgba[(16 * 32 + 16) * 4..(16 * 32 + 16) * 4 + 4];
+        assert!(
+            (pixel[0] as i32 - expected).abs() <= 2,
+            "frame {frame}: {pixel:?}"
+        );
+        let stats = renderer.take_resource_churn_stats();
+        if frame > 0 {
+            assert_eq!(stats.vector_geometry_rebuilds, 0);
+            assert_eq!(stats.tessellated_vertices, 0);
+        }
+    }
+    // Antiparallel light/view directions must remain finite (zero half-vector).
+    lighting.lights[0].shape = LightShape::Directional;
+    lighting.lights[0].direction = [0., 0., 1.];
+    renderer.set_scene_lighting(lighting);
+    renderer.request_screenshot_capture(4);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    assert!(renderer.take_screenshot_capture(4).is_some());
+    // Opacity capture changes raster origin, not the world-space lighting frame.
+    let point_light = SceneLighting {
+        active: true,
+        ambient_intensity: 0.,
+        lights: vec![SceneLight {
+            shape: LightShape::Point,
+            position: [1016.5, 2016.5, 100.],
+            direction: [0., 0., -1.],
+            color: Color::rgba(1., 1., 1., 1.),
+            intensity: 1.,
+            radius: 100.,
+        }],
+        ..Default::default()
+    };
+    renderer.set_scene_lighting(point_light);
+    renderer.begin_node(1, 1, 1);
+    renderer.set_node_lighting_surface(
+        1,
+        Some(LightingSurface {
+            origin: [1000., 2000., 50.],
+            tangent_x: [1., 0., 0.],
+            tangent_y: [0., 1., 0.],
+            normal: [0., 0., 1.],
+        }),
+    );
+    renderer.set_node_opacity_scopes(
+        1,
+        &[pax_runtime_api::OpacityScope {
+            node_id: 10,
+            opacity: 0.5,
+        }],
+    );
+    renderer.fill_path_with_material_and_opacity(
+        rect(0., 0., 32., 32.),
+        Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+        material,
+        1.,
+    );
+    renderer.end_node(1);
+    renderer.request_screenshot_capture(5);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    let capture = renderer.take_screenshot_capture(5).unwrap();
+    let pixel = &capture.rgba[(16 * 32 + 16) * 4..(16 * 32 + 16) * 4 + 4];
+    assert!(
+        (pixel[0] as i32 - 32).abs() <= 2,
+        "captured lighting: {pixel:?}"
+    );
+}
 
 #[test]
 #[ignore = "requires a macOS Metal device"]

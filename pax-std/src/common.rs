@@ -110,6 +110,11 @@ pub fn begin_bounded_canvas_node(
         return None;
     }
 
+    rc.set_node_lighting_surface(
+        layer_id,
+        node_id,
+        geometry.spatial_geometry.lighting_surface(),
+    );
     rc.set_node_depth_plane(
         layer_id,
         node_id,

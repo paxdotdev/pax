@@ -5,7 +5,7 @@ use wgpu::util::DeviceExt;
 
 // Keep this in sync with geometry.wgsl and stencil.wgsl. Each binding is 15 KiB,
 // independent of scene size, and requires no storage-buffer features.
-pub(super) const TRANSFORMS_PER_PAGE: usize = 480;
+pub(super) const TRANSFORMS_PER_PAGE: usize = 160;
 
 pub(super) fn layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -158,7 +158,8 @@ mod tests {
 
     #[test]
     fn page_runs_preserve_painter_order_and_identity_across_boundaries() {
-        let ids = [479, 480, 0, 959, 960, 479];
+        let p = TRANSFORMS_PER_PAGE as u32;
+        let ids = [p - 1, p, 0, 2 * p - 1, 2 * p, p - 1];
         let mut geometry = VertexBuffers::new();
         let mut primitives = Vec::new();
         for (prim_id, transform_id) in ids.into_iter().enumerate() {

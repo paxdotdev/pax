@@ -397,6 +397,9 @@ pub trait InstanceNode {
     }
 
     /// Returns a resolved light contribution for a primitive with `has_scene_lighting()`.
+    /// Positions and directions use unprojected world axes, before scrolling. The
+    /// runtime applies source/target scroll displacement and layer reachability;
+    /// primitives must not pre-project positions into canvas or tile coordinates.
     fn resolve_scene_light(
         &self,
         _expanded_node: &ExpandedNode,

@@ -511,16 +511,21 @@ This is a bounded first spatial implementation:
   targeting follow that same fallback order. Use the GPU renderer for this
   example and for geometric depth.
 - Scene-camera selection, perspective presentation, spatial
-  clipping volumes, and transformed lighting normals are not enabled by these
+  clipping volumes are not enabled by these
   properties. Shader containers and detached mask-source captures retain their
   existing raster composition semantics.
 - With fully opaque group scopes, the GPU compositor splits intersecting
   surfaces into ordered fragments and batches their clip changes and paint
   into one render pass. Individual fills can still be translucent. Coplanar
   content shares a plane, and unsplit surfaces need no extra spatial clip.
-  Translucent group scopes retain projected-region composition to preserve
-  the contiguous-run opacity behavior described above; complex intersections
-  with group opacity can therefore be substantially more expensive.
+  A translucent group that occupies one uninterrupted span in that paint order
+  shares a single capture, including its intersecting surfaces. Changing only
+  its opacity reuses that capture. Disjoint fragments can be reordered to keep
+  that span together: a separate tilted panel farther down a page does not by
+  itself force repeated captures of a translucent solid. Overlapping fragments
+  keep their relative paint order. When outside content splits a translucent
+  scope, projected-region composition preserves the contiguous-run behavior
+  described above; those intersections can be substantially more expensive.
   These paths target modest numbers of intersecting flat planes, rather than
   general mesh scenes. Screenshot mirroring on targets without surface-copy
   support uses separate passes to preserve the same clip ordering.
@@ -569,9 +574,11 @@ Each face's local coordinates are upright when viewed from outside that face.
 The shared fill sits beneath authored face content. Flat Rectangle/Ellipse
 elements keep their existing behavior; only Cuboid introduces these six
 surfaces. The spatial backend restrictions above still apply, including CPU
-paint ordering, separate native/scroller layers, group opacity, and lighting
-normals. Face orientation affects geometry, picking and depth; it does not yet
-add transformed lighting normals to the material shader.
+paint ordering, separate native/scroller layers, and group opacity. Face
+orientation also supplies its material's lighting normal; all faces can share
+the same paint while responding differently to a light. See
+[Spatial lighting](drawing-styling.md#spatial-lighting) for lights inside
+transformed groups and the distinction between vector materials and native UI.
 
 For a rotating route transition in a viewport of width W and height H, use
 depth W for a horizontal quarter-turn or H for a vertical quarter-turn. The

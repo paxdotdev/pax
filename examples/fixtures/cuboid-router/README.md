@@ -29,9 +29,8 @@ turn direction. The small cuboid's slider independently exercises side
 geometry and native-control occlusion.
 
 GPU rendering is required for geometric depth. Native/native and distinct
-Scroller-layer intersections retain platform limitations. Material lighting
-still uses the existing planar lighting contract; face colors here are
-explicit paints, not simulated lighting. Cameras and fixed overlays are
+Scroller-layer intersections retain platform limitations. This fixture has no authored lights; its face colors are explicit paints.
+The Light / Space fixture demonstrates spatially lit materials. Cameras and fixed overlays are
 separate work.
 
 `RouteCuboid` is exported by `pax-kit`, alongside `Route`, `RouteCard`, and

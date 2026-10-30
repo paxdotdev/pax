@@ -69,6 +69,27 @@ Evaluates camera-relative depth at a projected coordinate.
 
 ---
 
+### `LightingSurface`
+Unprojected lighting frame of a planar draw, in logical world pixels.
+Geometry stays local: `origin + x * tangent_x + y * tangent_y` supplies its
+shading position independently of canvas tiles, captures, or projection.
+The oriented normal is unit length and perpendicular to both tangents.
+
+#### Properties
+##### `origin`
+Type: [`f32`; 3]
+
+##### `tangent_x`
+Type: [`f32`; 3]
+
+##### `tangent_y`
+Type: [`f32`; 3]
+
+##### `normal`
+Type: [`f32`; 3]
+
+---
+
 ### `OpacityScope`
 One authored opacity boundary, ordered from the outermost ancestor to the painted node.
 Native surfaces can present independently while a canvas backend composes each scope.
