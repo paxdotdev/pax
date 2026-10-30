@@ -437,6 +437,18 @@ input positions through transformed geometry.
 
 ### Rotating flat surfaces in 3D
 
+Enable the default-off `3d` feature on your application's `pax-kit` dependency:
+
+```toml
+pax-kit = { version = "0.39.1", features = ["3d"] }
+```
+
+This capability includes spatial transforms, depth composition and picking,
+Cuboid/CuboidFace, Ellipsoid, RouteCuboid, and lighting on transformed surfaces. Ordinary
+2D transforms, materials and planar lighting remain available without it.
+See [optional runtime capabilities](targets-build-deploy.md#optional-runtime-capabilities)
+for build and dependency behavior.
+
 The experimental GPU spatial path adds `rotate_x`, `rotate_y`, and `translate_z`
 to ordinary elements and groups. No scene wrapper is required. Unspecified
 values are zero, so existing interfaces keep their 2D layout and paint order.
@@ -529,6 +541,45 @@ This is a bounded first spatial implementation:
   These paths target modest numbers of intersecting flat planes, rather than
   general mesh scenes. Screenshot mirroring on targets without surface-copy
   support uses separate passes to preserve the same clip ordering.
+
+### Opaque curved solids
+
+`Ellipsoid` adds a curved volume to an ordinary Pax tree. Enable `pax-kit/3d`
+and use the GPU renderer. Its `width` and `height` follow normal layout; `depth`
+is an absolute logical-pixel extent centered on local Z=0, defaulting to 100px.
+Equal extents produce a sphere. Pose changes transform shared mesh geometry.
+
+```pax
+<LightFrame width=100% height=100%>
+    <Ellipsoid x=50% y=50% width=240px height=180px depth=200px
+        rotate_y=25deg translate_z=-40px
+        color=rgb(239, 167, 77) material={Material::glossy(0.35)} />
+    <LightSource x=20% y=10% z=400px radius=1500px intensity=2.0 />
+    <AmbientLight intensity=0.4 />
+</LightFrame>
+```
+
+A flat panel may pass through the volume: only the part of the solid in front
+of the panel hides it. The GPU draw, native-control punch-through contour, and
+pointer depth use the same tessellated surface. Hard clips remain projected
+apertures; they clip the visible result, without adding solid caps at the cut.
+Controls keep their mounted identity as the occlusion changes. Tile coverage
+includes the full volume, including a pose whose local XY plane is edge-on.
+
+This first mesh primitive accepts one opaque `color` and a normal Pax
+`material`. It does not wrap live children onto a curved surface. Zero, negative,
+or non-finite extents and singular poses have no coverage. Fractional solid
+opacity, alpha masks, shader-effect captures, and detached mask sources are
+unsupported: affected ellipsoids are omitted with a bounded diagnostic. CPU
+rendering also omits them. Transparent shells and arbitrary concave meshes are
+not implemented. The logical-layer and native-control limits above still apply.
+
+Try the [Surface / Solid fixture](https://github.com/paxproject/pax/tree/dev/examples/fixtures/solid-intersection)
+for a clipped editable panel, reproducible depth presets, rotation, and scrolling:
+
+```sh
+pax-cli run --path examples/fixtures/solid-intersection --target web
+```
 
 ### Cuboids with live face content
 

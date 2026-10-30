@@ -5,7 +5,12 @@ use effects::{EffectCapture, EffectNode, EffectRecording};
 mod lighting;
 mod opacity;
 mod source_capture;
+#[cfg(feature = "3d")]
 mod spatial;
+#[cfg(feature = "3d")]
+mod solid;
+#[cfg(feature = "3d")]
+use solid::RetainedSolid;
 use crate::render_backend::stencil;
 use crate::render_backend::CpuBuffers;
 use crate::render_backend::RetainedImageDraw;
@@ -110,6 +115,10 @@ pub struct ResourceChurnStats {
     pub mesh_raster_passes: u64,
     pub mesh_cache_hits: u64,
     pub mesh_topology_allocations: u64,
+    #[cfg(feature = "3d")]
+    pub solid_geometry_upload_bytes: u64,
+    #[cfg(feature = "3d")]
+    pub solid_uniform_updates: u64,
     pub flushes: u64,
     pub opacity_group_renders: u64,
     pub opacity_group_cache_hits: u64,
@@ -165,6 +174,11 @@ impl ResourceChurnStats {
         self.mesh_cache_hits += other.mesh_cache_hits;
         self.mesh_topology_allocations += other.mesh_topology_allocations;
         self.flushes += other.flushes;
+        #[cfg(feature = "3d")]
+        {
+            self.solid_geometry_upload_bytes += other.solid_geometry_upload_bytes;
+            self.solid_uniform_updates += other.solid_uniform_updates;
+        }
         #[cfg(feature = "shaders")]
         {
             self.effect_source_renders += other.effect_source_renders;
@@ -259,8 +273,15 @@ pub struct WgpuRenderer<'w> {
     render_backend: RenderBackend<'w>,
     scene: HashMap<u32, RetainedNode>,
     opacity_scopes: HashMap<u32, Vec<OpacityScope>>,
+    #[cfg(feature = "3d")]
     depth_planes: HashMap<u32, pax_runtime_api::DepthPlane>,
+    #[cfg(feature = "3d")]
     spatial_clip_keys: Vec<ClipArenaKey>,
+    #[cfg(feature = "3d")]
+    solid_clips: HashMap<u32, Vec<ClipReference>>,
+    #[cfg(feature = "3d")]
+    solid_clip_keys: Vec<ClipArenaKey>,
+    #[cfg(feature = "3d")]
     spatial_region: Option<(usize, u64, u32)>,
     source_nodes: HashMap<u32, u32>,
     source_captures: HashMap<u32, SourceCapture>,
@@ -537,8 +558,14 @@ struct TransformArena {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum ClipArenaKey {
-    Node { node_id: u32, clip_index: u32 },
+    Node {
+        node_id: u32,
+        clip_index: u32,
+    },
+    #[cfg(feature = "3d")]
     SpatialRegion(usize),
+    #[cfg(feature = "3d")]
+    SolidOcclusion(u32, u32),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -748,8 +775,15 @@ impl<'w> WgpuRenderer<'w> {
             tolerance: DEFAULT_TESSELLATION_TOLERANCE, // TODO expose as option
             scene: HashMap::new(),
             opacity_scopes: HashMap::new(),
+            #[cfg(feature = "3d")]
             depth_planes: HashMap::new(),
+            #[cfg(feature = "3d")]
             spatial_clip_keys: Vec::new(),
+            #[cfg(feature = "3d")]
+            solid_clips: HashMap::new(),
+            #[cfg(feature = "3d")]
+            solid_clip_keys: Vec::new(),
+            #[cfg(feature = "3d")]
             spatial_region: None,
             source_nodes: HashMap::new(),
             source_captures: HashMap::new(),
@@ -843,9 +877,18 @@ impl<'w> WgpuRenderer<'w> {
         self.scene.clear();
         self.lighting_dependencies = None;
         self.opacity_scopes.clear();
-        self.depth_planes.clear();
-        self.spatial_clip_keys.clear();
-        self.spatial_region = None;
+        #[cfg(feature = "3d")]
+        {
+            self.depth_planes.clear();
+        }
+        #[cfg(feature = "3d")]
+        {
+            self.spatial_clip_keys.clear();
+        }
+        #[cfg(feature = "3d")]
+        {
+            self.spatial_region = None;
+        }
         self.source_nodes.clear();
         self.source_captures.clear();
         self.source_recordings.clear();
@@ -956,6 +999,7 @@ impl<'w> WgpuRenderer<'w> {
         );
         let Some(PendingNode {
             kind: PendingNodeKind::Vector(buffers),
+            #[cfg(feature = "3d")]
             lighting_surface,
             ..
         }) = self.ensure_vector_node()
@@ -963,6 +1007,7 @@ impl<'w> WgpuRenderer<'w> {
             return;
         };
         buffers.ops.push(PendingVectorOp {
+            #[cfg(feature = "3d")]
             lighting_surface: *lighting_surface,
             path,
             fill: stroke.fill,
@@ -1022,6 +1067,7 @@ impl<'w> WgpuRenderer<'w> {
         let geometry_signature = hash_vector_path(&path, PendingVectorOpKind::Fill, smoothing);
         let Some(PendingNode {
             kind: PendingNodeKind::Vector(buffers),
+            #[cfg(feature = "3d")]
             lighting_surface,
             ..
         }) = self.ensure_vector_node()
@@ -1029,6 +1075,7 @@ impl<'w> WgpuRenderer<'w> {
             return;
         };
         buffers.ops.push(PendingVectorOp {
+            #[cfg(feature = "3d")]
             lighting_surface: *lighting_surface,
             path,
             fill,
@@ -1256,11 +1303,20 @@ impl<'w> WgpuRenderer<'w> {
         let mut active = source_capture_keys;
         #[cfg(feature = "shaders")]
         active.extend(self.render_effects());
+        #[cfg(feature = "3d")]
         self.draw_spatial_scene(&mut active);
+        #[cfg(not(feature = "3d"))]
+        {
+            let plan = self.opacity_plan();
+            opacity::collect_opacity_group_keys(&plan, &mut active);
+            self.draw_opacity_plan(&plan);
+        }
         self.render_backend.retain_captures(&active);
+        #[cfg_attr(not(feature = "3d"), allow(unused_mut))]
         let (mut active_clip_signatures, mut active_clip_ids) =
             collect_active_clip_resources(&self.scene, &self.clip_arena);
-        for key in &self.spatial_clip_keys {
+        #[cfg(feature = "3d")]
+        for key in self.spatial_clip_keys.iter().chain(&self.solid_clip_keys) {
             if let Some(id) = self.clip_arena.key_to_id.get(key) {
                 active_clip_ids.insert(*id);
                 active_clip_signatures.insert(self.clip_arena.entries[id].geometry_signature);
@@ -1290,7 +1346,11 @@ impl<'w> WgpuRenderer<'w> {
                 continue;
             }
             self.resource_churn_stats.retained_nodes_visible += 1;
+            #[cfg_attr(not(feature = "3d"), allow(unused_mut))]
             let mut effective_clips = node.clip_stack().to_vec();
+            #[cfg(feature = "3d")]
+            effective_clips.extend(self.solid_clips.get(node_id).into_iter().flatten().copied());
+            #[cfg(feature = "3d")]
             if let Some((_, _, clip_id)) = self.spatial_region {
                 effective_clips.push(ClipReference::Stencil { clip_id });
             }
@@ -1320,6 +1380,8 @@ impl<'w> WgpuRenderer<'w> {
                 current_batch_clip_stack = Some(effective_clips.clone());
             }
             match node {
+                #[cfg(feature = "3d")]
+                RetainedNode::Solid(node) => { if let Some(resource) = &node.resource { current_batch.push(RetainedDraw::Solid(resource)); } }
                 #[cfg(feature = "shaders")]
                 RetainedNode::Effect(node) => {
                     if node.visible {
@@ -1636,6 +1698,7 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     /// Set the current draw's unprojected frame without changing retained path geometry.
+    #[cfg(feature = "3d")]
     pub fn set_node_lighting_surface(
         &mut self,
         node_id: u32,
@@ -1658,6 +1721,7 @@ impl<'w> WgpuRenderer<'w> {
             id: node_id,
             z_index,
             light_mask,
+            #[cfg(feature = "3d")]
             lighting_surface: None,
             owned_clip_keys: Vec::new(),
             kind: PendingNodeKind::Empty,
@@ -1687,6 +1751,14 @@ impl<'w> WgpuRenderer<'w> {
         let prev_z = previous.as_ref().map(|node| node.z_index());
 
         let updated = match pending_node.kind {
+            #[cfg(feature = "3d")]
+            PendingNodeKind::Solid(mut solid) => {
+                if let Some(RetainedNode::Vector(old)) = previous.as_ref() { self.transform_arena.release_keys(&old.transform_keys); }
+                if let Some(RetainedNode::Solid(old)) = previous {
+                    if Rc::ptr_eq(&old.pose.mesh, &solid.pose.mesh) { solid.resource = old.resource; solid.last_uniform = old.last_uniform; }
+                }
+                Some(RetainedNode::Solid(solid))
+            }
             PendingNodeKind::Empty => {
                 if let Some(RetainedNode::Vector(existing)) = previous.as_ref() {
                     self.transform_arena.release_keys(&existing.transform_keys);
@@ -1695,7 +1767,7 @@ impl<'w> WgpuRenderer<'w> {
             }
             PendingNodeKind::Vector(buffers) => {
                 let lighting_dependencies = LightingDependencies::from_ops(&buffers.ops);
-                let (bounds, spatial_coverage) = compute_vector_node_extent(&buffers.ops);
+                let (bounds, _spatial_coverage) = compute_vector_node_extent(&buffers.ops);
                 let geometry_signatures = buffers
                     .ops
                     .iter()
@@ -1775,7 +1847,10 @@ impl<'w> WgpuRenderer<'w> {
                         existing.transform_layout_signature = transform_layout_signature;
                         existing.resource_key = resource_key;
                         existing.bounds = bounds;
-                        existing.spatial_coverage = spatial_coverage;
+                        #[cfg(feature = "3d")]
+                        {
+                            existing.spatial_coverage = _spatial_coverage;
+                        }
                         Some(RetainedNode::Vector(existing))
                     }
                     Some(_) => {
@@ -1801,7 +1876,8 @@ impl<'w> WgpuRenderer<'w> {
                             clip_stack: buffers.clip_stack,
                             z_index: pending_z_index,
                             bounds,
-                            spatial_coverage,
+                            #[cfg(feature = "3d")]
+                            spatial_coverage: _spatial_coverage,
                             resource_dirty: VectorResourceDirty {
                                 geometry: true,
                                 primitives: true,
@@ -1840,7 +1916,8 @@ impl<'w> WgpuRenderer<'w> {
                             clip_stack: buffers.clip_stack,
                             z_index: pending_z_index,
                             bounds,
-                            spatial_coverage,
+                            #[cfg(feature = "3d")]
+                            spatial_coverage: _spatial_coverage,
                             resource_dirty: VectorResourceDirty {
                                 geometry: true,
                                 primitives: true,
@@ -1956,7 +2033,10 @@ impl<'w> WgpuRenderer<'w> {
         }
         self.source_nodes.remove(&node_id);
         self.opacity_scopes.remove(&node_id);
-        self.depth_planes.remove(&node_id);
+        #[cfg(feature = "3d")]
+        {
+            self.depth_planes.remove(&node_id);
+        }
         let mut removed = false;
         if let Some(node) = self.scene.remove(&node_id) {
             self.lighting_dependencies = None;
@@ -1991,8 +2071,11 @@ impl<'w> WgpuRenderer<'w> {
         // A retained mesh draw binds its own page, including every crossfade endpoint.
         // The concatenating fast path has one binding for the entire scene; use the
         // ordinary ordered retained draws whenever pages are present.
-        self.depth_planes.is_empty()
-            && self.source_captures.is_empty()
+        #[cfg(feature = "3d")]
+        if !self.depth_planes.is_empty() {
+            return false;
+        }
+        self.source_captures.is_empty()
             && self.scene.values().all(|node| !matches!(node, RetainedNode::Vector(node) if !node.buffers.mesh_paints.is_empty()))
             && self.opacity_scopes.values().all(Vec::is_empty)
             && self.scene.len() >= 64
@@ -2220,9 +2303,11 @@ impl<'w> WgpuRenderer<'w> {
             self.render_backend.render_primitive_batches(&mut batches);
         }
 
+        #[cfg_attr(not(feature = "3d"), allow(unused_mut))]
         let (mut active_clip_signatures, mut active_clip_ids) =
             collect_active_clip_resources(&self.scene, &self.clip_arena);
-        for key in &self.spatial_clip_keys {
+        #[cfg(feature = "3d")]
+        for key in self.spatial_clip_keys.iter().chain(&self.solid_clip_keys) {
             if let Some(id) = self.clip_arena.key_to_id.get(key) {
                 active_clip_ids.insert(*id);
                 active_clip_signatures.insert(self.clip_arena.entries[id].geometry_signature);
@@ -2287,12 +2372,15 @@ struct PendingNode {
     id: u32,
     z_index: i32,
     light_mask: u32,
+    #[cfg(feature = "3d")]
     lighting_surface: Option<pax_runtime_api::LightingSurface>,
     owned_clip_keys: Vec<ClipArenaKey>,
     kind: PendingNodeKind,
 }
 
 enum PendingNodeKind {
+    #[cfg(feature = "3d")]
+    Solid(RetainedSolid),
     Empty,
     Vector(PendingVectorNode),
     Image(PendingImageNode),
@@ -2308,6 +2396,7 @@ struct PendingVectorOp {
     fill: Fill,
     material: Material,
     light_mask: u32,
+    #[cfg(feature = "3d")]
     lighting_surface: Option<pax_runtime_api::LightingSurface>,
     transform: Transform2D,
     opacity: f32,
@@ -2331,6 +2420,8 @@ struct PendingImageNode {
 }
 
 enum RetainedNode {
+    #[cfg(feature = "3d")]
+    Solid(RetainedSolid),
     #[cfg(feature = "shaders")]
     Effect(EffectNode),
     Vector(RetainedVectorNode),
@@ -2349,6 +2440,8 @@ impl RetainedNode {
 
     fn z_index(&self) -> i32 {
         match self {
+            #[cfg(feature = "3d")]
+            RetainedNode::Solid(node) => node.z_index,
             RetainedNode::Vector(node) => node.z_index,
             RetainedNode::Image(node) => node.z_index,
             #[cfg(feature = "shaders")]
@@ -2358,6 +2451,8 @@ impl RetainedNode {
 
     fn clip_stack(&self) -> &[ClipReference] {
         match self {
+            #[cfg(feature = "3d")]
+            RetainedNode::Solid(node) => &node.clip_stack,
             RetainedNode::Vector(node) => &node.clip_stack,
             RetainedNode::Image(node) => &node.clip_stack,
             #[cfg(feature = "shaders")]
@@ -2367,6 +2462,8 @@ impl RetainedNode {
 
     fn intersects_bounds(&self, viewport_bounds: &Box2D) -> bool {
         match self {
+            #[cfg(feature = "3d")]
+            RetainedNode::Solid(node) => boxes_intersect(&node.bounds, viewport_bounds),
             RetainedNode::Vector(node) => boxes_intersect(&node.bounds, viewport_bounds),
             RetainedNode::Image(node) => boxes_intersect(&node.bounds, viewport_bounds),
             #[cfg(feature = "shaders")]
@@ -2385,6 +2482,7 @@ struct RetainedVectorNode {
     clip_stack: Vec<ClipReference>,
     z_index: i32,
     bounds: Box2D,
+    #[cfg(feature = "3d")]
     spatial_coverage: Vec<[f64; 2]>,
     resource_dirty: VectorResourceDirty,
     geometry_signatures: Vec<u64>,
@@ -2444,6 +2542,8 @@ fn record_retained_batch_stats(stats: &mut ResourceChurnStats, draws: &[Retained
                 stats.retained_vector_draws += 1
             }
             RetainedDraw::Vector(_) => {}
+            #[cfg(feature = "3d")]
+            RetainedDraw::Solid(_) => {}
             #[cfg(feature = "shaders")]
             RetainedDraw::Effect(_) => {}
             RetainedDraw::Image { .. } => stats.retained_image_draws += 1,
@@ -2452,12 +2552,14 @@ fn record_retained_batch_stats(stats: &mut ResourceChurnStats, draws: &[Retained
 }
 
 fn op_gpu_transform(op: &PendingVectorOp) -> GpuTransform {
-    GpuTransform {
+    let transform = GpuTransform {
         transform: op.transform.to_arrays(),
         opacity: op.opacity,
         ..GpuTransform::default()
-    }
-    .with_lighting(op.lighting_surface)
+    };
+    #[cfg(feature = "3d")]
+    let transform = transform.with_lighting(op.lighting_surface);
+    transform
 }
 
 fn build_local_transform_table(ops: &[PendingVectorOp]) -> Vec<GpuTransform> {
@@ -3086,8 +3188,14 @@ fn hash_transform_ids(transform_ids: &[u32]) -> u64 {
     hasher.finish()
 }
 
-fn compute_vector_node_extent(ops: &[PendingVectorOp]) -> (Box2D, Vec<[f64; 2]>) {
+#[cfg(feature = "3d")]
+type SpatialCoverage = Vec<[f64; 2]>;
+#[cfg(not(feature = "3d"))]
+type SpatialCoverage = ();
+
+fn compute_vector_node_extent(ops: &[PendingVectorOp]) -> (Box2D, SpatialCoverage) {
     let mut bounds: Option<Box2D> = None;
+    #[cfg(feature = "3d")]
     let mut coverage = Vec::with_capacity(ops.len() * 4);
     for op in ops {
         let Some(path_bounds) = path_control_bounds(&op.path) else {
@@ -3096,6 +3204,9 @@ fn compute_vector_node_extent(ops: &[PendingVectorOp]) -> (Box2D, Vec<[f64; 2]>)
         let mut op_bounds = transform_box(path_bounds, &op.transform);
         if let PendingVectorOpKind::Stroke(width, _, _) = op.kind {
             op_bounds = expand_box(op_bounds, width * 0.5);
+        }
+        #[cfg(feature = "3d")]
+        if matches!(op.kind, PendingVectorOpKind::Stroke(..)) {
             coverage.extend(spatial::box_polygon(expand_box(op_bounds, 1.0)));
         } else {
             // Preserve the projected parallelogram instead of its screen-aligned box.
@@ -3112,10 +3223,11 @@ fn compute_vector_node_extent(ops: &[PendingVectorOp]) -> (Box2D, Vec<[f64; 2]>)
             None => op_bounds,
         });
     }
-    (
-        bounds.unwrap_or_else(empty_box),
-        spatial::convex_hull(coverage),
-    )
+    #[cfg(feature = "3d")]
+    let coverage = spatial::convex_hull(coverage);
+    #[cfg(not(feature = "3d"))]
+    let coverage = ();
+    (bounds.unwrap_or_else(empty_box), coverage)
 }
 
 fn path_control_bounds(path: &Path) -> Option<Box2D> {
@@ -3430,7 +3542,10 @@ fn to_gpu_material(material: Material) -> GpuMaterial {
 }
 
 fn to_gpu_scene_lighting(lighting: &SceneLighting) -> GpuSceneLighting {
+    let m = lighting.surface_to_world;
     let mut out = GpuSceneLighting {
+        surface_to_world_x: [m[0], m[2], m[4], 0.],
+        surface_to_world_y: [m[1], m[3], m[5], 0.],
         ambient: [
             lighting.ambient_color.rgba[0],
             lighting.ambient_color.rgba[1],
@@ -4119,6 +4234,8 @@ pub struct SceneLight {
 #[derive(Debug, Clone, PartialEq)]
 /// Resolved lighting state for one retained vector scene.
 pub struct SceneLighting {
+    /// Canvas-content to unscrolled world coordinates, in affine coefficient order.
+    pub surface_to_world: [f32; 6],
     pub active: bool,
     pub ambient_is_authored: bool,
     pub ambient_color: Color,
@@ -4129,6 +4246,7 @@ pub struct SceneLighting {
 impl Default for SceneLighting {
     fn default() -> Self {
         Self {
+            surface_to_world: [1., 0., 0., 1., 0., 0.],
             active: false,
             ambient_is_authored: false,
             ambient_color: Color::rgba(1.0, 1.0, 1.0, 1.0),
@@ -4501,6 +4619,7 @@ mod tests {
             (hole.build(), 84.0),
         ] {
             let op = PendingVectorOp {
+                #[cfg(feature = "3d")]
                 lighting_surface: None,
                 geometry_signature: hash_vector_path(
                     &path,
@@ -4536,6 +4655,7 @@ mod tests {
     fn vector_geometry_cache_reuses_tessellation_and_remaps_primitive_ids() {
         let path = rect_path(10.0, 5.0);
         let op = PendingVectorOp {
+            #[cfg(feature = "3d")]
             lighting_surface: None,
             path: path.clone(),
             fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
@@ -4554,6 +4674,7 @@ mod tests {
         };
         let ops = vec![
             PendingVectorOp {
+                #[cfg(feature = "3d")]
                 lighting_surface: None,
                 path,
                 fill: Fill::Solid(Color::rgba(0.0, 1.0, 0.0, 1.0)),
@@ -4633,6 +4754,7 @@ mod tests {
         let geometry_signature = hash_vector_path(&path, kind, PathSmoothing::None);
         let ops = vec![
             PendingVectorOp {
+                #[cfg(feature = "3d")]
                 lighting_surface: None,
                 path: path.clone(),
                 fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
@@ -4646,6 +4768,7 @@ mod tests {
                 smoothing: PathSmoothing::None,
             },
             PendingVectorOp {
+                #[cfg(feature = "3d")]
                 lighting_surface: None,
                 path,
                 fill: Fill::Solid(Color::rgba(0.0, 1.0, 0.0, 1.0)),
@@ -4689,6 +4812,7 @@ mod tests {
         let path = two_closed_rects_path(10.0, 5.0, 20.0);
         let kind = PendingVectorOpKind::Stroke(1.0, StrokeCap::Butt, StrokeJoin::Miter);
         let op = PendingVectorOp {
+            #[cfg(feature = "3d")]
             lighting_surface: None,
             path: path.clone(),
             fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
@@ -4746,6 +4870,7 @@ mod tests {
         let geometry_signature = hash_vector_path(&path, kind, PathSmoothing::None);
         let make_ops = |draw_range| {
             vec![PendingVectorOp {
+                #[cfg(feature = "3d")]
                 lighting_surface: None,
                 path: path.clone(),
                 fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
@@ -4805,6 +4930,7 @@ mod tests {
         let geometry_signature = hash_vector_path(&path, kind, PathSmoothing::None);
         let make_ops = |draw_range| {
             vec![PendingVectorOp {
+                #[cfg(feature = "3d")]
                 lighting_surface: None,
                 path: path.clone(),
                 fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
@@ -4832,6 +4958,7 @@ mod tests {
         let unsmoothed = hash_vector_path(&path, kind, PathSmoothing::None);
         let smoothed = hash_vector_path(&path, kind, PathSmoothing::Strong);
         let make_op = |smoothing, geometry_signature| PendingVectorOp {
+            #[cfg(feature = "3d")]
             lighting_surface: None,
             path: path.clone(),
             fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),

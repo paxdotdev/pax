@@ -140,6 +140,7 @@ impl NodeInterface {
     /// Engine-owned unprojected geometry, in unscrolled world coordinates.
     /// Inspect or subscribe to this property; do not replace its engine binding.
     /// This does not enable template-level spatial transforms or depth ordering.
+    #[cfg(feature = "3d")]
     pub fn spatial_geometry(&self) -> LocalProperty<crate::SpatialGeometry> {
         self.inner.spatial_geometry.clone()
     }

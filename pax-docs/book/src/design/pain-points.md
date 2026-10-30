@@ -1479,3 +1479,30 @@ Coordinating lifecycle entry with native presentation readiness remains open.
   the hero's View Source, then close it; browser console contains the panic.
   Capture-layer isolation fixes the reproduced panic; the two-layer Metal
   regression fails before the fix and passes afterward.
+
+- 2026-10-30 (PAX-1051): `cargo test --offline -p pax-codegen --lib` still let fixture subprocesses attempt registry access; five static-analysis tests failed fetching `libc` in the sandbox. Expected the offline setting to cover subprocess Cargo operations. Setting `CARGO_NET_OFFLINE=true` for the test command passed all 46 tests.
+- 2026-10-30 (PAX-1051): nightly rustfmt with partial `--file-lines` ranges around newly added `cfg` blocks produced mismatched delimiters in `capture.rs` and a closure in `render_context.rs`. Expected syntax-preserving formatting; the next compiler/rustfmt parse rejected both files. Repaired the delimiters and used full-file formatting output with syntax-checked selection instead; avoid partial-range rustfmt for these edits.
+- 2026-10-30 (PAX-1051): New IAB tabs for the release Increment footprint comparison remained blank with both `3d` enabled and disabled. Temporary startup tracing reached `navigator.gpu.requestAdapter()` but its promise remained pending before device/shader creation; reproduced on ports 63271 and 50072, including a visible tab. The already-mounted Light / Space WebGPU preview remained interactive, and `?pax_renderer=cpu` rendered Increment and handled clicks. Metal tests passed in both feature modes. Cause is unestablished; temporary tracing and test tabs were removed.
+
+- 2026-10-30, PAX-1051 native-pointer check: running `npm run build` in
+  `pax-compiler/files/interfaces/web` failed because its package script references
+  missing `webpack.prod.js`. Expected the advertised build script to bundle the
+  interface. Evidence: `/tmp/pax-solid-interface.log`. Workaround: use the
+  compiler's normal `pax-cli build --libdev` interface-bundling path.
+
+- 2026-10-30, PAX-1051 macOS validation: `swift test --package-path
+  pax-host/native/common/pax-swift-common` creates `.build` under native sources
+  embedded by `pax-host`. A simultaneous app build failed while embedding a
+  disappearing Swift index temp file. Expected generated test output to stay out
+  of SDK packaging. Evidence: `/tmp/pax-solid-mac.log`. Use `swift test
+  --scratch-path /tmp/<test-build>` and keep package-local `.build` out of the
+  native source tree; packaging exclusion remains a follow-up.
+
+- 2026-10-30 (PAX-1051): Fresh Chrome debug/release solid previews stalled before
+  mounting. A temporary standalone WebGPU probe also stopped at
+  `navigator.gpu.requestAdapter()` before any Pax code or shader creation;
+  CPU release startup completed immediately. Raising the Chrome test window
+  allowed adapter/device creation to finish (probe: 25s/31s), after which the
+  release GPU scene rendered and passed interaction checks. This extends the
+  earlier IAB startup report above; the browser/background scheduling cause is
+  not established. The temporary probe was removed.

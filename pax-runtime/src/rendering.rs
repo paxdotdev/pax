@@ -448,6 +448,14 @@ pub trait InstanceNode {
     /// until `RuntimeContext::mark_canvas_node_dirty` invalidates the node, so a primitive's
     /// reactive drawing dependencies must include every input used here. Surface replay
     /// reuses the prepared record without invoking this method again.
+    /// A closed opaque convex volume in unscrolled world coordinates, if present.
+    #[cfg(feature = "3d")]
+    fn resolve_convex_mesh(&self, _node: &ExpandedNode) -> Option<Rc<pax_runtime_api::mesh3::PosedConvexMesh>> { None }
+
+    /// Whether descendants can use the initial opaque-volume rendering contract.
+    #[cfg(feature = "3d")]
+    fn permits_opaque_mesh_content(&self, _node: &ExpandedNode) -> bool { true }
+
     fn prepare_canvas_geometry(
         &self,
         _node: &ExpandedNode,

@@ -104,6 +104,21 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         });
     }
 
+    // SVG/CSS masks affect pixels but leave the covered native hit box intact.
+    // Ask the runtime before allowing the browser to focus/activate that leaf.
+    // Move/up are intentionally not gated: an established native drag owns them.
+    function nativePointerOccluded(target: EventTarget | null, x: number, y: number) {
+        const leaf = target instanceof Element ? target.closest('.native-leaf[pax_id]') : null;
+        if (!leaf) return false;
+        const id = Number(leaf.getAttribute('pax_id'));
+        const bounds = mount.getBoundingClientRect();
+        return Number.isFinite(id) && !chassis.native_pointer_hit_test(id, x - bounds.left, y - bounds.top);
+    }
+    function blockNativePointer(event: Event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
     function isTouchGeneratedClick(evt: MouseEvent) {
         let sourceCapabilities = (evt as any).sourceCapabilities;
         if (sourceCapabilities?.firesTouchEvents) {
@@ -119,6 +134,9 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
     }
 
     addWindowListener('click', (evt) => {
+        // detail=0 is keyboard/programmatic activation, which has no pointer ray.
+        const occluded = evt.detail !== 0 && nativePointerOccluded(evt.target, evt.clientX, evt.clientY);
+        if (occluded) blockNativePointer(evt);
         if (isTouchGeneratedClick(evt)) {
             lastTouchTap = undefined;
             return;
@@ -242,6 +260,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
             }
         };
         let res = chassis.interrupt(event, []);
+        if (nativePointerOccluded(evt.target, evt.clientX, evt.clientY)) blockNativePointer(evt);
         if (res.prevent_default) {
             evt.preventDefault();
         }
@@ -294,6 +313,8 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
             lastPositions.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
         });
         let r1 = chassis.interrupt(event, []);
+        const touch = evt.changedTouches[0];
+        if (touch && nativePointerOccluded(evt.target, touch.clientX, touch.clientY)) blockNativePointer(evt);
 
         activeTapTouchIdentifier = evt.touches.length === 1 && evt.changedTouches.length === 1
             ? evt.changedTouches[0].identifier
@@ -304,7 +325,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         if (r1.prevent_default) {
             evt.preventDefault();
         }
-    }, {"passive": true, "capture": true});
+    }, {"passive": false, "capture": true});
     addWindowListener('touchmove', (evt: TouchEvent) => {
         if (activeTapTouchIdentifier !== undefined && activeTapStart !== undefined) {
             let activeTouch = Array.from(evt.touches as TouchList).find(

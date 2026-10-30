@@ -40,7 +40,11 @@ pub struct PreparedCanvasGeometry {
     pub world_transform: Affine,
     /// Unprojected geometry used to inspect depth and geometric coplanarity.
     /// Kept separate from canvas ownership and logical opacity scopes.
+    #[cfg(feature = "3d")]
     pub spatial_geometry: crate::SpatialGeometry,
+    /// Retained convex volume, in unscrolled world space.
+    #[cfg(feature = "3d")]
+    pub solid: Option<Rc<pax_runtime_api::mesh3::PosedConvexMesh>>,
     pub(crate) is_canvas: bool,
     pub(crate) is_native: bool,
     /// Owning logical canvas layer.
@@ -72,10 +76,13 @@ impl PreparedCanvasGeometry {
         });
         Self {
             world_transform: surface_transform,
+            #[cfg(feature = "3d")]
             spatial_geometry: crate::SpatialGeometry::from(crate::TransformAndBounds {
                 transform: pax_runtime_api::math::Transform2::new(surface_transform.as_coeffs()),
                 bounds,
             }),
+            #[cfg(feature = "3d")]
+            solid: None,
             is_canvas: true,
             is_native: false,
             layer,
@@ -107,11 +114,13 @@ pub(crate) struct SceneGeometry {
     pending: Vec<u32>,
     layers: HashMap<usize, SpatialIndex>,
     native_layers: HashMap<usize, SpatialIndex>,
+    #[cfg(feature = "3d")]
     spatial_nodes: HashSet<u32>,
     pub stats: SceneGeometryStats,
 }
 
 impl SceneGeometry {
+    #[cfg(feature = "3d")]
     pub(crate) fn may_have_spatial_nodes(&self) -> bool {
         !self.spatial_nodes.is_empty() || !self.dirty.is_empty()
     }
@@ -154,15 +163,18 @@ impl SceneGeometry {
     ) -> Rc<PreparedCanvasGeometry> {
         self.dirty.remove(&id);
         self.stats.preparations += 1;
-        if geometry
-            .spatial_geometry
-            .world_transform()
-            .try_as_2d()
-            .is_some()
+        #[cfg(feature = "3d")]
         {
-            self.spatial_nodes.remove(&id);
-        } else {
-            self.spatial_nodes.insert(id);
+            if geometry.solid.is_none() && geometry
+                .spatial_geometry
+                .world_transform()
+                .try_as_2d()
+                .is_some()
+            {
+                self.spatial_nodes.remove(&id);
+            } else {
+                self.spatial_nodes.insert(id);
+            }
         }
         let changed = self.records.get(&id).is_none_or(|old| {
             old.layer != geometry.layer
@@ -216,6 +228,7 @@ impl SceneGeometry {
     }
 
     pub fn remove(&mut self, id: u32) {
+        #[cfg(feature = "3d")]
         self.spatial_nodes.remove(&id);
         self.dirty.remove(&id);
         if let Some(old) = self.records.remove(&id) {
@@ -414,7 +427,10 @@ mod tests {
     fn geometry(layer: usize, bounds: Option<Rect>) -> PreparedCanvasGeometry {
         PreparedCanvasGeometry {
             world_transform: Affine::IDENTITY,
+            #[cfg(feature = "3d")]
             spatial_geometry: crate::SpatialGeometry::default(),
+            #[cfg(feature = "3d")]
+            solid: None,
             is_canvas: true,
             is_native: false,
             layer,

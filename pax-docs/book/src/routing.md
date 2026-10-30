@@ -426,6 +426,7 @@ alone cannot reconstruct the previous mounted screen.
 
 ### Cuboid route transitions
 
+With [`pax-kit/3d`](targets-build-deploy.md#optional-runtime-capabilities) enabled,
 `RouteCuboid` packages a directional quarter-turn with live content on the
 turning faces. Use it under an ordinary `Router`, just like the other route
 branch types:

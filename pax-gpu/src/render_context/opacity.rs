@@ -4,6 +4,7 @@ use crate::render_backend::ScissorRect;
 
 pub(super) enum OpacityPlan {
     Draw(Vec<u32>),
+    #[cfg(feature = "3d")]
     SurfaceDraw(Vec<(u32, Option<u32>)>),
     Group {
         key: CaptureKey,
@@ -46,6 +47,8 @@ impl WgpuRenderer<'_> {
                     .filter(|node| match node {
                         RetainedNode::Vector(node) => !node.buffers.geometry.indices.is_empty(),
                         RetainedNode::Image(_) => true,
+                        #[cfg(feature = "3d")]
+                        RetainedNode::Solid(_) => false,
                         #[cfg(feature = "shaders")]
                         RetainedNode::Effect(node) => node.visible,
                     })
@@ -132,6 +135,7 @@ impl WgpuRenderer<'_> {
                 // Lighting, resolution, and clip transforms change cached pixels. The boundary's
                 // own alpha intentionally does not: it is applied only when sampling the cache.
                 bytemuck::bytes_of(globals).hash(&mut hash);
+                #[cfg(feature = "3d")]
                 self.spatial_region
                     .map(|(_, signature, _)| signature)
                     .hash(&mut hash);
@@ -167,6 +171,9 @@ impl WgpuRenderer<'_> {
                 plan.push(OpacityPlan::Group {
                     // Separate runs preserve ordering for content which escapes its parent's
                     // normal render position (including unclippable descendants).
+                    #[cfg(not(feature = "3d"))]
+                    key: CaptureKey::Opacity(scope.node_id, run[0]),
+                    #[cfg(feature = "3d")]
                     key: if run_clips.is_some() && scope.opacity != 1.0 {
                         // This scope is proven contiguous. Its first BSP fragment can
                         // change on every pose without changing the capture's identity.
@@ -185,6 +192,9 @@ impl WgpuRenderer<'_> {
                     children,
                 });
             } else {
+                #[cfg(not(feature = "3d"))]
+                plan.push(OpacityPlan::Draw(run.to_vec()));
+                #[cfg(feature = "3d")]
                 plan.push(if let Some(clips) = run_clips {
                     OpacityPlan::SurfaceDraw(
                         run.iter()
@@ -207,6 +217,8 @@ impl WgpuRenderer<'_> {
         // Callers hash draws in paint order. Absolute z values can change when
         // unrelated nodes are inserted without changing this capture's pixels.
         match node {
+            #[cfg(feature = "3d")]
+            RetainedNode::Solid(_) => unreachable!("solids bypass planar opacity captures"),
             #[cfg(feature = "shaders")]
             RetainedNode::Effect(n) => {
                 n.visible.hash(hash);
@@ -228,7 +240,11 @@ impl WgpuRenderer<'_> {
                     .hash(hash);
             }
         }
-        for clip in node.clip_stack() {
+        #[cfg(feature = "3d")]
+        let clips = node.clip_stack().iter().chain(self.solid_clips.get(&id).into_iter().flatten());
+        #[cfg(not(feature = "3d"))]
+        let clips = node.clip_stack().iter();
+        for clip in clips {
             match clip {
                 ClipReference::Alpha { owner } => {
                     0u8.hash(hash);
@@ -258,6 +274,7 @@ impl WgpuRenderer<'_> {
         for entry in plan {
             match entry {
                 OpacityPlan::Draw(nodes) => self.draw_retained_nodes(nodes),
+                #[cfg(feature = "3d")]
                 OpacityPlan::SurfaceDraw(draws) => self.draw_surface_fragments(
                     draws
                         .iter()
@@ -294,6 +311,8 @@ impl WgpuRenderer<'_> {
 impl RetainedNode {
     pub(super) fn bounds(&self) -> Box2D {
         match self {
+            #[cfg(feature = "3d")]
+            Self::Solid(node) => node.bounds,
             Self::Vector(node) => node.bounds,
             Self::Image(node) => node.bounds,
             #[cfg(feature = "shaders")]

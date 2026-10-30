@@ -3369,16 +3369,19 @@ fn empty_parent_alpha_masks_remain_transparent_to_nested_sources() {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+#[cfg(feature = "3d")]
 fn intersecting_spatial_planes_preserve_transparency_clips_and_retained_updates() {
     check_intersecting_spatial_planes(false);
 }
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+#[cfg(feature = "3d")]
 fn spatial_screenshot_mirror_preserves_intersection_clip_order() {
     check_intersecting_spatial_planes(true);
 }
 
+#[cfg(feature = "3d")]
 fn check_intersecting_spatial_planes(mirror: bool) {
     use pax_runtime_api::DepthPlane;
     let layer = MetalLayer::new();
@@ -3483,6 +3486,7 @@ fn check_intersecting_spatial_planes(mirror: bool) {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+#[cfg(feature = "3d")]
 fn disjoint_spatial_surfaces_share_clips_without_replaying_the_entire_scene() {
     use pax_runtime_api::DepthPlane;
     let layer = MetalLayer::new();
@@ -3566,6 +3570,7 @@ fn disjoint_spatial_surfaces_share_clips_without_replaying_the_entire_scene() {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+#[cfg(feature = "3d")]
 fn repeated_local_intersections_bound_scene_replays() {
     use pax_runtime_api::DepthPlane;
     let layer = MetalLayer::new();
@@ -3668,6 +3673,7 @@ fn repeated_local_intersections_bound_scene_replays() {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+#[cfg(feature = "3d")]
 fn spatial_group_opacity_and_backface_reuse_paint_without_stale_captures() {
     use pax_runtime_api::{DepthPlane, OpacityScope};
     let layer = MetalLayer::new();
@@ -3776,6 +3782,7 @@ fn opacity_texture_capacity_survives_silhouette_resizing() {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+#[cfg(feature = "3d")]
 fn near_edge_on_group_uses_projected_coverage_without_false_interleaving() {
     use pax_runtime_api::{DepthPlane, OpacityScope};
     let layer = MetalLayer::new();
@@ -3859,6 +3866,7 @@ fn near_edge_on_group_uses_projected_coverage_without_false_interleaving() {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+#[cfg(feature = "3d")]
 fn distant_tilted_panel_does_not_fragment_a_translucent_group_into_captures() {
     use pax_runtime_api::{DepthPlane, OpacityScope};
     let layer = MetalLayer::new();
@@ -3988,6 +3996,7 @@ fn many_opacity_captures_share_encoding_without_exhausting_metal_queue() {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+#[cfg(feature = "3d")]
 fn spatial_opacity_reuses_alpha_but_invalidates_changed_fragment_clips() {
     use pax_runtime_api::{DepthPlane, OpacityScope};
     let layer = MetalLayer::new();
@@ -4086,16 +4095,19 @@ fn spatial_opacity_reuses_alpha_but_invalidates_changed_fragment_clips() {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+#[cfg(feature = "3d")]
 fn nested_rotating_cuboids_bound_spatial_work_and_match_depth_oracle() {
     check_nested_rotating_cuboids(false);
 }
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+#[cfg(feature = "3d")]
 fn fading_spatial_group_matches_depth_oracle_with_one_capture() {
     check_nested_rotating_cuboids(true);
 }
 
+#[cfg(feature = "3d")]
 fn check_nested_rotating_cuboids(grouped: bool) {
     use pax_runtime_api::{DepthPlane, OpacityScope};
     let polygon_path = |points: &[[f64; 2]]| {
@@ -4353,6 +4365,7 @@ fn check_nested_rotating_cuboids(grouped: bool) {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+#[cfg(feature = "3d")]
 fn spatial_lighting_uses_world_depth_and_normal_without_retessellation() {
     use crate::{LightShape, Material, SceneLight, SceneLighting};
     use pax_runtime_api::LightingSurface;
@@ -4479,6 +4492,356 @@ fn spatial_lighting_uses_world_depth_and_normal_without_retessellation() {
     );
 }
 
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn planar_lighting_shares_a_world_frame_across_canvas_draws() {
+    use crate::{LightShape, Material, SceneLight, SceneLighting};
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 32, 32, [1., 1.]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let mut lighting = SceneLighting {
+        active: true,
+        ambient_intensity: 0.,
+        lights: vec![SceneLight {
+            shape: LightShape::Point,
+            position: [16.5, 16.5, 50.],
+            direction: [0., 0., -1.],
+            color: Color::rgba(1., 1., 1., 1.),
+            intensity: 1.,
+            radius: 100.,
+        }],
+        ..Default::default()
+    };
+    renderer.begin_node(1, 1, 1);
+    renderer.set_node_opacity_scopes(
+        1,
+        &[pax_runtime_api::OpacityScope {
+            node_id: 10,
+            opacity: 0.5,
+        }],
+    );
+    renderer.fill_path_with_material_and_opacity(
+        rect(0., 0., 32., 32.),
+        Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+        Material::custom(0., 1., 0., 0.5, Color::rgba(0., 0., 0., 1.), 0.),
+        1.,
+    );
+    renderer.end_node(1);
+    let mut reference = Vec::new();
+    for frame in 0..3 {
+        if frame == 1 {
+            // A quarter-turn and translation of the owning canvas and lamp preserve
+            // their relative pose. This also exercises the opacity capture's cache.
+            lighting.surface_to_world = [0., 1., -1., 0., 1000., 2000.];
+            lighting.lights[0].position = [983.5, 2016.5, 50.];
+        } else if frame == 2 {
+            lighting.surface_to_world[4] += 500.;
+        }
+        assert!(renderer.set_scene_lighting(lighting.clone()));
+        renderer.request_screenshot_capture(frame);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let capture = renderer.take_screenshot_capture(frame).unwrap();
+        let center = &capture.rgba[(16 * 32 + 16) * 4..(16 * 32 + 16) * 4 + 4];
+        if frame == 0 {
+            assert!(center[0] > 20, "fixture must be lit: {center:?}");
+            reference = capture.rgba;
+        } else if frame == 1 {
+            assert!(capture
+                .rgba
+                .iter()
+                .zip(&reference)
+                .all(|(a, b)| a.abs_diff(*b) <= 1));
+        } else {
+            assert!(
+                center[0] < 2,
+                "moving only the canvas must invalidate lighting: {center:?}"
+            );
+        }
+        let stats = renderer.take_resource_churn_stats();
+        if frame > 0 {
+            assert_eq!(stats.vector_geometry_rebuilds, 0);
+        }
+    }
+}
+
+#[cfg(feature = "3d")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn opaque_ellipsoid_intersection_matches_mesh_depth_and_reuses_topology() {
+    use pax_runtime_api::{
+        mesh3::{ConvexMesh, OpaqueMeshDraw},
+        DepthPlane,
+    };
+    let layer = MetalLayer::new();
+    let mut backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 128, 128, [1., 1.]),
+        )
+    })
+    .unwrap();
+    // Also exercise the browser's mirrored screenshot path with shared depth/stencil.
+    backend.surface_config.usage.remove(TextureUsages::COPY_SRC);
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let mesh = ConvexMesh::sphere(64, 32);
+    let plane = DepthPlane {
+        coefficients: [0.25, 0., -16.],
+        backface: false,
+    };
+    for frame in 0..64u32 {
+        let z = (frame as f64 - 31.) * 2.;
+        let pose = [
+            42., 0., 12., 0., 0., 38., 0., 0., 8., 0., 28., 0., 64., 64., z, 1.,
+        ];
+        let posed = mesh.posed(pose).unwrap();
+        renderer.begin_node(1, 1, 0);
+        renderer.save();
+        renderer.clip(rect(28., 18., 70., 88.));
+        renderer.draw_convex_mesh(
+            &OpaqueMeshDraw {
+                mesh: mesh.clone(),
+                world: pose,
+                surface: pose,
+                color: pax_runtime_api::Color::RED,
+                material: pax_runtime_api::ResolvedMaterial::Unlit,
+            },
+            Color::rgba(1., 0., 0., 1.),
+            crate::Material::unlit(),
+        );
+        renderer.restore();
+        renderer.end_node(1);
+        if frame == 0 {
+            renderer.begin_node(2, 2, 0);
+            renderer.set_node_depth_plane(2, Some(plane));
+            renderer.save();
+            renderer.clip(rect(16., 30., 96., 68.));
+            renderer.fill_path(
+                rect(0., 0., 128., 128.),
+                Fill::Solid(Color::rgba(0., 0., 1., 1.)),
+            );
+            renderer.restore();
+            renderer.end_node(2);
+            renderer.begin_node(0, 0, 0);
+            renderer.set_node_depth_plane(
+                0,
+                Some(DepthPlane {
+                    coefficients: [0., 0., -1000.],
+                    backface: false,
+                }),
+            );
+            renderer.fill_path(
+                rect(0., 0., 128., 128.),
+                Fill::Solid(Color::rgba(0., 0., 0., 1.)),
+            );
+            renderer.end_node(0);
+        }
+        renderer.request_screenshot_capture(frame);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let image = renderer.take_screenshot_capture(frame).unwrap();
+        for y in (8..120).step_by(8) {
+            for x in (8..120).step_by(8) {
+                let sample = (x as f64 + 0.5, y as f64 + 0.5);
+                let solid_depth = if x >= 28 && x < 98 && y >= 18 && y < 106 {
+                    posed.depth_at(sample.0, sample.1)
+                } else {
+                    None
+                };
+                let panel = x >= 16 && x < 112 && y >= 30 && y < 98;
+                // Exclude only antialiased intersection/silhouette edge samples.
+                let unstable = [(-1., 0.), (1., 0.), (0., -1.), (0., 1.)]
+                    .iter()
+                    .any(|(dx, dy)| {
+                        let d = posed.depth_at(sample.0 + dx, sample.1 + dy);
+                        d.is_some() != posed.depth_at(sample.0, sample.1).is_some()
+                            || d.zip(solid_depth).is_some_and(|(d, z)| {
+                                panel
+                                    && (d - plane.depth_at(sample.0 + dx, sample.1 + dy)).signum()
+                                        != (z - plane.depth_at(sample.0, sample.1)).signum()
+                            })
+                    });
+                if unstable {
+                    continue;
+                }
+                let expected = if solid_depth
+                    .is_some_and(|z| !panel || z > plane.depth_at(sample.0, sample.1))
+                {
+                    [255, 0, 0, 255]
+                } else if panel {
+                    [0, 0, 255, 255]
+                } else {
+                    [0, 0, 0, 255]
+                };
+                assert_pixel(&image, x, y, expected);
+            }
+        }
+        let stats = renderer.take_resource_churn_stats();
+        if frame > 0 {
+            assert_eq!(
+                stats.solid_geometry_upload_bytes, 0,
+                "frame {frame} reuploaded immutable topology"
+            );
+            assert_eq!(stats.solid_uniform_updates, 1);
+            assert_eq!(stats.vector_geometry_rebuilds, 0);
+        }
+    }
+}
+
+#[cfg(feature = "3d")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn overlapping_opaque_solids_respect_concave_clips_and_planar_opacity() {
+    use pax_runtime_api::{
+        mesh3::{ConvexMesh, OpaqueMeshDraw},
+        DepthPlane, OpacityScope,
+    };
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 128, 128, [1., 1.]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let mesh = ConvexMesh::sphere(64, 32);
+    let draw = |x, z| {
+        let pose = [
+            38., 0., 0., 0., 0., 38., 0., 0., 0., 0., 38., 0., x, 64., z, 1.,
+        ];
+        OpaqueMeshDraw {
+            mesh: mesh.clone(),
+            world: pose,
+            surface: pose,
+            color: pax_runtime_api::Color::RED,
+            material: pax_runtime_api::ResolvedMaterial::Unlit,
+        }
+    };
+    for frame in 0..3 {
+        let red = draw(50., if frame == 0 { 5. } else { 30. });
+        let green = draw(78., 15.);
+        renderer.begin_node(1, 2, 0);
+        renderer.draw_convex_mesh(&red, Color::rgba(1., 0., 0., 1.), crate::Material::unlit());
+        renderer.end_node(1);
+        renderer.begin_node(2, 1, 0);
+        renderer.save();
+        let mut clip = Path::builder();
+        clip.begin(point(10., 10.));
+        for p in [
+            [118., 10.],
+            [118., 118.],
+            [70., 118.],
+            [70., 80.],
+            [10., 80.],
+        ] {
+            clip.line_to(point(p[0], p[1]));
+        }
+        clip.close();
+        renderer.clip(clip.build());
+        renderer.draw_convex_mesh(
+            &green,
+            Color::rgba(0., 1., 0., 1.),
+            crate::Material::unlit(),
+        );
+        renderer.restore();
+        renderer.end_node(2);
+        if frame == 0 {
+            renderer.begin_node(0, 0, 0);
+            renderer.set_node_depth_plane(
+                0,
+                Some(DepthPlane {
+                    coefficients: [0., 0., -1000.],
+                    backface: false,
+                }),
+            );
+            renderer.fill_path(
+                rect(0., 0., 128., 128.),
+                Fill::Solid(Color::rgba(0., 0., 0., 1.)),
+            );
+            renderer.end_node(0);
+            renderer.begin_node(3, 3, 0);
+            renderer.set_node_depth_plane(
+                3,
+                Some(DepthPlane {
+                    coefficients: [0., 0., 42.],
+                    backface: false,
+                }),
+            );
+            renderer.set_node_opacity_scopes(
+                3,
+                &[OpacityScope {
+                    node_id: 10,
+                    opacity: 0.5,
+                }],
+            );
+            renderer.fill_path(
+                rect(20., 20., 88., 88.),
+                Fill::Solid(Color::rgba(0., 0., 1., 1.)),
+            );
+            renderer.end_node(3);
+        }
+        if frame == 2 {
+            renderer.remove_node(2);
+        }
+        renderer.request_screenshot_capture(frame);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let image = renderer.take_screenshot_capture(frame).unwrap();
+        let red = mesh.posed(red.surface).unwrap();
+        let green = mesh.posed(green.surface).unwrap();
+        for (x, y) in [
+            (50, 48),
+            (68, 60),
+            (65, 90),
+            (80, 94),
+            (36, 50),
+            (96, 60),
+            (8, 8),
+        ] {
+            let (px, py) = (x as f64 + 0.5, y as f64 + 0.5);
+            let r = red.depth_at(px, py);
+            let g = if frame != 2 && (x >= 70 || y < 80) {
+                green.depth_at(px, py)
+            } else {
+                None
+            };
+            let (depth, mut color) = match (r, g) {
+                (Some(r), Some(g)) if g > r => (g, [0u8, 255, 0, 255]),
+                (Some(r), _) => (r, [255, 0, 0, 255]),
+                (_, Some(g)) => (g, [0, 255, 0, 255]),
+                _ => (-1000., [0, 0, 0, 255]),
+            };
+            if x >= 20 && x < 108 && y >= 20 && y < 108 && depth < 42. {
+                color[0] /= 2;
+                color[1] /= 2;
+                color[2] = 128;
+            }
+            let actual = &image.rgba[(y * 128 + x) * 4..][..4];
+            for c in 0..4 {
+                assert!(
+                    actual[c].abs_diff(color[c]) <= 1,
+                    "frame {frame} at ({x},{y}): {actual:?} != {color:?}"
+                );
+            }
+        }
+        let stats = renderer.take_resource_churn_stats();
+        if frame > 0 {
+            assert_eq!(stats.solid_geometry_upload_bytes, 0);
+        }
+    }
+}
+
+#[cfg(feature = "3d")]
 #[test]
 #[ignore = "requires a macOS Metal device"]
 fn overlay_domain_stays_above_world_depth_and_reorders_retained_paint() {

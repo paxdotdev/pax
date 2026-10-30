@@ -1,11 +1,35 @@
 import XCTest
 import CoreGraphics
 import QuartzCore
+import SwiftUI
 @testable import Rendering
 
 final class PaxNativeMaskRasterTests: XCTestCase {
     private func rect(_ x: CGFloat, _ y: CGFloat, _ width: CGFloat, _ height: CGFloat) -> CGPath {
         CGPath(rect: CGRect(x: x, y: y, width: width, height: height), transform: nil)
+    }
+
+    func testOpaquePointerCoverageHonorsTheIntersectionOfAllClips() {
+        let path = rect(2, 0, 10, 12)
+        let clips = [rect(0, 0, 8, 12), rect(0, 4, 16, 4)]
+        let hole = ResolvedMaskHole(signature: 4, path: Path(path), clips: clips.map { Path($0) },
+            cgPath: path, clipCGPaths: clips, opacity: 1)
+        let mask = ResolvedNativeMask(signature: 4, size: CGSize(width: 16, height: 12), holes: [hole])
+        XCTAssertTrue(nativeMaskOccludesPoint(mask, point: CGPoint(x: 5, y: 6)))
+        XCTAssertFalse(nativeMaskOccludesPoint(mask, point: CGPoint(x: 10, y: 6)))
+        XCTAssertFalse(nativeMaskOccludesPoint(mask, point: CGPoint(x: 5, y: 2)))
+        XCTAssertFalse(nativeMaskOccludesPoint(nil, point: CGPoint(x: 5, y: 6)))
+    }
+
+    func testCurvedBoundsDoNotImplyFullNativeCoverage() {
+        let size = CGSize(width: 16, height: 12)
+        let path = CGPath(ellipseIn: CGRect(origin: .zero, size: size), transform: nil)
+        let hole = ResolvedMaskHole(signature: 5, path: Path(path), clips: [],
+            cgPath: path, clipCGPaths: [], opacity: 1)
+        let split = splitNativeMaskFullCoverageAttenuation(
+            ResolvedNativeMask(signature: 5, size: size, holes: [hole]))
+        XCTAssertEqual(split.opacityMultiplier, 1)
+        XCTAssertNotNil(split.residualMask, "Corners outside the ellipse must remain visible")
     }
 
     private func pixels(_ image: CGImage) -> [UInt8] {

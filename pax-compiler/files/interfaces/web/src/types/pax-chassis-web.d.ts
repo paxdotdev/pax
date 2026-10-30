@@ -47,6 +47,7 @@ export class PaxChassisWeb {
 * @param {any} additional_payload
 * @returns {InterruptResult}
 */
+  native_pointer_hit_test(id: number, x: number, y: number): boolean;
   interrupt(native_interrupt: any, additional_payload: any): InterruptResult;
 /**
 */

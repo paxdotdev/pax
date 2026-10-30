@@ -1320,7 +1320,11 @@ impl PaxEngine {
                 .collect_scene_lighting_for_layer(*layer);
             drop(collect_timing);
             let _upload_timing = Span::new(Phase::LightingUpload);
-            rcs.set_scene_lighting(*layer, &lighting);
+            rcs.set_scene_lighting_with_transform(
+                *layer,
+                &lighting,
+                self.runtime_context.canvas_surface_to_world(*layer),
+            );
         }
         // Slot/scope changes can invalidate node masks during lighting resolution.
         // Value-only changes must not enter the full-canvas clear/replay path.

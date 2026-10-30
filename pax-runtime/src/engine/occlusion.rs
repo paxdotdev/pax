@@ -439,12 +439,13 @@ pub(crate) fn update_node_occlusion_observed(
         }
         // The initial structural walk uses painter order. Spatial layers must include
         // all overlapping candidates, including geometry earlier in that walk.
+        #[cfg(feature = "3d")]
         if ctx.globals().renderer_is_gpu
             && state
                 .records
                 .values()
                 .filter_map(|r| r.geometry.as_ref())
-                .any(|g| g.spatial_geometry.world_transform().try_as_2d().is_none())
+                .any(|g| g.solid.is_some() || g.spatial_geometry.world_transform().try_as_2d().is_none())
         {
             let native: Vec<_> = state
                 .records

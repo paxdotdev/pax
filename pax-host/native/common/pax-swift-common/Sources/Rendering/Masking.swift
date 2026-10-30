@@ -104,6 +104,17 @@ public struct ResolvedNativeMask {
     }
 }
 
+// Core Animation masks, like CSS masks, do not remove native hit regions.
+// Fully opaque holes reject new pointer starts; partial coverage retains the
+// platform's native interaction policy and existing drags remain captured.
+func nativeMaskOccludesPoint(_ mask: ResolvedNativeMask?, point: CGPoint) -> Bool {
+    guard let mask else { return false }
+    return mask.holes.contains { hole in
+        hole.opacity >= 1.0 && hole.cgPath.contains(point)
+            && hole.clipCGPaths.allSatisfy { $0.contains(point) }
+    }
+}
+
 struct NativeMaskFullCoverageSplit {
     let residualMask: ResolvedNativeMask?
     let opacityMultiplier: Double
@@ -115,7 +126,10 @@ private func nativeMaskHoleCoversBounds(_ hole: ResolvedMaskHole, size: CGSize) 
     }
 
     let epsilon: CGFloat = 0.5
-    let bounds = hole.cgPath.boundingBoxOfPath
+    // A bounding box cannot prove full coverage for a curved or concave hole.
+    // Keep the common rectangle shortcut; all other contours use the exact mask.
+    var bounds = CGRect.zero
+    guard hole.cgPath.isRect(&bounds) else { return false }
     return bounds.minX <= epsilon
         && bounds.minY <= epsilon
         && bounds.maxX >= size.width - epsilon

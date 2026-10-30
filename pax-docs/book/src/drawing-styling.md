@@ -757,9 +757,15 @@ The source tabs show the material parameters and scroll-driven light position.
 
 ### Spatial lighting
 
+Enable [`pax-kit/3d`](targets-build-deploy.md#optional-runtime-capabilities) for
+lighting on spatially transformed surfaces. Planar lighting remains available
+without the feature.
+
 Materials on tilted surfaces use their actual world position and oriented
 normal. A rotating Cuboid can use one paint on all six faces; the light creates
-the differences between them. Existing 2D geometry keeps its default +Z normal,
+the differences between them. [Ellipsoid](layout-responsiveness.md#opaque-curved-solids)
+uses smoothly interpolated normals across its retained curved mesh and the same
+material/light controls. Existing 2D geometry keeps its default +Z normal,
 including ordinary 2D reflections. No authored lights still means the familiar
 unlit appearance.
 

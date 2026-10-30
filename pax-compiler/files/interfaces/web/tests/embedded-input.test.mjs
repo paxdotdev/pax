@@ -12,7 +12,7 @@ class Target {
     send(type, event) { for (const listener of this.listeners.get(type) ?? []) listener(event); }
     listenerCount() { return [...this.listeners.values()].reduce((n, set) => n + set.size, 0); }
 }
-function harness(permission) {
+function harness(permission, nativeHit = () => true) {
     const window = new Target(), document = {activeElement: null}, interrupts = [];
     class Element extends Target {
         closest() { return null; }
@@ -26,7 +26,7 @@ function harness(permission) {
     vm.runInNewContext(code, {module, exports: module.exports, window, document, console,
         Element, HTMLElement: Element, HTMLInputElement: class {}, HTMLTextAreaElement: class {}, performance: {now: () => 0}});
     const response = {prevent_default: false};
-    const dispose = module.exports.setupEventListeners({interrupt: message => { interrupts.push(message); return response; }}, mount);
+    const dispose = module.exports.setupEventListeners({native_pointer_hit_test: nativeHit, interrupt: message => { interrupts.push(message); return response; }}, mount);
     const event = (target, clientX = 120, clientY = 80) => ({target, clientX, clientY, button: 0, preventDefault() {}, stopPropagation() {}});
     return {window, document, mount, outside, dispose, interrupts, event, response};
 }
@@ -111,5 +111,24 @@ test('click and wheel still reach Pax when a transparent native leaf is not the 
     assert.equal(h.interrupts[0].Click.x, 20);
     assert.equal(h.interrupts[0].Click.y, 30);
     assert.equal(h.interrupts[1].Wheel.delta_y, 80);
+    h.dispose();
+});
+
+
+test('covered native starts are blocked while engine events and keyboard activation survive', () => {
+    const queries=[];
+    const h=harness(undefined, (...args) => {queries.push(args); return false;});
+    h.outside.closest=selector=>selector === '.native-leaf[pax_id]' ? {getAttribute:()=> '42'} : null;
+    let prevented=0,stopped=0;
+    const event={...h.event(h.outside),detail:1,preventDefault(){prevented++;},stopPropagation(){stopped++;}};
+    h.mount.send('mousedown',event);
+    h.mount.send('click',event);
+    assert.deepEqual(queries,[[42,20,30],[42,20,30]]);
+    assert.equal(prevented,2);assert.equal(stopped,2);
+    assert.ok(h.interrupts[0].MouseDown);assert.ok(h.interrupts[1].Click);
+    h.mount.send('click',{...event,detail:0});
+    assert.equal(prevented,2,'keyboard activation is independent of visual occlusion');
+    h.window.send('mousemove',{...event,buttons:1});
+    assert.equal(queries.length,2,'an established drag is not re-targeted as content moves');
     h.dispose();
 });

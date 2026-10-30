@@ -47,6 +47,7 @@ pub fn render_cartridge(
             common_properties: CommonProperty::get_as_common_property(),
             type_table: userland_manifest.type_table.clone(),
             is_designtime,
+            requires_3d: userland_manifest.requires_3d(),
             userland_manifest_json: if use_rust_manifest {
                 String::new()
             } else {

@@ -436,6 +436,7 @@ pub fn calculate_transform_and_bounds(
 
 // Spatial rotations belong between z rotation and local scale/skew. Resolve
 // anchors once for both paths; percentage positioning retains its 2D meaning.
+#[cfg(feature = "3d")]
 pub(crate) fn calculate_spatial_transform(
     layout: &LayoutProperties,
     container: TransformAndBounds<NodeLocal, Window>,

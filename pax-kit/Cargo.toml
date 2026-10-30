@@ -14,6 +14,7 @@ pax-std = { path = "../pax-std", version = "0.39.1" }
 pax-host = { path = "../pax-host", version = "0.39.1", optional = true }
 
 [features]
+3d = ["pax-engine/3d", "pax-std/3d"]
 # Opt-in GPU subtree filters, including runtime WGSL validation.
 shaders = ["pax-engine/shaders", "pax-std/shaders"]
 host = ["dep:pax-host", "pax-host/native"]

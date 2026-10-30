@@ -73,6 +73,7 @@ Reserved easing tuning for the card enter/exit transition.
 
 ### `RouteCuboid`
 Route branch that turns live content around a cuboid's edge.
+Requires the default-off `3d` feature (`pax-kit/3d`).
 
 Use sibling `RouteCuboid` branches with the same `direction` and `duration`
 to form adjacent faces of one quarter-turn. The shell derives depth from

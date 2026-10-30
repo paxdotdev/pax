@@ -84,8 +84,12 @@ impl DepthPlane {
 
 /// The drawing contract shared by Pax runtime backends.
 pub trait RenderContext {
+    /// Draws one opaque convex mesh. Only the opt-in GPU 3D backend supports this.
+    #[cfg(feature = "3d")]
+    fn draw_convex_mesh(&mut self, _layer: usize, _draw: crate::mesh3::OpaqueMeshDraw) {}
     /// Supplies the current node's local-to-world shading frame. Call after begin
     /// and before paint. Backends without material lighting may ignore it.
+    #[cfg(feature = "3d")]
     fn set_node_lighting_surface(
         &mut self,
         _layer: usize,
@@ -95,6 +99,7 @@ pub trait RenderContext {
     }
     /// Supplies retained planar depth for an orthographically projected node.
     /// `None` restores the ordinary 2D plane. Called after beginning the node.
+    #[cfg(feature = "3d")]
     fn set_node_depth_plane(&mut self, _layer: usize, _node_id: u32, _plane: Option<DepthPlane>) {}
     /// Admit a rendering turn without waiting for GPU completion. Returning false
     /// leaves scene work dirty for a later turn; input and application ticks continue.
@@ -309,6 +314,17 @@ pub trait RenderContext {
     fn refresh_layers(&mut self, layers: &[usize]);
     /// Installs resolved lighting for a logical canvas layer.
     fn set_scene_lighting(&mut self, _layer: usize, _lighting: &SceneLighting) {}
+    /// Installs lighting with the canvas's unscrolled world frame. Sharing this
+    /// affine frame across a canvas keeps planar lighting independent of tiling
+    /// and native scroller transforms without storing a world frame per draw.
+    fn set_scene_lighting_with_transform(
+        &mut self,
+        layer: usize,
+        lighting: &SceneLighting,
+        _surface_to_world: kurbo::Affine,
+    ) {
+        self.set_scene_lighting(layer, lighting);
+    }
     /// Cancels any narrowed replay scope for a layer so subsequent work targets all surfaces.
     fn clear_targeted_replay(&mut self, _layer: usize) {}
     /// Collects completed canvas layers without starting new initialization work.

@@ -330,6 +330,9 @@ impl MaskInstance {
 }
 
 impl InstanceNode for MaskInstance {
+    #[cfg(feature = "3d")]
+    fn permits_opaque_mesh_content(&self, node: &ExpandedNode) -> bool { !Self::alpha_settings(node).0 }
+
     fn plan_startup(
         &self,
         node: &ExpandedNode,

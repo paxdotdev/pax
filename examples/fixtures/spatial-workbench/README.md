@@ -1,5 +1,8 @@
 # Spatial Workbench
 
+This fixture enables `pax-kit/3d` in its Cargo dependency; 3D is off by default
+for other applications.
+
 A web-first testbed for live native controls on rotating flat Pax surfaces.
 The teal card contains a Textbox, Slider, Button, and an independently tilting
 child. An amber surface intersects it; geometric depth determines which part

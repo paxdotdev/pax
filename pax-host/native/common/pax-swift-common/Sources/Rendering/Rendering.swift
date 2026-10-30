@@ -1602,6 +1602,7 @@ public struct NativeRenderingLayer: View {
 
     final class PlatformMaskedLeafView: PlatformContainerView {
         private var currentMaskLayer: CALayer?
+        private var pointerMask: ResolvedNativeMask?
 #if os(macOS)
         private let snapshotLayer = CALayer()
         private var appliedSnapshotSignature: Int?
@@ -1639,7 +1640,8 @@ public struct NativeRenderingLayer: View {
 
 #if os(macOS)
         override func hitTest(_ point: NSPoint) -> NSView? {
-            guard contentKey != "text-static" else {
+            guard contentKey != "text-static",
+                  !nativeMaskOccludesPoint(pointerMask, point: convert(point, from: superview)) else {
                 return nil
             }
             let hitView = super.hitTest(point)
@@ -1648,6 +1650,7 @@ public struct NativeRenderingLayer: View {
 #endif
 
         func update(item: NativeRenderItem) {
+            pointerMask = item.mask
             debugLeafId = item.id
             ensureContentView(for: item.kind)
             if let contentView {

@@ -47,6 +47,8 @@ pub mod drawing;
 pub mod events;
 pub mod layout;
 pub mod math;
+#[cfg(feature = "3d")]
+pub mod mesh3;
 pub mod pax_value;
 pub mod platform;
 pub mod properties;
@@ -76,3 +78,7 @@ pub use store::*;
 pub use transform::*;
 pub use unit_value::*;
 pub use variables::*;
+
+/// Whether the target runtime includes spatial scene composition.
+/// Compiler vocabulary and serialized values are independent of this capability.
+pub const SUPPORTS_3D: bool = cfg!(feature = "3d");

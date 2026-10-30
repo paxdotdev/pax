@@ -1,0 +1,18 @@
+[package]
+name = "spatial-feature-contract"
+version = "0.39.1"
+edition = "2021"
+publish = false
+
+# Keep this graph separate: workspace examples intentionally enable 3d.
+[workspace]
+resolver = "2"
+
+[features]
+3d = ["pax-kit/3d"]
+
+[dependencies]
+pax-kit = { path = "../../../../pax-kit", version = "0.39.1" }
+
+[lib]
+crate-type = ["rlib", "cdylib"]

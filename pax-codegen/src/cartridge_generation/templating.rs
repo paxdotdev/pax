@@ -37,6 +37,8 @@ pub struct TemplateArgsCodegenCartridgeSnippet {
     // Whether this is a designtime cartridge
     pub is_designtime: bool,
 
+    pub requires_3d: bool,
+
     // JSON string representation of the manifest, used at least for designtime builds
     pub userland_manifest_json: String,
 
@@ -189,6 +191,7 @@ mod tests {
             common_properties: Vec::new(),
             type_table: TypeTable::default(),
             is_designtime,
+            requires_3d: false,
             userland_manifest_json: "{}".to_string(),
             userland_manifest_rust: "pax_engine::pax_manifest::PaxManifest::default()".to_string(),
             use_rust_manifest,

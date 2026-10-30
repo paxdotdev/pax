@@ -21,6 +21,7 @@ js-sys = "0.3.64"
 wasm-bindgen-futures = "0.4.38"
 
 [features]
+3d = ["pax-runtime-api/3d"]
 # Opt-in GPU subtree filters, including runtime WGSL validation.
 shaders = ["dep:naga", "pax-runtime-api/shaders"]
 default = []

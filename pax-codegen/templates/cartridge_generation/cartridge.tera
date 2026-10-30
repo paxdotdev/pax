@@ -6,6 +6,13 @@
 #[allow(dead_code, non_snake_case, non_upper_case_globals, unused_imports, unused_variables)]
 mod __pax_generated_cartridge {
 use super::*;
+{% if requires_3d %}
+// Evaluate in the target crate: proc macros and build tools have their own Cargo features.
+const _: () = assert!(
+    {{ engine_import_path }}::api::SUPPORTS_3D,
+    "Pax spatial properties require the `3d` feature. Enable `pax-kit/3d` (or `pax-engine/3d` and `pax-std/3d`), then rebuild the application."
+);
+{% endif %}
 
 use {{ engine_import_path }}::api as pax_runtime_api;
 use {{ engine_import_path }}::pax_runtime::InstanceNode;

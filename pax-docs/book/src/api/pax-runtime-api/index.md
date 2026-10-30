@@ -20,6 +20,7 @@ provide the browsing ontology used by the generated API docs.
 - [events](events.md)
 - [layout](layout.md)
 - [math](math.md)
+- [mesh3](mesh3.md)
 - [pax_value](pax_value.md)
 - [platform](platform.md)
 - [properties](properties.md)
@@ -29,6 +30,11 @@ provide the browsing ontology used by the generated API docs.
 - [transform](transform.md)
 - [unit_value](unit_value.md)
 - [variables](variables.md)
+
+## Constants
+### `SUPPORTS_3D`
+Whether the target runtime includes spatial scene composition.
+Compiler vocabulary and serialized values are independent of this capability.
 
 ## Macros
 ### `impl_default_coercion_rule`

@@ -1,3 +1,8 @@
+#[cfg(feature = "3d")]
+pub mod ellipsoid;
+#[cfg(feature = "3d")]
+pub use ellipsoid::*;
+#[cfg(feature = "3d")]
 pub mod cuboid;
 pub mod ellipse;
 pub mod handwriter;
@@ -7,6 +12,7 @@ pub mod path;
 pub mod pax_logo;
 pub mod rectangle;
 
+#[cfg(feature = "3d")]
 pub use cuboid::*;
 pub use ellipse::*;
 pub use handwriter::*;

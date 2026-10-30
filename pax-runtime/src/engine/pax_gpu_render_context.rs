@@ -6,7 +6,7 @@ use super::layer_surface::{
 use super::layer_surface::{visible_surface_escape, VisibleSurfaceEscape};
 use super::recorded_drawing::{Command as DrawingCommand, Drawing, DrawingCache};
 use crate::render_instrumentation::{count, Counter};
-use kurbo::{BezPath, PathEl, Rect, Shape};
+use kurbo::{Affine, BezPath, PathEl, Rect, Shape};
 use pax_gpu::render_backend::SharedGpuContext;
 use pax_gpu::{
     point, DrawRange as PixelDrawRange, Image, LightShape as PixelLightShape,
@@ -2368,7 +2368,17 @@ impl RenderContext for PaxGpuRenderer {
     }
 
     fn set_scene_lighting(&mut self, layer: usize, lighting: &SceneLighting) {
-        let lighting = to_pax_gpu_scene_lighting(lighting);
+        self.set_scene_lighting_with_transform(layer, lighting, Affine::IDENTITY);
+    }
+
+    fn set_scene_lighting_with_transform(
+        &mut self,
+        layer: usize,
+        lighting: &SceneLighting,
+        surface_to_world: Affine,
+    ) {
+        let mut lighting = to_pax_gpu_scene_lighting(lighting);
+        lighting.surface_to_world = surface_to_world.as_coeffs().map(|v| v as f32);
         self.update_scene_lighting_cache(layer, &lighting);
         let mut backends = self.backends.borrow_mut();
         match backends.get_mut(layer) {
@@ -2609,6 +2619,7 @@ impl RenderContext for PaxGpuRenderer {
         self.apply_drawing_command(layer, DrawingCommand::Opacity(node_id, scopes.to_vec()));
     }
 
+    #[cfg(feature = "3d")]
     fn set_node_lighting_surface(
         &mut self,
         layer: usize,
@@ -2618,6 +2629,7 @@ impl RenderContext for PaxGpuRenderer {
         self.apply_drawing_command(layer, DrawingCommand::LightingSurface(node_id, surface));
     }
 
+    #[cfg(feature = "3d")]
     fn set_node_depth_plane(
         &mut self,
         layer: usize,
@@ -2625,6 +2637,11 @@ impl RenderContext for PaxGpuRenderer {
         plane: Option<pax_runtime_api::DepthPlane>,
     ) {
         self.apply_drawing_command(layer, DrawingCommand::Depth(node_id, plane));
+    }
+
+    #[cfg(feature = "3d")]
+    fn draw_convex_mesh(&mut self, layer: usize, draw: pax_runtime_api::mesh3::OpaqueMeshDraw) {
+        self.apply_drawing_command(layer, DrawingCommand::Solid(draw));
     }
 
     fn begin_node(&mut self, layer: usize, node_id: u32, z_index: i32, light_mask: u32) -> bool {
@@ -3101,7 +3118,7 @@ pub(super) fn to_pax_gpu_alpha_fill(
     to_pax_gpu_fill(fill, rect, transform)
 }
 
-fn to_pax_gpu_material(material: &pax_runtime_api::ResolvedMaterial) -> PixelMaterial {
+pub(super) fn to_pax_gpu_material(material: &pax_runtime_api::ResolvedMaterial) -> PixelMaterial {
     match material {
         pax_runtime_api::ResolvedMaterial::Unlit => PixelMaterial::unlit(),
         pax_runtime_api::ResolvedMaterial::Lit(params) => {
@@ -3124,6 +3141,7 @@ fn to_pax_gpu_material(material: &pax_runtime_api::ResolvedMaterial) -> PixelMat
 
 fn to_pax_gpu_scene_lighting(lighting: &SceneLighting) -> PixelSceneLighting {
     PixelSceneLighting {
+        surface_to_world: [1., 0., 0., 1., 0., 0.],
         active: lighting.active,
         ambient_is_authored: lighting.ambient_is_authored,
         ambient_color: to_pax_gpu_color(&lighting.ambient.color),

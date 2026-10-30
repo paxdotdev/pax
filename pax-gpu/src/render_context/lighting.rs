@@ -4,8 +4,8 @@ use super::*;
 /// contribute nothing; radius/clip intersection is deliberately not inferred here.
 #[derive(Clone, Copy, Default)]
 pub(super) struct LightingDependencies {
-    direct: u32,
-    lit: bool,
+    pub(super) direct: u32,
+    pub(super) lit: bool,
 }
 
 impl LightingDependencies {
@@ -35,6 +35,10 @@ impl LightingDependencies {
         lighting.meta[2].hash(&mut hash);
         bytemuck::bytes_of(&lighting.ambient).hash(&mut hash);
         eligible.hash(&mut hash);
+        if eligible != 0 {
+            bytemuck::bytes_of(&lighting.surface_to_world_x).hash(&mut hash);
+            bytemuck::bytes_of(&lighting.surface_to_world_y).hash(&mut hash);
+        }
         for (slot, light) in lighting.lights.iter().enumerate() {
             if eligible & (1 << slot) != 0 {
                 bytemuck::bytes_of(light).hash(&mut hash);
@@ -51,6 +55,8 @@ impl WgpuRenderer<'_> {
             // Include detached capture sources: their pixels can affect a visible
             // mask even when the source itself is absent from the visible draw list.
             for node in self.scene.values() {
+                #[cfg(feature = "3d")]
+                if let RetainedNode::Solid(n) = node { dependencies.include(LightingDependencies { direct: n.light_mask, lit: !n.material.unlit }); }
                 if let RetainedNode::Vector(node) = node {
                     dependencies.include(node.lighting_dependencies);
                 }

@@ -151,8 +151,19 @@ jobs:
         cargo test -p pax-chassis-web --lib
         cargo test -p pax-chassis-web --lib --features designtime
 
-    - name: Test opt-in shader effects
-      run: cargo test -p pax-runtime-api -p pax-runtime -p pax-gpu -p pax-std --features shaders --lib
+    - name: Test optional runtime capabilities
+      run: |
+        # Separate invocations prevent workspace examples from unifying 3d into 2D coverage.
+        cargo test -p pax-runtime-api -p pax-runtime -p pax-gpu -p pax-std --lib
+        cargo test -p pax-runtime-api -p pax-runtime -p pax-gpu -p pax-std --features shaders --lib
+        cargo test -p pax-runtime-api -p pax-runtime -p pax-gpu -p pax-std --features 3d --lib
+        cargo test -p pax-runtime-api -p pax-runtime -p pax-gpu -p pax-std --features 3d,shaders --lib
+
+    - name: Check target-owned spatial feature contract
+      run: |
+        rustup target add wasm32-unknown-unknown
+        cargo fetch --manifest-path pax-codegen/tests/fixtures/spatial-feature/Cargo.toml
+        python3 pax-codegen/tests/fixtures/spatial-feature/verify.py
 
     - name: Check bundled CLI examples
       run: |

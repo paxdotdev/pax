@@ -17,6 +17,8 @@ use std::{
 };
 
 pub(super) enum Command {
+    #[cfg(feature = "3d")]
+    Solid(pax_runtime_api::mesh3::OpaqueMeshDraw),
     Begin(u32, Rc<Cell<i32>>, u32),
     End(u32),
     Save,
@@ -27,7 +29,9 @@ pub(super) enum Command {
     BeginSource(Transform2D, f32),
     EndSource,
     Opacity(u32, Vec<OpacityScope>),
+    #[cfg(feature = "3d")]
     Depth(u32, Option<pax_runtime_api::DepthPlane>),
+    #[cfg(feature = "3d")]
     LightingSurface(u32, Option<pax_runtime_api::LightingSurface>),
     Fill {
         path: Path,
@@ -60,6 +64,12 @@ impl Command {
         versions: &HashMap<String, u64>,
     ) {
         match self {
+            #[cfg(feature = "3d")]
+            Self::Solid(draw) => gpu.draw_convex_mesh(
+                draw,
+                super::pax_gpu_render_context::to_pax_gpu_color(&draw.color),
+                super::pax_gpu_render_context::to_pax_gpu_material(&draw.material),
+            ),
             Self::Begin(id, z, lights) => {
                 gpu.begin_node(*id, z.get(), *lights);
             }
@@ -94,7 +104,9 @@ impl Command {
             Self::BeginSource(t, feather) => gpu.begin_alpha_source(*t, *feather),
             Self::EndSource => gpu.end_alpha_source(),
             Self::Opacity(id, scopes) => gpu.set_node_opacity_scopes(*id, scopes),
+            #[cfg(feature = "3d")]
             Self::Depth(id, plane) => gpu.set_node_depth_plane(*id, *plane),
+            #[cfg(feature = "3d")]
             Self::LightingSurface(id, surface) => gpu.set_node_lighting_surface(*id, *surface),
             Self::Fill {
                 path,

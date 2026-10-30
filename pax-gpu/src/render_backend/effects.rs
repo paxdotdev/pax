@@ -155,7 +155,7 @@ fn pipeline(
         }),
         primitive: Default::default(),
         depth_stencil: composite.then_some(wgpu::DepthStencilState {
-            format: TextureFormat::Stencil8,
+            format: crate::render_backend::STENCIL_FORMAT,
             depth_write_enabled: false,
             depth_compare: wgpu::CompareFunction::Always,
             stencil: wgpu::StencilState {

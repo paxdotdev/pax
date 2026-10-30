@@ -220,7 +220,7 @@ impl StencilRenderer {
     ) -> StencilPipelineResources {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Stencil Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("stencil.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(super::stencil_shader_source().into()),
         });
 
         let stencil_bind_group_layout =
@@ -299,7 +299,7 @@ impl StencilRenderer {
                     conservative: false,
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
-                    format: wgpu::TextureFormat::Stencil8,
+                    format: crate::render_backend::STENCIL_FORMAT,
                     depth_write_enabled: false,
                     depth_compare: wgpu::CompareFunction::Always,
                     stencil: wgpu::StencilState {
@@ -394,7 +394,7 @@ impl StencilRenderer {
             mip_level_count: 1,
             sample_count,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Stencil8,
+            format: crate::render_backend::STENCIL_FORMAT,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });

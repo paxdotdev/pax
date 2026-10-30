@@ -41,6 +41,7 @@ impl WgpuRenderer<'_> {
     }
 
     pub(super) fn draw_spatial_scene(&mut self, active: &mut HashSet<CaptureKey>) {
+        self.prepare_and_draw_solids();
         if self.depth_planes.is_empty() {
             self.clip_arena
                 .release_keys(&std::mem::take(&mut self.spatial_clip_keys));
@@ -262,6 +263,7 @@ impl WgpuRenderer<'_> {
             for id in nodes {
                 let node = &self.scene[id];
                 let draw = match node {
+                    RetainedNode::Solid(_) => continue,
                     RetainedNode::Vector(node) => {
                         let Some(resource) = node.resource.as_ref().filter(|r| r.is_drawable())
                         else {
@@ -283,6 +285,7 @@ impl WgpuRenderer<'_> {
                     RetainedNode::Effect(node) => RetainedDraw::Effect(node.id),
                 };
                 let mut clips = node.clip_stack().to_vec();
+                clips.extend(self.solid_clips.get(id).into_iter().flatten().copied());
                 if let Some(clip_id) = spatial_clip {
                     clips.push(ClipReference::Stencil { clip_id });
                 }

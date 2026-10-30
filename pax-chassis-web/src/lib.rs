@@ -785,6 +785,16 @@ impl PaxChassisWeb {
         self.render_context.refresh_layers(&layers);
     }
 
+    /// CSS masks do not change browser hit regions. Gate native pointer starts
+    /// with the same scene query used for engine events; keyboard focus and ongoing
+    /// platform-owned drags remain independent of this visibility check.
+    pub fn native_pointer_hit_test(&self, id: u32, x: f64, y: f64) -> bool {
+        let engine = borrow!(self.engine);
+        let id = pax_runtime::ExpandedNodeIdentifier(id);
+        engine.runtime_context.get_elements_beneath_ray(None, Point2::new(x, y), true, vec![], false)
+            .into_iter().next().is_some_and(|hit| hit.id == id || hit.is_descendant_of(&id))
+    }
+
     pub fn interrupt(
         &mut self,
         native_interrupt: JsValue,

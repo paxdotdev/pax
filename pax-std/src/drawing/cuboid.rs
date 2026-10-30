@@ -4,6 +4,7 @@ use pax_engine::pax;
 use pax_runtime::api::NodeContext;
 
 /// A rectangular solid whose six surfaces participate in spatial composition.
+/// Requires the default-off `3d` feature (`pax-kit/3d`).
 ///
 /// `width` and `height` use ordinary local layout; `depth` is an absolute length
 /// centered around local Z=0. The default depth is 100 logical pixels. All faces

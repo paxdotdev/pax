@@ -35,6 +35,7 @@ wasm_split_helpers = { version = "=0.2.3", optional = true }
 libc = "=0.2.189"
 
 [features]
+3d = ["pax-runtime/3d"]
 # Opt-in GPU subtree filters, including runtime WGSL validation.
 shaders = ["pax-runtime/shaders"]
 json = ["dep:serde_json"]

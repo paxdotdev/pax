@@ -136,6 +136,12 @@ Type: `u64`
 ##### `mesh_topology_allocations`
 Type: `u64`
 
+##### `solid_geometry_upload_bytes`
+Type: `u64`
+
+##### `solid_uniform_updates`
+Type: `u64`
+
 ##### `flushes`
 Type: `u64`
 
@@ -292,6 +298,11 @@ Type: `f32`
 Resolved lighting state for one retained vector scene.
 
 #### Properties
+##### `surface_to_world`
+Type: [`f32`; 6]
+
+Canvas-content to unscrolled world coordinates, in affine coefficient order.
+
 ##### `active`
 Type: `bool`
 
@@ -362,6 +373,11 @@ Restores the consumer and installs a reference to the source's retained alpha te
 <pre><code class="api-signature language-rust ignore">pub fn set_node_depth_plane(&amp;mut self, node_id: u32, plane: Option&lt;<a href="../../../api/pax-runtime-api/rendering.md#depthplane">DepthPlane</a>&gt;)</code></pre>
 
 Updates an orthographic plane independently of retained paint resources.
+
+##### `draw_convex_mesh`
+<pre><code class="api-signature language-rust ignore">pub fn draw_convex_mesh(&amp;mut self, draw: &amp;<a href="../../../api/pax-runtime-api/mesh3.md#opaquemeshdraw">OpaqueMeshDraw</a>, color: <a href="../../../api/pax-runtime-api/color.md#color">Color</a>, material: <a href="../../../api/pax-runtime-api/drawing.md#material">Material</a>)</code></pre>
+
+Retains immutable topology; pose/material changes update only uniforms.
 
 ##### `clip_alpha`
 <pre><code class="api-signature language-rust ignore">pub fn clip_alpha(&amp;mut self, paints: Vec&lt;<a href="../../../api/pax-runtime-api/rendering.md#alphamaskpaint">AlphaMaskPaint</a>&gt;, feather: f32)</code></pre>

@@ -1,5 +1,8 @@
 # Light / Space
 
+This fixture enables `pax-kit/3d` in its Cargo dependency; 3D is off by default
+for other applications.
+
 A website-oriented study of world-space lighting on moving, live Pax surfaces.
 All six faces of the gold Cuboid share one material. Their shading follows the
 light and their actual orientation; the front face contains a live textbox and

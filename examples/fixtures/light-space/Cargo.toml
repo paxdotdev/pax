@@ -9,7 +9,7 @@ default-run = "light-space"
 title = "Light / Space"
 
 [dependencies]
-pax-kit = { version = "0.39.1", path = "../../../pax-kit" }
+pax-kit = { version = "0.39.1", path = "../../../pax-kit", features = ["3d"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

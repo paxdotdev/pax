@@ -3,9 +3,12 @@ use lyon::tessellation::VertexBuffers;
 use std::ops::Range;
 use wgpu::util::DeviceExt;
 
-// Keep this in sync with geometry.wgsl and stencil.wgsl. Each binding is 15 KiB,
+// Keep this in sync with transform_2d.wgsl and transform_3d.wgsl. Each binding is 15 KiB,
 // independent of scene size, and requires no storage-buffer features.
+#[cfg(feature = "3d")]
 pub(super) const TRANSFORMS_PER_PAGE: usize = 160;
+#[cfg(not(feature = "3d"))]
+pub(super) const TRANSFORMS_PER_PAGE: usize = 480;
 
 pub(super) fn layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

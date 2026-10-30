@@ -8,7 +8,9 @@ use wgpu::Buffer;
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub(crate) enum CaptureKey {
     Opacity(u32, u32),
+    #[cfg(feature = "3d")]
     SpatialGroup(u32),
+    #[cfg(feature = "3d")]
     SpatialOpacity(u32, u32, usize),
     Alpha(u32),
     #[cfg(feature = "shaders")]
@@ -21,7 +23,9 @@ impl CaptureKey {
             Self::Alpha(_) => true,
             #[cfg(feature = "shaders")]
             Self::EffectSource(_) => true,
-            Self::Opacity(..) | Self::SpatialGroup(..) | Self::SpatialOpacity(..) => false,
+            Self::Opacity(..) => false,
+            #[cfg(feature = "3d")]
+            Self::SpatialGroup(..) | Self::SpatialOpacity(..) => false,
         }
     }
 }
@@ -313,10 +317,12 @@ impl RenderBackend<'_> {
         let mut scratch = surfaces.stack.pop().unwrap();
         // Opacity capacity follows the physical surface; shader source capacity
         // follows the bounded hysteresis policy below. Alpha sources stay exact.
-        let opacity = matches!(
-            key,
-            CaptureKey::Opacity(..) | CaptureKey::SpatialGroup(..) | CaptureKey::SpatialOpacity(..)
-        );
+        let opacity = match key {
+            CaptureKey::Opacity(..) => true,
+            #[cfg(feature = "3d")]
+            CaptureKey::SpatialGroup(..) | CaptureKey::SpatialOpacity(..) => true,
+            _ => false,
+        };
         let size = if opacity {
             let previous = surfaces.groups.get(&key);
             (

@@ -880,6 +880,10 @@ mod tests {
         }
         template.set_node(id, node);
         let rich = crate::binary::from_slice(&crate::binary::to_vec(&manifest)?)?;
+        assert!(manifest.requires_3d());
+        assert!(rich.requires_3d());
+        assert!(rich.validate_runtime_capabilities(true).is_ok());
+        assert!(rich.validate_runtime_capabilities(false).is_err());
         let ir = ProgramIR::from_manifest(&rich);
         let decoded = super::binary::from_slice(&super::binary::to_vec(&ir)?)?;
         let template = decoded.components[&decoded.main_component_type_id]

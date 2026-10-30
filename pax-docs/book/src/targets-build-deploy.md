@@ -19,6 +19,38 @@ To select a project from another directory, use
 check and compilation both load that project's `.cargo/config.toml`, including
 local dependency patches and registry configuration.
 
+## Optional runtime capabilities
+
+`pax-kit` keeps spatial scene support behind the default-off `3d` Cargo feature:
+
+```toml
+[dependencies]
+pax-kit = { version = "0.39.1", features = ["3d"] }
+```
+
+It enables spatial common properties (`rotate_x`, `rotate_y`, `translate_z`),
+depth composition and picking, Cuboid/CuboidFace, RouteCuboid, and world-space
+lighting frames. With it disabled, nodes omit spatial property handles and
+retained geometry, the GPU omits spatial composition, and each GPU transform
+uses 32 bytes instead of 96. Standalone spatial math remains available.
+The separate `shaders` feature is independent; ordinary 2D lighting, materials,
+masking and subtree opacity do not require either feature.
+
+The same dependency declaration applies to CLI builds, direct Cargo builds,
+debug template reload and release-baked cartridges. A 2D application rejects
+spatial common properties at compilation; adding them through template reload
+is rejected until you enable the feature and rebuild. Applications using direct
+engine/standard-library dependencies should enable `3d` on both `pax-engine`
+and `pax-std`. Dependencies that need spatial components should declare their
+own `3d` dependency requirement.
+
+Cargo features are additive within a target dependency graph. A dependency that
+enables `3d` enables that shared runtime capability for the application; setting
+`default-features = false` elsewhere does not subtract it. Compare application
+footprints with separate builds rather than one workspace-wide all-feature run.
+The capability does not change backend limits: geometric depth and material
+lighting currently require WGPU. See [spatial surfaces](layout-responsiveness.md#rotating-flat-surfaces-in-3d).
+
 ## Targets and workstations
 
 The target is where the application runs. The workstation is where you compile it.

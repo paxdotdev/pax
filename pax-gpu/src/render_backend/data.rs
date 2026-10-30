@@ -52,6 +52,8 @@ pub(crate) struct GpuSceneLight {
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub(crate) struct GpuSceneLighting {
+    pub surface_to_world_x: [f32; 4],
+    pub surface_to_world_y: [f32; 4],
     pub ambient: [f32; 4],
     pub meta: [u32; 4],
     pub lights: [GpuSceneLight; MAX_SCENE_LIGHTS],
@@ -83,10 +85,14 @@ pub(crate) struct GpuTransform {
     pub transform: [[f32; 2]; 3],
     pub opacity: f32,
     pub _pad: f32,
+    #[cfg(feature = "3d")]
     pub lighting_x: [f32; 4],
+    #[cfg(feature = "3d")]
     pub lighting_y: [f32; 4],
+    #[cfg(feature = "3d")]
     pub lighting_origin: [f32; 4],
     // w distinguishes an explicit world frame from the legacy immediate-draw path.
+    #[cfg(feature = "3d")]
     pub lighting_normal: [f32; 4],
 }
 
@@ -96,9 +102,13 @@ impl Default for GpuTransform {
             transform: Transform2D::identity().to_arrays(),
             opacity: 1.0,
             _pad: 0.0,
+            #[cfg(feature = "3d")]
             lighting_x: [1., 0., 0., 0.],
+            #[cfg(feature = "3d")]
             lighting_y: [0., 1., 0., 0.],
+            #[cfg(feature = "3d")]
             lighting_origin: [0.; 4],
+            #[cfg(feature = "3d")]
             lighting_normal: [0., 0., 1., 0.],
         }
     }
@@ -138,6 +148,7 @@ impl GpuVertex {
 }
 
 impl GpuTransform {
+    #[cfg(feature = "3d")]
     pub(crate) fn with_lighting(
         mut self,
         surface: Option<pax_runtime_api::LightingSurface>,

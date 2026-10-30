@@ -26,6 +26,7 @@ pub mod shader_effect;
 pub use shader_effect::bind_shader_effect;
 pub mod settings_motion;
 pub mod slot;
+#[cfg(feature = "3d")]
 pub mod spatial;
 mod store;
 #[cfg(test)]
@@ -45,6 +46,7 @@ pub use crate::repeat::*;
 pub use crate::router::*;
 pub use crate::settings_motion::*;
 pub use crate::slot::*;
+#[cfg(feature = "3d")]
 pub use crate::spatial::*;
 
 #[allow(unused)]

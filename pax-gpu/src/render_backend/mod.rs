@@ -1,3 +1,28 @@
+#[cfg(feature = "3d")]
+pub(crate) const STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24PlusStencil8;
+#[cfg(not(feature = "3d"))]
+pub(crate) const STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Stencil8;
+#[cfg(feature = "3d")]
+pub(crate) mod solid;
+
+// The selected transform ABI must match data::GpuTransform and transform_pages.
+#[cfg(feature = "3d")]
+const TRANSFORM_SHADER: &str = include_str!("transform_3d.wgsl");
+#[cfg(not(feature = "3d"))]
+const TRANSFORM_SHADER: &str = include_str!("transform_2d.wgsl");
+fn geometry_shader_source() -> String {
+    [
+        TRANSFORM_SHADER,
+        include_str!("lighting.wgsl"),
+        include_str!("radial_gradient.wgsl"),
+        include_str!("geometry.wgsl"),
+    ]
+    .join("\n")
+}
+fn stencil_shader_source() -> String {
+    [TRANSFORM_SHADER, include_str!("stencil.wgsl")].join("\n")
+}
+
 #[cfg(any(target_arch = "wasm32", test))]
 mod browser_canvas;
 
@@ -518,6 +543,8 @@ pub struct RenderBackend<'w> {
 
     // plugins / extensions
     texture_renderer: TextureRenderer,
+    #[cfg(feature = "3d")]
+    solid_renderer: Option<solid::Renderer>,
     stencil_renderer: StencilRenderer,
     source_stencil: Option<StencilRenderer>,
     source_domain: Option<(GpuGlobals, u32, u32)>,
@@ -629,6 +656,8 @@ impl VectorResourceDirty {
 }
 
 pub(crate) enum RetainedDraw<'a> {
+    #[cfg(feature = "3d")]
+    Solid(&'a solid::Resource),
     #[cfg(feature = "shaders")]
     Effect(u32),
     Vector(&'a RetainedVectorResource),
@@ -645,6 +674,7 @@ pub(crate) struct RetainedBatchRun<'a> {
     pub draws: Vec<RetainedDraw<'a>>,
 }
 
+#[cfg(feature = "3d")]
 pub(crate) struct RetainedBatchSegment<'a> {
     pub run: RetainedBatchRun<'a>,
     pub stencil_depth: u32,
@@ -759,7 +789,7 @@ fn create_primitive_bind_group_layout(device: &Device) -> BindGroupLayout {
             },
             wgpu::BindGroupLayoutEntry {
                 binding: 6,
-                visibility: wgpu::ShaderStages::FRAGMENT,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -1077,7 +1107,7 @@ impl<'w> RenderBackend<'w> {
         #[cfg(target_arch = "wasm32")]
         let stencil_format_features = {
             let queried = adapter
-                .get_texture_format_features(wgpu::TextureFormat::Stencil8)
+                .get_texture_format_features(crate::render_backend::STENCIL_FORMAT)
                 .flags;
             if queried.is_empty() {
                 surface_format_features
@@ -1087,7 +1117,7 @@ impl<'w> RenderBackend<'w> {
         };
         #[cfg(not(target_arch = "wasm32"))]
         let stencil_format_features = adapter
-            .get_texture_format_features(wgpu::TextureFormat::Stencil8)
+            .get_texture_format_features(crate::render_backend::STENCIL_FORMAT)
             .flags;
         let sample_count = select_sample_count(surface_format_features, stencil_format_features);
         let mut surface_usage = TextureUsages::RENDER_ATTACHMENT;
@@ -1274,6 +1304,8 @@ impl<'w> RenderBackend<'w> {
             alpha_masks,
             context: Rc::clone(&context),
             texture_renderer,
+            #[cfg(feature = "3d")]
+            solid_renderer: None,
             stencil_renderer,
             source_stencil: None,
             source_domain: None,
@@ -1354,14 +1386,7 @@ impl<'w> RenderBackend<'w> {
     ) -> RenderPipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(
-                concat!(
-                    include_str!("radial_gradient.wgsl"),
-                    "\n",
-                    include_str!("geometry.wgsl")
-                )
-                .into(),
-            ),
+            source: wgpu::ShaderSource::Wgsl(geometry_shader_source().into()),
         });
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -1404,7 +1429,7 @@ impl<'w> RenderBackend<'w> {
                 conservative: false,
             },
             depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Stencil8,
+                format: crate::render_backend::STENCIL_FORMAT,
                 depth_write_enabled: false,
                 depth_compare: wgpu::CompareFunction::Always,
                 stencil: wgpu::StencilState {
@@ -2185,6 +2210,7 @@ impl<'w> RenderBackend<'w> {
         }
     }
 
+    #[cfg(feature = "3d")]
     pub(crate) fn draw_retained_segments(
         &mut self,
         segments: Vec<RetainedBatchSegment<'_>>,
@@ -2261,6 +2287,10 @@ impl<'w> RenderBackend<'w> {
             return;
         }
 
+        #[cfg(feature = "3d")]
+        let solid_depth = runs.iter().any(|run| run.draws.iter().any(|d| matches!(d, RetainedDraw::Solid(_))));
+        #[cfg(not(feature = "3d"))]
+        let solid_depth = false;
         let load_op = self.take_color_load_op();
         self.ensure_active_frame();
         let mut encoder = self.take_retained_encoder();
@@ -2270,7 +2300,7 @@ impl<'w> RenderBackend<'w> {
             let stencil_texture = self.stencil_renderer.stencil_view_clone();
             let depth_stencil_attachment = Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &stencil_texture,
-                depth_ops: None,
+                depth_ops: solid_depth.then_some(wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store }),
                 stencil_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
@@ -2320,6 +2350,8 @@ impl<'w> RenderBackend<'w> {
                 render_pass.set_bind_group(1, self.alpha_masks.bind_group(run.alpha_mask), &[]);
                 for draw in &run.draws {
                     match draw {
+                        #[cfg(feature = "3d")]
+                        RetainedDraw::Solid(resource) => self.solid_renderer.as_ref().unwrap().draw(resource, &mut render_pass),
                         #[cfg(feature = "shaders")]
                         RetainedDraw::Effect(id) => {
                             if let Some(effects) = &self.effects {
@@ -2368,7 +2400,7 @@ impl<'w> RenderBackend<'w> {
             let stencil_texture = self.stencil_renderer.stencil_view_clone();
             let depth_stencil_attachment = Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &stencil_texture,
-                depth_ops: None,
+                depth_ops: solid_depth.then_some(wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store }),
                 stencil_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
@@ -2402,6 +2434,8 @@ impl<'w> RenderBackend<'w> {
                 render_pass.set_bind_group(1, self.alpha_masks.bind_group(run.alpha_mask), &[]);
                 for draw in &run.draws {
                     match draw {
+                        #[cfg(feature = "3d")]
+                        RetainedDraw::Solid(resource) => self.solid_renderer.as_ref().unwrap().draw(resource, &mut render_pass),
                         #[cfg(feature = "shaders")]
                         RetainedDraw::Effect(id) => {
                             if let Some(effects) = &self.effects {
@@ -3584,13 +3618,41 @@ mod shader_tests {
         }
     }
     #[test]
+    fn transform_abi_matches_geometry_and_stencil_shaders() {
+        let size = std::mem::size_of::<super::data::GpuTransform>();
+        assert_eq!(size, if cfg!(feature = "3d") { 96 } else { 32 });
+        let page_size = size * super::transform_pages::TRANSFORMS_PER_PAGE;
+        assert_eq!(page_size, 15 * 1024);
+        for source in [
+            super::geometry_shader_source(),
+            super::stencil_shader_source(),
+        ] {
+            let module = naga::front::wgsl::parse_str(&source).unwrap();
+            naga::valid::Validator::new(
+                naga::valid::ValidationFlags::all(),
+                naga::valid::Capabilities::all(),
+            )
+            .validate(&module)
+            .unwrap();
+            for (name, expected) in [("Transform", size), ("Transforms", page_size)] {
+                let ty = module
+                    .types
+                    .iter()
+                    .find(|(_, ty)| ty.name.as_deref() == Some(name))
+                    .unwrap()
+                    .1;
+                let naga::TypeInner::Struct { span, .. } = ty.inner else {
+                    panic!("expected a struct")
+                };
+                assert_eq!(span as usize, expected, "{name}");
+            }
+        }
+    }
+
+    #[test]
     fn geometry_shader_parses_and_validates() {
-        let module = naga::front::wgsl::parse_str(concat!(
-            include_str!("radial_gradient.wgsl"),
-            "\n",
-            include_str!("geometry.wgsl")
-        ))
-        .expect("geometry shader should parse");
+        let module = naga::front::wgsl::parse_str(&super::geometry_shader_source())
+            .expect("geometry shader should parse");
         naga::valid::Validator::new(
             naga::valid::ValidationFlags::all(),
             naga::valid::Capabilities::all(),

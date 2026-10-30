@@ -1,5 +1,8 @@
 # Cuboid Router
 
+This fixture enables `pax-kit/3d` in its Cargo dependency; 3D is off by default
+for other applications.
+
 Live route content rotating on adjacent Cuboid surfaces, plus a small solid
 with separately authored front, right and top faces.
 

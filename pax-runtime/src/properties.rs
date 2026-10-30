@@ -1,6 +1,8 @@
 use crate::api::math::Point2;
 use crate::api::Window;
 use crate::constants::{ACCEL_HANDLERS, GYRO_HANDLERS, PRE_RENDER_HANDLERS, TICK_HANDLERS};
+#[cfg(feature = "3d")]
+use kurbo::Shape;
 use pax_language::interpreter::property_resolution::IdentifierResolver;
 use pax_manifest::cartridge_generation::{TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT};
 use pax_manifest::UniqueTemplateNodeIdentifier;
@@ -984,21 +986,25 @@ impl RuntimeContext {
         if scroll_x.abs() <= f64::EPSILON && scroll_y.abs() <= f64::EPSILON {
             return Affine::IDENTITY;
         }
-        let geometry = node.spatial_geometry.get();
-        if geometry.is_spatial() {
-            let m = geometry.world_transform().coeffs();
-            // Project the local scroll vector directly. The projected plane can be
-            // singular while its local coordinate frame remains perfectly valid.
-            return Affine::translate((
-                -m[0] * scroll_x - m[4] * scroll_y,
-                -m[1] * scroll_x - m[5] * scroll_y,
-            ));
+        #[cfg(feature = "3d")]
+        {
+            let geometry = node.spatial_geometry.get();
+            if geometry.is_spatial() {
+                let m = geometry.world_transform().coeffs();
+                // Project the local scroll vector directly. The projected plane can be
+                // singular while its local coordinate frame remains perfectly valid.
+                return Affine::translate((
+                    -m[0] * scroll_x - m[4] * scroll_y,
+                    -m[1] * scroll_x - m[5] * scroll_y,
+                ));
+            }
         }
         let world_transform = Affine::from(node.transform_and_bounds.get().transform);
         let inverse_world = Affine::from(node.transform_and_bounds.get().transform.inverse());
         world_transform * Affine::translate((-scroll_x, -scroll_y)) * inverse_world
     }
 
+    #[cfg(feature = "3d")]
     fn scroller_content_depth_offset(&self, node: &ExpandedNode) -> f64 {
         let geometry = node.spatial_geometry.get();
         if !geometry.is_spatial() {
@@ -1009,19 +1015,13 @@ impl RuntimeContext {
         -m[2] * x - m[6] * y
     }
 
+    #[cfg(feature = "3d")]
     pub(crate) fn presented_depth_plane(
         &self,
         node: &ExpandedNode,
         presented: Affine,
     ) -> Option<pax_runtime_api::DepthPlane> {
-        let mut offset = 0.0;
-        let mut ancestor = node.presentation_parent_node();
-        while let Some(parent) = ancestor {
-            if borrow!(parent.instance_node).scrolls_content(&parent) {
-                offset += self.scroller_content_depth_offset(&parent);
-            }
-            ancestor = parent.presentation_parent_node();
-        }
+        let offset = self.presentation_depth_offset(node);
         let plane = self.depth_plane_in_presentation(
             node,
             node.spatial_geometry
@@ -1038,6 +1038,7 @@ impl RuntimeContext {
         Some(plane)
     }
 
+    #[cfg(feature = "3d")]
     /// Attach the node's independent presentation domain to canvas/native depth.
     pub fn depth_plane_in_presentation(
         &self,
@@ -1051,6 +1052,19 @@ impl RuntimeContext {
         let mut plane = plane.unwrap_or_default();
         plane.presentation_layer = layer;
         Some(plane)
+    }
+
+    #[cfg(feature = "3d")]
+    pub(crate) fn presentation_depth_offset(&self, node: &ExpandedNode) -> f64 {
+        let mut offset = 0.0;
+        let mut ancestor = node.presentation_parent_node();
+        while let Some(parent) = ancestor {
+            if borrow!(parent.instance_node).scrolls_content(&parent) {
+                offset += self.scroller_content_depth_offset(&parent);
+            }
+            ancestor = parent.presentation_parent_node();
+        }
+        offset
     }
 
     /// Resolve the browser/native presentation transform inherited by a node from ancestor
@@ -1779,15 +1793,21 @@ impl RuntimeContext {
                 break;
             };
             let (x, y) = self.scroller_presentation_offset(&owner);
-            let m = owner.spatial_geometry.get().world_transform().coeffs();
-            chain.push((
-                current,
+            #[cfg(feature = "3d")]
+            let delta = {
+                let m = owner.spatial_geometry.get().world_transform().coeffs();
                 [
                     -m[0] * x - m[4] * y,
                     -m[1] * x - m[5] * y,
                     -m[2] * x - m[6] * y,
-                ],
-            ));
+                ]
+            };
+            #[cfg(not(feature = "3d"))]
+            let delta = {
+                let m = owner.transform_and_bounds.get().transform.m;
+                [-m[0] * x - m[2] * y, -m[1] * x - m[3] * y, 0.0]
+            };
+            chain.push((current, delta));
             current = owner.occlusion.get().render_layer_id;
         }
         let mut result = HashMap::from([(current, [0.; 3])]);
@@ -1830,6 +1850,14 @@ impl RuntimeContext {
         }
 
         transform
+    }
+
+    pub fn canvas_surface_to_world(&self, layer: usize) -> Affine {
+        self.get_layer_scroller_owner(layer)
+            .and_then(|owner| self.get_expanded_node_by_eid(owner))
+            .map_or(Affine::IDENTITY, |owner| {
+                Affine::from(owner.transform_and_bounds.get().transform)
+            })
     }
 
     /// Resolve a node's local coordinates into its owning canvas's content space.
@@ -1902,7 +1930,24 @@ impl RuntimeContext {
             local,
         );
         prepared.world_transform = Affine::from(tab.transform);
-        prepared.spatial_geometry = node.spatial_geometry.get();
+        #[cfg(feature = "3d")]
+        {
+            prepared.spatial_geometry = node.spatial_geometry.get();
+            prepared.solid = borrow!(node.instance_node).resolve_convex_mesh(node);
+            if let Some(solid) = &prepared.solid {
+                let inverse = self.canvas_surface_to_world(prepared.layer).inverse();
+                let mut path = kurbo::BezPath::new();
+                for (i, p) in solid.silhouette().iter().enumerate() {
+                    if i == 0 {
+                        path.move_to((p[0], p[1]));
+                    } else {
+                        path.line_to((p[0], p[1]));
+                    }
+                }
+                path.close_path();
+                prepared.coverage_bounds = Some((inverse * path).bounding_box().inflate(64., 64.));
+            }
+        }
         // Detached mask sources reuse prepared geometry without entering visible
         // replay or native-compositing indexes.
         prepared.is_canvas = !node.is_render_source()
@@ -2083,9 +2128,14 @@ impl RuntimeContext {
         let Some(root_node) = root.or_else(|| borrow!(self.root_expanded_node).upgrade()) else {
             return accum;
         };
+        #[cfg(not(feature = "3d"))]
+        let spatial_possible = false;
+        #[cfg(feature = "3d")]
         let spatial_possible =
             self.globals().renderer_is_gpu && self.scene_geometry.borrow().may_have_spatial_nodes();
+        #[cfg(feature = "3d")]
         let mut depths = std::collections::HashMap::new();
+        #[cfg(feature = "3d")]
         let mut has_spatial_hit = false;
         let mut to_process = vec![(root_node, false, Affine::IDENTITY, 0.0, false)];
         while let Some((
@@ -2125,6 +2175,9 @@ impl RuntimeContext {
                 )
             };
             let descendant_scroll_transform = active_scroll_transform * scroll_transform;
+            #[cfg(not(feature = "3d"))]
+            let descendant_depth_offset = active_depth_offset;
+            #[cfg(feature = "3d")]
             let descendant_depth_offset = active_depth_offset
                 + if spatial_possible && borrow!(node.instance_node).scrolls_content(&node) {
                     self.scroller_content_depth_offset(&node)
@@ -2142,26 +2195,39 @@ impl RuntimeContext {
                     if limit_one && !spatial_possible {
                         return vec![node];
                     }
-                    let presented = active_scroll_transform
-                        * Affine::from(node.transform_and_bounds.get().transform);
-                    let plane = spatial_possible
-                        .then(|| {
-                            node.spatial_geometry.get().depth_plane(
-                                pax_runtime_api::math::Transform2::new(presented.as_coeffs()),
-                            )
-                        })
-                        .flatten();
-                    has_spatial_hit |= plane.is_some() || active_depth_offset != 0.0;
-                    let plane = plane.unwrap_or_default();
-                    depths.insert(
-                        node.id,
-                        (
-                            plane.depth_at(ray.x, ray.y) + active_depth_offset,
-                            plane.backface,
-                            accum.len(),
-                            node.presentation_layer.get(),
-                        ),
-                    );
+                    #[cfg(feature = "3d")]
+                    {
+                        let presented = active_scroll_transform
+                            * Affine::from(node.transform_and_bounds.get().transform);
+                        let plane = spatial_possible
+                            .then(|| {
+                                node.spatial_geometry.get().depth_plane(
+                                    pax_runtime_api::math::Transform2::new(presented.as_coeffs()),
+                                )
+                            })
+                            .flatten();
+                        let solid_depth = self
+                            .canvas_geometry_for_node(&node)
+                            .solid
+                            .as_ref()
+                            .and_then(|solid| {
+                                let p = active_scroll_transform.inverse() * ray;
+                                solid.depth_at(p.x, p.y)
+                            });
+                        has_spatial_hit |=
+                            solid_depth.is_some() || plane.is_some() || active_depth_offset != 0.0;
+                        let plane = plane.unwrap_or_default();
+                        depths.insert(
+                            node.id,
+                            (
+                                solid_depth.unwrap_or_else(|| plane.depth_at(ray.x, ray.y))
+                                    + active_depth_offset,
+                                plane.backface,
+                                accum.len(),
+                                node.presentation_layer.get(),
+                            ),
+                        );
+                    }
                     accum.push(Rc::clone(&node));
                 }
             }
@@ -2188,6 +2254,7 @@ impl RuntimeContext {
                     .rev(),
             )
         }
+        #[cfg(feature = "3d")]
         if has_spatial_hit {
             accum.sort_by(|a, b| {
                 let a = depths.get(&a.id).copied().unwrap_or((0.0, false, 0, 0));
@@ -3487,18 +3554,22 @@ mod light_scope_tests {
         assert_eq!(context.canvas_node_light_mask(surface.id), 1);
         assert_eq!(context.lighting_mask_node_visits.get(), visits);
 
-        // A quarter-turned scroller moves through world Z, not world Y.
-        nodes[1]
-            .spatial_geometry
-            .replace_with(LocalProperty::new(crate::SpatialGeometry::new(
-                pax_runtime_api::math::Transform3::rotate_x(std::f64::consts::FRAC_PI_2),
-                (100., 100.),
-            )));
-        let tilted = context.collect_scene_lighting_for_layer(1);
-        assert!((tilted.lights[0].position.y - before.lights[0].position.y).abs() < 1e-9);
-        assert!((tilted.lights[0].position.z - before.lights[0].position.z - 300.).abs() < 1e-9);
-        assert_eq!(context.lighting_mask_node_visits.get(), visits);
-
+        #[cfg(feature = "3d")]
+        {
+            // A quarter-turned scroller moves through world Z, not world Y.
+            nodes[1].spatial_geometry.replace_with(LocalProperty::new(
+                crate::SpatialGeometry::new(
+                    pax_runtime_api::math::Transform3::rotate_x(std::f64::consts::FRAC_PI_2),
+                    (100., 100.),
+                ),
+            ));
+            let tilted = context.collect_scene_lighting_for_layer(1);
+            assert!((tilted.lights[0].position.y - before.lights[0].position.y).abs() < 1e-9);
+            assert!(
+                (tilted.lights[0].position.z - before.lights[0].position.z - 300.).abs() < 1e-9
+            );
+            assert_eq!(context.lighting_mask_node_visits.get(), visits);
+        }
         // Move the recipient into an unrelated layer. It must lose its old mask
         // even if the previous layer is collected before the new one.
         occlusion.render_layer_id = 2;

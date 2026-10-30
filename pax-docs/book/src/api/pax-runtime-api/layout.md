@@ -7,6 +7,7 @@ Layout units, axes, and common properties shared by renderable nodes.
 ## Structs
 ### `CommonProperties`
 Properties shared by every renderable Pax node.
+Spatial fields are available with the default-off `3d` feature.
 
 Each property here is special-cased by the compiler when parsing element properties,
 for example `<SomeElement width={...} />`.

@@ -1,7 +1,10 @@
+#[allow(unused_imports)]
 use crate::*;
 #[allow(unused)]
 use pax_engine::api::LocalProperty;
-use pax_engine::api::{Duration, Opacity, Property, Rotation};
+#[cfg(feature = "3d")]
+use pax_engine::api::Rotation;
+use pax_engine::api::{Duration, Opacity, Property};
 use pax_engine::pax;
 use pax_runtime::api::NodeContext;
 
@@ -296,6 +299,7 @@ impl RouteCard {
 }
 
 /// Route branch that turns live content around a cuboid's edge.
+/// Requires the default-off `3d` feature (`pax-kit/3d`).
 ///
 /// Use sibling `RouteCuboid` branches with the same `direction` and `duration`
 /// to form adjacent faces of one quarter-turn. The shell derives depth from
@@ -311,6 +315,7 @@ impl RouteCard {
 /// Requires GPU spatial composition. The orthographic view and native-layer
 /// restrictions of [`Cuboid`] also apply here. Clip the router's containing
 /// viewport with a [`Frame`] when the rotating silhouette should stay inside it.
+#[cfg(feature = "3d")]
 #[pax]
 #[engine_import_path("pax_engine")]
 #[custom(Default)]
@@ -332,6 +337,7 @@ pub struct RouteCuboid {
 }
 
 /// Direction of the outgoing face in a [`RouteCuboid`] quarter-turn.
+#[cfg(feature = "3d")]
 #[pax]
 #[engine_import_path("pax_engine")]
 pub enum RouteCuboidDirection {
@@ -342,6 +348,7 @@ pub enum RouteCuboidDirection {
     Down,
 }
 
+#[cfg(feature = "3d")]
 impl Default for RouteCuboid {
     fn default() -> Self {
         Self {
@@ -356,6 +363,7 @@ impl Default for RouteCuboid {
     }
 }
 
+#[cfg(feature = "3d")]
 impl RouteCuboid {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let bounds = ctx.bounds_self.clone();

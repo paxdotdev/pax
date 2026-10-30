@@ -52,6 +52,11 @@ Type: [`SpatialGeometry`](../../../api/internal/pax-runtime/spatial.md#spatialge
 Unprojected geometry used to inspect depth and geometric coplanarity.
 Kept separate from canvas ownership and logical opacity scopes.
 
+##### `solid`
+Type: `Option`<`Rc`<[`PosedConvexMesh`](../../../api/pax-runtime-api/mesh3.md#posedconvexmesh)>>
+
+Retained convex volume, in unscrolled world space.
+
 ##### `layer`
 Type: `usize`
 

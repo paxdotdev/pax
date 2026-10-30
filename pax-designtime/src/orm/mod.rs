@@ -637,6 +637,9 @@ impl PaxManifestORM {
         component.template = Some(template.clone());
         component.settings = Some(settings_block.clone());
         component.timelines.clone_from(&timelines);
+        prospective_manifest
+            .validate_runtime_capabilities(pax_manifest::pax_runtime_api::SUPPORTS_3D)
+            .map_err(str::to_owned)?;
         let prospective_identity =
             runtime_abi_identity(&prospective_manifest).map_err(|err| err.to_string())?;
         if prospective_identity != self.cartridge_abi_identity {
@@ -812,6 +815,9 @@ fn clean_handler_name(name: &str) -> String {
 }
 
 fn validate_runtime_manifest(manifest: &PaxManifest) -> Result<()> {
+    manifest
+        .validate_runtime_capabilities(pax_manifest::pax_runtime_api::SUPPORTS_3D)
+        .map_err(|error| anyhow!(error))?;
     if !manifest
         .components
         .contains_key(&manifest.main_component_type_id)

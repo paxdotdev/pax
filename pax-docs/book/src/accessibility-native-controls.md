@@ -296,6 +296,15 @@ or a way to make a drawn widget focusable. See
 [Keyboard events](event-handling-rust.md#keyboard-delivery) for the app-level
 event boundary.
 
+On web, pointer starts on a native control are checked against the engine's
+frontmost logical hit geometry. On macOS, fully opaque punch-through coverage
+also excludes the covered portion of a native control from pointer hit testing.
+This lets an opaque 3D solid intercept a click where it hides a live control.
+Moving coverage does not cancel an established native drag, remove keyboard
+focus, or disable keyboard activation. Partially transparent coverage and
+shader-expanded pixels do not define a new pixel-exact interaction contract.
+See [opaque curved solids](layout-responsiveness.md#opaque-curved-solids).
+
 ## Accessibility today
 
 Pax's native text and controls provide a starting point for accessibility.

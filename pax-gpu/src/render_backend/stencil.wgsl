@@ -5,27 +5,8 @@ struct Globals {
     padding: vec2<f32>,
 };
 
-struct StencilTransform {
-    xx: f32,
-    xy: f32,
-    yx: f32,
-    yy: f32,
-    zx: f32,
-    zy: f32,
-    opacity: f32,
-    _pad1: f32,
-    lighting_x: vec4<f32>,
-    lighting_y: vec4<f32>,
-    lighting_origin: vec4<f32>,
-    lighting_normal: vec4<f32>,
-};
-
-struct StencilTransforms {
-    transforms: array<StencilTransform, 160>,
-};
-
 @group(0) @binding(0) var<uniform> globals: Globals;
-@group(1) @binding(0) var<uniform> stencil_transforms: StencilTransforms;
+@group(1) @binding(0) var<uniform> stencil_transforms: Transforms;
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -37,7 +18,7 @@ fn vs_main(
     @location(1) transform_id: u32,
 ) -> VertexOutput {
 	var out: VertexOutput;
-    let stencil_transform = stencil_transforms.transforms[transform_id % 160u];
+    let stencil_transform = stencil_transforms.transforms[transform_id % TRANSFORMS_PER_PAGE];
     let t_p_x = position.x * stencil_transform.xx + position.y * stencil_transform.yx + stencil_transform.zx;
     let t_p_y = position.x * stencil_transform.xy + position.y * stencil_transform.yy + stencil_transform.zy;
     var pos = vec2<f32>(t_p_x, t_p_y);

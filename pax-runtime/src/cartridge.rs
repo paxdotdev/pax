@@ -4991,6 +4991,7 @@ mod base_symbol_tests {
         assert!((property.get() - 10.25).abs() < 0.0001);
     }
 
+    #[cfg(feature = "3d")]
     #[test]
     fn spatial_common_properties_bind_layers_and_reactive_expressions() {
         let angle = LocalProperty::new(pax_runtime_api::Rotation::Degrees(25.into()));
@@ -5409,6 +5410,14 @@ pub fn create_new_common_properties_from_columns(
     property_columns: &RuntimeResolvedPropertyColumns,
     stack_frame: &Rc<RuntimePropertiesStackFrame>,
 ) -> Rc<RefCell<CommonProperties>> {
+    #[cfg(not(feature = "3d"))]
+    assert!(
+        !["rotate_x", "rotate_y", "translate_z"]
+            .iter()
+            .any(|key| property_columns.contains_key(*key)),
+        "{}",
+        pax_manifest::capabilities::REQUIRES_3D,
+    );
     Rc::new(RefCell::new(CommonProperties {
         id: create_id_property(property_columns),
         x: resolve_property("x", property_columns, stack_frame),
@@ -5422,8 +5431,11 @@ pub fn create_new_common_properties_from_columns(
         skew_x: resolve_property("skew_x", property_columns, stack_frame),
         skew_y: resolve_property("skew_y", property_columns, stack_frame),
         rotate: resolve_property("rotate", property_columns, stack_frame),
+        #[cfg(feature = "3d")]
         rotate_x: resolve_property("rotate_x", property_columns, stack_frame),
+        #[cfg(feature = "3d")]
         rotate_y: resolve_property("rotate_y", property_columns, stack_frame),
+        #[cfg(feature = "3d")]
         translate_z: resolve_property("translate_z", property_columns, stack_frame),
         transform: resolve_property("transform", property_columns, stack_frame),
         opacity: resolve_property("opacity", property_columns, stack_frame),
@@ -5506,11 +5518,20 @@ fn update_common_properties(
     node: Option<&ExpandedNode>,
     mode: CommonPropertiesBindMode,
 ) {
+    #[cfg(not(feature = "3d"))]
+    assert!(
+        !["rotate_x", "rotate_y", "translate_z"]
+            .iter()
+            .any(|key| property_columns.contains_key(*key)),
+        "{}",
+        pax_manifest::capabilities::REQUIRES_3D,
+    );
     if mode != CommonPropertiesBindMode::Patch || property_columns.contains_key("id") {
         cp.id.replace_with(create_id_property(property_columns));
     }
     bind_common_setting(&cp.x, "x", property_columns, stack_frame, node, mode);
     bind_common_setting(&cp.y, "y", property_columns, stack_frame, node, mode);
+    #[cfg(feature = "3d")]
     bind_common_setting(
         &cp.rotate_x,
         "rotate_x",
@@ -5519,6 +5540,7 @@ fn update_common_properties(
         node,
         mode,
     );
+    #[cfg(feature = "3d")]
     bind_common_setting(
         &cp.rotate_y,
         "rotate_y",
@@ -5527,6 +5549,7 @@ fn update_common_properties(
         node,
         mode,
     );
+    #[cfg(feature = "3d")]
     bind_common_setting(
         &cp.translate_z,
         "translate_z",

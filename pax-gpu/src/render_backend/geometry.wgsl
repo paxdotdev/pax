@@ -22,28 +22,6 @@ struct Primitives {
 };
 
 
-struct Transform {
-    // OBS transform: mat3x2<f32> has different alignment on WebGL vs for
-    // example metal (don't change this unless you know what you are doing)
-    xx: f32,
-    xy: f32,
-    yx: f32,
-    yy: f32,
-    zx: f32,
-    zy: f32,
-    opacity: f32,
-    _pad1: f32,
-    lighting_x: vec4<f32>,
-    lighting_y: vec4<f32>,
-    lighting_origin: vec4<f32>,
-    lighting_normal: vec4<f32>,
-}
-
-struct Transforms {
-    transforms: array<Transform, 160>,
-}
-
-
 struct Colors {
     colors: array<vec4<f32>, 512>,
 }
@@ -67,28 +45,9 @@ struct Gradients {
     gradients: array<Gradient>,
 }
 
-struct Material {
-    coefficients: vec4<f32>,
-    emissive: vec4<f32>,
-}
-
 struct Materials {
     materials: array<Material, 512>,
 }
-
-struct SceneLight {
-    position: vec4<f32>,
-    direction: vec4<f32>,
-    color: vec4<f32>,
-    params: vec4<f32>,
-}
-
-struct SceneLighting {
-    ambient: vec4<f32>,
-    flags: vec4<u32>,
-    lights: array<SceneLight, 8>,
-}
-
 
 @group(0) @binding(0) var<uniform> globals: Globals;
 @group(0) @binding(1) var<uniform> u_primitives: Primitives;
@@ -141,10 +100,7 @@ fn vs_main(
     pos.y *= -1.0;
 
     out.prim_id = model.prim_id;
-    out.world_position = vec3<f32>(t_p_x, t_p_y, 0.0);
-    if m.lighting_normal.w != 0.0 {
-        out.world_position = m.lighting_origin.xyz + p.x * m.lighting_x.xyz + p.y * m.lighting_y.xyz;
-    }
+    out.world_position = lighting_position(m, p, vec2<f32>(t_p_x, t_p_y), scene_lighting.surface_to_world_x.xyz, scene_lighting.surface_to_world_y.xyz);
     out.path_progress = model.path_progress;
     out.local_position = p;
     out.clip_position = vec4<f32>(pos, 0.0, 1.0);
@@ -161,11 +117,9 @@ fn scene_primitive(id: u32) -> Primitive {
 // Identity is shared by every page and never aliases an allocated scene transform.
 fn scene_transform(id: u32) -> Transform {
     if id == 0u {
-        return Transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0,
-            vec4<f32>(1.0, 0.0, 0.0, 0.0), vec4<f32>(0.0, 1.0, 0.0, 0.0),
-            vec4<f32>(0.0), vec4<f32>(0.0, 0.0, 1.0, 0.0));
+        return identity_transform();
     }
-    return transforms.transforms[id % 160u];
+    return transforms.transforms[id % TRANSFORMS_PER_PAGE];
 }
 
 // Fragment shader
@@ -209,78 +163,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         color,
         materials.materials[primitive.material_id],
         in.world_position,
-        scene_transform(primitive.transform_id).lighting_normal.xyz,
+        lighting_normal(scene_transform(primitive.transform_id)),
         primitive.light_mask,
     );
     return color;
 }
-
-fn apply_lighting(
-    color: vec4<f32>,
-    material: Material,
-    world_position: vec3<f32>,
-    normal: vec3<f32>,
-    light_mask: u32,
-) -> vec4<f32> {
-    if scene_lighting.flags.x == 0u {
-        return color;
-    }
-
-    if material.coefficients.x < 0.0 {
-        return color;
-    }
-
-    let ambient_coeff = material.coefficients.x;
-    let diffuse_coeff = material.coefficients.y;
-    let specular_coeff = material.coefficients.z;
-    let roughness = clamp(material.coefficients.w, 0.0, 1.0);
-    let light_count = min(scene_lighting.flags.y, 8u);
-    let active_light_mask = (1u << light_count) - 1u;
-    let eligible_light_mask = light_mask & active_light_mask;
-    if eligible_light_mask == 0u && scene_lighting.flags.z == 0u {
-        return color;
-    }
-    let surface_position = world_position;
-    let view_dir = vec3<f32>(0.0, 0.0, 1.0);
-    var lighting = scene_lighting.ambient.rgb * scene_lighting.ambient.a * ambient_coeff;
-
-    for (var i = 0u; i < 8u; i++) {
-        if i >= light_count {
-            break;
-        }
-        if (eligible_light_mask & (1u << i)) == 0u {
-            continue;
-        }
-
-        let light = scene_lighting.lights[i];
-        var light_dir: vec3<f32>;
-        var attenuation = 1.0;
-        if light.params.x < 0.5 {
-            let to_light = light.position.xyz - surface_position;
-            let distance = max(length(to_light), 0.0001);
-            let radius = max(light.params.y, 0.0001);
-            let falloff = max(1.0 - distance / radius, 0.0);
-            attenuation = falloff * falloff;
-            light_dir = to_light / distance;
-        } else {
-            let direction_len = max(length(light.direction.xyz), 0.0001);
-            light_dir = -light.direction.xyz / direction_len;
-        }
-
-        let diffuse = max(dot(normal, light_dir), 0.0);
-        let half_sum = light_dir + view_dir;
-        let half_dir = half_sum / max(length(half_sum), 0.0001);
-        let shininess = mix(96.0, 8.0, roughness);
-        let specular = pow(max(dot(normal, half_dir), 0.0), shininess);
-        lighting += light.color.rgb * light.color.a * attenuation *
-            ((diffuse_coeff * diffuse) + (specular_coeff * specular));
-    }
-
-    let lit_rgb = color.rgb * clamp(lighting, vec3<f32>(0.0), vec3<f32>(8.0))
-        + material.emissive.rgb * material.emissive.a;
-    return vec4<f32>(lit_rgb, color.a);
-}
-
 
 fn gradient(fill_id: u32, coord: vec2<f32>) -> vec4<f32> {
     let gradient = gradients.gradients[fill_id];

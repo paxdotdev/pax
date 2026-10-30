@@ -71,11 +71,12 @@ use pax_manifest::{
     ValueDefinition,
 };
 
+#[cfg(feature = "3d")]
+use crate::ComputableTransform;
 use crate::{
     add_symmetric_padding_to_content_layout_hull, apply_container_frame, apply_padding_frame,
-    compute_tab, ComponentInstance, ComputableTransform, ContainerFrame, HandlerLocation,
-    InstanceNode, InstanceNodePtr, ReceivedChildrenSource, RuntimeContext,
-    RuntimePropertiesStackFrame,
+    compute_tab, ComponentInstance, ContainerFrame, HandlerLocation, InstanceNode, InstanceNodePtr,
+    ReceivedChildrenSource, RuntimeContext, RuntimePropertiesStackFrame,
 };
 
 #[derive(Clone)]
@@ -360,6 +361,7 @@ pub struct ExpandedNode {
     // local layout, and immediate reads do not depend on an effect-queue cutoff.
     pub(crate) layout_bounds: LocalProperty<(f64, f64)>,
     /// Unprojected geometry retained independently of presentation and scrolling.
+    #[cfg(feature = "3d")]
     pub(crate) spatial_geometry: LocalProperty<crate::SpatialGeometry>,
     /// Engine-owned subtree hull used by container measurement.
     pub subtree_layout_hull: LocalProperty<LayoutHull>,
@@ -829,6 +831,7 @@ macro_rules! dispatch_event_handler {
 
 impl ExpandedNode {
     /// Retained world geometry before camera, tile, and scroll presentation.
+    #[cfg(feature = "3d")]
     pub fn spatial_geometry(&self) -> LocalProperty<crate::SpatialGeometry> {
         self.spatial_geometry.clone()
     }
@@ -1169,6 +1172,7 @@ impl ExpandedNode {
             transform_and_bounds: LocalProperty::new(TransformAndBounds::default()),
             local_transform_and_bounds: LocalProperty::new(TransformAndBounds::default()),
             layout_bounds: LocalProperty::new((100.0, 100.0)),
+            #[cfg(feature = "3d")]
             spatial_geometry: LocalProperty::new(crate::SpatialGeometry::default()),
             subtree_layout_hull: LocalProperty::new(LayoutHull::default()),
             container_frame: LocalProperty::new(None),
@@ -2264,6 +2268,7 @@ impl ExpandedNode {
                 glass.untyped(),
                 parent.suspended.untyped(),
                 parent.transform_and_bounds.untyped(),
+                #[cfg(feature = "3d")]
                 parent.spatial_geometry.untyped(),
                 parent.layout_bounds.untyped(),
                 parent.computed_opacity.untyped(),
@@ -2286,8 +2291,11 @@ impl ExpandedNode {
                 cp.skew_x.untyped(),
                 cp.skew_y.untyped(),
                 cp.rotate.untyped(),
+                #[cfg(feature = "3d")]
                 cp.rotate_x.untyped(),
+                #[cfg(feature = "3d")]
                 cp.rotate_y.untyped(),
+                #[cfg(feature = "3d")]
                 cp.translate_z.untyped(),
             ]
         };
@@ -2415,6 +2423,7 @@ impl ExpandedNode {
             self.presentation_layer
                 .replace_with(LocalProperty::computed(move || domain.get(), &deps));
         }
+        #[cfg(feature = "3d")]
         let parent_geometry = render_parent
             .as_ref()
             .map(|n| n.spatial_geometry.clone())
@@ -2531,70 +2540,93 @@ impl ExpandedNode {
                 move || local.get().cast_spaces(),
                 &deps,
             ));
-        let local = self.local_transform_and_bounds.clone();
-        let rotate_x = borrow!(common_props).rotate_x.clone();
-        let rotate_y = borrow!(common_props).rotate_y.clone();
-        let translate_z = borrow!(common_props).translate_z.clone();
-        let deps = [
-            parent_geometry.untyped(),
-            local.untyped(),
-            rotate_x.untyped(),
-            rotate_y.untyped(),
-            translate_z.untyped(),
-        ];
-        let target_geometry = LocalProperty::computed(
-            move || {
-                let local = local.get();
-                let rx = rotate_x.get().unwrap_or_default().get_as_radians();
-                let ry = rotate_y.get().unwrap_or_default().get_as_radians();
-                let z = translate_z.get().unwrap_or_default().to_float();
-                if rx == 0. && ry == 0. && z == 0. {
-                    return parent_geometry.get().append_local_2d(local);
-                }
-                let mut transform = crate::layout::calculate_spatial_transform(
-                    &layout.get(),
-                    effective_parent_transform_and_bounds.get(),
-                    rx,
-                    ry,
-                    z,
-                );
-                if let Some(extra) = extra_transform.get() {
-                    let extra = extra.apply(TransformAndBounds {
-                        transform: Default::default(),
-                        bounds: local.bounds,
-                    });
-                    transform = transform
-                        * pax_runtime_api::math::Transform3::from(
-                            extra.transform.cast_spaces::<NodeLocal, NodeLocal>(),
-                        );
-                }
-                parent_geometry.get().append_local(transform, local.bounds)
-            },
-            &deps,
-        );
-        self.spatial_geometry
-            .replace_with(crate::presentation::bind_move_geometry(
-                self,
-                ctx,
-                target_geometry,
-            ));
-        let geometry = self.spatial_geometry.clone();
-        let deps = [geometry.untyped()];
-        self.transform_and_bounds
-            .replace_with(LocalProperty::computed(
+        #[cfg(feature = "3d")]
+        {
+            let local = self.local_transform_and_bounds.clone();
+            let rotate_x = borrow!(common_props).rotate_x.clone();
+            let rotate_y = borrow!(common_props).rotate_y.clone();
+            let translate_z = borrow!(common_props).translate_z.clone();
+            let deps = [
+                parent_geometry.untyped(),
+                local.untyped(),
+                rotate_x.untyped(),
+                rotate_y.untyped(),
+                translate_z.untyped(),
+            ];
+            let target_geometry = LocalProperty::computed(
                 move || {
-                    let geometry = geometry.get();
-                    // Invalid authored poses paint no area, but keep mounted state and
-                    // local layout so a later finite value can recover the same subtree.
-                    geometry
-                        .orthographic_projection()
-                        .unwrap_or(TransformAndBounds {
-                            transform: pax_runtime_api::math::Transform2::new([0.0; 6]),
-                            bounds: geometry.bounds,
-                        })
+                    let local = local.get();
+                    let rx = rotate_x.get().unwrap_or_default().get_as_radians();
+                    let ry = rotate_y.get().unwrap_or_default().get_as_radians();
+                    let z = translate_z.get().unwrap_or_default().to_float();
+                    if rx == 0. && ry == 0. && z == 0. {
+                        return parent_geometry.get().append_local_2d(local);
+                    }
+                    let mut transform = crate::layout::calculate_spatial_transform(
+                        &layout.get(),
+                        effective_parent_transform_and_bounds.get(),
+                        rx,
+                        ry,
+                        z,
+                    );
+                    if let Some(extra) = extra_transform.get() {
+                        let extra = extra.apply(TransformAndBounds {
+                            transform: Default::default(),
+                            bounds: local.bounds,
+                        });
+                        transform = transform
+                            * pax_runtime_api::math::Transform3::from(
+                                extra.transform.cast_spaces::<NodeLocal, NodeLocal>(),
+                            );
+                    }
+                    parent_geometry.get().append_local(transform, local.bounds)
                 },
                 &deps,
-            ));
+            );
+            self.spatial_geometry
+                .replace_with(crate::presentation::bind_move_geometry(
+                    self,
+                    ctx,
+                    target_geometry,
+                ));
+            let geometry = self.spatial_geometry.clone();
+            let deps = [geometry.untyped()];
+            self.transform_and_bounds
+                .replace_with(LocalProperty::computed(
+                    move || {
+                        let geometry = geometry.get();
+                        // Invalid authored poses paint no area, but keep mounted state and
+                        // local layout so a later finite value can recover the same subtree.
+                        geometry
+                            .orthographic_projection()
+                            .unwrap_or(TransformAndBounds {
+                                transform: pax_runtime_api::math::Transform2::new([0.0; 6]),
+                                bounds: geometry.bounds,
+                            })
+                    },
+                    &deps,
+                ));
+        }
+        #[cfg(not(feature = "3d"))]
+        {
+            let parent = render_parent
+                .as_ref()
+                .map(|node| node.transform_and_bounds.clone())
+                .unwrap_or_else(|| ctx.globals().viewport);
+            let local = self.local_transform_and_bounds.clone();
+            let deps = [parent.untyped(), local.untyped()];
+            self.transform_and_bounds
+                .replace_with(LocalProperty::computed(
+                    move || {
+                        let local = local.get();
+                        TransformAndBounds {
+                            transform: parent.get().transform * local.transform,
+                            bounds: local.bounds,
+                        }
+                    },
+                    &deps,
+                ));
+        }
 
         let presentation_parent = self.presentation_parent_node();
         let parent_opacity = presentation_parent
@@ -2654,6 +2686,7 @@ impl ExpandedNode {
         deps.extend([
             self.presentation_layer.untyped(),
             self.transform_and_bounds.untyped(),
+            #[cfg(feature = "3d")]
             self.spatial_geometry.untyped(),
             self.computed_opacity.untyped(),
             self.liquid_glass_scope.untyped(),
@@ -4044,19 +4077,43 @@ impl ExpandedNode {
         is_breakout
     }
 
+    /// Whether the ancestor composition supports opaque convex mesh content.
+    #[cfg(feature = "3d")]
+    pub fn permits_opaque_mesh_content(&self) -> bool {
+        let mut parent = self.render_parent_node();
+        while let Some(node) = parent {
+            let instance = borrow!(node.instance_node);
+            if !instance.permits_opaque_mesh_content(&node) {
+                return false;
+            }
+            #[cfg(feature = "shaders")]
+            if instance.shader_effect(&node).is_some() {
+                return false;
+            }
+            parent = node.render_parent_node();
+        }
+        true
+    }
+
     /// Determines whether the provided ray, orthogonal to the view plane,
     /// intersects this `ExpandedNode`.
     pub fn ray_cast_test(&self, ray: Point2<Window>) -> bool {
         if self.is_render_source() {
             return false;
         }
-        let geometry = self.spatial_geometry.get();
-        if geometry.is_spatial()
-            && geometry
-                .plane()
-                .is_none_or(|plane| plane.normal().z.abs() <= 1e-12)
+        #[cfg(feature = "3d")]
         {
-            return false;
+            let geometry = self.spatial_geometry.get();
+            if borrow!(self.instance_node)
+                .resolve_convex_mesh(self)
+                .is_none()
+                && geometry.is_spatial()
+                && geometry
+                    .plane()
+                    .is_none_or(|plane| plane.normal().z.abs() <= 1e-12)
+            {
+                return false;
+            }
         }
         let cp = borrow!(self.common_properties);
 

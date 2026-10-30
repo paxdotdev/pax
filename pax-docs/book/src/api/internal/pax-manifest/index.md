@@ -227,6 +227,20 @@ Type: `String`
 Compiler metadata: the import prefix for the engine module, `pax_kit::pax_engine` by default,
 but parameterizable for crates such as `pax-std` that integrate with `pax-engine` directly.
 
+#### Implementations
+##### `requires_3d`
+<pre><code class="api-signature language-rust ignore">pub fn requires_3d(&amp;self) -&gt; bool</code></pre>
+
+Whether any component authors spatial common properties, including dormant
+selectors, conditional branches and timeline tracks. Compiler type vocabulary
+alone does not imply a runtime requirement.
+
+##### `validate_runtime_capabilities`
+<pre><code class="api-signature language-rust ignore">pub fn validate_runtime_capabilities(&amp;self, supports_3d: bool) -&gt; Result&lt;(), &amp;&#39;static str&gt;</code></pre>
+
+Validate against the receiving runtime, not the Cargo features of a build tool.
+The same check applies to rich and release-baked manifests.
+
 ---
 
 ### `PropertyDefinition`

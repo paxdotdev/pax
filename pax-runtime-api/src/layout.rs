@@ -225,6 +225,7 @@ pub struct CommonProperty {
 }
 
 /// Properties shared by every renderable Pax node.
+/// Spatial fields are available with the default-off `3d` feature.
 ///
 /// Each property here is special-cased by the compiler when parsing element properties,
 /// for example `<SomeElement width={...} />`.
@@ -260,12 +261,15 @@ pub struct CommonProperties {
     /// Rotation around the z axis.
     pub rotate: LocalProperty<Option<Rotation>>,
     /// Rotation around the local x axis, in addition to `rotate`. Defaults to zero.
+    #[cfg(feature = "3d")]
     pub rotate_x: LocalProperty<Option<Rotation>>,
     /// Rotation around the local y axis, in addition to `rotate`. Defaults to zero.
+    #[cfg(feature = "3d")]
     pub rotate_y: LocalProperty<Option<Rotation>>,
     /// Translation along the parent's z axis in logical pixels. Positive values
     /// move toward the default viewer when the parent is unrotated. Percent depth
     /// is unsupported. Defaults to zero.
+    #[cfg(feature = "3d")]
     pub translate_z: LocalProperty<Option<Depth>>,
     /// Full composed 2D transform, applied in the node’s local plane.
     pub transform: LocalProperty<Option<Transform2D>>,
@@ -339,8 +343,11 @@ impl CommonProperties {
             skew_x,
             skew_y,
             rotate,
+            #[cfg(feature = "3d")]
             rotate_x,
+            #[cfg(feature = "3d")]
             rotate_y,
+            #[cfg(feature = "3d")]
             translate_z,
             transform,
             opacity,
@@ -393,14 +400,17 @@ impl CommonProperties {
                 "rotate".to_string(),
                 Variable::new_from_common_property(rotate.clone()),
             ),
+            #[cfg(feature = "3d")]
             (
                 "rotate_x".to_string(),
                 Variable::new_from_common_property(rotate_x.clone()),
             ),
+            #[cfg(feature = "3d")]
             (
                 "rotate_y".to_string(),
                 Variable::new_from_common_property(rotate_y.clone()),
             ),
+            #[cfg(feature = "3d")]
             (
                 "translate_z".to_string(),
                 Variable::new_from_common_property(translate_z.clone()),
@@ -509,6 +519,20 @@ impl Interpolatable for Size {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn common_property_scope_matches_target_capability() {
+        let scope = CommonProperties::default().retrieve_property_scope();
+        for name in ["rotate_x", "rotate_y", "translate_z"] {
+            assert_eq!(scope.contains_key(name), cfg!(feature = "3d"));
+        }
+        assert!(scope.contains_key("rotate"));
+        println!(
+            "3d={} CommonProperties={} bytes",
+            cfg!(feature = "3d"),
+            std::mem::size_of::<CommonProperties>()
+        );
+    }
 
     #[test]
     fn size_interpolation_blends_pixel_and_percent_components() {

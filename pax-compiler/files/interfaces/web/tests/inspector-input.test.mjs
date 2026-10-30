@@ -16,7 +16,7 @@ test('surface inspector input cannot hit-test the Pax content underneath', () =>
         removeEventListener(...args) { window.removeEventListener(...args); }
         contains(target) { return target === this; }
         getBoundingClientRect() { return {left: 0, top: 0}; }
-        closest(selector) {assert.equal(selector, '[data-pax-surface-inspector]'); return this.inspector ? this : null;}
+        closest(selector) { return selector === '[data-pax-surface-inspector]' && this.inspector ? this : null; }
     }
     const body = new Element();
     const module = {exports: {}};

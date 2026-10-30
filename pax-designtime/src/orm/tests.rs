@@ -42,6 +42,48 @@ mod tests {
         }
     }
 
+    #[test]
+    fn spatial_reload_checks_target_capability_before_mutating_the_manifest() {
+        let manifest = create_basic_manifest();
+        let mut orm = PaxManifestORM::new(manifest.clone());
+        let mut incoming = manifest.clone();
+        let component = incoming
+            .components
+            .get_mut(&manifest.main_component_type_id)
+            .unwrap();
+        component.settings = Some(vec![SettingsBlockElement::SelectorBlock(
+            Token::new_without_location("self".into()),
+            LiteralBlockDefinition::new(vec![pax_manifest::SettingElement::Setting(
+                Token::new_without_location("rotate_y".into()),
+                ValueDefinition::LiteralValue(PaxValue::Rotation(
+                    pax_manifest::pax_runtime_api::Rotation::Degrees(30.into()),
+                )),
+            )]),
+        )]);
+        let result = orm.set_initial_server_manifest(incoming.clone());
+        if pax_manifest::pax_runtime_api::SUPPORTS_3D {
+            assert!(result.is_ok());
+            assert!(orm.get_manifest().requires_3d());
+        } else {
+            assert!(result.unwrap_err().to_string().contains("3d"));
+            assert!(!orm.get_manifest().requires_3d());
+            assert!(orm.take_reload_queue().is_empty());
+        }
+        let result = orm.replace_template(
+            manifest.main_component_type_id.clone(),
+            ComponentTemplate::new(manifest.main_component_type_id.clone(), None),
+            incoming.components[&manifest.main_component_type_id]
+                .settings
+                .clone()
+                .unwrap(),
+            vec![],
+        );
+        assert_eq!(result.is_ok(), pax_manifest::pax_runtime_api::SUPPORTS_3D);
+        if !pax_manifest::pax_runtime_api::SUPPORTS_3D {
+            assert!(!orm.get_manifest().requires_3d());
+        }
+    }
+
     fn handler(event: &str, target: &str) -> SettingsBlockElement {
         SettingsBlockElement::Handler(
             Token::new_without_location(event.to_string()),

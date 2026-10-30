@@ -11,6 +11,7 @@ pub use pax_runtime_api;
 use pax_runtime_api::{CoercionRules, HelperFunctions, Interpolatable, PaxValue, Size, ToPaxValue};
 pub mod appearance;
 pub mod binary;
+pub mod capabilities;
 #[cfg(feature = "parsing")]
 pub mod parsing;
 pub mod program_ir;

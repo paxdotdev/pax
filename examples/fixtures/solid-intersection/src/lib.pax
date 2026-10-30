@@ -1,0 +1,54 @@
+<Scroller width=100% height=100% scroll_height=1080px scroll_pos_y=bind:self.scroll_y>
+    <Group width=100% height=1080px anchor=0%>
+        <Group x=32px y=28px width={100% - 64px} height=144px translate_z=1000px>
+            <Text class="label" width=100% height=22px text="PAX / SURFACE STUDIES / 03" />
+            <Text class="title" y=38px width=100% height=66px text="A surface meets a solid." />
+            <Text class="copy" y=112px width=100% height=32px text="One live panel. One curved volume. Shared depth." />
+        </Group>
+        <Frame x=24px y=190px width={100% - 48px} height=600px>
+            <LightFrame width=100% height=100%>
+                <Group x=24px y=22px width={100% - 48px} height=50px translate_z=900px>
+                    <Text class="light_label" width=320px height=22px text="THE INTERSECTION IS REAL" />
+                    <Button x=100% width=130px height=32px label={self.playing ? "Pause motion" : "Play motion"} @button_click=self.play />
+                </Group>
+                <Ellipsoid id=solid x=58% y=48% width=260px height=310px depth=240px
+                    translate_z={(self.depth)px} rotate_y=24deg rotate_x=-12deg
+                    color=rgb(239, 167, 77) material={Material::glossy(0.35)} @click=self.solid_press />
+                <Frame id=panel x=40% y=48% width={@viewport.width < 650 ? 300px : 430px} height=300px rotate_y={(self.tilt)deg}>
+                    <Text class="label" x=24px y=24px width={100% - 48px} height=24px text="THE SAME MOUNTED INSTANCE" />
+                    <Text class="panel_title" x=24px y=64px width={100% - 48px} height=52px text="Keep your place." />
+                    <Textbox id=note x=24px y=138px width={100% - 48px} height=38px text=bind:self.note />
+                    <Button id=panel_button x=24px y=195px width={100% - 48px} height=34px label={"Panel presses / " + self.presses} @button_click=self.press />
+                    <Text class="copy" x=24px y=250px width={100% - 48px} height=32px text="Type here, then move the solid." />
+                    <Rectangle width=100% height=100% fill={paint: rgb(246, 239, 216), material: {Material::unlit()}} />
+                </Frame>
+                <Group x=24px y=100% anchor_y=100% width={100% - 48px} height=94px translate_z=900px>
+                    <Button width=100px height=32px label="Behind" @button_click=self.behind />
+                    <Button x=112px width=100px height=32px label="Through" @button_click=self.through />
+                    <Button x=224px width=100px height=32px label="In front" @button_click=self.front />
+                    <Text class="light_label" y=48px width=100% height=30px text={"SOLID PRESSES / " + self.solid_presses + "     |     NATIVE PANEL PRESSES / " + self.presses} />
+                </Group>
+                <LightSource x=20% y=10% width=1px height=1px z=450px radius=1800px color=rgb(255, 233, 198) intensity=2.4 />
+                <AmbientLight color=rgb(166, 190, 242) intensity=0.42 />
+                <Rectangle width=100% height=100% translate_z=-1000px fill={paint: rgb(22, 36, 59), material: {Material::unlit()}} />
+            </LightFrame>
+        </Frame>
+        <Group x=36px y=824px width={100% - 72px} height=170px translate_z=900px>
+            <Text class="label" width=120px height=24px text="SOLID DEPTH" />
+            <Slider id=depth x=130px width={100% - 130px} height=24px min=-260.0 max=260.0 step=1.0 value=bind:self.depth accent=rgb(177, 110, 46) />
+            <Text class="label" y=48px width=120px height=24px text="PANEL ROTATION" />
+            <Slider id=tilt x=130px y=48px width={100% - 130px} height=24px min=-65.0 max=65.0 step=1.0 value=bind:self.tilt accent=rgb(177, 110, 46) />
+            <Text class="copy" y=110px width=100% height=60px text="Opaque curved geometry, clipped live UI, and ordinary Pax lighting. Scroll, type, rotate, and follow the boundary." />
+        </Group>
+        <Rectangle width=100% height=100% translate_z=-2000px fill={paint: rgb(241, 237, 225), material: {Material::unlit()}} />
+    </Group>
+</Scroller>
+@settings {
+    @mount: mount
+    @pre_render: tick
+    .label { style: {font_size: 11px, fill: rgb(43, 51, 60)} }
+    .light_label { style: {font_size: 11px, fill: rgb(233, 229, 214)} }
+    .copy { style: {font_size: 14px, fill: rgb(43, 51, 60)} }
+    .title { style: {font: "Georgia", font_size: {@viewport.width < 650 ? 30px : 48px}, fill: rgb(43, 51, 60)} }
+    .panel_title { style: {font: "Georgia", font_size: 30px, fill: rgb(43, 51, 60)} }
+}

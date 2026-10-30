@@ -126,7 +126,10 @@ impl InstanceNode for LightSourceInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
+        #[cfg(feature = "3d")]
         let geometry = expanded_node.spatial_geometry();
+        #[cfg(not(feature = "3d"))]
+        let geometry = expanded_node.transform_and_bounds.clone();
         let (color, intensity, radius, z, shape, direction, enabled) = expanded_node
             .with_properties_unwrapped(|properties: &mut LightSource| {
                 (
@@ -172,7 +175,10 @@ impl InstanceNode for LightSourceInstance {
                 return None;
             }
 
+            #[cfg(feature = "3d")]
             let geometry = expanded_node.spatial_geometry().get();
+            #[cfg(not(feature = "3d"))]
+            let geometry = expanded_node.transform_and_bounds.get();
             let (position, direction) = light_pose(
                 geometry,
                 properties.z.local().get().to_float(),
@@ -314,6 +320,7 @@ impl InstanceNode for AmbientLightInstance {
 }
 
 // Keep positional and directional lights in the same unprojected frame as materials.
+#[cfg(feature = "3d")]
 fn light_pose(
     geometry: pax_runtime::SpatialGeometry,
     z: f64,
@@ -339,7 +346,37 @@ fn light_pose(
     ))
 }
 
-#[cfg(test)]
+#[cfg(not(feature = "3d"))]
+fn light_pose(
+    geometry: pax_runtime::TransformAndBounds<
+        pax_runtime::node_interface::NodeLocal,
+        pax_runtime::api::Window,
+    >,
+    z: f64,
+    direction: Vector3,
+) -> Option<(Vector3, Vector3)> {
+    let m = geometry.transform.m;
+    let (x, y) = (geometry.bounds.0 * 0.5, geometry.bounds.1 * 0.5);
+    let position = Vector3::new(m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5], z);
+    let direction = Vector3::new(
+        m[0] * direction.x + m[2] * direction.y,
+        m[1] * direction.x + m[3] * direction.y,
+        direction.z,
+    );
+    [
+        position.x,
+        position.y,
+        position.z,
+        direction.x,
+        direction.y,
+        direction.z,
+    ]
+    .iter()
+    .all(|v| v.is_finite())
+    .then_some((position, direction))
+}
+
+#[cfg(all(test, feature = "3d"))]
 mod tests {
     use super::*;
     use pax_runtime::api::{
