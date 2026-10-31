@@ -2018,3 +2018,29 @@ fn pending_layer_removals_retry_until_the_backend_is_ready() {
     assert_eq!(renderer.removals, vec![(0, 42), (0, 42)]);
     assert!(!engine.runtime_context.has_canvas_render_work());
 }
+
+#[test]
+fn overlays_and_transfer_flights_keep_the_filtered_render_path() {
+    use pax_runtime_api::{Duration, EasingCurve};
+    let (mut engine, root, source, target, overlay) = crate::node_query::tests::flight_fixture();
+    let node = source.resolve().unwrap().0;
+    source.move_to_append_child(&target).unwrap();
+    engine.tick();
+    let plan = engine
+        .build_filtered_render_plan(&root, &[node.id])
+        .unwrap();
+    assert!(plan.render_path_nodes.contains(&overlay.id));
+    source
+        .animated(Duration::Frames(4.into()), EasingCurve::Linear)
+        .move_to_home()
+        .unwrap();
+    engine.tick();
+    let plan = engine
+        .build_filtered_render_plan(&root, &[node.id])
+        .unwrap();
+    assert!(plan.render_path_nodes.contains(&root.id));
+    assert!(!plan.render_path_nodes.contains(&overlay.id));
+    assert!(!plan
+        .render_path_nodes
+        .contains(&node.render_parent_node().unwrap().id));
+}

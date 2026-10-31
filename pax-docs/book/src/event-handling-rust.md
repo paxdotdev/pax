@@ -237,6 +237,7 @@ Pax recognizes public lifecycle methods on its Rust implementation:
 | `on_mount` | When the component mounts | Install computations or subscriptions that need established bindings or context |
 | `on_tick` | On runtime ticks while the component is active | Advance an application simulation or other time-driven logic |
 | `on_pre_render` | After tick handlers, in the pre-render phase | Synchronize work that must follow that tick's updates |
+| `on_pre_unmount` | Before the node or its children are torn down | Return borrowed nodes while their mounted state is intact |
 | `on_unmount` | When the component is removed from the mounted tree | Release application-owned registrations or finish mounted work |
 
 Lifecycle methods take `&mut self` and `&NodeContext`, without an `Event`
@@ -271,7 +272,7 @@ can yield to the browser between descendant mounts and initial lifecycle phases.
 It queues application input during bootstrap while allowing native measurement
 feedback to settle. Do not use browser yields as application tick boundaries.
 
-The short names `mount`, `tick`, `pre_render`, and `unmount` are also recognized.
+The short names `mount`, `tick`, `pre_render`, `pre_unmount`, and `unmount` are also recognized.
 When both forms exist, the `on_*` name is selected. To use a different method
 name, bind it explicitly, for example `@mount: initialize` in `@settings`,
 with a public `initialize(&mut self, ctx: &NodeContext)` method. An explicit
@@ -293,7 +294,7 @@ impl Notes {
 }
 ```
 
-For inline `@mount`, `@tick`, `@pre_render`, and `@unmount`, `self` is the
+For inline `@mount`, `@tick`, `@pre_render`, `@pre_unmount`, and `@unmount`, `self` is the
 specific component instance that authored the binding (`Notes` here).
 `ctx` describes the child receiving the call (`Group` here), including its
 bounds, tree identity, expression stack, and subscription lifetime. Moving that
@@ -305,7 +306,7 @@ through `ctx` retain the child's lifetime.
 A child's own lifecycle methods or `@settings` bindings still run on the
 child's state. An inline binding on its invocation can run alongside them;
 it does not replace them or bubble to ancestors. Suspended nodes skip tick
-and pre-render handlers, but still run mount and unmount handlers when their
+and pre-render handlers, but still run mount, pre-unmount, and unmount handlers when their
 mounted lifetime changes. These ownership rules apply in debug and release.
 Component mask-source subtrees have a mounted logical lifetime and follow
 the same lifecycle ownership rules, even though their output is used as a
@@ -334,6 +335,126 @@ cleared when their node unmounts. Other resources owned by your application
 still need the cleanup appropriate to that integration. See
 [Subscriptions and effects](state-properties.md#subscriptions-and-effects)
 for callback scheduling and lifetime details.
+
+### Find and move existing nodes
+
+Use `ctx.app_root()?` to address content outside the current component. Queries
+follow the current destination tree, cross component boundaries, and accept
+Pax ID, class, and type selectors. Chain queries to narrow a destination:
+
+```rust
+fn put_logo_in_nav(ctx: &NodeContext) -> Result<(), NodeError> {
+    let root = ctx.app_root()?;
+    let logo = root.query("#logo").one()?;
+    let destination = root.query("#nav").query("#logo_container").one()?;
+    logo.move_to_append_child(&destination)
+}
+```
+
+The destination can be an ordinary `Group` in a
+[fixed Overlay](compositing-effects.md#fixed-overlays). No slot or association
+registry is required. A `NodeQuery` is an ordered snapshot; `one()` reports an
+error unless exactly one node matches. Use `nth(index)`, `len()`, `index_of(&node)`,
+or `all()` to inspect it. These methods return `Result` so malformed selectors
+and references whose lifetime has ended are visible to the caller.
+`node.content_children()` flattens control-flow and Slot wrappers, excludes
+children retained only for exit transitions, and includes culled children.
+`next()` and `previous()` return neighboring content nodes, or `None` at an edge.
+
+For repeated content, narrow a query with `.key("item-id")` or `.key(42_i64)`.
+It uses the nearest owning keyed iteration, including after transfer. String
+and integer keys are distinct. Multiple roots within the same iteration can
+share a key, so narrow by selector before calling `one()`.
+
+The moved node is the receiver of each operation:
+
+| Operation | Destination |
+| --- | --- |
+| `node.move_to_insert_before(&sibling)` | Immediately before an active sibling |
+| `node.move_to_insert_after(&sibling)` | Immediately after an active sibling |
+| `node.move_to_append_child(&parent)` | After the parent's active content children |
+| `node.move_to_insert_child(&parent, index)` | Final zero-based content index, after removing the moving node from that sequence |
+| `node.move_to_home()` | The declaration's current placement, including repeat reordering |
+
+`index == len` of the remaining sequence appends; out-of-range indices fail. Moving relative to yourself
+is a no-op. Invalid destinations, cycles, and cross-application moves fail
+without changing placement. This initial API accepts `Group` and `Overlay`
+destinations; use a Group inside a Frame, Scroller, or layout component.
+Control-flow wrappers, mask-source nodes, and Overlay roots cannot themselves
+be moved. Moves change runtime presentation, not the authored program or
+`manifest.serialize()`.
+
+A live move adopts the destination's coordinate system, percentage sizing,
+clipping, scrolling, and opacity. It preserves the component instance, private
+state, and authored expression/event ownership. To ease the current footprint
+toward the destination's layout, configure the move:
+
+```rust
+logo.animated(Duration::Milliseconds(480.into()), EasingCurve::InOutQuad)
+    .move_to_append_child(&destination)?;
+```
+
+An interrupted move starts from its current presented footprint. Motion follows
+the destination's current layout and interpolates the projected 2D footprint;
+it is not a spatial-camera flight. Zero-size or singular starting geometry is
+rejected. Recovery of an unmounted transfer starts directly at its destination.
+
+When an animated move crosses an Overlay boundary, the destination takes effect
+immediately for layout and queries, while the same mounted subtree temporarily
+draws above the higher participating Overlay. Contributions already above that
+Overlay remain above the moving subtree. Canvas content, native controls, and
+hit testing share this temporary presentation; destination ancestor clipping,
+opacity, and scrolling apply normally when it settles. Clips and effects within
+the moved subtree remain active throughout. Reversing a move continues from its
+current footprint. Removing the departed Overlay does not interrupt a return
+flight, but destination loss and original-owner removal retain the lifetime
+rules below. Instant moves and moves within the same presentation contribution
+use their ordinary destination presentation.
+
+### Return visitors before unmounting
+
+The original declaration controls a transferred node's lifetime. If its new
+host disappears, the transferred subtree fully unmounts: private component
+state, subscriptions, and native elements are torn down. Its original owner
+can retrieve a recovery handle from `ctx.detached_nodes()` and explicitly call
+`move_to_home()` or another move to start a **fresh mount**. A borrower remount
+does not replay transfers. Removing the original declaration, including through
+`if` or a keyed `for`, discards the recovery entry and permanently invalidates
+its handles. Handles to descendants of an abandoned subtree also expire.
+
+A borrower can preserve visitors by returning them before teardown:
+
+```rust
+impl FixedNav {
+    pub fn on_pre_unmount(&mut self, ctx: &NodeContext) {
+        if let Ok(visitors) = ctx.visiting_nodes().all() {
+            for node in visitors {
+                // Home may already be ending during whole-application teardown.
+                let _ = node.move_to_home();
+            }
+        }
+    }
+}
+```
+
+`visiting_nodes()` lists live transfers hosted within this component's authored
+subtree but declared outside it. `detached_nodes()` lists abandoned transfers
+declared by this component. Both return snapshots suitable for iteration while
+moving nodes. The explicit lifecycle spelling is `@pre_unmount`; its automatic
+Rust method is `on_pre_unmount`. It runs before children, native elements,
+subscriptions, or stores are torn down. Exit transitions delay this hook until
+actual teardown. Use `on_unmount` for final cleanup after descendant teardown.
+
+Web live moves retain the existing DOM elements. Browsers with `Element.moveBefore`
+also preserve browser-managed focus and selection during a connected move;
+older browsers use ordinary reattachment and cannot guarantee that transient
+state. Full abandonment intentionally destroys native state. The fixture proves
+the web path; Apple first-responder behavior still needs platform acceptance.
+
+Try `pax-cli run --path examples/fixtures/overlay-transfer --target web` in the
+repository, or inspect its source with `pax-cli docs examples overlay-transfer`.
+The fixture combines automatic scroll transfer, private state, editable native
+text, responsible borrower cleanup, abandonment, and explicit recovery.
 
 ### Viewport proximity is opt-in
 

@@ -200,6 +200,7 @@ impl PaxManifest {
         map.insert("pre_render".to_string(), None);
         map.insert("mount".to_string(), None);
         map.insert("unmount".to_string(), None);
+        map.insert("pre_unmount".to_string(), None);
         map.insert("tick".to_string(), None);
         map
     }

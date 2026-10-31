@@ -165,6 +165,11 @@ layer and LightFrame ancestry once; stable light slots only revisit changed
 recipients. Slot/scope changes rebuild masks within the affected layer.
 Contributors are independent of visibility; unlit scenes need no recipient scan.
 
+##### `depth_plane_in_presentation`
+<pre><code class="api-signature language-rust ignore">pub fn depth_plane_in_presentation(&amp;self, node: &amp;ExpandedNode, plane: Option&lt;<a href="../../../api/pax-runtime-api/rendering.md#depthplane">DepthPlane</a>&gt;) -&gt; Option&lt;<a href="../../../api/pax-runtime-api/rendering.md#depthplane">DepthPlane</a>&gt;</code></pre>
+
+Attach the node's independent presentation domain to canvas/native depth.
+
 ##### `get_elements_beneath_ray`
 <pre><code class="api-signature language-rust ignore">pub fn get_elements_beneath_ray(&amp;self, root: Option&lt;Rc&lt;ExpandedNode&gt;&gt;, ray: Point2&lt;<a href="../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;, limit_one: bool, accum: Vec&lt;Rc&lt;ExpandedNode&gt;&gt;, hit_invisible: bool) -&gt; Vec&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
 

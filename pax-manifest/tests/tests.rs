@@ -2231,6 +2231,7 @@ mod tests {
                 pub fn on_mount(&mut self, _ctx: &NodeContext) {}
                 pub fn on_tick(&mut self, _ctx: &NodeContext) {}
                 pub fn on_pre_render(&mut self, _ctx: &NodeContext) {}
+                pub fn on_pre_unmount(&mut self, _ctx: &NodeContext) {}
                 pub fn on_unmount(&mut self, _ctx: &NodeContext) {}
             }
             "#,
@@ -2255,6 +2256,7 @@ mod tests {
         assert!(bindings.contains(&("mount".to_string(), "on_mount".to_string())));
         assert!(bindings.contains(&("tick".to_string(), "on_tick".to_string())));
         assert!(bindings.contains(&("pre_render".to_string(), "on_pre_render".to_string())));
+        assert!(bindings.contains(&("pre_unmount".to_string(), "on_pre_unmount".to_string())));
         assert!(bindings.contains(&("unmount".to_string(), "on_unmount".to_string())));
 
         fs::remove_file(rust_source).expect("temporary Rust source should be removable");

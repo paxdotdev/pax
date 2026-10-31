@@ -475,7 +475,7 @@ pub(crate) fn update_node_occlusion_observed(
             let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) else {
                 continue;
             };
-            let mut parent = node.render_parent_node();
+            let mut parent = node.presentation_parent_node();
             while let Some(ancestor) = parent {
                 let ancestor_id = ancestor.id.to_u32();
                 if state.owned_layers.contains_key(&ancestor_id) {
@@ -490,7 +490,7 @@ pub(crate) fn update_node_occlusion_observed(
                         unsafe_branches.insert(ancestor_id);
                     }
                 }
-                parent = ancestor.render_parent_node();
+                parent = ancestor.presentation_parent_node();
             }
         }
         for (&id, &layer) in &state.owned_layers {

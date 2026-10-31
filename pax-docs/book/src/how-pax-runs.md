@@ -283,8 +283,12 @@ startup; consecutive pointer moves may be coalesced.
 The first presentation prioritizes the initial viewport. A node with a known
 outer box entirely outside that viewport can defer its whole subtree; this
 coarse heuristic does not search descendants for transformed visual overflow.
-Unknown dimensions remain candidates for traversal. Selection continues recursively
-through visible containers: an autosized outer container does not by itself
+Unknown dimensions remain candidates for traversal. Mounted `Overlay`
+contributions use their viewport bounds. Their pending
+mounts remain tied to their authored owners even though they have no ordinary
+render parent. An Overlay beneath an entirely deferred ancestor is discovered
+when that ancestor mounts.
+Selection continues recursively through visible containers: an autosized outer container does not by itself
 require mounting its entire content. A start-aligned Stacker with a fixed cross
 axis resolves a visible prefix, accepting native measurements before deciding
 whether another child is needed. A child that already covers the viewport can

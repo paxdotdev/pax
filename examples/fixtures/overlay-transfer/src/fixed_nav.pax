@@ -1,0 +1,16 @@
+<Overlay>
+    <Group id=nav width=100% height=104px>
+        <Group id=logo_container x=16px y=10px width={(Math::min(400, @viewport.width - 32))px} height=84px/>
+        if @viewport.width > 720 {
+            <Text anchor_x=0% x={100% - 230px} y=30px width=200px height=20px text="PAX / FIELD NOTES" style={
+                font_size: 16px
+                fill: rgb(246, 237, 216)
+            }/>
+            <Text anchor_x=0% x={100% - 230px} y=56px width=200px height=20px text="01   THE FIXED NAV" style={
+                font_size: 11px
+                fill: rgb(178, 193, 172)
+            }/>
+        }
+        <Rectangle width=100% height=100% fill=rgb(32, 48, 43)/>
+    </Group>
+</Overlay>

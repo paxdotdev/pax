@@ -40,6 +40,13 @@ Positive depth is toward the default orthographic viewer. Coplanar surfaces
 retain paint order; a spatial back face reverses its planar layer stack.
 
 #### Properties
+##### `presentation_layer`
+Type: `u32`
+
+Independent presentation domain. Higher domains paint above lower ones
+regardless of geometric depth; 0 is the scene and positive values rank
+viewport Overlay contributions and temporary transfer presentations.
+
 ##### `coefficients`
 Type: [`f64`; 3]
 

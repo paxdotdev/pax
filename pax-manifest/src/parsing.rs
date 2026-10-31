@@ -1771,11 +1771,12 @@ pub struct ParsingError {
     pub end: (usize, usize),
 }
 
-const IMPLICIT_LIFECYCLE_HANDLER_CANDIDATES: [(&str, [&str; 2]); 4] = [
+const IMPLICIT_LIFECYCLE_HANDLER_CANDIDATES: [(&str, [&str; 2]); 5] = [
     ("mount", ["on_mount", "mount"]),
     ("tick", ["on_tick", "tick"]),
     ("pre_render", ["on_pre_render", "pre_render"]),
     ("unmount", ["on_unmount", "unmount"]),
+    ("pre_unmount", ["on_pre_unmount", "pre_unmount"]),
 ];
 
 fn add_implicit_lifecycle_handlers(

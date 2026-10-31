@@ -377,6 +377,58 @@ impl NodeContext {
     }
 }
 
+impl NodeContext {
+    /// Reference to this application's mounted root, excluding designtime chrome.
+    /// Use `query` on the result to address nodes outside the current component.
+    pub fn app_root(&self) -> Result<crate::NodeRef, crate::NodeError> {
+        self.current_query_node()
+            .ok_or(crate::NodeError::Unmounted)?;
+        #[cfg(feature = "designtime")]
+        let root = self
+            .runtime_context
+            .get_userland_root_expanded_node()
+            .or_else(|| self.runtime_context.get_root_expanded_node());
+        #[cfg(not(feature = "designtime"))]
+        let root = self.runtime_context.get_root_expanded_node();
+        let root = root
+            .filter(|n| n.attached.get() > 0)
+            .ok_or(crate::NodeError::Unmounted)?;
+        Ok(crate::NodeRef::new(&root, &self.runtime_context))
+    }
+
+    fn current_query_node(&self) -> Option<Rc<ExpandedNode>> {
+        self.expanded_node.upgrade().filter(|node| {
+            node.attached.get() > 0 && node.stores.generation() == self.store_generation
+        })
+    }
+
+    fn node_collection_owner(&self) -> Option<Rc<ExpandedNode>> {
+        let node = self.current_query_node()?;
+        let is_component = node.instance_node.borrow().base().flags().is_component;
+        if is_component {
+            Some(node)
+        } else {
+            self.containing_component.upgrade()
+        }
+    }
+
+    /// Abandoned transfers declared by this component. Entries are unmounted;
+    /// moving one explicitly starts a fresh mount. The snapshot owns no lifetime.
+    pub fn detached_nodes(&self) -> crate::NodeQuery {
+        self.node_collection_owner()
+            .map(|owner| self.runtime_context.detached_nodes(&owner))
+            .unwrap_or_else(|| crate::NodeQuery::failed(crate::NodeError::Unmounted))
+    }
+
+    /// Live transfers hosted in this component's authored subtree but owned
+    /// outside it. Return these in `@pre_unmount` to preserve their mounted state.
+    pub fn visiting_nodes(&self) -> crate::NodeQuery {
+        self.node_collection_owner()
+            .map(|host| self.runtime_context.visiting_nodes(&host))
+            .unwrap_or_else(|| crate::NodeQuery::failed(crate::NodeError::Unmounted))
+    }
+}
+
 impl pax_runtime_api::async_runtime::AsyncScopeSource for NodeContext {
     fn work_scope(&self) -> Result<AsyncScope, AsyncError> {
         self.async_scope()

@@ -250,6 +250,24 @@ Ask the chassis to display the requested cursor over the app surface.
 
 Attach a dependency subscription whose callback runs when any dependency dirties.
 
+##### `app_root`
+<pre><code class="api-signature language-rust ignore">pub fn app_root(&amp;self) -&gt; Result&lt;<a href="../../../api/internal/pax-runtime/node_query.md#noderef">NodeRef</a>, <a href="../../../api/internal/pax-runtime/node_query.md#nodeerror">NodeError</a>&gt;</code></pre>
+
+Reference to this application's mounted root, excluding designtime chrome.
+Use `query` on the result to address nodes outside the current component.
+
+##### `detached_nodes`
+<pre><code class="api-signature language-rust ignore">pub fn detached_nodes(&amp;self) -&gt; <a href="../../../api/internal/pax-runtime/node_query.md#nodequery">NodeQuery</a></code></pre>
+
+Abandoned transfers declared by this component. Entries are unmounted;
+moving one explicitly starts a fresh mount. The snapshot owns no lifetime.
+
+##### `visiting_nodes`
+<pre><code class="api-signature language-rust ignore">pub fn visiting_nodes(&amp;self) -&gt; <a href="../../../api/internal/pax-runtime/node_query.md#nodequery">NodeQuery</a></code></pre>
+
+Live transfers hosted in this component's authored subtree but owned
+outside it. Return these in `@pre_unmount` to preserve their mounted state.
+
 ##### `set_startup_planner`
 <pre><code class="api-signature language-rust ignore">pub fn set_startup_planner(&amp;self, resolver: impl Fn(&amp;ExpandedNode, &amp;mut <a href="../../../api/internal/pax-runtime/engine/startup/plan.md#startupplan">StartupPlan</a>&lt;&#39;_&gt;) + &#39;static)</code></pre>
 

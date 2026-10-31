@@ -96,9 +96,14 @@ impl WgpuRenderer<'_> {
             let center = centroid(polygon);
             let mut order: Vec<_> = (0..nodes.len()).collect();
             order.sort_by(|&a, &b| {
-                planes[membership[a]]
-                    .depth_at(center[0], center[1])
-                    .total_cmp(&planes[membership[b]].depth_at(center[0], center[1]))
+                node_planes[a]
+                    .presentation_layer
+                    .cmp(&node_planes[b].presentation_layer)
+                    .then_with(|| {
+                        planes[membership[a]]
+                            .depth_at(center[0], center[1])
+                            .total_cmp(&planes[membership[b]].depth_at(center[0], center[1]))
+                    })
                     .then_with(|| {
                         let order = |i: usize| {
                             node_planes[i].coplanar_order(self.scene[&nodes[i]].z_index() as i64)
@@ -123,9 +128,11 @@ fn unique_planes(planes: &[DepthPlane], viewport: &Polygon) -> (Vec<DepthPlane>,
         .iter()
         .map(|plane| {
             if let Some(index) = unique.iter().position(|other| {
-                viewport.iter().all(|p| {
-                    (plane.depth_at(p[0], p[1]) - other.depth_at(p[0], p[1])).abs() <= PLANE_EPSILON
-                })
+                plane.presentation_layer == other.presentation_layer
+                    && viewport.iter().all(|p| {
+                        (plane.depth_at(p[0], p[1]) - other.depth_at(p[0], p[1])).abs()
+                            <= PLANE_EPSILON
+                    })
             }) {
                 index
             } else {
@@ -148,6 +155,9 @@ fn partition(planes: &[DepthPlane], viewport: Polygon) -> Vec<Polygon> {
     let mut regions = vec![viewport];
     for (index, a) in planes.iter().enumerate() {
         for b in &planes[..index] {
+            if a.presentation_layer != b.presentation_layer {
+                continue;
+            }
             let line = [
                 a.coefficients[0] - b.coefficients[0],
                 a.coefficients[1] - b.coefficients[1],
@@ -205,9 +215,30 @@ mod tests {
     }
     fn plane(a: f64, b: f64, c: f64) -> DepthPlane {
         DepthPlane {
+            presentation_layer: 0,
             coefficients: [a, b, c],
             backface: false,
         }
+    }
+
+    #[test]
+    fn independent_presentation_domains_do_not_partition_each_other() {
+        let world = plane(1.0, 0.0, -50.0);
+        let overlay = DepthPlane {
+            presentation_layer: 1,
+            ..plane(0.0, 1.0, -50.0)
+        };
+        assert_eq!(partition(&[world, overlay], viewport()).len(), 1);
+        let same_depth_overlay = DepthPlane {
+            presentation_layer: 1,
+            ..world
+        };
+        assert_eq!(
+            unique_planes(&[world, same_depth_overlay], &viewport())
+                .0
+                .len(),
+            2
+        );
     }
 
     #[test]

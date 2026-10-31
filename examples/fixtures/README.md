@@ -61,6 +61,7 @@ accepts `fixtures/<name>` and `examples/fixtures/<name>`.
 | [mask-strokes](mask-strokes) | Paint layers and live component masks regression fixture |
 | [native-text-compatibility](native-text-compatibility) | macOS text/control/accessibility regression fixture |
 | [neon-opacity](neon-opacity) | Opacity, masks and compositing study |
+| [overlay-transfer](overlay-transfer) | Additive fixed Overlays, scroll-driven live transfer, native state, and borrower teardown/recovery |
 | [occlusion](occlusion) | Native/canvas occlusion and masking acceptance fixture |
 | [photo-picker](photo-picker) | Library/camera and platform permission integration probe |
 | [responsive-helpers](responsive-helpers) | Target, viewport, motion and time globals probe |

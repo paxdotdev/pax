@@ -412,6 +412,21 @@ example binds a vertical Carousel to a playhead for its articulated scenes.
 ownership, easing, and playback; [Drawing](drawing-styling.md#paths-and-svg)
 owns Path and Handwriter reveals.
 
+For a logo that leaves a Scroller and joins fixed navigation, the
+`overlay-transfer` fixture uses the scroll position to move the same instance
+into an additive Overlay. See [fixed Overlays](compositing-effects.md#fixed-overlays)
+and [moving existing nodes](event-handling-rust.md#find-and-move-existing-nodes).
+
+For a threshold-triggered transfer, subscribe to the bound scroll-position
+property with `ctx.subscribe(...)`. This responds when scroll effects settle,
+instead of polling the previous value in `on_tick`. Start before the source is
+fully occluded, and use separate outward/return thresholds to avoid repeated
+reversals at the boundary. The fixture uses a wall-clock ease-out so late frames
+catch up rather than lengthening the animation. Browser-native scrolling can
+continue while the application thread is blocked; application-driven transfers
+still require that thread to run. Use the web surface trace to distinguish a
+late frame from expensive runtime work before changing animation timing.
+
 ## Observe viewport proximity
 
 Bind `@viewport_proximity_enter`, `@viewport_proximity_change`, and

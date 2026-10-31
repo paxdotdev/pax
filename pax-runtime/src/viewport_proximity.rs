@@ -149,9 +149,9 @@ impl RuntimeContext {
 
     fn acquire_viewport_chain(self: &Rc<Self>, target: &Rc<ExpandedNode>) -> Vec<u32> {
         let mut nodes = vec![target.clone()];
-        let mut parent = target.render_parent_node();
+        let mut parent = target.presentation_parent_node();
         while let Some(node) = parent {
-            parent = node.render_parent_node();
+            parent = node.presentation_parent_node();
             nodes.push(node);
         }
         for node in nodes.iter().rev() {
@@ -163,7 +163,7 @@ impl RuntimeContext {
                     continue;
                 }
             }
-            let parent = node.render_parent_node().map(|p| p.id.to_u32());
+            let parent = node.presentation_parent_node().map(|p| p.id.to_u32());
             let owner = parent.and_then(|parent| {
                 let state = self.viewport_proximity.borrow();
                 let dependency = &state.dependencies[&parent];

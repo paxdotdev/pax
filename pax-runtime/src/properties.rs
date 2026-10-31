@@ -107,6 +107,8 @@ pub struct RuntimeContext {
     /// Lifetime and measurement work continue; entry animations wait for publication.
     pub presentation_held: Cell<bool>,
     pub(crate) presentation_entry_prepared: Cell<bool>,
+    pub(crate) presentation: RefCell<crate::presentation::PresentationState>,
+    pub(crate) presentation_generation: LocalProperty<u64>,
     pub(crate) startup: RefCell<crate::engine::startup::Startup>,
     pub(crate) replaying_startup_input: RefCell<Option<crate::engine::startup::StartupInput>>,
     pub application: pax_runtime_api::application::ApplicationInstance,
@@ -274,6 +276,8 @@ impl RuntimeContext {
             property_graph: application.property_graph(),
             presentation_held: Cell::new(false),
             presentation_entry_prepared: Cell::new(false),
+            presentation: Default::default(),
+            presentation_generation: LocalProperty::new(0),
             startup: Default::default(),
             replaying_startup_input: Default::default(),
             application,
@@ -337,6 +341,8 @@ impl RuntimeContext {
             property_graph: application.property_graph(),
             presentation_held: Cell::new(false),
             presentation_entry_prepared: Cell::new(false),
+            presentation: Default::default(),
+            presentation_generation: LocalProperty::new(0),
             startup: Default::default(),
             replaying_startup_input: Default::default(),
             application,
@@ -402,6 +408,8 @@ impl RuntimeContext {
             property_graph: application.property_graph(),
             presentation_held: Cell::new(false),
             presentation_entry_prepared: Cell::new(false),
+            presentation: Default::default(),
+            presentation_generation: LocalProperty::new(0),
             startup: Default::default(),
             replaying_startup_input: Default::default(),
             wheel_regions: Default::default(),
@@ -1008,19 +1016,21 @@ impl RuntimeContext {
         presented: Affine,
     ) -> Option<pax_runtime_api::DepthPlane> {
         let mut offset = 0.0;
-        let mut ancestor = node.render_parent_node();
+        let mut ancestor = node.presentation_parent_node();
         while let Some(parent) = ancestor {
             if borrow!(parent.instance_node).scrolls_content(&parent) {
                 offset += self.scroller_content_depth_offset(&parent);
             }
-            ancestor = parent.render_parent_node();
+            ancestor = parent.presentation_parent_node();
         }
-        let plane =
+        let plane = self.depth_plane_in_presentation(
+            node,
             node.spatial_geometry
                 .get()
                 .depth_plane(pax_runtime_api::math::Transform2::new(
                     presented.as_coeffs(),
-                ));
+                )),
+        );
         if plane.is_none() && offset == 0.0 {
             return None;
         }
@@ -1029,14 +1039,43 @@ impl RuntimeContext {
         Some(plane)
     }
 
+    /// Attach the node's independent presentation domain to canvas/native depth.
+    pub fn depth_plane_in_presentation(
+        &self,
+        node: &ExpandedNode,
+        plane: Option<pax_runtime_api::DepthPlane>,
+    ) -> Option<pax_runtime_api::DepthPlane> {
+        let layer = node.presentation_layer.get();
+        if plane.is_none() && layer == 0 {
+            return None;
+        }
+        let mut plane = plane.unwrap_or_default();
+        plane.presentation_layer = layer;
+        Some(plane)
+    }
+
     /// Resolve the browser/native presentation transform inherited by a node from ancestor
     /// scrollers. Layout transforms remain in content coordinates, while events arrive in the
     /// scrolled window coordinates that the user sees.
     pub(crate) fn presentation_scroll_transform_for_node(&self, node: &ExpandedNode) -> Affine {
+        self.scroll_transform_for_node(node, true)
+    }
+
+    pub(crate) fn destination_scroll_transform_for_node(&self, node: &ExpandedNode) -> Affine {
+        self.scroll_transform_for_node(node, false)
+    }
+
+    fn scroll_transform_for_node(&self, node: &ExpandedNode, presented: bool) -> Affine {
         let mut ancestors = Vec::new();
-        let mut current = node.render_parent_node();
+        let mut current = if presented {
+            node.presentation_parent_node()
+        } else {
+            node.render_parent_node()
+        };
         while let Some(parent) = current {
-            current = parent.render_parent_node();
+            // A destination can itself be travelling; its geometry already includes
+            // that outer flight's viewport placement.
+            current = parent.presentation_parent_node();
             ancestors.push(parent);
         }
         ancestors.reverse();
@@ -1427,7 +1466,7 @@ impl RuntimeContext {
             // the owning boundaries in damage/replay selection; native coverage remains unchanged.
             let mut parent = self
                 .get_expanded_node_by_eid(id)
-                .and_then(|n| n.render_parent_node());
+                .and_then(|n| n.presentation_parent_node());
             while let Some(node) = parent {
                 if node.shader_effect_bound.get() {
                     borrow_mut!(self.dirty_canvas_nodes).insert(node.id);
@@ -1435,7 +1474,7 @@ impl RuntimeContext {
                         ids.remove(&node.id.to_u32());
                     }
                 }
-                parent = node.render_parent_node();
+                parent = node.presentation_parent_node();
             }
         }
 
@@ -1497,7 +1536,7 @@ impl RuntimeContext {
             }
             // Memoize each parent once across the whole reconciliation, rather
             // than walking every recipient's ancestry again for every layer.
-            let mut current = node.render_parent_node();
+            let mut current = node.presentation_parent_node();
             let mut missing = Vec::new();
             let mut ancestry = Rc::new(Vec::new());
             while let Some(parent) = current {
@@ -1505,7 +1544,7 @@ impl RuntimeContext {
                     ancestry = Rc::clone(known);
                     break;
                 }
-                current = parent.render_parent_node();
+                current = parent.presentation_parent_node();
                 missing.push(parent);
             }
             for parent in missing.into_iter().rev() {
@@ -1703,12 +1742,12 @@ impl RuntimeContext {
     }
 
     fn nearest_light_frame(node: &ExpandedNode) -> Option<ExpandedNodeIdentifier> {
-        let mut current = node.render_parent_node();
+        let mut current = node.presentation_parent_node();
         while let Some(parent) = current {
             if borrow!(parent.instance_node).establishes_light_frame() {
                 return Some(parent.id);
             }
-            current = parent.render_parent_node();
+            current = parent.presentation_parent_node();
         }
         None
     }
@@ -1716,12 +1755,12 @@ impl RuntimeContext {
     #[cfg(test)]
     fn light_frame_ancestry(node: &ExpandedNode) -> HashSet<ExpandedNodeIdentifier> {
         let mut frames = HashSet::new();
-        let mut current = node.render_parent_node();
+        let mut current = node.presentation_parent_node();
         while let Some(parent) = current {
             if borrow!(parent.instance_node).establishes_light_frame() {
                 frames.insert(parent.id);
             }
-            current = parent.render_parent_node();
+            current = parent.presentation_parent_node();
         }
         frames
     }
@@ -2108,6 +2147,7 @@ impl RuntimeContext {
                             plane.depth_at(ray.x, ray.y) + active_depth_offset,
                             plane.backface,
                             accum.len(),
+                            node.presentation_layer.get(),
                         ),
                     );
                     accum.push(Rc::clone(&node));
@@ -2138,14 +2178,13 @@ impl RuntimeContext {
         }
         if has_spatial_hit {
             accum.sort_by(|a, b| {
-                let a = depths.get(&a.id).copied().unwrap_or((0.0, false, 0));
-                let b = depths.get(&b.id).copied().unwrap_or((0.0, false, 0));
+                let a = depths.get(&a.id).copied().unwrap_or((0.0, false, 0, 0));
+                let b = depths.get(&b.id).copied().unwrap_or((0.0, false, 0, 0));
                 // Quantize only numerical ties; geometric depth precedes authored order.
-                (b.0 * 1e7)
-                    .round()
-                    .total_cmp(&(a.0 * 1e7).round())
+                b.3.cmp(&a.3)
+                    .then_with(|| (b.0 * 1e7).round().total_cmp(&(a.0 * 1e7).round()))
                     .then_with(|| {
-                        let order = |value: (f64, bool, usize)| {
+                        let order = |value: (f64, bool, usize, u32)| {
                             pax_runtime_api::DepthPlane {
                                 backface: value.1,
                                 ..Default::default()

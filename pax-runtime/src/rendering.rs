@@ -600,6 +600,17 @@ pub trait InstanceNode {
         }
     }
 
+    /// Whether an application may move an existing instance into this node.
+    /// Containers opting in must consume the effective received-child view.
+    fn accepts_transferred_children(&self) -> bool {
+        false
+    }
+
+    /// Starts a viewport presentation contribution, independent of its authored ancestors.
+    fn is_overlay(&self) -> bool {
+        false
+    }
+
     fn handle_native_interrupt(
         &self,
         _expanded_node: &Rc<ExpandedNode>,

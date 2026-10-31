@@ -19,6 +19,7 @@ pub use pax_runtime::rendering;
 pub use pax_runtime::Container;
 pub use pax_runtime::ContainerFrame;
 pub use pax_runtime::Slot;
+pub use pax_runtime::{AnimatedNodeMove, NodeError, NodeKey, NodeQuery, NodeRef};
 
 #[cfg(feature = "designtime")]
 pub use pax_designtime;

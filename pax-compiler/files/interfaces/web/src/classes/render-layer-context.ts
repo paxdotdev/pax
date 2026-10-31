@@ -10,6 +10,18 @@ import type { LayerCanvasPlan } from "./surface-host-policy";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+// Connected moves can preserve focus, selection and embedded browsing state.
+// Initial attachments still use appendChild; older browsers lack atomic moves.
+function appendPreservingState(parent: Element, child: Element) {
+    const destination = parent as Element & { moveBefore?: (node: Node, reference: Node | null) => void };
+    if (destination.moveBefore && child.isConnected && parent.isConnected
+        && child.ownerDocument === parent.ownerDocument) {
+        destination.moveBefore(child, null);
+    } else {
+        parent.appendChild(child);
+    }
+}
+
 export class RenderLayerManager {
     private layers?: Layer[];
     private canvasMap?: Map<string, HTMLCanvasElement>;
@@ -92,8 +104,8 @@ export class RenderLayerManager {
             ownershipChanged = this.claimLayerForParentFrame(renderLayerId, parent_container);
         }
         let attach_point = this.getOrCreateContainer(parent_container, renderLayerId);
-        if (!attach_point.contains(element)) {
-            attach_point.appendChild(element);
+        if (element.parentElement !== attach_point) {
+            appendPreservingState(attach_point, element);
         }
         refreshLeafOpacities(element);
         return ownershipChanged;
@@ -354,7 +366,7 @@ export class RenderLayerManager {
             if (currentElement) {
                 const newParentElement = this.getOrCreateContainer(new_parent_id, layerIndex);
                 if (currentElement.parentElement !== newParentElement) {
-                    newParentElement.appendChild(currentElement);
+                    appendPreservingState(newParentElement, currentElement);
                     refreshLeafOpacities(currentElement);
                 }
             }

@@ -47,6 +47,9 @@ pub struct GroupInstance {
 }
 
 impl InstanceNode for GroupInstance {
+    fn accepts_transferred_children(&self) -> bool {
+        true
+    }
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,

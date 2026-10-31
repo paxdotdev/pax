@@ -28,6 +28,7 @@ pub mod route_pages;
 pub mod runtime_section;
 mod section_layout;
 pub mod shared_definition_demo;
+pub mod site_logo;
 pub mod site_shell;
 pub mod site_theme;
 
@@ -43,7 +44,7 @@ pub use hero_letter::{HeroCluster, HeroLetter};
 pub use hero_section::HeroSection;
 pub use home_page::HomePage;
 pub use mobile_source_sheet::MobileSourceSheet;
-pub use nav_logo::{LogoAnchor, LogoHome, NavLogo};
+pub use nav_logo::NavLogo;
 pub use open_source_section::OpenSourceSection;
 pub use paxflix_showcase::PaxflixShowcase;
 pub use resource_section::ResourceSection;
@@ -51,6 +52,7 @@ pub use rotating_headline::RotatingHeadline;
 pub use route_pages::{CalculatorPage, NotFoundPage, PaxflixPage};
 pub use runtime_section::RuntimeSection;
 pub use shared_definition_demo::{RelationshipPreview, SharedDefinitionDemo};
+pub use site_logo::SiteLogo;
 pub use site_shell::SiteShell;
 pub use site_theme::SiteTheme;
 
@@ -58,7 +60,6 @@ pub use site_theme::SiteTheme;
 #[main]
 #[file("lib.pax")]
 pub struct Example {
-    pub logo_anchor: Property<LogoAnchor>,
     pub page_scroll_y: Property<f64>,
     pub hero_source_open: Property<bool>,
     pub source_overlay_open: Property<bool>,

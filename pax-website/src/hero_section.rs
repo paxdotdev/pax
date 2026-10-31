@@ -1,4 +1,4 @@
-use crate::{LogoAnchor, LogoHome, RotatingHeadline, SiteTheme};
+use crate::{site_shell::LogoNavigation, RotatingHeadline, SiteLogo, SiteTheme};
 use pax_kit::*;
 
 #[pax]
@@ -11,12 +11,13 @@ pub struct HeroSection {
     pub logo_width: Property<f64>,
     pub logo_progress: Property<f64>,
     pub _vertical_padding: Property<f64>,
+    pub logo_docked: Property<bool>,
+    pub _transfer_ready: Property<bool>,
     pub _last_ms: Property<f64>,
     pub _last_content_height: Property<f64>,
     pub _startup_quiet_ms: Property<f64>,
     pub _startup_deadline_ms: Property<f64>,
     pub _logo_started: Property<bool>,
-    pub logo_anchor: Property<LogoAnchor>,
     pub scroll_y: Property<f64>,
 }
 
@@ -28,9 +29,15 @@ impl HeroSection {
         self._startup_deadline_ms.set(now + 5000.0);
         self._height_bound.set(false);
         self.bind_layout(ctx);
+        if let Ok(present) = ctx.with_store(|nav: &mut LogoNavigation| nav.hero_present.clone()) {
+            present.local().set(true);
+        }
     }
 
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
+        // The home mount handler runs before all of its descendants and the nav
+        // exist. Arm its subscription once the initial tree has been mounted.
+        self._transfer_ready.set_if_neq(true);
         let previous_height = self._last_content_height.get();
         if !self._height_bound.get() {
             self._height_bound
@@ -96,5 +103,114 @@ impl HeroSection {
         };
         update();
         ctx.subscribe(&deps, update);
+    }
+
+    pub fn bind_logo_transfer(&mut self, ctx: &NodeContext) {
+        // get_node_interface() addresses the containing component; this inline
+        // handler needs the home Group itself, whose footprint stays put.
+        let Some(home) = ctx.expanded_node.upgrade().map(NodeInterface::from) else {
+            return;
+        };
+        let Ok(nav) = ctx.with_store(|nav: &mut LogoNavigation| nav.clone()) else {
+            return;
+        };
+        let geometry = home.transform_and_bounds();
+        let scroll_y = self.scroll_y.local();
+        let ready = self._transfer_ready.local();
+        let docked = self.logo_docked.local();
+        let deps = [
+            geometry.untyped(),
+            scroll_y.untyped(),
+            nav.nav_bottom.untyped(),
+            nav.hidden.local().untyped(),
+            ready.untyped(),
+        ];
+        let context = ctx.clone();
+        ctx.subscribe(&deps, move || {
+            if !ready.get() {
+                return;
+            }
+            let home = geometry.get();
+            if home.bounds.0 <= 0.0 || home.bounds.1 <= 0.0 {
+                return;
+            }
+            // This footprint stays at home. Following the moving logo itself
+            // would feed the animation back into its own transfer threshold.
+            let home_top = home
+                .corners()
+                .iter()
+                .map(|p| p.y)
+                .fold(f64::INFINITY, f64::min);
+            // Main's compact hero starts inside the future nav's bounds. Leave
+            // enough departure distance for the 24px return hysteresis at rest.
+            let boundary = nav.nav_bottom.get().min(home_top - 32.0);
+            let hidden = nav.hidden.get();
+            let next = !hidden && should_dock(home_top - scroll_y.get(), boundary, docked.get());
+            if next == docked.get() {
+                return;
+            }
+            let result = (|| {
+                let root = context.app_root()?;
+                let logo = root.query("#hero_logo").one()?;
+                if hidden {
+                    return logo.move_to_home();
+                }
+                let movement =
+                    logo.animated(Duration::Milliseconds(320.into()), EasingCurve::OutQuad);
+                if next {
+                    movement.move_to_append_child(
+                        &root.query("#site_nav").query("#logo_container").one()?,
+                    )
+                } else {
+                    movement.move_to_home()
+                }
+            })();
+            match result {
+                Ok(()) => {
+                    docked.set(next);
+                    nav.hero_docked.local().set(next);
+                },
+                Err(error) => eprintln!("website logo transfer: {error}"),
+            }
+        });
+    }
+
+    pub fn activate_logo(&mut self, ctx: &NodeContext, _: Event<Click>) {
+        // Moves preserve declaration/event ownership, so the visiting logo
+        // handles navigation through its original component.
+        if self.logo_docked.get() {
+            self.scroll_y.set(0.0);
+            ctx.navigate_to("/", NavigationTarget::Current);
+        }
+    }
+
+    pub fn on_unmount(&mut self, ctx: &NodeContext) {
+        if let Ok(present) = ctx.with_store(|nav: &mut LogoNavigation| nav.hero_present.clone()) {
+            present.local().set(false);
+        }
+        if let Ok(docked) = ctx.with_store(|nav: &mut LogoNavigation| nav.hero_docked.clone()) {
+            docked.local().set(false);
+        }
+    }
+}
+
+fn should_dock(home_top: f64, nav_bottom: f64, docked: bool) -> bool {
+    home_top.is_finite()
+        && nav_bottom.is_finite()
+        && home_top <= nav_bottom + if docked { 24.0 } else { 0.0 }
+}
+
+#[cfg(test)]
+mod transfer_tests {
+    use super::*;
+
+    #[test]
+    fn compact_home_overlapping_nav_can_depart_and_return() {
+        let home_top: f64 = 24.0;
+        let boundary = 64.0_f64.min(home_top - 32.0);
+        assert!(!should_dock(home_top, boundary, false));
+        assert!(should_dock(home_top - 32.0, boundary, false));
+        assert!(should_dock(home_top - 16.0, boundary, true));
+        assert!(!should_dock(home_top, boundary, true));
     }
 }

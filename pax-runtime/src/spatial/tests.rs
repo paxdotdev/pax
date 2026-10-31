@@ -475,10 +475,26 @@ fn front_region_splits_native_coverage_and_reverses_backface_order() {
     use pax_runtime_api::DepthPlane;
     let flat = DepthPlane::default();
     let tilted = DepthPlane {
+        presentation_layer: 0,
         coefficients: [1.0, 0.0, -50.0],
         backface: false,
     };
     let bounds = kurbo::Rect::new(0.0, 0.0, 100.0, 100.0);
+    let overlay = DepthPlane {
+        presentation_layer: 1,
+        ..flat
+    };
+    let high_world = DepthPlane {
+        coefficients: [100., 100., 1e9],
+        ..flat
+    };
+    close(
+        front_region(overlay, high_world, -100, 100, bounds)
+            .unwrap()
+            .area(),
+        10000.,
+    );
+    assert!(front_region(high_world, overlay, 100, -100, bounds).is_none());
     let region = front_region(tilted, flat, 0, 10, bounds).unwrap();
     close(region.area(), 5000.0);
     assert!(!region.contains((25.0, 50.0).into()));

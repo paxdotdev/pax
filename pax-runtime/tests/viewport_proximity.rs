@@ -978,6 +978,42 @@ fn indexed_native_masks_match_full_for_movement_opacity_clipping_and_structure()
 }
 
 #[test]
+fn spatial_native_masks_keep_scroll_local_cutouts_and_follow_depth_reversal() {
+    TRACK_OCCLUSION.with(|flag| flag.set(true));
+    let native = Probe::new(Kind::Native, rect(0.0), &[], vec![]);
+    let paint = Probe::new(Kind::Paint, rect(0.0), &[], vec![]);
+    // Authored order puts paint behind the native leaf; depth must reverse it.
+    let scroller = Probe::new(
+        Kind::Scroll,
+        Rect::new(0.0, 0.0, 320.0, 240.0),
+        &[],
+        vec![native, paint],
+    );
+    let (mut engine, root) = mount(vec![scroller]);
+    engine.runtime_context.edit_globals(|globals| globals.renderer_is_gpu = true);
+    let scroller = root.children.get()[0].clone();
+    let native = scroller.children.get()[0].clone();
+    let paint = scroller.children.get()[1].clone();
+    paint.get_common_properties().borrow().translate_z.set(Some(Depth::from(50.0)));
+    engine.tick();
+    let front_hash = native.native_mask_hash.get();
+    assert_ne!(front_hash, 0);
+    scroll(&engine.runtime_context, &scroller, 0.0, 20.0);
+    engine.tick();
+    assert_eq!(native.native_mask_hash.get(), front_hash);
+    assert_masks_match_full(&mut engine, &[native.clone()]);
+    paint.get_common_properties().borrow().translate_z.set(Some(Depth::from(-50.0)));
+    engine.tick();
+    assert_eq!(native.native_mask_hash.get(), 0);
+    assert_masks_match_full(&mut engine, &[native.clone()]);
+    paint.get_common_properties().borrow().translate_z.set(Some(Depth::from(50.0)));
+    engine.tick();
+    assert_eq!(native.native_mask_hash.get(), front_hash);
+    assert_masks_match_full(&mut engine, &[native]);
+    TRACK_OCCLUSION.with(|flag| flag.set(false));
+}
+
+#[test]
 fn indexed_native_masks_and_scroll_queries_stay_local_in_large_scene() {
     TRACK_OCCLUSION.with(|flag| flag.set(true));
     let mut children: Vec<Rc<dyn InstanceNode>> = Vec::new();

@@ -255,6 +255,13 @@ pub(crate) struct FilteredRenderStats {
 /// ```
 #[derive(Clone)]
 pub struct ExpandedNode {
+    pub(crate) move_origin: LocalProperty<Option<crate::presentation::MoveOrigin>>,
+    pub(crate) move_progress: LocalProperty<f64>,
+    pub(crate) move_in_flight: Cell<bool>,
+    pub(crate) reference_epoch: Cell<u64>,
+    /// Presentation ordering domain: ordinary scene (0) or a ranked viewport contribution.
+    pub presentation_layer: LocalProperty<u32>,
+    pub(crate) authored_attachment: RefCell<Option<crate::presentation::AuthoredAttachment>>,
     property_binding_scope: RefCell<pax_runtime_api::properties::BindingScope>,
     async_scope: RefCell<Option<AsyncScope>>,
     #[allow(dead_code)]
@@ -1115,6 +1122,12 @@ impl ExpandedNode {
             .upgrade()
             .and_then(|parent| parent.render_source_owner.get());
         let res = Rc::new(ExpandedNode {
+            move_origin: LocalProperty::new(None),
+            move_progress: LocalProperty::new(1.0),
+            move_in_flight: Cell::new(false),
+            reference_epoch: Cell::new(0),
+            presentation_layer: LocalProperty::new(0),
+            authored_attachment: Default::default(),
             property_binding_scope: RefCell::new(property_binding_scope),
             async_scope: RefCell::new(None),
             id,
@@ -1421,14 +1434,20 @@ impl ExpandedNode {
     /// Presentation/dirty-walk children. During incremental startup this reads
     /// only mounted attachments, without forcing reactive structural expansion.
     pub fn presentation_children(&self, context: &RuntimeContext) -> Vec<Rc<ExpandedNode>> {
-        if context.startup.borrow().is_active() {
+        context.flight_children(self, self.logical_children(context))
+    }
+
+    /// Current destination tree, independent of temporary animation presentation.
+    pub(crate) fn logical_children(&self, context: &RuntimeContext) -> Vec<Rc<ExpandedNode>> {
+        let children = if context.startup.borrow().is_active() {
             self.current_attached_children()
                 .into_iter()
                 .filter(|c| c.attached.get() > 0)
                 .collect()
         } else {
             self.children.get()
-        }
+        };
+        context.placed_children(self, children)
     }
 
     pub(crate) fn rescue_exiting_child_matching(
@@ -2093,6 +2112,31 @@ impl ExpandedNode {
     ) -> Vec<Rc<ExpandedNode>> {
         let mut bindings_changed = false;
         for child in new_children.iter() {
+            let previous_authored = child
+                .authored_attachment
+                .borrow()
+                .as_ref()
+                .and_then(|a| a.parent.upgrade());
+            *child.authored_attachment.borrow_mut() =
+                Some(crate::presentation::AuthoredAttachment {
+                    parent: Rc::downgrade(self),
+                    frame: parent_frame.clone(),
+                    glass: liquid_glass_scope.clone(),
+                });
+            if child.instance_node.borrow().is_overlay() {
+                if previous_authored.is_none() || child.attached.get() == 0 {
+                    child.bind_overlay_root(context);
+                }
+                continue;
+            }
+            if context.is_transferred(child.id) {
+                if let Some(previous) = previous_authored.filter(|p| p.id != self.id) {
+                    previous.detach_child_for_reparent(child);
+                }
+                // Structural updates still own this child's lifetime and scope;
+                // its current presentation attachment survives reconciliation.
+                continue;
+            }
             let previous_parent = borrow!(child.render_parent).upgrade();
             let parent_changed = previous_parent
                 .as_ref()
@@ -2120,7 +2164,9 @@ impl ExpandedNode {
         // this fast path. Exiting children remain managed by their cleanup lane.
         if Self::same_children(&borrow!(self.active_children), &new_children)
             && (self.attached.get() == 0
-                || new_children.iter().all(|child| child.attached.get() > 0))
+                || new_children
+                    .iter()
+                    .all(|child| child.attached.get() > 0 || context.is_detached(child.id)))
         {
             if bindings_changed {
                 self.mark_non_reactive_update_subtree_dirty();
@@ -2132,6 +2178,10 @@ impl ExpandedNode {
             let old_active_children = borrow!(self.active_children).clone();
             for child in old_active_children.iter() {
                 if Self::has_child(&new_children, child) {
+                    continue;
+                }
+                if context.is_detached(child.id) {
+                    Rc::clone(child).recurse_unmount(context);
                     continue;
                 }
                 if child.transition_phase.get() == TRANSITION_PHASE_EXIT {
@@ -2149,10 +2199,13 @@ impl ExpandedNode {
                 }
             }
             for child in new_children.iter() {
+                if context.is_detached(child.id) {
+                    continue;
+                }
                 if !Self::has_child(&old_active_children, child) || child.attached.get() == 0 {
-                    if child.attached.get() > 0 {
+                    if child.attached.get() > 0 && !context.is_transferred(child.id) {
                         child.start_enter_transition_tree(context);
-                    } else {
+                    } else if child.attached.get() == 0 {
                         if !context.defer_initial_mount(self, child) {
                             Rc::clone(child).recurse_mount(context);
                             newly_mounted_children.push(Rc::clone(child));
@@ -2167,6 +2220,7 @@ impl ExpandedNode {
             child.trigger_bound_enter_transitions_for_mounted_sources_recursive(context);
         }
         self.mark_non_reactive_update_subtree_dirty();
+        context.authored_order_changed();
         mounted
     }
 
@@ -2185,7 +2239,7 @@ impl ExpandedNode {
         new_children
     }
 
-    fn ensure_parent_bindings(
+    pub(crate) fn ensure_parent_bindings(
         self: &Rc<Self>,
         parent: &Rc<Self>,
         context: &Rc<RuntimeContext>,
@@ -2264,10 +2318,29 @@ impl ExpandedNode {
         true
     }
 
-    fn rebind_parent_bounds_for_mounted_subtree(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+    fn bind_overlay_root(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        *self.render_parent.borrow_mut() = Weak::new();
+        self.parent_frame.replace_with(LocalProperty::new(None));
+        self.liquid_glass_scope
+            .replace_with(LocalProperty::new(None));
+        self.container_frame.set(None);
+        let suspended = self.get_common_properties().borrow()._suspended.clone();
+        let deps = [suspended.untyped()];
+        self.suspended.replace_with(LocalProperty::computed(
+            move || suspended.get().unwrap_or(false),
+            &deps,
+        ));
+        self.bind_to_parent_bounds(context);
+    }
+
+    pub(crate) fn rebind_parent_bounds_for_mounted_subtree(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+    ) {
         self.bind_to_parent_bounds(context);
         self.bind_occlusion_listener(context);
-        let mounted_children = borrow!(self.mounted_children).clone();
+        let mounted_children =
+            context.placed_children(self, borrow!(self.mounted_children).clone());
         for child in mounted_children {
             child.rebind_parent_bounds_for_mounted_subtree(context);
         }
@@ -2277,7 +2350,7 @@ impl ExpandedNode {
         }
     }
 
-    fn mark_canvas_subtree_dirty_for_reparent(
+    pub(crate) fn mark_canvas_subtree_dirty_for_reparent(
         self: &Rc<Self>,
         context: &Rc<RuntimeContext>,
         queue_retained_removal: bool,
@@ -2292,7 +2365,8 @@ impl ExpandedNode {
         }
         context.mark_occlusion_dirty_for_node(self.id.to_u32());
 
-        let mounted_children = borrow!(self.mounted_children).clone();
+        let mounted_children =
+            context.placed_children(self, borrow!(self.mounted_children).clone());
         for child in mounted_children {
             child.mark_canvas_subtree_dirty_for_reparent(context, queue_retained_removal);
         }
@@ -2313,6 +2387,29 @@ impl ExpandedNode {
         self.parent_binding_rebuilds
             .set(self.parent_binding_rebuilds.get() + 1);
         let render_parent = borrow!(self.render_parent).upgrade();
+        if self.instance_node.borrow().is_overlay() || self.move_in_flight.get() {
+            let context = Rc::downgrade(ctx);
+            let id = self.id;
+            let deps = [ctx.presentation_generation.untyped()];
+            self.presentation_layer
+                .replace_with(LocalProperty::computed(
+                    move || {
+                        context
+                            .upgrade()
+                            .map(|ctx| ctx.presentation_domain(id))
+                            .unwrap_or(0)
+                    },
+                    &deps,
+                ));
+        } else {
+            let domain = render_parent
+                .as_ref()
+                .map(|p| p.presentation_layer.clone())
+                .unwrap_or_default();
+            let deps = [domain.untyped()];
+            self.presentation_layer
+                .replace_with(LocalProperty::computed(move || domain.get(), &deps));
+        }
         let parent_geometry = render_parent
             .as_ref()
             .map(|n| n.spatial_geometry.clone())
@@ -2378,7 +2475,7 @@ impl ExpandedNode {
             measured.untyped(),
             container.untyped(),
         ];
-        self.layout_bounds.replace_with(LocalProperty::computed(
+        let target_bounds = LocalProperty::computed(
             move || {
                 let measured = measured.get();
                 crate::layout::resolve_layout_bounds(
@@ -2390,6 +2487,29 @@ impl ExpandedNode {
                         .or(measured.map(|size| Size::Pixels(size.1.into()))),
                     container.get().bounds,
                 )
+            },
+            &deps,
+        );
+        let origin = self.move_origin.clone();
+        let progress = self.move_progress.clone();
+        let deps = [
+            target_bounds.untyped(),
+            origin.untyped(),
+            progress.untyped(),
+        ];
+        self.layout_bounds.replace_with(LocalProperty::computed(
+            move || {
+                let target = target_bounds.get();
+                match origin.get() {
+                    Some(origin) => {
+                        let t = progress.get();
+                        (
+                            (origin.bounds.0 + (target.0 - origin.bounds.0) * t).max(0.0),
+                            (origin.bounds.1 + (target.1 - origin.bounds.1) * t).max(0.0),
+                        )
+                    }
+                    None => target,
+                }
             },
             &deps,
         ));
@@ -2417,7 +2537,7 @@ impl ExpandedNode {
             rotate_y.untyped(),
             translate_z.untyped(),
         ];
-        self.spatial_geometry.replace_with(LocalProperty::computed(
+        let target_geometry = LocalProperty::computed(
             move || {
                 let local = local.get();
                 let rx = rotate_x.get().unwrap_or_default().get_as_radians();
@@ -2446,7 +2566,13 @@ impl ExpandedNode {
                 parent_geometry.get().append_local(transform, local.bounds)
             },
             &deps,
-        ));
+        );
+        self.spatial_geometry
+            .replace_with(crate::presentation::bind_move_geometry(
+                self,
+                ctx,
+                target_geometry,
+            ));
         let geometry = self.spatial_geometry.clone();
         let deps = [geometry.untyped()];
         self.transform_and_bounds
@@ -2465,13 +2591,14 @@ impl ExpandedNode {
                 &deps,
             ));
 
-        let parent_opacity = borrow!(self.render_parent)
-            .upgrade()
+        let presentation_parent = self.presentation_parent_node();
+        let parent_opacity = presentation_parent
+            .as_ref()
             .map(|n| n.computed_opacity.clone())
             .unwrap_or_else(|| LocalProperty::new(1.0));
         let common_props = self.get_common_properties();
         let self_opacity = borrow!(common_props).opacity.clone();
-        let parent_scopes = render_parent
+        let parent_scopes = presentation_parent
             .as_ref()
             .map(|n| n.computed_opacity_scopes.clone())
             .unwrap_or_else(|| LocalProperty::new(Vec::new()));
@@ -2520,6 +2647,7 @@ impl ExpandedNode {
         // Structural child changes are handled by children_listener after
         // reconciliation; data-only repeat invalidation is not an occlusion change.
         deps.extend([
+            self.presentation_layer.untyped(),
             self.transform_and_bounds.untyped(),
             self.spatial_geometry.untyped(),
             self.computed_opacity.untyped(),
@@ -2596,7 +2724,7 @@ impl ExpandedNode {
                     let Some(node) = weak_self.upgrade() else {
                         return;
                     };
-                    if !node.child_structure_changed(&previous) {
+                    if !node.child_structure_changed(&previous, &context) {
                         return;
                     }
                     #[cfg(test)]
@@ -2655,9 +2783,13 @@ impl ExpandedNode {
     }
 
     fn bind_subtree_layout_hull(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
-        self.rebind_subtree_layout_hull();
-        let deps = [self.children.untyped()];
+        self.rebind_subtree_layout_hull(ctx);
+        let deps = [
+            self.children.untyped(),
+            ctx.presentation_generation.untyped(),
+        ];
         let weak_self = Rc::downgrade(self);
+        let context = Rc::clone(ctx);
         let previous = RefCell::new(None);
         self.subtree_layout_hull_listener
             .replace_with(LocalProperty::computed_with_name(
@@ -2665,8 +2797,8 @@ impl ExpandedNode {
                     let Some(node) = weak_self.upgrade() else {
                         return;
                     };
-                    if node.child_structure_changed(&previous) {
-                        node.rebind_subtree_layout_hull();
+                    if node.child_structure_changed(&previous, &context) {
+                        node.rebind_subtree_layout_hull(&context);
                     }
                 },
                 &deps,
@@ -2678,10 +2810,14 @@ impl ExpandedNode {
             "subtree layout hull listener",
         );
     }
-    fn child_structure_changed(&self, previous: &RefCell<Option<ChildStructure>>) -> bool {
+    fn child_structure_changed(
+        &self,
+        previous: &RefCell<Option<ChildStructure>>,
+        context: &RuntimeContext,
+    ) -> bool {
         // Always evaluate first: reconciliation may update data, rescue an exit,
         // or remove a completed exit even when the source keys are unchanged.
-        let children = self.children.get();
+        let children = self.logical_children(context);
         let ids = |children: &[Rc<ExpandedNode>]| {
             children.iter().map(|child| child.id).collect::<Vec<_>>()
         };
@@ -2701,7 +2837,7 @@ impl ExpandedNode {
         true
     }
 
-    fn rebind_subtree_layout_hull(self: &Rc<Self>) {
+    fn rebind_subtree_layout_hull(self: &Rc<Self>, context: &RuntimeContext) {
         #[cfg(test)]
         self.layout_hull_rebuilds
             .set(self.layout_hull_rebuilds.get() + 1);
@@ -2719,7 +2855,7 @@ impl ExpandedNode {
                 common_props.padding_y.clone(),
             )
         };
-        let children = self.children.get();
+        let children = self.logical_children(context);
         let has_children = !children.is_empty();
         let bounds_name = format!("layout bounds (node id: {})", self.id.0);
         let bounds_transform_and_bounds = self_transform_and_bounds.clone();
@@ -3083,6 +3219,9 @@ impl ExpandedNode {
             }
             self.mount_epoch.set(self.mount_epoch.get().wrapping_add(1));
             self.attached.set(self.attached.get() + 1);
+            if self.instance_node.borrow().is_overlay() {
+                context.register_overlay(self);
+            }
             self.start_self_enter_transition(context);
             context.add_to_cache(&self);
             self.run_lifecycle_handlers_for_key("mount", context);
@@ -3118,7 +3257,21 @@ impl ExpandedNode {
     }
 
     pub fn recurse_unmount(self: Rc<Self>, context: &Rc<RuntimeContext>) {
+        self.unmount_internal(context, false);
+    }
+
+    pub(crate) fn unmount_for_recovery(self: Rc<Self>, context: &Rc<RuntimeContext>) {
+        self.unmount_internal(context, true);
+    }
+
+    fn unmount_internal(self: Rc<Self>, context: &Rc<RuntimeContext>, preserve_recovery: bool) {
         if self.attached.get() != 1 {
+            if !preserve_recovery {
+                self.reference_epoch
+                    .set(self.reference_epoch.get().wrapping_add(1));
+                context.remove_presentation(&self, false);
+                self.authored_attachment.borrow_mut().take();
+            }
             return;
         }
         let _graph = context.property_graph.enter();
@@ -3128,10 +3281,20 @@ impl ExpandedNode {
         // expr evaluation in this context can trigger get's of "old data", ie try to get
         // an index of a for loop source that doesn't exist anymore
         if self.attached.get() == 1 {
+            self.run_lifecycle_handlers_for_key("pre_unmount", context);
             if let Some(scope) = self.async_scope.borrow_mut().take() {
                 scope.cancel();
             }
             self.attached.set(self.attached.get() - 1);
+            if self.move_origin.get().is_some() {
+                self.move_progress.cancel_transitions();
+                self.move_origin.set(None);
+            }
+            if !preserve_recovery {
+                self.reference_epoch
+                    .set(self.reference_epoch.get().wrapping_add(1));
+            }
+            context.remove_presentation(&self, preserve_recovery);
             context.remove_from_cache(&self);
             for child in borrow!(self.mounted_children).iter() {
                 Rc::clone(child).recurse_unmount(context);
@@ -3224,6 +3387,9 @@ impl ExpandedNode {
             *borrow_mut!(self.properties) =
                 Rc::new(RefCell::new(PaxAny::Builtin(PaxValue::default())));
             self.property_binding_scope.borrow().close();
+            if !preserve_recovery {
+                self.authored_attachment.borrow_mut().take();
+            }
         }
     }
 
@@ -3481,6 +3647,36 @@ impl ExpandedNode {
         borrow!(self.render_parent).upgrade()
     }
 
+    /// Flights have viewport presentation while retaining a logical layout parent.
+    pub(crate) fn presentation_parent_node(&self) -> Option<Rc<ExpandedNode>> {
+        if self.move_in_flight.get() {
+            None
+        } else {
+            self.render_parent_node()
+        }
+    }
+
+    pub(crate) fn rebind_move_presentation(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        if let Some(parent) = self.render_parent_node() {
+            if self.move_in_flight.get() {
+                self.ensure_parent_bindings(
+                    &parent,
+                    context,
+                    &LocalProperty::new(None),
+                    &LocalProperty::new(None),
+                );
+            } else {
+                self.ensure_parent_bindings(
+                    &parent,
+                    context,
+                    &parent.parent_frame,
+                    &parent.liquid_glass_scope,
+                );
+            }
+        }
+        self.rebind_parent_bounds_for_mounted_subtree(context);
+    }
+
     pub(crate) fn is_unclippable(&self) -> bool {
         let cp = self.get_common_properties();
         let cp = borrow!(cp);
@@ -3718,6 +3914,31 @@ impl ExpandedNode {
                 }
             }
         };
+        let owned =
+            borrow!(self.instance_node).received_children_source() == ReceivedChildrenSource::Owned;
+        let deps = [
+            received_children.untyped(),
+            ctx.presentation_generation.untyped(),
+        ];
+        let weak_node = Rc::downgrade(self);
+        let context = Rc::clone(ctx);
+        let received_children = LocalProperty::computed(
+            move || {
+                let children = received_children.get();
+                if owned {
+                    weak_node
+                        .upgrade()
+                        .map(|node| context.placed_children(&node, children))
+                        .unwrap_or_default()
+                } else {
+                    children
+                        .into_iter()
+                        .filter(|child| !context.is_transferred(child.id))
+                        .collect()
+                }
+            },
+            &deps,
+        );
         let received_children_count_source = received_children.clone();
         let received_children_count = LocalProperty::computed(
             move || received_children_count_source.get().len(),

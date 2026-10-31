@@ -10,6 +10,7 @@
 - [core::link](core/link.md)
 - [core::liquid_glass](core/liquid_glass.md)
 - [core::mask](core/mask.md)
+- [core::overlay](core/overlay.md)
 - [core::router](core/router.md)
 - [core::scroller](core/scroller.md)
 - [core::text](core/text.md)

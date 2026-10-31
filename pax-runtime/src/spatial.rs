@@ -79,6 +79,7 @@ impl SpatialGeometry {
             .iter()
             .all(|v| v.is_finite())
             .then_some(pax_runtime_api::DepthPlane {
+                presentation_layer: 0,
                 coefficients,
                 backface: self.plane()?.normal().z < 0.,
             })
@@ -186,6 +187,12 @@ pub(crate) fn front_region(
     back_order: i32,
     bounds: kurbo::Rect,
 ) -> Option<kurbo::BezPath> {
+    if front.presentation_layer != back.presentation_layer {
+        return (front.presentation_layer > back.presentation_layer).then(|| {
+            use kurbo::Shape;
+            bounds.to_path(0.1)
+        });
+    }
     let points = [
         kurbo::Point::new(bounds.x0, bounds.y0),
         kurbo::Point::new(bounds.x1, bounds.y0),

@@ -63,6 +63,43 @@ scene. Add a Rectangle or another drawing primitive when you want a
 surface. A rounded Rectangle changes its own silhouette; it does not clip
 text, images, or other siblings to that silhouette.
 
+## Fixed Overlays
+
+`Overlay` contributes content to a viewport-fixed presentation layer above the
+ordinary scene, including its spatial depth. Each Overlay is additive: components
+can contribute independent navigation, controls, or notices without a central
+registry. Earlier authored contributions appear above later contributions.
+
+```pax
+<Overlay>
+    <Group id=nav width=100% height=96px>
+        <Group id=logo_container x=16px y=8px width=320px height=80px />
+        <Rectangle width=100% height=100% fill=rgb(24, 56, 49) />
+    </Group>
+</Overlay>
+```
+
+The Overlay starts in viewport coordinates and escapes its authored ancestors'
+transforms, scrolling, clipping, and opacity. Its own descendants still compose
+normally. It has no background or implicit modal input barrier; only presented
+content participates in hit testing. The declaration still owns its lifetime,
+reactive bindings, and event handlers, so removing its authored subtree removes
+its contribution too. Overlay order and depth separation are shared by native
+and canvas content.
+
+To put an existing mounted node into a particular contribution, query its Group
+and call a `move_to_*` method. The node adopts that destination's layout; a logo
+with percentage dimensions therefore sizes against `logo_container`. See
+[finding and moving nodes](event-handling-rust.md#find-and-move-existing-nodes)
+for insertion, animation, and teardown/recovery semantics. The
+`overlay-transfer` fixture exercises two contributions, including one authored
+inside a transformed, faded Scroller subtree.
+
+Animated transfers across contributions temporarily draw above the higher
+participating Overlay, preserving the order of unrelated contributions above
+it. A returning logo therefore remains visible over the nav until it settles
+into its scrolling home, where normal stacking and clipping resume.
+
 ## Clip with a Frame
 
 A Frame clips its descendants to its bounds by default. `corner_radius`

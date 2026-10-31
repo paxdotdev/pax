@@ -4,7 +4,7 @@ use pax_manifest::{
     SettingsBlockElement, TemplateNodeDefinition, Token, TypeId, ValueDefinition,
 };
 
-const PHASES: [&str; 4] = ["mount", "tick", "pre_render", "unmount"];
+const PHASES: [&str; 5] = ["mount", "tick", "pre_render", "pre_unmount", "unmount"];
 
 fn component(type_id: TypeId, owner: &str) -> ComponentDefinition {
     ComponentDefinition {

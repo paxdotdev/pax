@@ -3344,6 +3344,7 @@ fn intersecting_spatial_planes_preserve_transparency_clips_and_retained_updates(
         renderer.set_node_depth_plane(
             1,
             Some(DepthPlane {
+                presentation_layer: 0,
                 coefficients,
                 backface: false,
             }),
@@ -3414,6 +3415,7 @@ fn spatial_group_opacity_and_backface_reuse_paint_without_stale_captures() {
             renderer.set_node_depth_plane(
                 id,
                 Some(DepthPlane {
+                    presentation_layer: 0,
                     coefficients: [slope, 0.0, -32.0 * slope],
                     backface,
                 }),
@@ -3438,5 +3440,113 @@ fn spatial_group_opacity_and_backface_reuse_paint_without_stale_captures() {
                 },
             );
         }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn overlay_domain_stays_above_world_depth_and_reorders_retained_paint() {
+    use pax_runtime_api::DepthPlane;
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 32, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.set_viewport(64.0, 32.0, [1.0, 1.0]);
+    for (id, z, color) in [
+        (1, 10, Color::rgba(1.0, 0.0, 0.0, 1.0)),
+        (2, -10, Color::rgba(0.0, 0.0, 1.0, 1.0)),
+    ] {
+        renderer.begin_node(id, z, 0);
+        renderer.fill_path(rect(0.0, 0.0, 64.0, 32.0), Fill::Solid(color));
+        renderer.end_node(id);
+    }
+    renderer.set_node_depth_plane(
+        1,
+        Some(DepthPlane {
+            coefficients: [1.0, 0.0, 1_000_000.0],
+            ..Default::default()
+        }),
+    );
+    for (frame, domain) in [1, 0, 1].into_iter().enumerate() {
+        renderer.set_node_depth_plane(
+            2,
+            Some(DepthPlane {
+                presentation_layer: domain,
+                ..Default::default()
+            }),
+        );
+        renderer.request_screenshot_capture(frame as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let pixels = renderer.take_screenshot_capture(frame as u32).unwrap();
+        for x in [8, 32, 56] {
+            assert_pixel(
+                &pixels,
+                x,
+                16,
+                if domain == 1 {
+                    [0, 0, 255, 255]
+                } else {
+                    [255, 0, 0, 255]
+                },
+            );
+        }
+    }
+    renderer.set_node_depth_plane(
+        2,
+        Some(DepthPlane {
+            presentation_layer: 1,
+            ..Default::default()
+        }),
+    );
+    renderer.begin_node(3, -20, 0);
+    renderer.fill_path(
+        rect(0.0, 0.0, 64.0, 32.0),
+        Fill::Solid(Color::rgba(0.0, 1.0, 0.0, 1.0)),
+    );
+    renderer.end_node(3);
+    renderer.begin_node(4, -30, 0);
+    renderer.fill_path(
+        rect(32.0, 0.0, 64.0, 32.0),
+        Fill::Solid(Color::rgba(1.0, 1.0, 0.0, 1.0)),
+    );
+    renderer.end_node(4);
+    renderer.set_node_depth_plane(
+        4,
+        Some(DepthPlane {
+            presentation_layer: 3,
+            ..Default::default()
+        }),
+    );
+    for (frame, domain) in [2, 0, 2].into_iter().enumerate() {
+        renderer.set_node_depth_plane(
+            3,
+            Some(DepthPlane {
+                presentation_layer: domain,
+                ..Default::default()
+            }),
+        );
+        let capture = frame as u32 + 10;
+        renderer.request_screenshot_capture(capture);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let pixels = renderer.take_screenshot_capture(capture).unwrap();
+        assert_pixel(
+            &pixels,
+            8,
+            16,
+            if domain == 2 {
+                [0, 255, 0, 255]
+            } else {
+                [0, 0, 255, 255]
+            },
+        );
+        assert_pixel(&pixels, 56, 16, [255, 255, 0, 255]);
     }
 }

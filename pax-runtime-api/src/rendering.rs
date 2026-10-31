@@ -40,6 +40,10 @@ impl crate::Interpolatable for OpacityScope {}
 /// retain paint order; a spatial back face reverses its planar layer stack.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct DepthPlane {
+    /// Independent presentation domain. Higher domains paint above lower ones
+    /// regardless of geometric depth; 0 is the scene and positive values rank
+    /// viewport Overlay contributions and temporary transfer presentations.
+    pub presentation_layer: u32,
     pub coefficients: [f64; 3],
     pub backface: bool,
 }

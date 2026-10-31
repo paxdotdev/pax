@@ -1,12 +1,11 @@
 #![allow(unused_imports)]
 
-use crate::{LogoAnchor, SiteTheme};
+use crate::SiteTheme;
 use pax_kit::*;
 
 #[pax]
 #[file("home_page.pax")]
 pub struct HomePage {
-    pub logo_anchor: Property<LogoAnchor>,
     pub scroll_y: Property<f64>,
     pub hero_source_open: Property<bool>,
     pub source_overlay_open: Property<bool>,
@@ -71,12 +70,17 @@ impl HomePage {
             "src/hero_section.rs",
             include_str!("hero_section.rs"),
         );
+        hero_sources.push(ExampleSource {
+            label: "src/home_page.pax".into(),
+            language: "pax".into(),
+            code: include_str!("home_page.pax").into(),
+        });
         // include_str! is relative to this source file, not the build's cwd.
         hero_sources.extend(section_sources(
-            "src/nav_logo.pax",
-            include_str!("nav_logo.pax"),
-            "src/nav_logo.rs",
-            include_str!("nav_logo.rs"),
+            "src/site_logo.pax",
+            include_str!("site_logo.pax"),
+            "src/site_logo.rs",
+            include_str!("site_logo.rs"),
         ));
         hero_sources.extend(section_sources(
             "src/site_shell.pax",
@@ -84,11 +88,6 @@ impl HomePage {
             "src/site_shell.rs",
             include_str!("site_shell.rs"),
         ));
-        hero_sources.push(ExampleSource {
-            label: "src/logo_home.pax".into(),
-            language: "pax".into(),
-            code: include_str!("logo_home.pax").into(),
-        });
         hero_sources.extend(section_sources(
             "src/rotating_headline.pax",
             include_str!("rotating_headline.pax"),

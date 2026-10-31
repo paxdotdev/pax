@@ -7,14 +7,12 @@
         sizes={self.compact ? [] : [Some(28%), None]}>
         <Group width=100% height={self.compact ? (self.logo_width * 463.95 / 920.72)px : 300px}>
             // Match the headline's visible cap height, including its centered line-box inset.
-            <LogoHome x=0px y={self.compact ? 0px : (56 + self.font_px * 0.28)px} width={(self.logo_width)px}
-                height={(self.logo_width * 463.95 / 920.72)px} anchor_x=0px anchor_y=0px home_bounds=bind:self.logo_anchor
-                scroll_y={self.scroll_y} layout_role=LayoutRole::Breakout>
-                <Group width=920.72px height=463.95px anchor_x=0px anchor_y=0px scale={(self.logo_width / 920.72 * 100)%}>
-                    <AnimatedPaxLogo width=920.72px height=463.95px background_mode=LogoBackgroundMode::Dark fill={SiteTheme::ink()}
-                        letter_fill={SiteTheme::paper()} progress=bind:self.logo_progress click_to_replay=true/>
-                </Group>
-            </LogoHome>
+            <Group id=hero_logo_home x=0px y={self.compact ? 0px : (56 + self.font_px * 0.28)px}
+                width={(self.logo_width)px} height={(self.logo_width * 463.95 / 920.72)px}
+                anchor_x=0px anchor_y=0px layout_role=LayoutRole::Breakout @mount=self.bind_logo_transfer>
+                <SiteLogo id=hero_logo width=100% height=100% progress=bind:self.logo_progress click_to_replay={!self.logo_docked}
+                    @click=self.activate_logo/>
+            </Group>
         </Group>
         <Stacker y={self.compact ? 0px : 56px} width=100% autosize=true gutter=26px>
             <RotatingHeadline width=100% height={(self.font_px * 3.7)px} font_px={self.font_px} playing=true/>

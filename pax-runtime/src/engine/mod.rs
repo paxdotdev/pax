@@ -725,6 +725,8 @@ impl PaxEngine {
         // otherwise a replay can clear the old subtree but omit its replacement.
         completed("clock_events");
         ctx.drain_node_effects_with_observer(&mut completed);
+        ctx.finish_move_flights();
+        ctx.drain_node_effects_with_observer(&mut completed);
         ctx.prepare_scene_geometry();
         completed("geometry_before_proximity");
         ctx.dispatch_viewport_proximity();
@@ -789,7 +791,14 @@ impl PaxEngine {
                 if node.id == root.id {
                     break;
                 }
-                node = node.render_parent_node().ok_or("missing_render_parent")?;
+                node = node
+                    .presentation_parent_node()
+                    .or_else(|| {
+                        (node.move_in_flight.get() || node.instance_node.borrow().is_overlay())
+                            .then(|| self.runtime_context.get_root_expanded_node())
+                            .flatten()
+                    })
+                    .ok_or("missing_render_parent")?;
             }
         }
 

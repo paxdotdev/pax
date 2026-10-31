@@ -873,7 +873,7 @@ Native chassis still initialize the main application directly. The loading-state
 API is portable, but native preparation and coordinated publication need chassis
 integration before they can use this metadata. Invoking a loading component in
 an ordinary application tree does not create the host loading scope.
-See the [custom loading-screen fixture](../../../examples/fixtures/loading-screen)
+See the [custom loading-screen fixture](https://github.com/paxdotdev/pax/tree/main/examples/fixtures/loading-screen)
 for a complete component with cancellation and exit/entry timelines.
 
 Within a loading scope, a custom component can bind progress without polling:

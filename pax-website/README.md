@@ -46,34 +46,41 @@ Debug and release outputs live in `.pax/build/debug/web/` and
 `Cargo.lock`, AI-primer HTML, and staged blog previews stay untracked.
 
 The hero uses `AnimatedPaxLogo` from `pax-std` through the `pax_kit` re-export.
-View Source includes the canonical files in `pax-std/src/drawing/pax_logo/`.
-The animated hero logo remains inside the native page scroller, with its own
-playhead and click replay. `LogoHome` measures its bounds; explicit bindings
-carry its bottom edge and the observed page scroll offset into `SiteShell`.
-The entire nav—static logo, links, CTA, and background—shares one fade playhead.
-Its separate `StaticPaxLogo` uses the animation's settled geometry without mounting
-animation timelines or masks when the nav first appears. The nav fades
-in over 500ms once the hero logo is 128px past the nav's bottom edge, and fades out
-over 450ms when that clearance returns to 96px. Both fades ease gently
-at their start and finish; the earlier exit leaves time for the longer fade.
-Hysteresis prevents
-small scroll reversals from repeatedly restarting the fade. Neither instance
-is translated or scaled in response to scrolling. The homepage scroller fills
-the safe area from the start, with no reserved nav gap or scroll-driven reflow.
-The hero logo aligns with View Source at a 24px top inset; on narrow screens its
-width leaves room for that button. Fully hidden nav contents are unmounted, so
-invisible links cannot intercept input. Hero source inspection hides the nav;
-the standalone Paxflix route has no site shell. Other routes without a hero
-retain a nav-sized content inset and show it directly.
-This replaces the frame-sampled moving-overlay prototype, which
-showed visible jumps while following native scrolling.
-The nav is borderless and has no gradient overlay. Foreground surface ordering
-for a future soft edge is tracked in
+Its website-local `SiteLogo` wrapper fits that artwork into either its hero home
+or the navigation's smaller container. View Source includes the wrapper,
+navigation, and canonical files in `pax-std/src/drawing/pax_logo/`.
+The homepage scroller fills the safe area without a reserved nav gap. The hero
+retains its 24px top inset and compact spacing beside View Source. The nav's
+controls and background fade in over 500ms when the logo docks, and out over
+450ms when it returns; the travelling logo stays visible independently of that
+fade. Fully hidden controls are unmounted. Source inspection hides the nav,
+and the standalone Paxflix route has no site shell. Other routes retain their
+nav-sized content inset and static nav logo. The nav remains borderless;
+foreground surface ordering for a future soft edge is tracked in
 [PAX-1041](https://linear.app/paxdev/issue/PAX-1041/support-independently-ordered-foreground-compositor-surfaces).
 Living Quilt remains independently runnable in `examples/living-quilt/`; neither
 it nor the `pax-logo` harness is a website dependency. Cargo dependency paths
 and favicon paths are relative to this manifest; Rust `include_str!` paths are
 relative to their source file.
+
+The navigation contributes an `Overlay` above scrolling content. As the top of
+the logo's reserved home reaches the nav's lower edge, the same mounted
+`SiteLogo` moves into `#site_nav`'s `#logo_container` Group. A subscription follows
+the home's layout, the page's scroll position, and the responsive nav boundary;
+returning requires 24px of clearance to prevent jitter at that edge. If the
+compact home already overlaps the future nav, departure waits for 32px of scroll
+so the initial page stays at home and can return through that hysteresis. Both moves
+use a 320ms ease-out, preserving the logo playhead and leaving the home footprint
+intact. The return flight stays above the nav until it settles home.
+The destination is a plain Group, separate from the fallback brand's Link,
+so the visiting logo's own hit area receives its clicks.
+
+The shell retains its 64px/80px responsive nav and safe-area insets. Pages without
+a hero show the static `NavLogo`; removing the hero also ends the transferred
+instance's lifetime. The shell returns visitors in `on_pre_unmount` when their
+original owners still exist. The hero logo replays on click at home; in the nav,
+it acts as the shell's home link and scrolls back to the top. See [node transfers](../pax-docs/book/src/event-handling-rust.md#find-and-move-existing-nodes)
+for the runtime ownership and recovery contract.
 
 The creative-freedom headline embeds `LedOscilloscope` from
 [`examples/led-oscilloscope`](../examples/led-oscilloscope/README.md), with the
@@ -442,8 +449,8 @@ the independently animated glyphs retain their original clipping behavior.
 
 Headline motion stops while offscreen. The website has no pause button or
 automatic OS reduced-motion handling yet. The logo plays once on mount and
-replays when clicked or tapped: `AnimatedPaxLogo.click_to_replay` already defaults
-to true. Its `progress=bind:logo_progress` shares one playhead with the website's
+replays when clicked or tapped at home; replay is disabled while visiting the nav.
+Its `progress=bind:logo_progress` shares one playhead with the website's
 initial 1440ms reveal; there is no competing per-frame progress writer.
 
 The manifest pins the website's Pest parser family to 2.8.7. A fresh resolution

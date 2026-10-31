@@ -381,6 +381,11 @@ value-type contracts.
 <a id="in-transitions"></a>
 <a id="out-transitions"></a>
 
+To animate an existing instance between containers, use
+`node.animated(duration, easing).move_to_append_child(&destination)`. See
+[moving existing nodes](event-handling-rust.md#find-and-move-existing-nodes) for
+layout adoption, interruption, and lifetime semantics.
+
 ### Animate around viewport crossings
 
 A local `@viewport_proximity_change` handler can compare previous/current

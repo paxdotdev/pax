@@ -216,6 +216,9 @@ opt-level = 0
 [profile.dev.package.spatial-workbench]
 opt-level = 0
 
+[profile.dev.package.overlay-transfer]
+opt-level = 0
+
 [profile.release]
 lto = true
 opt-level = "z" 
@@ -223,6 +226,7 @@ codegen-units = 1
 
 [dev-dependencies]
 text-bodies = { path = "examples/fixtures/text-bodies", default-features = false }
+overlay-transfer = { path = "examples/fixtures/overlay-transfer", default-features = false }
 spatial-workbench = { path = "examples/fixtures/spatial-workbench", default-features = false }
 led-oscilloscope = { path = "examples/led-oscilloscope", default-features = false }
 shader-studio = { path = "examples/fixtures/shader-studio", default-features = false }
@@ -453,3 +457,7 @@ path = "examples/fixtures/text-bodies.rs"
 [[example]]
 name = "spatial-workbench"
 path = "examples/fixtures/spatial-workbench.rs"
+
+[[example]]
+name = "overlay-transfer"
+path = "examples/fixtures/overlay-transfer.rs"

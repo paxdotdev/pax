@@ -1503,7 +1503,9 @@ impl<S: CpuSurface> api::RenderContext for CpuRenderer<S> {
         _node_id: u32,
         plane: Option<pax_runtime_api::DepthPlane>,
     ) {
-        if plane.is_some() && !self.warned_spatial_depth {
+        if plane.is_some_and(|plane| plane.coefficients != [0.0; 3] || plane.backface)
+            && !self.warned_spatial_depth
+        {
             log::warn!("Spatial depth composition currently requires the GPU renderer. CPU presentation uses projected transforms in document order.");
             self.warned_spatial_depth = true;
         }

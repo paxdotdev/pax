@@ -249,9 +249,16 @@ impl RuntimeContext {
             && parent.mount_epoch.get() == pending.parent_epoch
             && child.mount_epoch.get() == pending.child_epoch
             && parent.accepts_pending_child(&child)
-            && child
+            && (child
                 .render_parent_node()
                 .is_some_and(|p| Rc::ptr_eq(&p, &parent))
+                // Overlays escape render ancestry but remain owned by the
+                // attachment that queued their mount. Validate that attachment
+                // so a stale continuation cannot mount a removed contribution.
+                || (child.instance_node.borrow().is_overlay()
+                    && child.authored_attachment.borrow().as_ref().is_some_and(|a| {
+                        a.parent.upgrade().is_some_and(|p| Rc::ptr_eq(&p, &parent))
+                    })))
         {
             if self.should_defer_startup_child(&child) {
                 self.startup.borrow_mut().deferred.push_back(pending);
