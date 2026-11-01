@@ -88,6 +88,7 @@ export type Glue = typeof import("./types/pax-cartridge") & {
     init_loading_screen?: (host: any) => Promise<any>;
 };
 export interface ApplicationSurface extends MountedApp {
+    readonly mounted: Promise<void>;
     readonly region: HTMLDivElement;
     readonly chassis: PaxChassisWeb | null;
     reveal(): boolean;
@@ -198,6 +199,7 @@ let startupPresented = false;
 let startupRenderStarted = false;
 let ordinaryRenderPending = false;
 let startupViewportPresented = false;
+let startupViewportReady = false;
 let startupWork: StartupWork | undefined;
 let startupFeedbackFrameReady = false;
 let mountYieldEnabled = false;
@@ -231,6 +233,9 @@ const perfTraceEnabled = surfaceTraceEnabled
 
 
 class MountSession implements MountedApp {
+    readonly prepared: Promise<void>;
+    private resolvePrepared!: () => void;
+    private rejectPrepared!: (reason: unknown) => void;
     readonly mounted: Promise<void>;
     private resolveMounted!: () => void;
     private rejectMounted!: (reason: unknown) => void;
@@ -238,6 +243,8 @@ class MountSession implements MountedApp {
     private acknowledge!: () => void;
     private closing = false;
     private starting = true;
+    private presentationStarted = false;
+    private startupFailure?: {reason: unknown};
     private abort = () => this.close();
     private pump: (() => number) | null = null;
     private ownerClosed: boolean | undefined;
@@ -251,11 +258,15 @@ class MountSession implements MountedApp {
     readonly region: HTMLDivElement;
     constructor(readonly options: ApplicationOptions) {
         this.closed = new Promise(resolve => { this.acknowledge = resolve; });
+        this.prepared = new Promise((resolve, reject) => {
+            this.resolvePrepared = resolve; this.rejectPrepared = reject;
+        });
         this.mounted = new Promise((resolve, reject) => {
             this.resolveMounted = resolve; this.rejectMounted = reject;
         });
         // Cancellation can arrive during module loading, before the caller awaits mounting.
         void this.mounted.catch(() => {});
+        void this.prepared.catch(() => {});
         this.region = document.createElement("div");
         this.region.className = "pax-mount";
         this.region.tabIndex = 0;
@@ -273,35 +284,63 @@ class MountSession implements MountedApp {
         return currentChassis.request(bytes).catch(error => { throw hostError(error); });
     }
     checkOpen() {
+        if (this.startupFailure) throw this.startupFailure.reason;
         if (this.closing || this.options.signal?.aborted) throw new DOMException("Pax initialization cancelled", "AbortError");
     }
     get chassis() { return currentChassis; }
     presentationReady() {
         if (!currentChassis || this.closing) return false;
-        return (!mountYieldEnabled || startupPresented) && nativePool.startupTextReady()
-            && nativePool.startupSurfacesReady() && currentChassis.prepare_startup_presentation();
+        if (startupWork?.patchesPending || !currentChassis.prepare_startup_presentation()) {
+            startupViewportReady = false;
+            return false;
+        }
+        return (!mountYieldEnabled || startupViewportReady) && nativePool.startupTextReady()
+            && nativePool.startupSurfacesReady();
     }
     reveal() {
+        this.checkOpen();
         if (!currentChassis || this.closing) return false;
         if (!this.options.holdPresentation) return true;
         if (!this.presentationReady()) return false;
-        currentChassis.publish_application();
         this.options.holdPresentation = false;
+        if (!startupViewportPresented) {
+            startupViewportPresented = true;
+            currentChassis.resume_startup_after_presentation();
+            startupScheduler?.request();
+        }
+        if (startupPresented) this.startPresentation();
         runFrame(currentChassis, this.region);
+        this.region.removeAttribute("data-pax-startup");
         this.region.removeAttribute("data-pax-preparing");
-        startupScheduler?.dispose(); startupScheduler = undefined; startupWork = undefined;
+        if (startupPresented) {
+            startupScheduler?.dispose(); startupScheduler = undefined; startupWork = undefined;
+        }
         return true;
     }
     publish() {
         if (!this.reveal()) return false;
-        // The prepared scene can animate beneath the exiting loader, but input
-        // and accessibility are released only once that overlay is gone.
+        // Early reveal keeps the mount queue, clocks and input gate alive. The
+        // loader may exit now, but publication still requires full initialization.
+        if (mountYieldEnabled && !startupPresented) return false;
         this.region.inert = false;
         this.region.removeAttribute("aria-hidden");
         return true;
     }
-    didMount() { this.resolveMounted(); }
-    failStartup(error: unknown) { this.rejectMounted(error); this.close(); }
+    private startPresentation() {
+        if (this.presentationStarted) return;
+        this.presentationStarted = true;
+        currentChassis?.publish_application();
+    }
+    didPrepare() { this.resolvePrepared(); }
+    didMount() {
+        if (!this.options.holdPresentation) this.startPresentation();
+        this.didPrepare();
+        this.resolveMounted();
+    }
+    failStartup(error: unknown) {
+        this.startupFailure = {reason: error};
+        this.rejectPrepared(error); this.rejectMounted(error); this.close();
+    }
     finishStartup() {
         this.starting = false;
         this.cleanupWake(this.pump?.() ?? 0);
@@ -319,6 +358,7 @@ class MountSession implements MountedApp {
     close() {
         if (this.closing) return;
         this.closing = true;
+        this.rejectPrepared(new DOMException("Pax initialization cancelled", "AbortError"));
         this.rejectMounted(new DOMException("Pax initialization cancelled", "AbortError"));
         this.options.signal?.removeEventListener("abort", this.abort);
         if (liveSession === this) disposeCurrentChassis();
@@ -327,7 +367,9 @@ class MountSession implements MountedApp {
     }
 }
 
-/** Explicit browser entry. Resolves after mounting, or rejects after starting
+/** Explicit browser entry for one host. Held main scenes resolve at their viewport checkpoint;
+ * `mounted` still observes full initialization. Other scenes resolve after mounting.
+ * Rejects after starting
  * cleanup. Importing this library or a cartridge never mounts an application.
  * The caller owns the container, page layout and browser event loop.
  */
@@ -453,7 +495,7 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element, session
     runFrame(chassis, mount);
     frameScheduler.schedule(() => renderLoop(chassis, mount));
     if (!mountYieldEnabled) session.didMount();
-    await session.mounted;
+    await (session.options.holdPresentation && !session.options.loader ? session.prepared : session.mounted);
     session.checkOpen();
 }
 
@@ -463,6 +505,7 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
     startupRenderStarted = false;
     ordinaryRenderPending = false;
     startupViewportPresented = false;
+    startupViewportReady = false;
     startupFeedbackFrameReady = false;
     if (chassis.startup_pending()) mount.setAttribute("data-pax-startup", "");
     startupScheduler?.dispose();
@@ -479,6 +522,9 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
     );
     startupWork = chassis.startup_pending() ? work : undefined;
     startupScheduler = startupWork ? new StartupScheduler(() => {
+        // Renderer acknowledgements can wake the host while a checkpoint is
+        // already settled. Preserve its quiet frame and capture continuation.
+        if (!work.patchesPending && chassis.prepare_startup_presentation()) return false;
         frameInProgress = true;
         startupFeedbackFrameReady = false;
         try {
@@ -486,6 +532,7 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
                 requestPreparationFrame(() => startupScheduler?.request());
                 return false;
             }
+            startupViewportReady = false;
             startupRenderStarted = false;
             return sharedWorkBudget.run(4, budget => withProfileMeasure("startupSlice", () => work.service(budget)));
         } catch (error) {
@@ -529,11 +576,13 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
                     nativePool.syncRenderSurfaceLayouts(true);
                 }
                 if (sharedWorkBudget.remaining <= 0) {
-                    ordinaryRenderPending = true;
+                    // A new frame has not classified its drawing yet. A queued
+                    // warm-only continuation must not put ticks on hold again.
+                    if (fromFrame) ordinaryRenderPending = true;
                     return {pending: true, allowance_exhausted: true};
                 }
                 const report = sharedWorkBudget.run(3, budget => chassis.service_render_work(budget));
-                ordinaryRenderPending = report.pending && !report.blocked;
+                ordinaryRenderPending = report.visible_pending && !report.blocked;
                 if (surfaceTraceEnabled) nativePool.recordRenderWork(report, performance.now() - start);
                 return report;
             } finally {
@@ -694,15 +743,12 @@ function requestFrameFlush(chassis: PaxChassisWeb, mount: Element) {
 }
 
 // After the coordinated first reveal, native leaves can appear progressively.
-// Canvas capture still needs a settled mounted frontier, never unfinished effects.
-function progressStartupFrame(chassis: PaxChassisWeb, mount: Element, sceneReady: boolean) {
+// Keep the last canvas presentation while feedback settles. Capturing here would
+// bypass both the native measurement gate and cooperative rendering's budget.
+function progressStartupFrame(chassis: PaxChassisWeb, mount: Element) {
     if (!startupViewportPresented) return;
     frameInProgress = true;
     try {
-        if (sceneReady) {
-            nativePool.syncRenderSurfaceLayouts();
-            chassis.render();
-        }
         nativePool.finishTextFrame();
         mount.removeAttribute("data-pax-startup");
     } catch (error) {
@@ -719,31 +765,33 @@ function progressStartupFrame(chassis: PaxChassisWeb, mount: Element, sceneReady
 function runStartupFrame(chassis: PaxChassisWeb, mount: Element) {
     nativePool.sampleFrameInputs();
     if (startupWork?.patchesPending || !chassis.prepare_startup_presentation()) {
+        startupViewportReady = false;
         startupRenderStarted = false;
         startupFeedbackFrameReady = false;
         startupScheduler?.request();
-        progressStartupFrame(chassis, mount, false);
+        progressStartupFrame(chassis, mount);
         return;
     }
     const complete = !chassis.startup_pending();
     const first = !startupViewportPresented;
-    // The first viewport is coordinated. Later native leaves use their own
-    // readiness; the final gate only delays input and the init Promise.
-    if (first || complete) {
-        if (!nativePool.startupTextReady()) {
-            startupFeedbackFrameReady = false;
-            progressStartupFrame(chassis, mount, true);
-            return;
-        }
-        // ResizeObserver follows rAF. Allow another layout opportunity and
-        // revalidate engine readiness after the latest native measurement.
-        if (!startupFeedbackFrameReady) {
-            startupFeedbackFrameReady = true;
-            progressStartupFrame(chassis, mount, true);
-            return;
-        }
+    // Every checkpoint settles native feedback before admitting more mounts.
+    // Already-published text can still progress while the canvas keeps its last
+    // settled presentation; input and the init Promise wait for full completion.
+    if (!nativePool.startupTextReady()) {
+        startupViewportReady = false;
+        startupFeedbackFrameReady = false;
+        progressStartupFrame(chassis, mount);
+        return;
     }
-    if (first && !chassis.accept_startup_measurements()) {
+    // ResizeObserver follows rAF. Allow another layout opportunity and
+    // revalidate engine readiness after the latest native measurement.
+    if (!startupFeedbackFrameReady) {
+        startupViewportReady = false;
+        startupFeedbackFrameReady = true;
+        progressStartupFrame(chassis, mount);
+        return;
+    }
+    if (!chassis.accept_startup_measurements()) {
         startupFeedbackFrameReady = false;
         startupScheduler?.request();
         return;
@@ -753,19 +801,30 @@ function runStartupFrame(chassis: PaxChassisWeb, mount: Element) {
         initializeChassis(chassis, mount);
         withProfileMeasure("startupPresentation", () => {
             nativePool.syncRenderSurfaceLayouts();
-            let renderPending = false;
-            if (liveSession?.options.holdPresentation) {
+            let visibleRenderPending = false;
+            const cooperative = !first || liveSession?.options.holdPresentation;
+            if (cooperative) {
                 if (startupRenderStarted) chassis.continue_render_work(renderEpoch);
                 else { chassis.begin_render_work(renderEpoch); startupRenderStarted = true; }
-                renderPending = sharedWorkBudget.remaining <= 0 || sharedWorkBudget.run(3,
-                    budget => chassis.service_render_work(budget)).pending;
+                visibleRenderPending = sharedWorkBudget.remaining <= 0 || sharedWorkBudget.run(3,
+                    budget => chassis.service_render_work(budget)).visible_pending;
             } else { chassis.render(); }
+            // After reveal, feedback checkpoints get the same bounded capture
+            // and submission gate before the parked background queue resumes.
+            if (cooperative && (visibleRenderPending || !nativePool.startupSurfacesReady())) return;
+            if (first && liveSession?.options.holdPresentation) {
+                // Do not admit the deferred tree while first-viewport capture or
+                // asynchronous surface submission is still outstanding.
+                startupViewportReady = true;
+                nativePool.finishTextFrame(true);
+                liveSession.didPrepare();
+                if (!complete && !liveSession.options.loader) return;
+            }
             mount.removeAttribute("data-pax-startup");
-            nativePool.finishTextFrame(first || complete);
+            nativePool.finishTextFrame(true);
             startupViewportPresented = true;
             chassis.resume_startup_after_presentation();
             if (complete) {
-                if (liveSession?.options.holdPresentation && (renderPending || !nativePool.startupSurfacesReady())) return;
                 startupPresented = true;
                 chassis.finish_startup_presentation();
                 if (!liveSession?.options.holdPresentation) {
@@ -812,9 +871,9 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
         if (ordinaryRenderPending) {
             nativePool.sampleFrameInputs();
             if (!chassis.has_pending_properties() && chassis.render_work_is_settled()) {
-                // Finish a settled scene across display frames before another
-                // tick invalidates its setup. New input/property work still
-                // takes the ordinary settlement path below.
+                // Finish required visible drawing before another tick invalidates
+                // its setup. Optional warm work must not freeze the frame clock.
+                // New input/property work still takes ordinary settlement below.
                 nativePool.syncRenderSurfaceLayouts(true);
                 if (!chassis.has_pending_properties() && chassis.render_work_is_settled()) {
                     chassis.continue_render_work(renderEpoch);

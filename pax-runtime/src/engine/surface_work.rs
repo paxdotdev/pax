@@ -107,6 +107,9 @@ impl SurfaceWorkReport {
 pub struct RenderWorkState {
     epoch: Option<u32>,
     pub(super) setup_complete: bool,
+    // Backend initialization can defer a removal while application ticks are
+    // held. Retry that reconciliation in the next display epoch.
+    pub(super) retry_reconciliation: bool,
     pub(super) urgent_complete: bool,
     pub(super) preparation: SurfaceWorkReport,
     // Failed layers wait for a later tick rather than spinning between host tasks.
@@ -131,6 +134,9 @@ impl RenderWorkState {
     /// because it consumed an entire previous slice.
     pub fn continue_epoch(&mut self, epoch: u32) {
         if self.epoch != Some(epoch) {
+            if self.retry_reconciliation {
+                self.setup_complete = false;
+            }
             self.preparation = SurfaceWorkReport::default();
             self.attempted_layers.clear();
             self.epoch = Some(epoch);
@@ -144,6 +150,10 @@ impl RenderWorkState {
 #[derive(Default, serde::Serialize)]
 pub struct RenderWorkReport {
     pub pending: bool,
+    /// Required visible drawing has not completed. A host may publish when this
+    /// is false and its visible surface submissions are acknowledged, even if
+    /// `pending` or `blocked` still describes optional offscreen work.
+    pub visible_pending: bool,
     pub blocked: bool,
     pub blocker: Option<&'static str>,
     pub allowance_exhausted: bool,

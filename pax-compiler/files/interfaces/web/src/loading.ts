@@ -19,10 +19,13 @@ export async function startLoadingApplication(options: WebInitOptions, glue: Glu
     const split = await abortable(import(new URL('./__wasm_split.js', new URL(options.cartridgeUrl, document.baseURI)).href), options.signal)
         .catch(error => { container.remove(); throw error; });
     const adapter = split.loader;
-    const loader = await createHost().initApplication({...options, glue, element: loaderSlot,
-        loader: true, holdPresentation: true, yieldMount: true, pageScroll: false, documentRouting: false})
+    const prepareLoader = () => createHost().initApplication({...options, glue, element: loaderSlot,
+        loader: true, holdPresentation: true, yieldMount: true, pageScroll: false, documentRouting: false});
+    let loader = await prepareLoader()
         .catch(error => { container.remove(); throw error; });
+    let loaderExiting = false;
     let main: ApplicationSurface | undefined;
+    let mountFailure: Promise<never> | undefined;
     let closed = false;
     let generation = 0;
     let received = 0;
@@ -47,7 +50,8 @@ export async function startLoadingApplication(options: WebInitOptions, glue: Glu
     pump();
     const waitFrame = async (signal = options.signal) => {
         signal?.throwIfAborted();
-        await abortable(new Promise<void>(resolve => requestPreparationFrame(resolve)), signal);
+        const frame = new Promise<void>(resolve => requestPreparationFrame(resolve));
+        await abortable(mountFailure ? Promise.race([frame, mountFailure]) : frame, signal);
         signal?.throwIfAborted();
     };
     try {
@@ -80,6 +84,10 @@ export async function startLoadingApplication(options: WebInitOptions, glue: Glu
                 update('preparing', undefined, false, true);
                 main = await createHost().initApplication({...options, glue, element: mainSlot,
                     holdPresentation: true, yieldMount: true, signal: attempt.signal});
+                // First-viewport readiness can precede full mounting. A later
+                // failure must interrupt reveal/exit waits just like cancellation.
+                mountFailure = main.mounted.then(() => new Promise<never>(() => {}));
+                void mountFailure.catch(() => {});
                 attempt.signal.throwIfAborted();
                 update('ready');
                 await waitFrame(attempt.signal);
@@ -87,18 +95,30 @@ export async function startLoadingApplication(options: WebInitOptions, glue: Glu
                 // its exit starts; the application remains inert throughout.
                 while (!main.reveal()) await waitFrame(attempt.signal);
                 update('revealing');
+                loaderExiting = true;
                 loader.chassis!.begin_presentation_exit();
                 do { await waitFrame(attempt.signal); }
                 while (!loader.chassis!.presentation_exit_complete());
+                await abortable(main.mounted, attempt.signal);
                 while (!main.publish()) await waitFrame(attempt.signal);
                 update('active');
                 loader.close();
                 loaderSlot.remove();
                 break;
             } catch (error) {
+                mountFailure = undefined;
                 main?.close();
                 if (main) await main.closed;
                 main = undefined;
+                // A remainder can fail after the loader has faded away. Retire
+                // its exited lifetime and prepare a fresh loader for error/retry.
+                if (loaderExiting && !options.signal?.aborted) {
+                    loader.close();
+                    await loader.closed;
+                    loader = await prepareLoader();
+                    while (!loader.publish()) await waitFrame();
+                    loaderExiting = false;
+                }
                 options.signal?.throwIfAborted();
                 unobserve?.(); release();
                 const cancelled = attempt.signal.aborted;

@@ -679,6 +679,49 @@ fn cooperative_layers_yield_without_lifecycle_or_stale_selection() {
 }
 
 #[test]
+fn visible_completion_does_not_wait_for_a_failed_warm_flush() {
+    let (mut engine, mut renderer, _) = dirty_render_probe();
+    renderer.failed_flushes.insert(0); // Offscreen, but retained for later retry.
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    let visible = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert!(
+        visible.pending,
+        "optional work remains after the urgent boundary"
+    );
+    assert!(!visible.visible_pending);
+    let warm = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert!(warm.blocked);
+    assert!(!warm.visible_pending);
+    assert!(engine.runtime_context.is_canvas_dirty(&0));
+    state.continue_epoch(2);
+    let retry = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert!(
+        !retry.visible_pending,
+        "a warm retry cannot close the visible gate"
+    );
+}
+
+#[test]
+fn failed_visible_flush_still_blocks_publication_after_its_attempt() {
+    let (mut engine, mut renderer, _) = dirty_render_probe();
+    renderer.failed_flushes.insert(1);
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    for _ in 0..3 {
+        let report =
+            engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+        assert!(report.visible_pending);
+    }
+    renderer.failed_flushes.clear();
+    state.continue_epoch(2);
+    let report = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert!(!report.visible_pending);
+}
+
+#[test]
 fn cooperative_layer_attribution_is_opt_in_and_counts_unconsumed_nodes() {
     for diagnostics in [false, true] {
         let (mut engine, mut renderer, _) = dirty_render_probe();
@@ -2212,4 +2255,37 @@ fn shader_composite_keeps_presentation_domain_through_overlay_flight_and_return(
     }
     assert!(!node.move_in_flight.get());
     check(&mut engine, &mut renderer, 0);
+}
+
+#[test]
+fn cooperative_pending_removals_retry_without_an_application_tick() {
+    let (mut engine, mut renderer, _) = dirty_render_probe();
+    renderer.pending = true;
+    renderer.removals.clear();
+    engine.runtime_context.enqueue_canvas_node_removal(0, 42);
+    let frames = engine.runtime_context.globals().elapsed_frames.get();
+    let mut state = surface_work::RenderWorkState::default();
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    state.begin(1);
+    for _ in 0..3 {
+        engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    }
+    assert_eq!(
+        renderer.removals,
+        vec![(0, 42)],
+        "one retry per display epoch"
+    );
+    assert!(engine.runtime_context.has_canvas_node_removals());
+
+    renderer.pending = false;
+    state.continue_epoch(2);
+    for _ in 0..3 {
+        engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    }
+    assert_eq!(renderer.removals, vec![(0, 42), (0, 42)]);
+    assert!(!engine.runtime_context.has_canvas_render_work());
+    assert_eq!(
+        engine.runtime_context.globals().elapsed_frames.get(),
+        frames
+    );
 }

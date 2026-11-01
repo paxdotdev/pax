@@ -169,13 +169,17 @@ impl<'a> StartupPlan<'a> {
     /// A visible subtree with no deferred descendants also has complete extents.
     pub fn measured(&self, node: &ExpandedNode, demand: StartupDemand) -> bool {
         let state = self.context.startup.borrow();
-        let Some(previous) = state.measured.get(&startup_key(node)).copied() else {
-            return false;
-        };
-        if previous.covers(demand) {
+        if state
+            .measured
+            .get(&startup_key(node))
+            .is_some_and(|previous| previous.covers(demand))
+        {
             return true;
         }
-        if demand.complete || !demand.measure.any() {
+        // The host's quiet checkpoint also covers fully mounted flow prefixes,
+        // including children admitted in the background since the last reveal.
+        // A partially mounted subtree still needs the explicit coverage above.
+        if !state.measurements_ready || node.attached.get() == 0 {
             return false;
         }
         !state
@@ -211,8 +215,9 @@ fn depends_on_extent(size: Option<Size>) -> bool {
 impl NodeContext {
     /// Register an experimental component-owned startup planner for this mount.
     /// The callback only describes requirements; it must not mount or run handlers.
-    /// It is discarded when initial presentation completes and ignored outside
-    /// yielded startup. Capture weak references rather than retaining the node.
+    /// It remains available for viewport feedback checkpoints until all startup
+    /// mounting completes, and is ignored outside yielded startup. Capture weak
+    /// references rather than retaining the node.
     pub fn set_startup_planner(
         &self,
         resolver: impl Fn(&ExpandedNode, &mut StartupPlan<'_>) + 'static,
@@ -221,7 +226,7 @@ impl NodeContext {
             return;
         };
         let mut state = self.runtime_context.startup.borrow_mut();
-        if state.is_prioritizing() {
+        if state.is_active() {
             let key = startup_key(&node);
             state.resolvers.insert(key, Rc::new(resolver));
             state.plans.clear();

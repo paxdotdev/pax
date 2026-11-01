@@ -275,8 +275,9 @@ outside it. Return these in `@pre_unmount` to preserve their mounted state.
 
 Register an experimental component-owned startup planner for this mount.
 The callback only describes requirements; it must not mount or run handlers.
-It is discarded when initial presentation completes and ignored outside
-yielded startup. Capture weak references rather than retaining the node.
+It remains available for viewport feedback checkpoints until all startup
+mounting completes, and is ignored outside yielded startup. Capture weak
+references rather than retaining the node.
 
 ##### `route_presentation`
 <pre><code class="api-signature language-rust ignore">pub fn route_presentation(&amp;self) -&gt; Option&lt;RoutePresentation&gt;</code></pre>

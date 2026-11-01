@@ -851,14 +851,35 @@ slow that stream for inspection. Remove it to observe real loading behavior.
 The web host mounts the loader in its own application lifetime and keeps it
 active while the main application prepares in a hidden, inert surface. Native
 controls retain layout for font and measurement feedback, but cannot receive
-input or appear in the accessibility tree. Publication waits for mount work,
-native measurement, and submission of the initial visible canvas surfaces.
-It does not wait for every offscreen asset or application-defined async task.
-Then the main canvas and native elements become visible together beneath the
-loader, and the main application's `@in` begins with its clock unpaused while
-the loader's `@out` runs. The default loader fades its opacity over 250 ms.
-Application input and accessibility remain blocked until the loader exits;
-the `init_web` promise resolves after this handoff.
+input or appear in the accessibility tree. The first reveal waits for the
+initial viewport's mounting requirements, native measurements, and submission
+of its visible canvas surfaces. This includes dependencies such as a Mask's
+complete source. Viewport selection uses the conservative, approximate
+[startup rules](how-pax-runs.md#experimental-resumable-startup-on-web); some
+layouts require more content before they can settle.
+
+The prepared canvas and native elements become visible together beneath the
+loader, which runs its `@out` while the remaining scene mounts cooperatively.
+The default loader fades over 250 ms. The main application's `@in` stays at
+its initial pose and its animation clock remains paused until mounting is
+complete; a custom root entry transition that starts fully transparent can
+therefore keep that content invisible until then. Application input and
+accessibility remain blocked until both mounting and loader exit finish.
+The `init_web` promise resolves after that full handoff. This does not wait for
+every offscreen asset or application-defined async task. A failure during the
+remaining mount closes the partial application and prepares a fresh loader
+to display the error and any available retry action.
+
+During remaining mount work, viewport resize and native layout/asset feedback
+pause background admission for another viewport checkpoint. The mounted graph
+and any newly required content settle before native measurement and visible
+surface submission release the background queue again. A resize therefore need
+not wait for unrelated offscreen mounts. This still uses the shared reactive
+graph: reactive work already admitted before the feedback must drain, even when
+it concerns offscreen content. That backlog, complex measurement dependencies,
+or an indivisible callback can delay a checkpoint. A resize retains the previous
+canvas presentation while that work settles; a late resize on a large tree can
+therefore still be slow.
 
 Mount and render continuations share a soft work budget across hosted
 applications. Drawing that exhausts an allowance continues across display
@@ -897,6 +918,10 @@ Its fields are:
 | `download.fraction` | Optional fraction in 0–1. Unknown or zero total yields `None`. |
 | `error` | Optional failure message. |
 | `can_retry`, `can_cancel` | Actions the host can currently accept safely. |
+
+`ready` means the initial viewport can be revealed; `revealing` can include
+remaining mount work after the loader has faded. Only `active` means the full
+mount and input handoff have finished.
 
 A completed download is not a ready application. There is no overall percentage
 for compilation, mounting or rendering. The default screen dedicates the first

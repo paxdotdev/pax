@@ -97,14 +97,29 @@ runs the usual reveal. Long startup frames restart that settling interval;
 a five-second ceiling prevents a persistently slow frame rate from suppressing
 the logo indefinitely. There is no fixed delay added to every page load.
 
-The website enables `package.metadata.pax.web.yield_mount`, so ordinary homepage
-and standalone demo URLs use yielded startup without query flags. Use
-`?pax_mount_yield=0` only to compare the synchronous path. The plain URL waits for
-the initial viewport's native font and layout measurements, then eagerly mounts
-and progressively presents the remainder. Text can appear before artwork;
-canvas drawing still waits for engine settlement. Keep the startup mode and viewport
-dimensions the same when comparing measurements; desktop layouts mount the full
-21-shelf Paxflix catalogue. See
+The website enables both `package.metadata.pax.loader` and
+`package.metadata.pax.web.yield_mount`. The loading screen stays visible while
+the main application's initial viewport mounts in a hidden, inert region.
+Once its required content, native measurements, and visible surface submissions
+are ready, the page is revealed and the loader fades away. Remaining content
+mounts cooperatively. Input and the main animation clock remain held until
+mounting finishes, so the first visible scene can show a still entry pose. See
+[loading screens](../pax-docs/book/src/components-composition.md#loading-context-components-experimental)
+for the build requirements and publication contract.
+
+Resize and native measurement feedback temporarily pause background mounting
+to settle and present the current viewport, then resume the remaining queue.
+This uses the same autosize and Mask requirements as the first reveal, so those
+dependencies can require work beyond the visible box. Already-admitted reactive
+work still drains through the shared graph and can delay a late resize.
+
+A configured loader always uses yielded preparation, including with
+`?pax_mount_yield=0`. To compare synchronous startup, first disable the loader in
+Cargo metadata and rebuild; that query override then applies. Without the loader,
+yielded startup can reveal the initial viewport and progressively present the
+remainder, with native text appearing before artwork. Keep the loader setting,
+startup mode, and viewport dimensions the same when comparing measurements;
+desktop layouts mount the full 21-shelf Paxflix catalogue. See
 [resumable startup](../pax-docs/book/src/how-pax-runs.md#experimental-resumable-startup-on-web).
 
 Ordinary URLs use cooperative rendering, passive wheel input, and feature-detected

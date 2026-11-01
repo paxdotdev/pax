@@ -129,7 +129,7 @@ Unsupported/unclippable paths remain one explicit atomic fallback.
 <pre><code class="api-signature language-rust ignore">pub fn accept_startup_measurements(&amp;mut self) -&gt; bool</code></pre>
 
 Accept the host's quiet font/native-measurement checkpoint before the
-first reveal. A flow can now admit its next visible child using resolved
+next reveal. A flow can now admit its next visible child using resolved
 preceding geometry. Returns false when that adds work to service first.
 
 ##### `enable_resumable_startup`
@@ -145,6 +145,15 @@ This changes scheduling only; every initially selected node still mounts.
 Validate the next publication boundary. Browser measurements can arrive
 after the final service call but before rAF; settle those without replaying
 the first tick's handlers or proximity notifications.
+
+##### `request_startup_settlement`
+<pre><code class="api-signature language-rust ignore">pub fn request_startup_settlement(&amp;mut self)</code></pre>
+
+Prioritize a new viewport checkpoint after host layout/asset feedback.
+Park background admission, settle the mounted graph and its required
+dependencies, then let the host measure and present before resuming.
+Requests coalesce until that checkpoint is acknowledged. This does not
+advance application time or replay already-dispatched lifecycle handlers.
 
 ##### `resume_startup_after_presentation`
 <pre><code class="api-signature language-rust ignore">pub fn resume_startup_after_presentation(&amp;mut self)</code></pre>

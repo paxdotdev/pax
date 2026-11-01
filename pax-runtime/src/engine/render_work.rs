@@ -68,7 +68,10 @@ impl PaxEngine {
         now_ms: impl Fn() -> f64,
     ) -> RenderWorkReport {
         let start = now_ms();
-        let mut report = RenderWorkReport::default();
+        let mut report = RenderWorkReport {
+            visible_pending: true,
+            ..Default::default()
+        };
         if matches!(
             self.runtime_context.application.context().phase(),
             pax_runtime_api::AppPhase::Closing | pax_runtime_api::AppPhase::Closed
@@ -101,7 +104,9 @@ impl PaxEngine {
         if !state.setup_complete {
             let setup = now_ms();
             let dirty_before = diagnostics.then(|| self.runtime_context.dirty_canvas_layers());
-            let (layers, _, flush_layers) = self.reconcile_render_work(rcs, &mut |_| {}, false);
+            let (layers, failed_removals, flush_layers) =
+                self.reconcile_render_work(rcs, &mut |_| {}, false);
+            state.retry_reconciliation = !failed_removals.is_empty();
             if let Some(dirty_before) = dirty_before {
                 let mut counts = HashMap::<usize, usize>::new();
                 for id in self.runtime_context.dirty_canvas_node_ids() {
@@ -299,6 +304,19 @@ impl PaxEngine {
                 break;
             }
         }
+        // A failed warm flush must not hold publication of an already-drawn
+        // viewport. Failed visible (or unclassified fallback) layers still do.
+        report.visible_pending = report.blocker.is_some()
+            || !state.urgent_complete
+            || self
+                .runtime_context
+                .dirty_canvas_layers()
+                .into_iter()
+                .chain(state.pending_lighting_flushes.iter().copied())
+                .any(|layer| {
+                    rcs.ordinary_layer_priority(layer)
+                        .is_none_or(|rank| rank <= 0)
+                });
         report.elapsed_ms = now_ms() - start;
         report
     }

@@ -63,8 +63,8 @@ test('startup service failure preserves its original error and closes the region
     assert.equal(h.disposals(), 1);
 });
 
-test('revealing beneath a loader starts presentation once but retains input until publication', () => {
-    const state = {ready: false, unpaused: 0, frames: 0, disposed: 0};
+for (const partial of [false, true]) test(`revealing ${partial ? 'a viewport' : 'a complete scene'} retains input until full publication`, () => {
+    const state = {ready: false, partial, unpaused: 0, frames: 0, disposed: 0, resumes: 0};
     const attributes = new Map();
     const region = {
         inert: false,
@@ -77,13 +77,18 @@ test('revealing beneath a loader starts presentation once but retains input unti
         const currentChassis = {
             prepare_startup_presentation: () => state.ready,
             publish_application() { state.unpaused++; },
+            resume_startup_after_presentation() { state.resumes++; },
         };
-        const mountYieldEnabled = true, startupPresented = true;
+        const mountYieldEnabled = true;
+        let startupViewportReady = true;
+        let startupPresented = !state.partial, startupViewportPresented = !state.partial;
         const nativePool = {startupTextReady: () => true, startupSurfacesReady: () => true};
-        let startupScheduler = {dispose() { state.disposed++; }}, startupWork = {};
+        let startupScheduler = {request() {}, dispose() { state.disposed++; }}, startupWork = {};
         function runFrame() { state.frames++; }
         ${owner}
         export const app = new MountSession({element: {appendChild() {}}, holdPresentation: true});
+        export function prepare() { startupViewportReady = true; }
+        export function finish() { startupPresented = true; app.didMount(); }
     `, {loader: 'ts', format: 'cjs'}).code, {
         module, exports: module.exports, state,
         document: {createElement: () => region},
@@ -92,16 +97,39 @@ test('revealing beneath a loader starts presentation once but retains input unti
     assert.equal(app.reveal(), false);
     assert.ok(attributes.has('data-pax-preparing'));
     state.ready = true;
+    assert.equal(app.reveal(), false, 'new settlement requires a fresh rendered viewport checkpoint');
+    module.exports.prepare();
     assert.equal(app.reveal(), true);
     assert.equal(attributes.has('data-pax-preparing'), false);
     assert.equal(region.inert, true);
     assert.equal(attributes.get('aria-hidden'), 'true');
-    assert.equal(state.unpaused, 1);
+    assert.equal(state.unpaused, partial ? 0 : 1);
     assert.equal(state.frames, 1);
+    assert.equal(state.resumes, partial ? 1 : 0);
+    if (partial) {
+        assert.equal(app.publish(), false);
+        assert.equal(state.disposed, 0, 'the remainder keeps its scheduler');
+        assert.equal(region.inert, true);
+        module.exports.finish();
+    }
     assert.equal(app.reveal(), true);
     assert.equal(app.publish(), true);
     assert.equal(region.inert, false);
     assert.equal(attributes.has('aria-hidden'), false);
     assert.equal(state.unpaused, 1);
-    assert.equal(state.disposed, 1);
+    assert.equal(state.disposed, partial ? 0 : 1);
+});
+
+
+test('viewport readiness does not resolve full mounting, and later failure still rejects it', async () => {
+    const h = session();
+    h.app.didPrepare(); await h.app.prepared;
+    let mounted = false;
+    h.app.mounted.then(() => { mounted = true; }, () => {});
+    await Promise.resolve(); assert.equal(mounted, false);
+    const error = new Error('remainder failed');
+    h.app.failStartup(error);
+    await assert.rejects(h.app.mounted, e => e === error);
+    assert.throws(() => h.app.reveal(), e => e === error);
+    h.app.finishStartup(); await h.app.closed;
 });

@@ -16,6 +16,16 @@ Last triaged: 2026-10-05 — [PAX-972](https://linear.app/paxdev/issue/PAX-972/p
 
 ## Untriaged findings
 
+- 2026-11-01, PAX-839 API-reference refresh: running `cargo run -p pax-docs
+  --bin gen_api_docs` for a runtime startup API change also builds the generic
+  macOS SDK through `pax-kit`'s host feature. Expected documentation generation;
+  the first run failed on sandboxed Swift module-cache writes. With the required
+  Xcode cache access, the `pax-kit` rustdoc step took 11m26s under heavy machine
+  load and held the artifact lock needed by focused tests. Evidence:
+  `/tmp/pax839-settlement-api-docs.log` and
+  `/tmp/pax839-settlement-api-docs-retry.log`. The retry uses the real SDK;
+  a supported targeted documentation workflow would avoid this unrelated cost.
+
 - 2026-10-29, website acrostic outlines: positioning vector letters at the
   font's cap height clipped rounded O/C overshoot in the top Frame row. Expected
   complete contours. The website now fits each decorative letter's full control
@@ -1565,3 +1575,30 @@ Coordinating lifecycle entry with native presentation readiness remains open.
   still requires the full release path.
 
 - 2026-11-01 (PAX-1051): Full web-interface validation with `tsc --noEmit` still reports 10 errors (native patch types, CSS property types, `replaceAll` library target, and missing startup chassis declarations). Expected a clean typecheck; an isolated copy with all three touched interface sources restored from HEAD produces the same diagnostic messages. Evidence: `/tmp/visibility-web-tsc.log` and `/tmp/visibility-web-tsc-baseline.log`. The release esbuild succeeds; this does not establish a clean full typecheck.
+
+- 2026-10-30 — PAX-839 post-merge release website build: the automatically
+  selected wasm-pack cache contained Binaryen 117. Rust compilation succeeded,
+  but optimizing the split loader module aborted at
+  `updateDataSegmentsMap` (`dataSegmentsMap.size() == dataSegments.size()`).
+  Explicit `PAX_WASM_OPT` pointing to the already-qualified Binaryen 133 binary
+  completed the same build. The failure otherwise arrives only after a costly
+  release compile; tool-version qualification should happen earlier.
+
+- 2026-10-30 — PAX-839 Chrome release QA at `a145dda77`: resizing the scrolled
+  website gallery from 1440×900 to 390×844 briefly showed native text without
+  card artwork and overlapping paragraphs above it. A later capture recovered
+  without reload or another resize; no console warnings were recorded. This
+  did not reproduce the previously reported persistent blank-canvas state.
+  Remaining work is to measure the resize-to-settled interval under controlled
+  load, rather than infer a cause from the intermediate frame.
+
+- 2026-11-01 — PAX-839 viewport-settlement release QA: a late resize from
+  1800×987 to 390×844 now parks background mounting, but already-admitted
+  reactive work still delays the visible response. Expected a prompt header
+  resize; observed correct mobile geometry 16.38s after the interrupt in a
+  heavily loaded-machine run, before full mounting finished at 67.3s. The
+  checkpoint had parked 71 pending mounts. Evidence:
+  `/tmp/pax839-settlement-20261101/resize-late.json` and `resize-late.png`.
+  Investigate bounding the reactive backlog admitted during background mounting;
+  this is a remaining limit of settling the shared graph, not dropped resize
+  feedback. Absolute timings are not a controlled performance comparison.

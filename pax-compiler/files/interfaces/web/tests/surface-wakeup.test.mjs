@@ -9,7 +9,7 @@ import {transformSync} from 'esbuild';
 // through requestFrameFlush even when each scheduler's unit tests pass.
 function harness(search = "") {
     const tasks = [], microtasks = [], frames = [], calls = {tick: 0, layout: 0, render: 0};
-    let pool, pending = false, exhausted = false, duringRender, time = 0, renderCost = 0;
+    let pool, pending = false, exhausted = false, warm = false, duringRender, time = 0, renderCost = 0;
     class Pool {
         constructor() { pool = this; }
         attach() {}
@@ -61,7 +61,8 @@ function harness(search = "") {
                 suspend: () => setSuspended(true)};
         }
     `);
-    const draw = () => { calls.render++; time += renderCost; duringRender?.(); return {pending: exhausted, allowance_exhausted: exhausted}; };
+    const draw = () => { calls.render++; time += renderCost; duringRender?.(); return {
+        pending: exhausted || warm, visible_pending: exhausted, allowance_exhausted: exhausted}; };
     const chassis = {set_property_waker() {}, activate_application() {},
         startup_pending: () => false, startup_input_pending: () => false,
         set_surface_ready_callback(fn) { this.complete = fn; },
@@ -78,7 +79,7 @@ function harness(search = "") {
         }
     }
     return {pool, chassis, calls, controls, drain, tasks, microtasks,
-        pending: value => pending = value, exhausted: value => exhausted = value,
+        pending: value => pending = value, exhausted: value => exhausted = value, warm: value => warm = value,
         duringRender: fn => duringRender = fn, renderCost: value => renderCost = value,
         nextFrame: () => { for (const frame of frames.splice(0)) frame(); }};
 }
@@ -139,6 +140,17 @@ test('published drawing can continue after setup exceeds the preparation allowan
     h.drain();
     assert.equal(h.calls.tick, 1);
     assert.equal(h.calls.render, 2, 'setup must not starve drawing until the next tick resets it');
+});
+
+test('warm drawing that consumes the budget cannot freeze ordinary application ticks', () => {
+    const h = harness();
+    h.warm(true); h.renderCost(8);
+    h.controls.frame(); h.drain();
+    assert.equal(h.calls.tick, 1);
+    assert.equal(h.calls.render, 1);
+    h.nextFrame(); h.controls.frame(); h.drain();
+    assert.equal(h.calls.tick, 2, 'optional work must not retain the ordinary-frame hold');
+    assert.equal(h.calls.render, 2, 'warm work remains eligible on the next frame');
 });
 
 test('completion during presentation gets a host continuation without an application tick', () => {

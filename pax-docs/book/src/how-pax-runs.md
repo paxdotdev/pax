@@ -321,9 +321,10 @@ gives the runtime explicit dependencies to work with. See
 Set `yield_mount = true` under `[package.metadata.pax.web]` to use incremental
 initial mounting on ordinary URLs. It defaults to false; custom JavaScript hosts
 can override the generated setting with `init_web({..., yieldMount: true})`.
-For diagnostics, `?pax_mount_yield=1` forces it on and `?pax_mount_yield=0` forces
-it off, taking precedence over both settings. A configured loading screen always
-uses incremental mounting for its hidden application. Other query values are ignored.
+Without a loading screen, `?pax_mount_yield=1` forces it on and
+`?pax_mount_yield=0` forces it off, taking precedence over both settings.
+A configured loading screen always uses incremental mounting for its hidden
+application, even with `?pax_mount_yield=0`. Other query values are ignored.
 This remains experimental for development and release web cartridges; Apple
 chassis do not enable it. The host resolves the option once and passes it into
 either cartridge's initializer. It adds no template syntax or baked manifest
@@ -339,9 +340,9 @@ frame clock or repeat `@mount`, `@tick`, or `@pre_render` handlers. Wall time st
 passes during ordinary initialization, so this does not pause elapsed-time animations.
 When a [loading screen](components-composition.md#loading-context-components-experimental)
 is configured, the loader and main application instead have independent clocks
-and reactive graphs. The main clock stays paused through preparation, then starts
-when the prepared scene becomes visible beneath the exiting loader. Input stays
-blocked until that exit finishes. Their rendering scenes are independent while sharing
+and reactive graphs. The main clock stays paused until mounting completes, even
+if its prepared viewport is already visible beneath the exiting loader. Input
+stays blocked until mounting and loader exit both finish. Their rendering scenes are independent while sharing
 the runtime's GPU device. Cooperative preparation and rendering share a 4 ms
 allowance per animation-frame opportunity across these hosted applications;
 an indivisible callback can exceed this soft budget.
@@ -365,7 +366,13 @@ at capture time, and clicks on the unpublished background do not later target
 new controls. The queue drains in order, one event per ordinary frame after
 startup; consecutive pointer moves may be coalesced.
 
-The first presentation prioritizes the initial viewport. A node with a known
+The first preparation checkpoint prioritizes the initial viewport. Without a
+loading screen, this checkpoint permits the first reveal described below. A
+configured loading screen additionally waits for the initial visible surfaces
+to be submitted before revealing that viewport. The rest of the scene mounts
+cooperatively after reveal, with input and ordinary ticks still held; see its
+[publication contract](components-composition.md#loading-context-components-experimental).
+A node with a known
 outer box entirely outside that viewport can defer its whole subtree; this
 coarse heuristic does not search descendants for transformed visual overflow.
 Unknown dimensions remain candidates for traversal. Mounted `Overlay`
@@ -415,7 +422,8 @@ More selective planners can forward the inherited request with
 `plan.require(child, demand)`. Requirements accumulate, and a complete-subtree
 request cannot be weakened by a descendant. Planners describe work; they must
 not mount nodes or invoke application handlers. Callbacks are scoped to the
-current mount and discarded after first presentation; use weak node references
+current mount and retained for viewport feedback checkpoints until startup
+mounting completes; use weak node references
 in captures. This is an experimental runtime API, not a new template property.
 
 Before this first reveal, native Text fonts and their latest measurements must
@@ -425,8 +433,23 @@ failures permit fallback; slow fonts can delay the first reveal. Native controls
 remain measurable behind the visibility gate.
 
 After the first reveal, all remaining branches mount eagerly in bounded slices.
-Native leaves appear as their own readiness permits; canvas drawing is published
-once the remaining scene reaches a settled checkpoint. The whole-scene visibility
+Web layout and asset feedback (including viewport resize and native text
+measurement) pauses background admission for a new viewport checkpoint. The
+mounted graph settles, the same planners resolve newly required content, and
+the host waits for native measurement and visible surface submission before
+resuming the parked mounts. Requests coalesce while a checkpoint is pending.
+Optional offscreen rendering can remain pending at publication; visible drawing
+and its browser submission acknowledgement must both finish. After full startup,
+ordinary frames likewise wait for required visible drawing, while optional
+offscreen work stays queued without holding the application frame clock.
+Renderer allocation acknowledgements do not pause mounting. This prioritizes
+settlement over unrelated mounts; it does not isolate a separate reactive graph
+for the visible subtree, and required autosize or mask dependencies can still
+extend outside the viewport. Reactive work admitted before the feedback also
+has to drain, so a large existing backlog can still delay a late resize.
+
+Native leaves appear as their own readiness permits; the canvas keeps its last
+presentation until each feedback checkpoint settles. The whole-scene visibility
 gate stays open.
 The final readiness check holds application input and the `init_web` Promise,
 without hiding already presented content. These checkpoints do not advance an

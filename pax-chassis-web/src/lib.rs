@@ -834,7 +834,12 @@ impl PaxChassisWeb {
                 wheel_cancellable: false,
             };
         }
-        self.dispatch_interrupt(x, additional_payload)
+        let settles_viewport = startup_layout_feedback(&x);
+        let result = self.dispatch_interrupt(x, additional_payload);
+        if settles_viewport {
+            self.engine.borrow_mut().request_startup_settlement();
+        }
+        result
     }
 
     fn dispatch_interrupt(
@@ -3107,6 +3112,18 @@ fn startup_feedback(interrupt: &NativeInterrupt) -> bool {
             | NativeInterrupt::ScrollerPosition(_)
             | NativeInterrupt::Screenshot(_)
     )
+}
+
+// Surface allocation acknowledgements also flow during startup, but they must
+// not interrupt background mounting every time the host synchronizes its tiles.
+fn startup_layout_feedback(interrupt: &NativeInterrupt) -> bool {
+    startup_feedback(interrupt)
+        && !matches!(
+            interrupt,
+            NativeInterrupt::AddedLayer(_)
+                | NativeInterrupt::RenderSurfaceUpdate(_)
+                | NativeInterrupt::Screenshot(_)
+        )
 }
 
 fn interrupt_ray(interrupt: &NativeInterrupt) -> Option<Point2<pax_runtime::api::Window>> {

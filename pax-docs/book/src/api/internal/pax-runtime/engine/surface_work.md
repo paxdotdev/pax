@@ -39,6 +39,13 @@ CPU times include atomic overruns and do not measure GPU completion.
 ##### `pending`
 Type: `bool`
 
+##### `visible_pending`
+Type: `bool`
+
+Required visible drawing has not completed. A host may publish when this
+is false and its visible surface submissions are acknowledged, even if
+`pending` or `blocked` still describes optional offscreen work.
+
 ##### `blocked`
 Type: `bool`
 

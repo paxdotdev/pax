@@ -16,6 +16,8 @@ pub(crate) struct Startup {
     active: bool,
     ready: bool,
     viewport_published: bool,
+    settling_viewport: bool,
+    measurements_ready: bool,
     incoming: Vec<PendingMount>,
     stack: Vec<PendingMount>,
     deferred: VecDeque<PendingMount>,
@@ -156,7 +158,7 @@ impl RuntimeContext {
     /// a top-aligned, fixed-width visible prefix to remain partially mounted.
     pub fn register_startup_measurement(&self, node: &ExpandedNode, axes: StartupAxes) {
         let mut state = self.startup.borrow_mut();
-        if state.is_prioritizing() {
+        if state.active {
             let key = startup_key(node);
             if state.measurement_axes.insert(key, axes) != Some(axes) {
                 state.plans.remove(&key);
@@ -165,7 +167,7 @@ impl RuntimeContext {
     }
 
     fn should_defer_startup_child(&self, child: &ExpandedNode) -> bool {
-        if self.startup.borrow().viewport_published {
+        if !self.startup.borrow().is_prioritizing() {
             return false;
         }
         self.startup_demand(child).is_none()
@@ -174,7 +176,7 @@ impl RuntimeContext {
     fn reconsider_startup_deferred(&self) {
         let deferred = {
             let mut state = self.startup.borrow_mut();
-            if state.viewport_published {
+            if !state.is_prioritizing() {
                 return;
             }
             state.plans.clear();
@@ -293,6 +295,32 @@ impl PaxEngine {
         self.runtime_context.startup.borrow().active
     }
 
+    /// Prioritize a new viewport checkpoint after host layout/asset feedback.
+    /// Park background admission, settle the mounted graph and its required
+    /// dependencies, then let the host measure and present before resuming.
+    /// Requests coalesce until that checkpoint is acknowledged. This does not
+    /// advance application time or replay already-dispatched lifecycle handlers.
+    pub fn request_startup_settlement(&mut self) {
+        let mut state = self.runtime_context.startup.borrow_mut();
+        if !state.active || state.is_prioritizing() {
+            return;
+        }
+        state.settling_viewport = true;
+        state.ready = false;
+        state.phase = Phase::InitialSettlement;
+        state.handlers = None;
+        state.plans.clear();
+        state.demands.clear();
+        state.measured.clear();
+        state.measurements_ready = false;
+        // Preserve the continuation's DFS order, including children emitted by
+        // its last mount. Their existing weak identities still guard remounts.
+        let incoming = std::mem::take(&mut state.incoming);
+        state.stack.extend(incoming.into_iter().rev());
+        let stack = std::mem::take(&mut state.stack);
+        state.deferred.extend(stack.into_iter().rev());
+    }
+
     /// Validate the next publication boundary. Browser measurements can arrive
     /// after the final service call but before rAF; settle those without replaying
     /// the first tick's handlers or proximity notifications.
@@ -300,9 +328,9 @@ impl PaxEngine {
         if self.runtime_context.startup.borrow().blocks_presentation() {
             return false;
         }
-        if !self.startup_pending() {
-            self.prepare_presentation_entry();
-        }
+        // Stage @in before the first visible checkpoint, including when the
+        // offscreen remainder is still deferred. Clocks remain held by the host.
+        self.prepare_presentation_entry();
         let ctx = &self.runtime_context;
         let _graph = ctx.property_graph.enter();
         ctx.reconsider_startup_deferred();
@@ -317,6 +345,7 @@ impl PaxEngine {
             let mut state = ctx.startup.borrow_mut();
             state.active = true;
             state.ready = false;
+            state.measurements_ready = false;
             state.phase = Phase::InitialSettlement;
             return false;
         }
@@ -324,7 +353,7 @@ impl PaxEngine {
     }
 
     /// Accept the host's quiet font/native-measurement checkpoint before the
-    /// first reveal. A flow can now admit its next visible child using resolved
+    /// next reveal. A flow can now admit its next visible child using resolved
     /// preceding geometry. Returns false when that adds work to service first.
     pub fn accept_startup_measurements(&mut self) -> bool {
         if !self.prepare_startup_presentation() {
@@ -332,6 +361,9 @@ impl PaxEngine {
         }
         let ctx = &self.runtime_context;
         let _graph = ctx.property_graph.enter();
+        if !ctx.startup.borrow().is_prioritizing() {
+            return true;
+        }
         let demands = ctx.startup.borrow().demands.clone();
         let measured = demands
             .into_iter()
@@ -342,10 +374,8 @@ impl PaxEngine {
             .collect();
         {
             let mut state = ctx.startup.borrow_mut();
-            if state.viewport_published {
-                return true;
-            }
             state.measured = measured;
+            state.measurements_ready = true;
         }
         self.prepare_startup_presentation()
     }
@@ -359,11 +389,15 @@ impl PaxEngine {
             return;
         }
         state.viewport_published = true;
+        state.settling_viewport = false;
         state.plans.clear();
         state.demands.clear();
         state.measured.clear();
-        state.resolvers.clear();
-        state.measurement_axes.clear();
+        state.measurements_ready = false;
+        if !state.active {
+            state.resolvers.clear();
+            state.measurement_axes.clear();
+        }
         if !state.deferred.is_empty() {
             let remaining = std::mem::take(&mut state.deferred);
             state.stack.extend(remaining.into_iter().rev());
@@ -562,7 +596,7 @@ impl PaxEngine {
 
 impl Startup {
     pub(crate) fn is_prioritizing(&self) -> bool {
-        self.active && !self.viewport_published
+        self.active && (!self.viewport_published || self.settling_viewport)
     }
 
     pub(crate) fn is_active(&self) -> bool {
@@ -640,6 +674,13 @@ mod tests {
         children: Vec<Rc<dyn InstanceNode>>,
         common: crate::CommonPropertiesInit,
     ) -> Rc<ComponentInstance> {
+        component_with_transition(children, common, Default::default())
+    }
+    fn component_with_transition(
+        children: Vec<Rc<dyn InstanceNode>>,
+        common: crate::CommonPropertiesInit,
+        transition_config: pax_manifest::cartridge_generation::ComponentTransitionConfig,
+    ) -> Rc<ComponentInstance> {
         let mut handlers = HandlerRegistry::default();
         for (name, callback) in [
             (
@@ -666,7 +707,7 @@ mod tests {
             template_node_identifier: None,
             template_node_type_id: None,
             template_node_selector_info: None,
-            transition_config: Default::default(),
+            transition_config,
             properties_scope: crate::PropertiesScopeInit::None,
         })
     }
@@ -772,6 +813,60 @@ mod tests {
     }
 
     #[test]
+    fn held_viewport_and_later_mounts_stage_entry_without_advancing_the_clock() {
+        use pax_manifest::cartridge_generation::{
+            ComponentTransitionConfig, TRANSITION_PHASE_ENTER,
+        };
+        let transition = ComponentTransitionConfig {
+            has_enter: true,
+            enter_frame_count: 10,
+            ..Default::default()
+        };
+        let deferred = component_with_transition(
+            vec![],
+            crate::CommonPropertiesInit::Factory(Box::new(|_, _| {
+                Some(Rc::new(RefCell::new(crate::api::CommonProperties {
+                    x: pax_runtime_api::LocalProperty::new(Some(pax_runtime_api::Size::Pixels(
+                        500.into(),
+                    ))),
+                    width: pax_runtime_api::LocalProperty::new(Some(
+                        pax_runtime_api::Size::Pixels(100.into()),
+                    )),
+                    height: pax_runtime_api::LocalProperty::new(Some(
+                        pax_runtime_api::Size::Pixels(100.into()),
+                    )),
+                    ..Default::default()
+                })))
+            })),
+            transition.clone(),
+        );
+        let mut engine = new_engine();
+        engine.hold_presentation();
+        let root = engine.mount_root_component(component_with_transition(
+            vec![deferred],
+            crate::CommonPropertiesInit::Default,
+            transition,
+        ));
+        let child = root.children.get()[0].clone();
+        assert!(reach_checkpoint(&mut engine).pending);
+        assert_eq!(root.transition_phase.get(), TRANSITION_PHASE_ENTER);
+        assert_eq!(root.transition_playhead.get(), 0.0);
+        assert_eq!(child.attached.get(), 0);
+        assert_eq!(engine.runtime_context.globals().elapsed_frames.get(), 0);
+        engine.resume_startup_after_presentation();
+        finish(&mut engine);
+        assert_eq!(child.attached.get(), 1);
+        assert_eq!(child.transition_phase.get(), TRANSITION_PHASE_ENTER);
+        assert_eq!(child.transition_playhead.get(), 0.0);
+        assert_eq!(root.transition_playhead.get(), 0.0);
+        assert_eq!(engine.runtime_context.globals().elapsed_frames.get(), 0);
+        engine.publish_presentation();
+        engine.tick();
+        assert_eq!(root.transition_playhead.get(), 1.0);
+        assert_eq!(child.transition_playhead.get(), 1.0);
+    }
+
+    #[test]
     fn required_measurement_promotes_an_offscreen_subtree_before_first_reveal() {
         let mut engine = new_engine();
         let root = engine
@@ -801,6 +896,115 @@ mod tests {
         assert!(!engine.prepare_startup_presentation());
         assert!(!reach_checkpoint(&mut engine).pending);
         assert_eq!(root.children.get()[0].attached.get(), 1);
+    }
+
+    #[test]
+    fn post_reveal_feedback_settles_without_draining_the_background_queue() {
+        let mut engine = new_engine();
+        engine.hold_presentation();
+        let root = engine.mount_root_component(component(vec![
+            box_at(0.0, vec![]),
+            box_at(500.0, vec![box_at(0.0, vec![])]),
+            box_at(700.0, vec![]),
+            box_at(2000.0, vec![]),
+        ]));
+        let children = root.children.get();
+        reach_checkpoint(&mut engine);
+        engine.resume_startup_after_presentation();
+        // Interrupt with both a DFS stack and a newly emitted child batch.
+        assert_eq!(engine.service_startup(0.0, || 0.0).mounted, 1);
+        assert_eq!(children[1].attached.get(), 1);
+        engine.set_viewport_size((800.0, 240.0));
+        children[0].chassis_resize_request(80.0, 40.0);
+        for _ in 0..8 {
+            engine.request_startup_settlement();
+        }
+        let report = reach_checkpoint(&mut engine);
+        assert!(report.pending);
+        assert_eq!(children[1].children.get()[0].attached.get(), 1);
+        assert_eq!(children[2].attached.get(), 1, "newly visible dependency");
+        assert_eq!(children[3].attached.get(), 0, "unrelated tail stays parked");
+        assert_eq!(engine.runtime_context.globals().elapsed_frames.get(), 0);
+        engine.resume_startup_after_presentation();
+        finish(&mut engine);
+        assert_eq!(children[3].attached.get(), 1);
+        assert_eq!(engine.runtime_context.globals().elapsed_frames.get(), 0);
+        CALLS.with_borrow(|calls| {
+            for kind in ["mount", "tick", "pre_render"] {
+                let ids: Vec<_> = calls
+                    .iter()
+                    .filter(|(k, _)| *k == kind)
+                    .map(|(_, id)| *id)
+                    .collect();
+                assert_eq!(ids.len(), 6);
+                assert_eq!(ids.iter().collect::<HashSet<_>>().len(), 6);
+            }
+        });
+    }
+
+    #[test]
+    fn feedback_checkpoint_retains_planners_registered_during_background_mounting() {
+        let mut engine = new_engine();
+        let root = engine.mount_root_component(component(vec![
+            box_at(500.0, vec![box_at(1500.0, vec![box_at(1500.0, vec![])])]),
+            box_at(2000.0, vec![]),
+        ]));
+        let children = root.children.get();
+        reach_checkpoint(&mut engine);
+        engine.resume_startup_after_presentation();
+        engine.service_startup(0.0, || 0.0);
+        children[0]
+            .get_node_context(&engine.runtime_context)
+            .set_startup_planner(|_, plan| plan.require_children(StartupDemand::complete()));
+        engine.set_viewport_size((800.0, 240.0));
+        engine.request_startup_settlement();
+        assert!(reach_checkpoint(&mut engine).pending);
+        let dependency = &children[0].children.get()[0];
+        assert_eq!(dependency.children.get()[0].attached.get(), 1);
+        assert_eq!(children[1].attached.get(), 0);
+        // A removed queued branch must still fail the existing lifetime checks.
+        root.attach_children(
+            vec![children[0].clone()],
+            &engine.runtime_context,
+            &root.parent_frame,
+        );
+        engine.resume_startup_after_presentation();
+        finish(&mut engine);
+        assert_eq!(children[1].attached.get(), 0);
+    }
+
+    #[test]
+    fn feedback_checkpoint_remeasures_an_already_mounted_flow_prefix() {
+        let mut engine = new_engine();
+        let root = engine.mount_root_component(component(vec![
+            box_at(0.0, vec![]),
+            box_at(500.0, vec![]),
+            box_at(600.0, vec![]),
+            box_at(2000.0, vec![]),
+        ]));
+        let children = root.children.get();
+        test_flow(&root.get_node_context(&engine.runtime_context), &children);
+        reach_checkpoint(&mut engine);
+        engine.resume_startup_after_presentation();
+        engine.service_startup(0.0, || 0.0);
+        assert_eq!(
+            children[1].attached.get(),
+            1,
+            "background prefix already mounted"
+        );
+        engine.set_viewport_size((800.0, 240.0));
+        engine.request_startup_settlement();
+        assert!(reach_checkpoint(&mut engine).pending);
+        assert_eq!(children[1].attached.get(), 1);
+        assert_eq!(
+            children[2].attached.get(),
+            1,
+            "newly visible child follows the measured prefix"
+        );
+        assert_eq!(children[3].attached.get(), 0);
+        engine.resume_startup_after_presentation();
+        finish(&mut engine);
+        assert_eq!(children[3].attached.get(), 1);
     }
 
     fn test_flow(ctx: &crate::api::NodeContext, children: &[Rc<ExpandedNode>]) {

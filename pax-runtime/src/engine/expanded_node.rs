@@ -1701,7 +1701,9 @@ impl ExpandedNode {
         context: &Rc<RuntimeContext>,
         requested_source: Option<&UniqueTemplateNodeIdentifier>,
     ) -> bool {
-        if context.presentation_held.get() {
+        // After the first viewport is staged, later mounts also need their
+        // initial @in pose. The held presentation clock prevents advancement.
+        if context.presentation_held.get() && !context.presentation_entry_prepared.get() {
             return false;
         }
         let instance_node = borrow!(self.instance_node);
