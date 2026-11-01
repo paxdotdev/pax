@@ -63,6 +63,33 @@ source of the setting. The CLI owns development orchestration. Both `init!` and
 `init_with!` initialize in the current native process; enabling `designtime`
 does not change this or start a server.
 
+## Profile a web scene
+
+Open a GPU example with `?pax_scroll_perf&pax_surface_trace` and expand
+**Surface trace snapshot**. **Profile 2 seconds** measures the current workload
+without scrolling or changing its controls. Set up the scene first: pause it,
+animate only opacity, or move geometry; then compare the same viewport and
+device-pixel ratio in the same build configuration.
+
+The profile reports count, mean, maximum, and p95 milliseconds for CPU phases,
+plus requestAnimationFrame callback intervals. Nested tick phases can run more
+than once per frame, so their sample counts differ; do not add their means to
+the enclosing frame mean. The aggregate survives event-ring rollover. It keeps
+at most 64 phase names. P95 uses the first 2,048 samples per phase;
+`percentileSamples` reports that sample count, while mean and maximum include
+all recorded samples.
+Starting another profile replaces the previous one.
+
+These are CPU timings and callback intervals, not GPU execution times or proof
+that every frame reached the display. Use the platform profiler for GPU and
+presentation analysis. The separate **Probe down/up** controls synthesize
+scroll input; ordinary profiling observes the scene without adding input.
+
+The [Surface / Solid fixture](https://github.com/paxproject/pax/tree/dev/examples/fixtures/solid-intersection)
+includes opacity animation, solid mount/removal, and native-panel visibility
+controls for comparing mixed 2D/3D workloads. Its **Scroll study** view exercises
+the same rendering through a longer page with scroll-driven poses and lighting.
+
 ## Format Pax source
 
 `pax-cli fmt` formats `.pax` files and Pax templates embedded in Rust source.

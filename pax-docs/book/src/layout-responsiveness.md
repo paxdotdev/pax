@@ -514,10 +514,10 @@ This is a bounded first spatial implementation:
   stacking restrictions; arbitrary intersections between those layers are not
   resolved. Native controls also retain the existing separate-opacity and
   platform-popup limitations.
-- GPU canvas paint composes a contiguous group before applying its opacity.
-  If outside geometry interleaves between noncoplanar members of a translucent
-  group, the current compositor fades separate contiguous runs. General
-  whole-group transparency across that interleaving is not yet implemented.
+- GPU canvas paint fades an assembled group once. Hidden opaque members stay
+  hidden during a fade, including when outside geometry interleaves with the
+  group. This uses a bounded composition path; see [Spatial group fades](#spatial-group-fades).
+  Native surfaces retain their separate transparency approximation.
 - CPU fallback projects the transforms but retains document paint order. It
   emits a warning when spatial depth is requested; native occlusion and engine
   targeting follow that same fallback order. Use the GPU renderer for this
@@ -535,12 +535,10 @@ This is a bounded first spatial implementation:
   its opacity reuses that capture. Disjoint fragments can be reordered to keep
   that span together: a separate tilted panel farther down a page does not by
   itself force repeated captures of a translucent solid. Overlapping fragments
-  keep their relative paint order. When outside content splits a translucent
-  scope, projected-region composition preserves the contiguous-run behavior
-  described above; those intersections can be substantially more expensive.
-  These paths target modest numbers of intersecting flat planes, rather than
-  general mesh scenes. Screenshot mirroring on targets without surface-copy
-  support uses separate passes to preserve the same clip ordering.
+  keep their relative paint order. Genuine outside interleaving uses the bounded
+  presence-view composition below. These paths target modest numbers of
+  intersecting surfaces. Screenshot mirroring on targets without surface-copy
+  support preserves the same clip and fade ordering.
 
 ### Opaque curved solids
 
@@ -566,20 +564,84 @@ apertures; they clip the visible result, without adding solid caps at the cut.
 Controls keep their mounted identity as the occlusion changes. Tile coverage
 includes the full volume, including a pose whose local XY plane is edge-on.
 
+The mesh topology stays resident during motion. Each immutable pose also keeps
+its projected silhouette and a bounded cache of solid/plane coverage contours,
+shared by repeated queries against that pose. Paint-only changes reuse these
+contours; changing the pose replaces them. This reduces repeated clipping work
+for native siblings, tiles, and spatial fades, but animated geometry still has
+CPU intersection work. Use the [web scene profiler](developer-workflow.md#profile-a-web-scene)
+to distinguish that work from paint-only updates in your scene.
+
 This first mesh primitive accepts one opaque `color` and a normal Pax
 `material`. It does not wrap live children onto a curved surface. Zero, negative,
-or non-finite extents and singular poses have no coverage. Fractional solid
-opacity, alpha masks, shader-effect captures, and detached mask sources are
-unsupported: affected ellipsoids are omitted with a bounded diagnostic. CPU
-rendering also omits them. Transparent shells and arbitrary concave meshes are
+or non-finite extents and singular poses have no coverage. Node/group opacity
+uses the spatial fade contract below. Translucent surface color, alpha masks,
+shader-effect captures, and detached mask sources are unsupported: affected
+ellipsoids are omitted with a bounded diagnostic. CPU rendering also omits them. Transparent shells and arbitrary concave meshes are
 not implemented. The logical-layer and native-control limits above still apply.
 
 Try the [Surface / Solid fixture](https://github.com/paxproject/pax/tree/dev/examples/fixtures/solid-intersection)
-for a clipped editable panel, reproducible depth presets, rotation, and scrolling:
+for a clipped editable panel, reproducible depth presets, rotation, and a
+scroll-driven page with live controls:
 
 ```sh
 pax-cli run --path examples/fixtures/solid-intersection --target web
 ```
+
+### Spatial group fades
+
+`opacity` fades an assembled appearance. It does not make each surface into a
+transparent material: the back of an opaque ellipsoid stays hidden while the
+ellipsoid fades. The same rule applies to overlapping opaque children of a
+Group. Material/color alpha remains a distinct paint operation; translucent
+ellipsoid shells are not supported yet.
+
+```pax
+<Group width=100% height=100% opacity={self.visibility}>
+    <Ellipsoid x=50% y=50% width=220px height=260px depth=180px
+        translate_z=50px color=rgb(239, 167, 77) />
+    <Rectangle x=50% y=50% width=360px height=240px
+        fill=rgb(246, 239, 216) />
+</Group>
+```
+
+Within one logical canvas layer, geometric depth still determines where outside
+GPU content appears. For example, when an outside blue panel sits between a
+group's opaque front and rear members,
+fading that group reveals the blue panel without making the hidden rear member
+bleed through its front member. Nested fades apply conditionally within their
+parent assembly.
+
+Uninterrupted planar groups keep the existing single-capture path. Fading meshes
+and genuinely interleaved groups use weighted **presence views**: fully composed
+scene views with the assembly present or absent. These views include outside
+content at its actual depth; their premultiplied colors and alpha are combined
+once. Opacity-only updates reuse the views. Geometry, clipping, lighting, image,
+or backdrop changes invalidate affected captures.
+
+This experimental path has a budget of **eight scene views per physical canvas
+tile**, in addition to its ordinary backdrop draw, and retains at most eight
+view textures. One fading assembly needs two views; three independent overlapping
+fades can need eight. Nested absent scopes prune their descendants, and disjoint
+projected capture regions add their costs instead of multiplying them. The budget
+is a work/residency bound, not a frame-rate guarantee.
+
+If a component exceeds the available budget, the renderer reports a bounded
+warning and renders that GPU component opaque at intermediate opacity values.
+Zero-opacity scopes remain hidden. Simplify overlapping fades or fade a shared
+ancestor to stay within the exact path. Native controls continue to use their
+platform opacity even at this limit.
+
+Native text and controls keep their mounted identity and platform-owned input.
+Occlusion between members sharing the same fading ancestor excludes that shared
+opacity from the native cutout, preserving internal hiding. Independently faded
+native/canvas layers still have the transparency-stacking approximation described
+in [Compositing](compositing-effects.md#native-compositing); these views do not
+capture native pixels. Opacity alone does not disable pointer or keyboard input.
+
+The Surface / Solid fixture exposes **Fade**, group opacity, an outside
+surface's depth, rotation, and native text editing. Its two solids and live panel
+share a fade; the blue translucent band belongs to the outside scene.
 
 ### Cuboids with live face content
 

@@ -10,6 +10,8 @@ mod spatial;
 #[cfg(feature = "3d")]
 mod solid;
 #[cfg(feature = "3d")]
+mod spatial_fade;
+#[cfg(feature = "3d")]
 use solid::RetainedSolid;
 use crate::render_backend::stencil;
 use crate::render_backend::CpuBuffers;
@@ -119,6 +121,14 @@ pub struct ResourceChurnStats {
     pub solid_geometry_upload_bytes: u64,
     #[cfg(feature = "3d")]
     pub solid_uniform_updates: u64,
+    /// Exact presence/absence views rendered for spatial group fades.
+    #[cfg(feature = "3d")]
+    pub spatial_fade_renders: u64,
+    #[cfg(feature = "3d")]
+    pub spatial_fade_cache_hits: u64,
+    /// Components exceeding the exact spatial fade state budget.
+    #[cfg(feature = "3d")]
+    pub spatial_fade_overflows: u64,
     pub flushes: u64,
     pub opacity_group_renders: u64,
     pub opacity_group_cache_hits: u64,
@@ -178,6 +188,9 @@ impl ResourceChurnStats {
         {
             self.solid_geometry_upload_bytes += other.solid_geometry_upload_bytes;
             self.solid_uniform_updates += other.solid_uniform_updates;
+            self.spatial_fade_renders += other.spatial_fade_renders;
+            self.spatial_fade_cache_hits += other.spatial_fade_cache_hits;
+            self.spatial_fade_overflows += other.spatial_fade_overflows;
         }
         #[cfg(feature = "shaders")]
         {
@@ -238,6 +251,12 @@ impl ResourceChurnStats {
         let mut stats = *self;
         stats.flushes = 0;
         stats.mesh_cache_hits = 0;
+        #[cfg(feature = "3d")]
+        {
+            stats.spatial_fade_renders = 0;
+            stats.spatial_fade_cache_hits = 0;
+            stats.spatial_fade_overflows = 0;
+        }
         #[cfg(feature = "shaders")]
         {
             stats.effect_source_renders = 0;
@@ -283,6 +302,12 @@ pub struct WgpuRenderer<'w> {
     solid_clip_keys: Vec<ClipArenaKey>,
     #[cfg(feature = "3d")]
     spatial_region: Option<(usize, u64, u32)>,
+    #[cfg(feature = "3d")]
+    spatial_fades: spatial_fade::SpatialFades,
+    #[cfg(feature = "3d")]
+    spatial_hidden: HashSet<u32>,
+    #[cfg(feature = "3d")]
+    spatial_namespace: u64,
     source_nodes: HashMap<u32, u32>,
     source_captures: HashMap<u32, SourceCapture>,
     source_recordings: Vec<SourceRecording>,
@@ -563,7 +588,7 @@ enum ClipArenaKey {
         clip_index: u32,
     },
     #[cfg(feature = "3d")]
-    SpatialRegion(usize),
+    SpatialRegion(u64, usize),
     #[cfg(feature = "3d")]
     SolidOcclusion(u32, u32),
 }
@@ -784,6 +809,12 @@ impl<'w> WgpuRenderer<'w> {
             #[cfg(feature = "3d")]
             solid_clip_keys: Vec::new(),
             #[cfg(feature = "3d")]
+            spatial_fades: Default::default(),
+            #[cfg(feature = "3d")]
+            spatial_hidden: HashSet::new(),
+            #[cfg(feature = "3d")]
+            spatial_namespace: 0,
+            #[cfg(feature = "3d")]
             spatial_region: None,
             source_nodes: HashMap::new(),
             source_captures: HashMap::new(),
@@ -880,14 +911,13 @@ impl<'w> WgpuRenderer<'w> {
         #[cfg(feature = "3d")]
         {
             self.depth_planes.clear();
-        }
-        #[cfg(feature = "3d")]
-        {
             self.spatial_clip_keys.clear();
-        }
-        #[cfg(feature = "3d")]
-        {
             self.spatial_region = None;
+            self.solid_clip_keys.clear();
+            self.solid_clips.clear();
+            self.spatial_fades = Default::default();
+            self.spatial_hidden.clear();
+            self.spatial_namespace = 0;
         }
         self.source_nodes.clear();
         self.source_captures.clear();

@@ -11,6 +11,7 @@ use pax_runtime_api::{
     mesh3::{ConvexMesh, OpaqueMeshDraw, PosedConvexMesh},
     use_RefCell, Window,
 };
+use std::collections::HashMap;
 use std::rc::Rc;
 use_RefCell!();
 
@@ -18,7 +19,9 @@ use_RefCell!();
 /// Requires `pax-kit/3d` and the GPU renderer. Ordinary transforms, hard clips,
 /// lighting, and depth-aware native-control occlusion apply to the complete volume.
 ///
-/// This initial mesh primitive accepts a solid opaque color. Fractional opacity,
+/// Node and ancestor opacity fade the assembled opaque appearance through the
+/// bounded spatial group compositor; hidden rear surfaces stay hidden.
+/// This primitive accepts a solid opaque color. Translucent material color,
 /// alpha masks, detached mask sources, and shader-effect captures are unsupported;
 /// unsupported instances are omitted with a diagnostic. Zero/negative dimensions
 /// or a singular pose produce no coverage. Transparent shells are a separate contract.
@@ -49,10 +52,13 @@ type Matrix = Transform3<Generic>;
 pub struct EllipsoidInstance {
     base: BaseInstance,
     gpu: std::cell::Cell<bool>,
+    // A template instance can serve several expanded nodes (for example in a
+    // repeat). Each mounted solid owns its pose; unmount retires that entry.
+    poses: RefCell<HashMap<u32, Rc<PosedConvexMesh>>>,
 }
 
 fn supported(node: &ExpandedNode) -> bool {
-    if node.is_render_source() || node.computed_opacity.get() != 1. {
+    if node.is_render_source() {
         return false;
     }
     let opaque = node.with_properties_unwrapped(|p: &mut Ellipsoid| {
@@ -91,6 +97,7 @@ impl InstanceNode for EllipsoidInstance {
                 },
             ),
             gpu: std::cell::Cell::new(false),
+            poses: RefCell::new(HashMap::new()),
         })
     }
     fn resolve_debug(
@@ -139,14 +146,20 @@ impl InstanceNode for EllipsoidInstance {
             &deps,
         ));
     }
+    fn handle_unmount(&self, node: &Rc<ExpandedNode>, _: &Rc<RuntimeContext>) {
+        self.poses.borrow_mut().remove(&node.id.to_u32());
+    }
     fn resolve_convex_mesh(&self, node: &ExpandedNode) -> Option<Rc<PosedConvexMesh>> {
+        let id = node.id.to_u32();
         if !self.gpu.get() || !supported(node) {
+            self.poses.borrow_mut().remove(&id);
             return None;
         }
         let (w, h) = node.transform_and_bounds.get().bounds;
         let d =
             node.with_properties_unwrapped(|p: &mut Ellipsoid| p.depth.local().get().to_float());
         if ![w, h, d].iter().all(|v| v.is_finite() && *v > 0.) {
+            self.poses.borrow_mut().remove(&id);
             return None;
         }
         let local = Matrix::new([
@@ -168,7 +181,20 @@ impl InstanceNode for EllipsoidInstance {
             1.,
         ]);
         let world = Matrix::new(node.spatial_geometry().get().world_transform().coeffs()) * local;
-        SPHERE.with(|mesh| mesh.posed(world.coeffs()))
+        let mut retained = self.poses.borrow_mut();
+        if let Some(pose) = retained
+            .get(&id)
+            .filter(|pose| pose.transform == world.coeffs())
+        {
+            return Some(pose.clone());
+        }
+        let pose = SPHERE.with(|mesh| mesh.posed(world.coeffs()));
+        if let Some(pose) = &pose {
+            retained.insert(id, pose.clone());
+        } else {
+            retained.remove(&id);
+        }
+        pose
     }
     fn resolve_coverage_path(&self, node: &ExpandedNode) -> Option<kurbo::BezPath> {
         self.resolve_convex_mesh(node)
@@ -176,7 +202,7 @@ impl InstanceNode for EllipsoidInstance {
     }
     fn resolve_coverage_opacity(&self, node: &ExpandedNode) -> f64 {
         if supported(node) {
-            1.
+            node.computed_opacity.get().clamp(0., 1.)
         } else {
             0.
         }
@@ -195,7 +221,7 @@ impl InstanceNode for EllipsoidInstance {
         if !rc.is_gpu() || !supported(node) {
             if node.computed_opacity.get() != 0. {
                 static WARN: std::sync::Once = std::sync::Once::new();
-                WARN.call_once(|| log::warn!("Ellipsoid requires the GPU renderer, opaque color/opacity, and hard clips; alpha masks and effect captures are not supported yet"));
+                WARN.call_once(|| log::warn!("Ellipsoid requires the GPU renderer, opaque surface color, and hard clips; translucent materials, alpha masks and effect captures are not supported yet"));
             }
         } else if let Some(solid) = &ctx.canvas_geometry_for_node(node).solid {
             let inverse = ctx
@@ -223,5 +249,83 @@ impl InstanceNode for EllipsoidInstance {
         if rc.end_node(scope.layer_id, scope.node_id) {
             ctx.clear_canvas_node_dirty(&node.id);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pax_runtime::api::{pax_value::ToFromPaxAny, CommonProperties, Size};
+    use pax_runtime::{
+        CommonPropertiesInit, ComponentInstance, PropertiesInit, PropertiesScopeInit,
+    };
+
+    fn args() -> InstantiationArgs {
+        InstantiationArgs {
+            prototypical_common_properties: CommonPropertiesInit::Factory(Box::new(|_, _| {
+                Some(Rc::new(RefCell::new(CommonProperties {
+                    width: LocalProperty::new(Some(Size::Pixels(100.into()))),
+                    height: LocalProperty::new(Some(Size::Pixels(100.into()))),
+                    ..Default::default()
+                })))
+            })),
+            prototypical_properties: PropertiesInit::Factory(Box::new(|_, _| {
+                Some(Rc::new(RefCell::new(Ellipsoid::default().to_pax_any())))
+            })),
+            handler_registry: None,
+            children: None,
+            component_template: None,
+            component_settings: None,
+            template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
+            transition_config: Default::default(),
+            properties_scope: PropertiesScopeInit::None,
+        }
+    }
+
+    #[test]
+    fn repeated_solids_retain_independent_poses_and_release_them_on_unmount() {
+        let context = Rc::new(crate::test_support::runtime_context());
+        let solid = EllipsoidInstance::instantiate(args());
+        let mut root_args = args();
+        root_args.component_template = Some(RefCell::new(vec![solid.clone(), solid.clone()]));
+        let root =
+            ExpandedNode::initialize_root(ComponentInstance::instantiate(root_args), &context);
+        root.recurse_update(&context);
+        let nodes = root.children.get();
+        let first = solid.resolve_convex_mesh(&nodes[0]).unwrap();
+        let second = solid.resolve_convex_mesh(&nodes[1]).unwrap();
+        nodes[0]
+            .common_properties
+            .borrow()
+            .borrow()
+            .opacity
+            .set(Some(0.4.into()));
+        root.recurse_update(&context);
+        assert!((nodes[0].computed_opacity.get() - 0.4).abs() < 1e-9);
+        assert!(Rc::ptr_eq(
+            &first,
+            &solid.resolve_convex_mesh(&nodes[0]).unwrap()
+        ));
+        nodes[0].with_properties_unwrapped(|p: &mut Ellipsoid| p.depth.set(Depth::from(200.)));
+        root.recurse_update(&context);
+        let changed = solid.resolve_convex_mesh(&nodes[0]).unwrap();
+        assert!(!Rc::ptr_eq(&first, &changed));
+        assert!(Rc::ptr_eq(
+            &second,
+            &solid.resolve_convex_mesh(&nodes[1]).unwrap()
+        ));
+        let weak = Rc::downgrade(&changed);
+        drop(changed);
+        nodes[0].clone().recurse_unmount(&context);
+        assert!(!solid.poses.borrow().contains_key(&nodes[0].id.to_u32()));
+        assert!(weak.upgrade().is_none());
+        assert!(Rc::ptr_eq(
+            &second,
+            &solid.resolve_convex_mesh(&nodes[1]).unwrap()
+        ));
+        root.recurse_unmount(&context);
+        assert!(solid.poses.borrow().is_empty());
     }
 }

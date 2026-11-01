@@ -1419,6 +1419,28 @@ fn sort_mask_entries(entries: &mut [MaskPathPatch]) {
     });
 }
 
+// A native leaf already carries its ancestor opacity. Condition its cutout on
+// those shared ancestors being present, or hidden siblings ghost through a fade.
+// Independent native/canvas transparency still uses the platform approximation.
+#[cfg(feature = "3d")]
+fn conditional_native_coverage_opacity(
+    coverage: f64,
+    total: f64,
+    occluder: &[pax_runtime_api::OpacityScope],
+    native: &[pax_runtime_api::OpacityScope],
+) -> f64 {
+    if total <= f64::EPSILON {
+        return 0.;
+    }
+    let paint = (coverage / total).clamp(0., 1.);
+    occluder
+        .iter()
+        .filter(|scope| !native.iter().any(|other| other.node_id == scope.node_id))
+        .fold(paint, |alpha, scope| alpha * scope.opacity as f64)
+        .clamp(0., 1.)
+}
+
+
 fn emit_mask(
     node: &ExpandedNode,
     size: (f64, f64),
@@ -1927,6 +1949,17 @@ fn hash_presentation_bounds(
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "3d")]
+    #[test]
+    fn conditional_native_mask_cancels_shared_fade_only() {
+        use pax_runtime_api::OpacityScope;
+        let shared = OpacityScope { node_id: 1, opacity: 0.37 };
+        let private = OpacityScope { node_id: 2, opacity: 0.5 };
+        assert_eq!(super::conditional_native_coverage_opacity(0.37,0.37,&[shared],&[shared]),1.);
+        assert_eq!(super::conditional_native_coverage_opacity(0.185,0.185,&[shared,private],&[shared]),0.5);
+        assert_eq!(super::conditional_native_coverage_opacity(0.0925,0.185,&[shared,private],&[shared]),0.25);
+        assert_eq!(super::conditional_native_coverage_opacity(0.,0.,&[shared],&[shared]),0.);
+    }
     use super::*;
     use kurbo::{Rect, RoundedRect};
 

@@ -1,0 +1,116 @@
+<Scroller width=100% height=100% scroll_height=2200px scroll_pos_y=bind:self.scroll>
+    <Group width=100% height=2200px anchor=0%>
+        <Group x=32px y=44px width={100% - 64px} height=220px translate_z=900px>
+            <Text class="label" width=100% height=24px text="PAX / SPATIAL EDITIONS / 01"/>
+            <Text class="title" y=42px width=100% height=110px text="Make room for wonder."/>
+            <Text class="copy" y=162px width=100% height=56px
+                text="A study in depth, light, and things that stay with you. Scroll to set the composition in motion."/>
+        </Group>
+        <Frame x=24px y=292px width={100% - 48px} height=650px>
+            <LightFrame width=100% height=100%>
+                <Text class="light_label" x=24px y=22px width={100% - 48px} height=24px text="01 / A LITTLE SPACE" translate_z=900px/>
+                <Group width=100% height=100% opacity={1.0 - self.progress * 0.35}>
+                    <Ellipsoid x={@viewport.width < 650 ? 90% : 66%} y={@viewport.width < 650 ? 60% : 54%}
+                        width={@viewport.width < 650 ? 140px : 280px} height={@viewport.width < 650 ? 280px : 340px} depth=230px rotate_y={(self.progress * 90.0)deg}
+                        rotate_x=-18deg translate_z={(80.0 - self.progress * 260.0)px} color=rgb(225, 151, 80) material={Material::glossy(0.32)}/>
+                    <Frame x=36% y=44% width={@viewport.width < 650 ? 260px : 380px} height=260px rotate_y={(-24.0 + self.progress * 48.0)deg}
+                        rotate={(-5.0 + self.progress * 10.0)deg}>
+                        <Text class="label" x=24px y=24px width={100% - 48px} height=24px text="YOUR PLACE IN THE PICTURE"/>
+                        <Text class="card_title" x=24px y=66px width={100% - 48px} height=54px text="Leave a thought."/>
+                        <Textbox x=24px y=134px width={100% - 48px} height=38px text=bind:self.note/>
+                        <Button x=24px y=192px width={100% - 48px} height=34px label={"Keep it / " + self.presses} @button_click=self.press/>
+                        <Rectangle width=100% height=100% fill={
+                            paint: rgb(245, 238, 217)
+                            material: {Material::unlit()}
+                        }/>
+                    </Frame>
+                    <Ellipsoid x=74% y=64% width=230px height=230px depth=190px translate_z=-200px color=rgb(93, 177, 160)/>
+                </Group>
+                <Rectangle x=50% y=60% width=94% height=48px rotate=-14deg translate_z=-50px fill=rgba(135, 165, 219, 60%)/>
+                <LightSource x={(15.0 + self.progress * 60.0)%} y=18% width=1px height=1px z=500px radius=1800px intensity=2.5
+                    color=rgb(255, 224, 180)/>
+                <AmbientLight intensity=0.45 color=rgb(165, 187, 234)/>
+                <Rectangle width=100% height=100% translate_z=-1000px fill={
+                    paint: rgb(21, 36, 55)
+                    material: {Material::unlit()}
+                }/>
+            </LightFrame>
+        </Frame>
+        <Group x=36px y=1030px width={100% - 72px} height=180px translate_z=900px>
+            <Text class="label" width=100% height=24px text="02 / ANOTHER SIDE OF THE STORY"/>
+            <Text class="section_title" y=42px width=100% height=100px text="A change of angle."/>
+        </Group>
+        <LightFrame x=24px y=1220px width={100% - 48px} height=520px>
+            <Cuboid x=50% y=48% width={@viewport.width < 650 ? 220px : 340px} height=260px depth=160px
+                rotate_y={(-38.0 + self.lower_progress * 68.0)deg} rotate_x=14deg fill=rgb(107, 163, 149)>
+                <CuboidFace side=CuboidSide::Front width=100% height=100%>
+                    <Text class="label" x=24px y=24px width={100% - 48px} height=24px text="FORM / FUNCTION"/>
+                    <Text class="card_title" x=24px y=90px width={100% - 48px} height=100px text="More than a surface."/>
+                </CuboidFace>
+                <CuboidFace side=CuboidSide::Right width=100% height=100%>
+                    <Text class="label" x=20px y=32px width={100% - 40px} height=80px text="ROOM TO EXPLORE"/>
+                    <Rectangle width=100% height=100% fill=rgb(224, 158, 99)/>
+                </CuboidFace>
+            </Cuboid>
+            <LightSource x=15% y=10% width=1px height=1px z=600px radius=1800px intensity=2.0/>
+            <AmbientLight intensity=0.55/>
+            <Rectangle width=100% height=100% translate_z=-1000px fill={
+                paint: rgb(226, 218, 200)
+                material: {Material::unlit()}
+            }/>
+        </LightFrame>
+        <Group x=36px y=1840px width={100% - 72px} height=250px translate_z=900px>
+            <Text class="label" width=100% height=24px text="03 / BACK TO YOUR THOUGHT"/>
+            <Text class="section_title" y=42px width=100% height=100px text="Still here."/>
+            <Text class="copy" y=150px width=100% height=70px
+                text="Return to the first composition. Your words and button count are still there, even as surfaces move out of view."/>
+        </Group>
+        <Rectangle width=100% height=100% translate_z=-2000px fill={
+            paint: rgb(241, 237, 225)
+            material: {Material::unlit()}
+        }/>
+    </Group>
+</Scroller>
+
+@settings {
+    @mount: mount
+    .label {
+        style: {
+            font_size: 11px
+            fill: rgb(43, 51, 60)
+        }
+    }
+    .light_label {
+        style: {
+            font_size: 11px
+            fill: rgb(233, 229, 214)
+        }
+    }
+    .copy {
+        style: {
+            font_size: 16px
+            fill: rgb(70, 78, 82)
+        }
+    }
+    .title {
+        style: {
+            font: "Georgia"
+            font_size: {@viewport.width < 650 ? 38px : 62px}
+            fill: rgb(43, 51, 60)
+        }
+    }
+    .section_title {
+        style: {
+            font: "Georgia"
+            font_size: {@viewport.width < 650 ? 36px : 52px}
+            fill: rgb(43, 51, 60)
+        }
+    }
+    .card_title {
+        style: {
+            font: "Georgia"
+            font_size: {@viewport.width < 650 ? 26px : 32px}
+            fill: rgb(43, 51, 60)
+        }
+    }
+}

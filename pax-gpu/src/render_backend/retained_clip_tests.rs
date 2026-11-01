@@ -4020,13 +4020,14 @@ fn spatial_opacity_reuses_alpha_but_invalidates_changed_fragment_clips() {
         renderer.end_node(id);
     }
     // Alpha-only changes reuse the capture. Moving the intersection changes only
-    // fragment clips, and an outside plane then forces the interleaved fallback.
+    // fragment clips, and an outside plane then requires exact presence views.
     for (frame, (alpha, crossing, outside_z)) in [
         (0.5, 32., -100.),
         (0.25, 32., -100.),
         (0.5, 16., -100.),
         (0.5, 16., 0.),
         (0.5, 32., -100.),
+        (0.25, 32., -100.),
     ]
     .into_iter()
     .enumerate()
@@ -4079,13 +4080,16 @@ fn spatial_opacity_reuses_alpha_but_invalidates_changed_fragment_clips() {
         if frame == 1 {
             assert_eq!(stats.opacity_group_renders, 0);
             assert_eq!(stats.opacity_group_cache_hits, 1);
-        } else if frame != 3 {
+        } else if frame < 3 {
             assert_eq!(stats.opacity_group_renders, 1);
         } else {
-            assert!(
-                stats.opacity_group_renders > 1,
-                "outside plane must split the scope"
-            );
+            assert_eq!(stats.opacity_group_renders, 0);
+            if frame == 5 {
+                assert_eq!(stats.spatial_fade_renders, 0);
+                assert_eq!(stats.spatial_fade_cache_hits, 2);
+            } else {
+                assert_eq!(stats.spatial_fade_renders, 2);
+            }
         }
         if frame > 0 {
             assert_eq!(stats.vector_geometry_rebuilds, 0);
@@ -5041,5 +5045,357 @@ fn shader_composite_respects_overlay_domain_above_background() {
             },
         );
         assert_pixel(&pixels, 2, 16, [255, 0, 0, 255]);
+    }
+}
+
+#[cfg(feature = "3d")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn spatial_group_fade_keeps_hidden_surfaces_hidden_across_external_geometry() {
+    use pax_runtime_api::{
+        mesh3::{ConvexMesh, OpaqueMeshDraw},
+        DepthPlane, OpacityScope,
+    };
+    let layer = MetalLayer::new();
+    let mut backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 128, 128, [1., 1.]),
+        )
+    })
+    .unwrap();
+    backend.surface_config.usage.remove(TextureUsages::COPY_SRC);
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let mesh = ConvexMesh::sphere(64, 32);
+    let blue_plane = DepthPlane {
+        coefficients: [0.15, 0., -20.],
+        backface: false,
+    };
+    for frame in 0..36u32 {
+        let g = [1., 0.5, 0.2, 0., 0.8, 1.][frame as usize % 6];
+        let h = if frame < 12 { 1. } else { 0.65 };
+        // First twelve frames change only opacity; subsequent poses invalidate
+        // affected presence views while retaining mesh and clip-resource identity.
+        let z = if frame < 12 {
+            0.
+        } else {
+            (frame as f64 * 0.35).sin() * 24.
+        };
+        let poses = [
+            [
+                34.,
+                0.,
+                0.,
+                0.,
+                0.,
+                36.,
+                0.,
+                0.,
+                0.,
+                0.,
+                26.,
+                0.,
+                49.,
+                64.,
+                30. + z,
+                1.,
+            ],
+            [
+                34., 0., 0., 0., 0., 32., 0., 0., 0., 0., 22., 0., 78., 64., -40., 1.,
+            ],
+        ];
+        for (index, pose) in poses.iter().enumerate() {
+            let id = index as u32 + 1;
+            renderer.begin_node(id, id as i32, 0);
+            renderer.set_node_opacity_scopes(
+                id,
+                &[OpacityScope {
+                    node_id: 100,
+                    opacity: g,
+                }],
+            );
+            renderer.draw_convex_mesh(
+                &OpaqueMeshDraw {
+                    mesh: mesh.clone(),
+                    world: *pose,
+                    surface: *pose,
+                    color: pax_runtime_api::Color::RED,
+                    material: pax_runtime_api::ResolvedMaterial::Unlit,
+                },
+                if index == 0 {
+                    Color::rgba(1., 0., 0., 1.)
+                } else {
+                    Color::rgba(0., 1., 0., 1.)
+                },
+                crate::Material::unlit(),
+            );
+            renderer.end_node(id);
+        }
+        if frame == 0 {
+            renderer.begin_node(0, 0, 0);
+            renderer.set_node_depth_plane(
+                0,
+                Some(DepthPlane {
+                    coefficients: [0., 0., -1000.],
+                    backface: false,
+                }),
+            );
+            renderer.fill_path(
+                rect(0., 0., 128., 128.),
+                Fill::Solid(Color::rgba(0., 0., 0., 1.)),
+            );
+            renderer.end_node(0);
+            renderer.begin_node(3, 3, 0);
+            renderer.set_node_depth_plane(
+                3,
+                Some(DepthPlane {
+                    coefficients: [0., 0., -75.],
+                    backface: false,
+                }),
+            );
+            renderer.fill_path(
+                rect(22., 22., 84., 84.),
+                Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+            );
+            renderer.end_node(3);
+            renderer.begin_node(4, 4, 0);
+            renderer.set_node_depth_plane(4, Some(blue_plane));
+            renderer.fill_path(
+                rect(8., 8., 112., 112.),
+                Fill::Solid(Color::rgba(0., 0., 1., 0.5)),
+            );
+            renderer.end_node(4);
+        }
+        renderer.set_node_opacity_scopes(
+            3,
+            &[OpacityScope {
+                node_id: 100,
+                opacity: g,
+            }],
+        );
+        // Reparent the blue surface into the assembly in the final phase.
+        // Its child opacity must become conditional on the parent being present.
+        let nested = frame >= 24;
+        let mut outside_scopes = vec![OpacityScope {
+            node_id: 200,
+            opacity: h,
+        }];
+        if nested {
+            outside_scopes.insert(
+                0,
+                OpacityScope {
+                    node_id: 100,
+                    opacity: g,
+                },
+            );
+        }
+        renderer.set_node_opacity_scopes(4, &outside_scopes);
+        renderer.request_screenshot_capture(frame);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let image = renderer.take_screenshot_capture(frame).unwrap();
+        let red = mesh.posed(poses[0]).unwrap();
+        let green = mesh.posed(poses[1]).unwrap();
+        for (x, y) in [
+            (49, 64),
+            (72, 64),
+            (88, 64),
+            (54, 50),
+            (38, 80),
+            (28, 28),
+            (110, 110),
+            (3, 3),
+        ] {
+            let (px, py) = (x as f64 + 0.5, y as f64 + 0.5);
+            let mut expected = [0.; 3];
+            for present in [false, true] {
+                for outside in [false, true] {
+                    let weight = if nested && !present {
+                        if outside {
+                            continue;
+                        }
+                        (1. - g) as f64
+                    } else {
+                        (if present { g } else { 1. - g }) as f64
+                            * (if outside { h } else { 1. - h }) as f64
+                    };
+                    let mut fragments = vec![(-1000., [0., 0., 0., 1.])];
+                    if present {
+                        if let Some(z) = red.depth_at(px, py) {
+                            fragments.push((z, [1., 0., 0., 1.]));
+                        }
+                        if let Some(z) = green.depth_at(px, py) {
+                            fragments.push((z, [0., 1., 0., 1.]));
+                        }
+                        if (22..106).contains(&x) && (22..106).contains(&y) {
+                            fragments.push((-75., [1., 1., 1., 1.]));
+                        }
+                    }
+                    if outside && (8..120).contains(&x) && (8..120).contains(&y) {
+                        fragments.push((blue_plane.depth_at(px, py), [0., 0., 1., 0.5]));
+                    }
+                    fragments.sort_by(|a, b| a.0.total_cmp(&b.0));
+                    let mut color = [0.; 3];
+                    for (_, rgba) in fragments {
+                        for c in 0..3 {
+                            color[c] = rgba[c] * rgba[3] + color[c] * (1. - rgba[3]);
+                        }
+                    }
+                    for c in 0..3 {
+                        expected[c] += color[c] * weight;
+                    }
+                }
+            }
+            let actual = &image.rgba[(y * 128 + x) * 4..][..4];
+            for c in 0..3 {
+                assert!(
+                    actual[c].abs_diff((expected[c] * 255.).round() as u8) <= 3,
+                    "frame {frame}, pixel {x},{y}: {actual:?}, expected {expected:?}"
+                );
+            }
+            assert!(actual[3] >= 253);
+        }
+        let stats = renderer.take_resource_churn_stats();
+        assert_eq!(stats.spatial_fade_overflows, 0);
+        assert!(stats.spatial_fade_renders <= 4);
+        if frame > 0 {
+            assert_eq!(stats.solid_geometry_upload_bytes, 0);
+        }
+        if (2..12).contains(&frame) {
+            assert_eq!(
+                stats.spatial_fade_renders, 0,
+                "opacity-only updates must reuse both scene views"
+            );
+        }
+        assert!(renderer.spatial_fade_capture_count() <= 8);
+    }
+    // Scope removal and physical-tile reuse must retire both capture residency
+    // and admission state, even when the new tile reuses the same node IDs.
+    for id in 1..=4 {
+        renderer.set_node_opacity_scopes(id, &[]);
+    }
+    renderer.flush();
+    assert_eq!(renderer.spatial_fade_capture_count(), 0);
+    renderer.reset_retained_scene();
+    renderer.begin_node(1, 1, 0);
+    renderer.fill_path(
+        rect(0., 0., 128., 128.),
+        Fill::Solid(Color::rgba(0., 1., 0., 1.)),
+    );
+    renderer.end_node(1);
+    renderer.request_screenshot_capture(99);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    assert_pixel(
+        &renderer.take_screenshot_capture(99).unwrap(),
+        64,
+        64,
+        [0, 255, 0, 255],
+    );
+    assert_eq!(renderer.spatial_fade_capture_count(), 0);
+}
+
+#[cfg(feature = "3d")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn spatial_fade_disjoint_components_and_overflow_are_bounded() {
+    use pax_runtime_api::{
+        mesh3::{ConvexMesh, OpaqueMeshDraw},
+        DepthPlane, OpacityScope,
+    };
+    for dpr in [1., 2.] {
+        let layer = MetalLayer::new();
+        let backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, (128. * dpr) as u32, (128. * dpr) as u32, [dpr, dpr]),
+            )
+        })
+        .unwrap();
+        let device = backend.device.clone();
+        let mut renderer = WgpuRenderer::new(backend);
+        renderer.set_viewport(128., 128., [dpr, dpr]);
+        let pose = [
+            3., 0., 0., 0., 0., 3., 0., 0., 0., 0., 3., 0., 12., 40., 20., 1.,
+        ];
+        renderer.begin_node(9, 9, 0);
+        renderer.set_node_opacity_scopes(
+            9,
+            &[OpacityScope {
+                node_id: 100,
+                opacity: 0.5,
+            }],
+        );
+        renderer.draw_convex_mesh(
+            &OpaqueMeshDraw {
+                mesh: ConvexMesh::sphere(16, 8),
+                world: pose,
+                surface: pose,
+                color: pax_runtime_api::Color::RED,
+                material: pax_runtime_api::ResolvedMaterial::Unlit,
+            },
+            Color::rgba(1., 0., 0., 1.),
+            crate::Material::unlit(),
+        );
+        renderer.end_node(9);
+        for overlapping in [false, true] {
+            for id in 0..4u32 {
+                renderer.begin_node(id, id as i32, 0);
+                renderer.set_node_depth_plane(
+                    id,
+                    Some(DepthPlane {
+                        coefficients: [0., 0., id as f64],
+                        backface: false,
+                    }),
+                );
+                renderer.set_node_opacity_scopes(
+                    id,
+                    &[OpacityScope {
+                        node_id: 100 + id,
+                        opacity: 0.5,
+                    }],
+                );
+                renderer.fill_path(
+                    rect(
+                        if overlapping {
+                            32.
+                        } else {
+                            id as f32 * 30. + 2.
+                        },
+                        20.,
+                        24.,
+                        60.,
+                    ),
+                    Fill::Solid(Color::rgba(1., 0., 0., 1.)),
+                );
+                renderer.end_node(id);
+            }
+            renderer.request_screenshot_capture(1);
+            renderer.flush();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            let image = renderer.take_screenshot_capture(1).unwrap();
+            let stats = renderer.take_resource_churn_stats();
+            if overlapping {
+                assert_eq!(stats.spatial_fade_overflows, 1);
+                assert_eq!(stats.spatial_fade_renders, 0);
+                assert_pixel(
+                    &image,
+                    (40. * dpr) as usize,
+                    (40. * dpr) as usize,
+                    [255, 0, 0, 255],
+                );
+            } else {
+                assert_eq!(stats.spatial_fade_renders, 8);
+                for x in [12, 42, 72, 102] {
+                    assert_pixel(
+                        &image,
+                        (x as f32 * dpr) as usize,
+                        (40. * dpr) as usize,
+                        [128, 0, 0, 128],
+                    );
+                }
+            }
+        }
     }
 }

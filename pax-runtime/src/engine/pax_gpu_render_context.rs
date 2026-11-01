@@ -1267,6 +1267,13 @@ impl PaxGpuRenderer {
                     resource_stats.opacity_group_renders,
                     resource_stats.opacity_group_cache_hits,
                 );
+                #[cfg(feature = "3d")]
+                let line = format!(
+                    "{line} spatial_fade_renders={} spatial_fade_cache_hits={} spatial_fade_overflows={}",
+                    resource_stats.spatial_fade_renders,
+                    resource_stats.spatial_fade_cache_hits,
+                    resource_stats.spatial_fade_overflows,
+                );
                 log::trace!("{}", line);
                 #[cfg(not(target_arch = "wasm32"))]
                 if should_print_gpu_profile_logs()

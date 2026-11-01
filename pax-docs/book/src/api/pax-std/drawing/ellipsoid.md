@@ -8,7 +8,9 @@ An opaque ellipsoid with width × height × depth extents, centered on local Z=0
 Requires `pax-kit/3d` and the GPU renderer. Ordinary transforms, hard clips,
 lighting, and depth-aware native-control occlusion apply to the complete volume.
 
-This initial mesh primitive accepts a solid opaque color. Fractional opacity,
+Node and ancestor opacity fade the assembled opaque appearance through the
+bounded spatial group compositor; hidden rear surfaces stay hidden.
+This primitive accepts a solid opaque color. Translucent material color,
 alpha masks, detached mask sources, and shader-effect captures are unsupported;
 unsupported instances are omitted with a diagnostic. Zero/negative dimensions
 or a singular pose produce no coverage. Transparent shells are a separate contract.

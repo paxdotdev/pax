@@ -303,7 +303,11 @@ This lets an opaque 3D solid intercept a click where it hides a live control.
 Moving coverage does not cancel an established native drag, remove keyboard
 focus, or disable keyboard activation. Partially transparent coverage and
 shader-expanded pixels do not define a new pixel-exact interaction contract.
-See [opaque curved solids](layout-responsiveness.md#opaque-curved-solids).
+A shared spatial group fade preserves internal opaque cutouts: a covered control
+stays covered while its assembly fades. Independent native/canvas transparency
+keeps the platform approximation. See
+[spatial group fades](layout-responsiveness.md#spatial-group-fades) and
+[opaque curved solids](layout-responsiveness.md#opaque-curved-solids).
 
 ## Accessibility today
 

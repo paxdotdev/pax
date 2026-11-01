@@ -419,7 +419,10 @@ alpha to let content behind it show through while its label stays crisp. Set
 the container's opacity to fade its assembled canvas artwork. See
 [paint alpha](drawing-styling.md#color-and-transparency), including `rgba` units.
 Independent sibling fades still overlap using source-over; complementary
-opacities do not keep a crossfading silhouette fully opaque.
+opacities do not keep a crossfading silhouette fully opaque. Spatial GPU groups
+preserve internal opaque occlusion while fading, including a bounded form of
+outside depth interleaving; see [Spatial group fades](layout-responsiveness.md#spatial-group-fades)
+for its scene-view budget and native-surface limits.
 
 **Current backend limits:** both renderers compose each canvas portion
 separately. Live native text and controls, and content in separate native

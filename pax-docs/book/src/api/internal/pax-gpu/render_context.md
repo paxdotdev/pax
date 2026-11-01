@@ -142,6 +142,19 @@ Type: `u64`
 ##### `solid_uniform_updates`
 Type: `u64`
 
+##### `spatial_fade_renders`
+Type: `u64`
+
+Exact presence/absence views rendered for spatial group fades.
+
+##### `spatial_fade_cache_hits`
+Type: `u64`
+
+##### `spatial_fade_overflows`
+Type: `u64`
+
+Components exceeding the exact spatial fade state budget.
+
 ##### `flushes`
 Type: `u64`
 

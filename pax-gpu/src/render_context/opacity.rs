@@ -35,6 +35,10 @@ impl WgpuRenderer<'_> {
             .sorted_nodes
             .iter()
             .filter(|(_, id)| {
+                #[cfg(feature = "3d")]
+                if self.spatial_hidden.contains(id) {
+                    return false;
+                }
                 #[cfg(feature = "shaders")]
                 if self.effect_nodes.contains_key(id) {
                     return false;
@@ -218,7 +222,15 @@ impl WgpuRenderer<'_> {
         // unrelated nodes are inserted without changing this capture's pixels.
         match node {
             #[cfg(feature = "3d")]
-            RetainedNode::Solid(_) => unreachable!("solids bypass planar opacity captures"),
+            RetainedNode::Solid(n) => {
+                n.hash_content(hash);
+                LightingDependencies {
+                    direct: n.light_mask,
+                    lit: !n.material.unlit,
+                }
+                .signature(&self.scene_lighting)
+                .hash(hash);
+            }
             #[cfg(feature = "shaders")]
             RetainedNode::Effect(n) => {
                 n.visible.hash(hash);

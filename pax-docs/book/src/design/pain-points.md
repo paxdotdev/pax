@@ -1506,3 +1506,15 @@ Coordinating lifecycle entry with native presentation readiness remains open.
   release GPU scene rendered and passed interaction checks. This extends the
   earlier IAB startup report above; the browser/background scheduling cause is
   not established. The temporary probe was removed.
+
+- 2026-10-31 (PAX-1051): `pax-cli fmt examples/fixtures/solid-intersection/src`
+  left trailing spaces at wrapped attribute lines in both templates. Expected
+  formatted output to pass `git diff --check`. Removed trailing whitespace after
+  formatting; the templates still parse and build normally.
+
+- 2026-10-31 (PAX-1051): Reloading the IAB after a successful release build
+  still showed the old fixture. The HTTP log showed new interface JS and route
+  metadata requests but no request for the changed cartridge JS/Wasm. Serving
+  the same build on a fresh localhost origin with `Cache-Control: no-store`
+  loaded the new controls. Evidence: `/tmp/pax-spatial-release-server.log` and
+  `/tmp/pax-spatial-preview-server.log`; no compiler or baking fault was found.

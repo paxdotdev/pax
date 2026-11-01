@@ -1,54 +1,133 @@
-<Scroller width=100% height=100% scroll_height=1080px scroll_pos_y=bind:self.scroll_y>
-    <Group width=100% height=1080px anchor=0%>
-        <Group x=32px y=28px width={100% - 64px} height=144px translate_z=1000px>
-            <Text class="label" width=100% height=22px text="PAX / SURFACE STUDIES / 03" />
-            <Text class="title" y=38px width=100% height=66px text="A surface meets a solid." />
-            <Text class="copy" y=112px width=100% height=32px text="One live panel. One curved volume. Shared depth." />
+<Button x=100% y=0px width=130px height=28px label={self.study ? "Intersection" : "Scroll study"}
+    @button_click=self.switch_study/>
+if self.study {
+    <ScrollStudy width=100% height=100%/>
+} else {
+    <Scroller width=100% height=100% scroll_height=1380px scroll_pos_y=bind:self.scroll_y>
+        <Group width=100% height=1380px anchor=0%>
+            <Group x=32px y=28px width={100% - 64px} height=144px translate_z=1000px>
+                <Text class="label" width=100% height=22px text="PAX / SURFACE STUDIES / 03"/>
+                <Text class="title" y=38px width=100% height=66px text="Fade the assembly."/>
+                <Text class="copy" y=112px width=100% height=54px text="Two solids. One live panel. An outside surface between them."/>
+            </Group>
+            <Frame x=24px y=190px width={100% - 48px} height=600px>
+                <LightFrame width=100% height=100%>
+                    <Group x=24px y=22px width={100% - 48px} height=50px translate_z=900px>
+                        <Text class="light_label" width={100% - 140px} height=40px text="THE INTERSECTION IS REAL"/>
+                        <Button x=100% width=130px height=32px label={self.playing ? "Pause motion" : "Play motion"} @button_click=self.play/>
+                    </Group>
+                    <Group id=assembly width=100% height=100% opacity={self.fade}>
+                        if self.solids {
+                            <Ellipsoid id=solid x=58% y=48% width=260px height=310px depth=240px translate_z={(self.depth)px} rotate_y=24deg rotate_x=-12deg
+                                color=rgb(239, 167, 77) material={Material::glossy(0.35)} @click=self.solid_press/>
+                            <Ellipsoid id=rear x=65% y=48% width=220px height=240px depth=180px translate_z=-145px rotate_y=-20deg color=rgb(80, 174, 154)
+                                material={Material::glossy(0.2)}/>
+                        }
+                        <Frame id=panel x=40% y=48% width={@viewport.width < 650 ? 300px : 430px} height=300px rotate_y={(self.tilt)deg}>
+                            if self.native {
+                                <Text class="label" x=24px y=24px width={100% - 48px} height=24px text="THE SAME MOUNTED INSTANCE"/>
+                                <Text class="panel_title" x=24px y=64px width={100% - 48px} height=52px text="Keep your place."/>
+                                <Textbox id=note x=24px y=138px width={100% - 48px} height=38px text=bind:self.note/>
+                                <Button id=panel_button x=24px y=195px width={100% - 48px} height=34px label={"Panel presses / " + self.presses}
+                                    @button_click=self.press/>
+                                <Text class="copy" x=24px y=250px width={100% - 48px} height=32px text="Type here, then move the solid."/>
+                            }
+                            <Rectangle width=100% height=100% fill={
+                                paint: rgb(246, 239, 216)
+                                material: {Material::unlit()}
+                            }/>
+                        </Frame>
+                    </Group>
+                    <Rectangle id=outside x=50% y=53% width=85% height=76px rotate=-10deg rotate_y=18deg translate_z={(self.outside_depth)px} fill={
+                        paint: rgba(122, 157, 224, 65%)
+                        material: {Material::unlit()}
+                    }/>
+                    <Group x=24px y=100% anchor_y=100% width={100% - 48px} height={@viewport.width < 650 ? 132px : 94px} translate_z=900px>
+                        <Button width={@viewport.width < 650 ? 28% : 100px} height=32px label="Behind" @button_click=self.behind/>
+                        <Button x={@viewport.width < 650 ? 50% : 112px} width={@viewport.width < 650 ? 28% : 100px} height=32px label="Through"
+                            @button_click=self.through/>
+                        <Button x={@viewport.width < 650 ? 100% : 224px} width={@viewport.width < 650 ? 28% : 100px} height=32px label="In front"
+                            @button_click=self.front/>
+                        <Button x={@viewport.width < 650 ? 0% : 100%} y={@viewport.width < 650 ? 44px : 0px} width=130px height=32px
+                            label={self.fade < 0.9 ? "Restore" : "Fade"} @button_click=self.fade_assembly/>
+                        <Text class="light_label" y={@viewport.width < 650 ? 88px : 48px} width=100% height=36px
+                            text={"SOLID PRESSES / " + self.solid_presses + "     |     NATIVE PANEL PRESSES / " + self.presses}/>
+                    </Group>
+                    <LightSource x=20% y=10% width=1px height=1px z=450px radius=1800px color=rgb(255, 233, 198) intensity=2.4/>
+                    <AmbientLight color=rgb(166, 190, 242) intensity=0.42/>
+                    <Rectangle width=100% height=100% translate_z=-1000px fill={
+                        paint: rgb(22, 36, 59)
+                        material: {Material::unlit()}
+                    }/>
+                </LightFrame>
+            </Frame>
+            <Group x=36px y=824px width={100% - 72px} height=290px translate_z=900px>
+                <Text class="label" width=120px height=24px text="SOLID DEPTH"/>
+                <Slider id=depth x=130px width={100% - 130px} height=24px min=-260.0 max=260.0 step=1.0 value=bind:self.depth
+                    accent=rgb(177, 110, 46)/>
+                <Text class="label" y=48px width=120px height=24px text="PANEL ROTATION"/>
+                <Slider id=tilt x=130px y=48px width={100% - 130px} height=24px min=-65.0 max=65.0 step=1.0 value=bind:self.tilt
+                    accent=rgb(177, 110, 46)/>
+                <Text class="label" y=96px width=120px height=24px text="GROUP OPACITY"/>
+                <Slider id=fade x=130px y=96px width={100% - 130px} height=24px min=0.0 max=1.0 step=0.01 value=bind:self.fade
+                    accent=rgb(177, 110, 46)/>
+                <Text class="label" y=144px width=120px height=24px text="OUTSIDE DEPTH"/>
+                <Slider id=outside_depth x=130px y=144px width={100% - 130px} height=24px min=-250.0 max=250.0 step=1.0
+                    value=bind:self.outside_depth accent=rgb(85, 121, 196)/>
+                <Text class="copy" y=198px width=100% height=72px
+                    text="Fade once: hidden surfaces stay hidden. The blue band belongs to the outside scene. Native text and controls keep their platform-owned transparency approximation."/>
+            </Group>
+            <Group x=36px y=1140px width={100% - 72px} height=180px translate_z=900px>
+                <Text class="label" width=100% height=24px text="WORKLOAD CONTROLS"/>
+                <Button y=32px width=150px height=34px label={self.native ? "Hide panel UI" : "Show panel UI"} @button_click=self.toggle_native/>
+                <Button x=100% y=32px width=150px height=34px label={self.solids ? "Remove solids" : "Mount solids"}
+                    @button_click=self.toggle_solids/>
+                <Button y=80px width=150px height=34px label={self.fading ? "Stop fade loop" : "Animate opacity"}
+                    @button_click=self.toggle_fading/>
+                <Text class="copy" y=128px width=100% height=48px
+                    text="Pause motion for opacity-only work. Remove and remount solids to exercise resource retirement."/>
+            </Group>
+            <Rectangle width=100% height=100% translate_z=-2000px fill={
+                paint: rgb(241, 237, 225)
+                material: {Material::unlit()}
+            }/>
         </Group>
-        <Frame x=24px y=190px width={100% - 48px} height=600px>
-            <LightFrame width=100% height=100%>
-                <Group x=24px y=22px width={100% - 48px} height=50px translate_z=900px>
-                    <Text class="light_label" width=320px height=22px text="THE INTERSECTION IS REAL" />
-                    <Button x=100% width=130px height=32px label={self.playing ? "Pause motion" : "Play motion"} @button_click=self.play />
-                </Group>
-                <Ellipsoid id=solid x=58% y=48% width=260px height=310px depth=240px
-                    translate_z={(self.depth)px} rotate_y=24deg rotate_x=-12deg
-                    color=rgb(239, 167, 77) material={Material::glossy(0.35)} @click=self.solid_press />
-                <Frame id=panel x=40% y=48% width={@viewport.width < 650 ? 300px : 430px} height=300px rotate_y={(self.tilt)deg}>
-                    <Text class="label" x=24px y=24px width={100% - 48px} height=24px text="THE SAME MOUNTED INSTANCE" />
-                    <Text class="panel_title" x=24px y=64px width={100% - 48px} height=52px text="Keep your place." />
-                    <Textbox id=note x=24px y=138px width={100% - 48px} height=38px text=bind:self.note />
-                    <Button id=panel_button x=24px y=195px width={100% - 48px} height=34px label={"Panel presses / " + self.presses} @button_click=self.press />
-                    <Text class="copy" x=24px y=250px width={100% - 48px} height=32px text="Type here, then move the solid." />
-                    <Rectangle width=100% height=100% fill={paint: rgb(246, 239, 216), material: {Material::unlit()}} />
-                </Frame>
-                <Group x=24px y=100% anchor_y=100% width={100% - 48px} height=94px translate_z=900px>
-                    <Button width=100px height=32px label="Behind" @button_click=self.behind />
-                    <Button x=112px width=100px height=32px label="Through" @button_click=self.through />
-                    <Button x=224px width=100px height=32px label="In front" @button_click=self.front />
-                    <Text class="light_label" y=48px width=100% height=30px text={"SOLID PRESSES / " + self.solid_presses + "     |     NATIVE PANEL PRESSES / " + self.presses} />
-                </Group>
-                <LightSource x=20% y=10% width=1px height=1px z=450px radius=1800px color=rgb(255, 233, 198) intensity=2.4 />
-                <AmbientLight color=rgb(166, 190, 242) intensity=0.42 />
-                <Rectangle width=100% height=100% translate_z=-1000px fill={paint: rgb(22, 36, 59), material: {Material::unlit()}} />
-            </LightFrame>
-        </Frame>
-        <Group x=36px y=824px width={100% - 72px} height=170px translate_z=900px>
-            <Text class="label" width=120px height=24px text="SOLID DEPTH" />
-            <Slider id=depth x=130px width={100% - 130px} height=24px min=-260.0 max=260.0 step=1.0 value=bind:self.depth accent=rgb(177, 110, 46) />
-            <Text class="label" y=48px width=120px height=24px text="PANEL ROTATION" />
-            <Slider id=tilt x=130px y=48px width={100% - 130px} height=24px min=-65.0 max=65.0 step=1.0 value=bind:self.tilt accent=rgb(177, 110, 46) />
-            <Text class="copy" y=110px width=100% height=60px text="Opaque curved geometry, clipped live UI, and ordinary Pax lighting. Scroll, type, rotate, and follow the boundary." />
-        </Group>
-        <Rectangle width=100% height=100% translate_z=-2000px fill={paint: rgb(241, 237, 225), material: {Material::unlit()}} />
-    </Group>
-</Scroller>
+    </Scroller>
+}
+
 @settings {
     @mount: mount
     @pre_render: tick
-    .label { style: {font_size: 11px, fill: rgb(43, 51, 60)} }
-    .light_label { style: {font_size: 11px, fill: rgb(233, 229, 214)} }
-    .copy { style: {font_size: 14px, fill: rgb(43, 51, 60)} }
-    .title { style: {font: "Georgia", font_size: {@viewport.width < 650 ? 30px : 48px}, fill: rgb(43, 51, 60)} }
-    .panel_title { style: {font: "Georgia", font_size: 30px, fill: rgb(43, 51, 60)} }
+    .label {
+        style: {
+            font_size: 11px
+            fill: rgb(43, 51, 60)
+        }
+    }
+    .light_label {
+        style: {
+            font_size: 11px
+            fill: rgb(233, 229, 214)
+        }
+    }
+    .copy {
+        style: {
+            font_size: 14px
+            fill: rgb(43, 51, 60)
+        }
+    }
+    .title {
+        style: {
+            font: "Georgia"
+            font_size: {@viewport.width < 650 ? 30px : 48px}
+            fill: rgb(43, 51, 60)
+        }
+    }
+    .panel_title {
+        style: {
+            font: "Georgia"
+            font_size: 30px
+            fill: rgb(43, 51, 60)
+        }
+    }
 }

@@ -11,6 +11,8 @@ pub(crate) enum CaptureKey {
     #[cfg(feature = "3d")]
     SpatialGroup(u32),
     #[cfg(feature = "3d")]
+    SpatialVisibility(u64, u64),
+    #[cfg(feature = "3d")]
     SpatialOpacity(u32, u32, usize),
     Alpha(u32),
     #[cfg(feature = "shaders")]
@@ -25,9 +27,17 @@ impl CaptureKey {
             Self::EffectSource(_) => true,
             Self::Opacity(..) => false,
             #[cfg(feature = "3d")]
-            Self::SpatialGroup(..) | Self::SpatialOpacity(..) => false,
+            Self::SpatialGroup(..) | Self::SpatialOpacity(..) | Self::SpatialVisibility(..) => false,
         }
     }
+}
+
+enum CaptureBlend {
+    SourceOver,
+    #[cfg(feature = "3d")]
+    Replace,
+    #[cfg(feature = "3d")]
+    Add,
 }
 
 struct CachedGroup {
@@ -41,6 +51,10 @@ struct CachedGroup {
 
 pub(super) struct RetainedSurfaces {
     pipeline: RenderPipeline,
+    #[cfg(feature = "3d")]
+    replacement_pipeline: RenderPipeline,
+    #[cfg(feature = "3d")]
+    additive_pipeline: RenderPipeline,
     layout: BindGroupLayout,
     sampler: wgpu::Sampler,
     groups: HashMap<CaptureKey, CachedGroup>,
@@ -122,7 +136,7 @@ impl RetainedSurfaces {
             bind_group_layouts: &[&layout],
             immediate_size: 0,
         });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let make_pipeline = |blend| device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Retained surface pipeline"), layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader, entry_point: Some("vs_main"), compilation_options: Default::default(),
@@ -136,7 +150,7 @@ impl RetainedSurfaces {
                 module: &shader, entry_point: Some("fs_main"), compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: backend.surface_config.format,
-                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                    blend,
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -144,12 +158,26 @@ impl RetainedSurfaces {
             multisample: wgpu::MultisampleState { count: backend.sample_count, ..Default::default() },
             multiview_mask: None, cache: None,
         });
+        let pipeline = make_pipeline(Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING));
+        #[cfg(feature = "3d")]
+        let replacement_pipeline = make_pipeline(None);
+        #[cfg(feature = "3d")]
+        let additive_pipeline = make_pipeline(Some(wgpu::BlendState {
+            color: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::One,
+                dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add },
+            alpha: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::One,
+                dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add },
+        }));
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Retained surface sampler"),
             ..Default::default()
         });
         Self {
             pipeline,
+            #[cfg(feature = "3d")]
+            replacement_pipeline,
+            #[cfg(feature = "3d")]
+            additive_pipeline,
             layout,
             sampler,
             groups: HashMap::new(),
@@ -320,7 +348,7 @@ impl RenderBackend<'_> {
         let opacity = match key {
             CaptureKey::Opacity(..) => true,
             #[cfg(feature = "3d")]
-            CaptureKey::SpatialGroup(..) | CaptureKey::SpatialOpacity(..) => true,
+            CaptureKey::SpatialGroup(..) | CaptureKey::SpatialOpacity(..) | CaptureKey::SpatialVisibility(..) => true,
             _ => false,
         };
         let size = if opacity {
@@ -441,6 +469,17 @@ impl RenderBackend<'_> {
     }
 
     pub(crate) fn draw_capture(&mut self, key: CaptureKey, opacity: f32) {
+        self.draw_capture_blend(key, opacity, CaptureBlend::SourceOver);
+    }
+
+    // Presence states are mutually exclusive complete scene views. Their
+    // premultiplied colors/alphas sum; source-over would attenuate the backdrop twice.
+    #[cfg(feature = "3d")]
+    pub(crate) fn draw_capture_weighted(&mut self, key: CaptureKey, weight: f32, first: bool) {
+        self.draw_capture_blend(key, weight, if first { CaptureBlend::Replace } else { CaptureBlend::Add });
+    }
+
+    fn draw_capture_blend(&mut self, key: CaptureKey, opacity: f32, mode: CaptureBlend) {
         let load = self.take_color_load_op();
         self.ensure_active_frame();
         let mut targets = vec![(self.current_color_attachment_view_clones(), load)];
@@ -493,7 +532,14 @@ impl RenderBackend<'_> {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            pass.set_pipeline(&surfaces.pipeline);
+            let pipeline = match mode {
+                CaptureBlend::SourceOver => &surfaces.pipeline,
+                #[cfg(feature = "3d")]
+                CaptureBlend::Replace => &surfaces.replacement_pipeline,
+                #[cfg(feature = "3d")]
+                CaptureBlend::Add => &surfaces.additive_pipeline,
+            };
+            pass.set_pipeline(pipeline);
             pass.set_bind_group(0, &group.bind_group, &[]);
             pass.set_vertex_buffer(0, group.vertices.slice(..));
             pass.draw(0..6, 0..1);
@@ -510,6 +556,12 @@ impl RenderBackend<'_> {
                 .retained_surfaces
                 .as_ref()
                 .is_some_and(|s| !s.scratch.is_empty())
+    }
+
+    #[cfg(feature = "3d")]
+    pub(crate) fn spatial_fade_capture_count(&self) -> usize {
+        self.retained_surfaces.as_ref().map_or(0, |s| s.groups.keys()
+            .filter(|key| matches!(key, CaptureKey::SpatialVisibility(..))).count())
     }
 
     pub(crate) fn capture_texture_for_test(&self, key: CaptureKey) -> Texture {

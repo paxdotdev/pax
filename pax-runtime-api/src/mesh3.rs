@@ -3,6 +3,7 @@
 //! Mesh topology is immutable. Poses retain projected coverage independently of
 //! GPU resources; clipping a convex volume against a plane never splits its mesh.
 
+use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
 
 use crate::DepthPlane;
@@ -120,6 +121,8 @@ impl ConvexMesh {
             mesh: self.clone(),
             transform,
             vertices,
+            silhouette: OnceCell::new(),
+            front_coverage: RefCell::new(Vec::new()),
         }))
     }
 }
@@ -130,6 +133,10 @@ pub struct PosedConvexMesh {
     pub mesh: Rc<ConvexMesh>,
     pub transform: [f64; 16],
     vertices: Vec<[f64; 3]>,
+    silhouette: OnceCell<Vec<[f64; 2]>>,
+    // Native siblings, physical tiles, and fade views often ask about the same
+    // plane. Bound residency even when a stationary solid meets animated planes.
+    front_coverage: RefCell<Vec<([f64; 3], Vec<[f64; 2]>)>>,
 }
 
 impl PosedConvexMesh {
@@ -139,18 +146,43 @@ impl PosedConvexMesh {
 
     /// Projected silhouette of the tessellated solid in these x/y coordinates.
     pub fn silhouette(&self) -> Vec<[f64; 2]> {
-        convex_hull(self.vertices.iter().map(|p| [p[0], p[1]]).collect())
+        self.silhouette
+            .get_or_init(|| convex_hull(self.vertices.iter().map(|p| [p[0], p[1]]).collect()))
+            .clone()
     }
 
     /// Projects the portion closer than a planar UI surface. Edge/plane crossings
     /// are included, so a panel passing through the volume gets the intersection
     /// contour, not merely a subset of the solid's existing silhouette vertices.
     pub fn coverage_in_front(&self, plane: DepthPlane) -> Vec<[f64; 2]> {
+        const MAX_COVERAGE_PLANES: usize = 32;
+        let mut cache = self.front_coverage.borrow_mut();
+        if let Some(index) = cache.iter().position(|(key, _)| *key == plane.coefficients) {
+            let entry = cache.remove(index);
+            let result = entry.1.clone();
+            cache.push(entry);
+            return result;
+        }
+        let result = self.compute_front_coverage(plane);
+        if cache.len() == MAX_COVERAGE_PLANES {
+            cache.remove(0);
+        }
+        cache.push((plane.coefficients, result.clone()));
+        result
+    }
+
+    fn compute_front_coverage(&self, plane: DepthPlane) -> Vec<[f64; 2]> {
         let distances: Vec<_> = self
             .vertices
             .iter()
             .map(|p| p[2] - plane.depth_at(p[0], p[1]))
             .collect();
+        if distances.iter().all(|d| *d > 1e-7) {
+            return self.silhouette();
+        }
+        if distances.iter().all(|d| *d <= 1e-7) {
+            return Vec::new();
+        }
         let mut points: Vec<_> = self
             .vertices
             .iter()
@@ -236,6 +268,41 @@ mod tests {
         [
             1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.,
         ]
+    }
+
+    #[test]
+    fn coverage_cache_is_exact_bounded_and_owned_by_the_pose() {
+        let mesh = ConvexMesh::sphere(64, 32);
+        let pose = mesh.posed(identity()).unwrap();
+        for i in 0..96 {
+            let plane = DepthPlane {
+                coefficients: [0.2, -0.1, i as f64 / 40. - 1.2],
+                backface: false,
+            };
+            let expected = pose.compute_front_coverage(plane);
+            assert_eq!(pose.coverage_in_front(plane), expected);
+            assert_eq!(pose.coverage_in_front(plane), expected);
+            assert!(pose.front_coverage.borrow().len() <= 32);
+        }
+        assert_eq!(pose.front_coverage.borrow().len(), 32);
+        let mut transform = identity();
+        transform[14] = 2.;
+        let moved = mesh.posed(transform).unwrap();
+        assert!(moved.front_coverage.borrow().is_empty());
+        let plane = DepthPlane {
+            coefficients: [0., 0., 0.8],
+            backface: false,
+        };
+        assert_ne!(
+            moved.coverage_in_front(plane),
+            pose.coverage_in_front(plane)
+        );
+        let weak = Rc::downgrade(&pose);
+        drop(pose);
+        assert!(
+            weak.upgrade().is_none(),
+            "cached contours do not retain removed poses"
+        );
     }
 
     #[test]

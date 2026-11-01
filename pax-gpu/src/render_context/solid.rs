@@ -21,22 +21,29 @@ pub(super) struct RetainedSolid {
     pub last_uniform: Vec<u8>,
 }
 
+impl RetainedSolid {
+    pub(super) fn hash_content(&self, hash: &mut DefaultHasher) {
+        (Rc::as_ptr(&self.pose.mesh) as usize).hash(hash);
+        for value in self.world.iter().chain(self.pose.transform.iter()) {
+            value.to_bits().hash(hash);
+        }
+        bytemuck::bytes_of(&self.color.rgba).hash(hash);
+        bytemuck::bytes_of(&to_gpu_material(self.material)).hash(hash);
+        self.light_mask.hash(hash);
+    }
+}
+
 impl WgpuRenderer<'_> {
     /// Retains immutable topology; pose/material changes update only uniforms.
     pub fn draw_convex_mesh(&mut self, draw: &OpaqueMeshDraw, color: Color, material: Material) {
         let Some(pending) = &mut self.current_node else {
             return;
         };
-        // Alpha-source/effect captures and fractional solid opacity require a
-        // transparent-volume contract. Reject them instead of inventing shell semantics.
+        // Surface transparency remains separate from whole-assembly fading.
         if self
             .clip_stack
             .iter()
             .any(|c| matches!(c, ClipReference::Alpha { .. }))
-            || self
-                .opacity_scopes
-                .get(&pending.id)
-                .is_some_and(|s| s.iter().any(|s| s.opacity != 1.))
             || !self.source_recordings.is_empty()
         {
             return;
@@ -60,7 +67,15 @@ impl WgpuRenderer<'_> {
             0.,
             1.,
         ]);
-        let Some(pose) = draw.mesh.posed((base * Matrix::new(draw.surface)).coeffs()) else {
+        let transform = (base * Matrix::new(draw.surface)).coeffs();
+        // Paint/opacity updates do not change coverage. Preserve the pose's
+        // bounded plane-contour cache across retained-node replacement.
+        let retained_pose = self.scene.get(&pending.id).and_then(|node| match node {
+            RetainedNode::Solid(s) if Rc::ptr_eq(&s.pose.mesh, &draw.mesh)
+                && s.pose.transform == transform => Some(s.pose.clone()),
+            _ => None,
+        });
+        let Some(pose) = retained_pose.or_else(|| draw.mesh.posed(transform)) else {
             return;
         };
         let bounds = bounds_of(&pose.silhouette());
@@ -131,6 +146,11 @@ impl WgpuRenderer<'_> {
             }
             s.last_uniform = bytes.to_vec();
         }
+        // All states in a fade use the same world-depth mapping and uniforms.
+        let solids: Vec<_> = solids
+            .into_iter()
+            .filter(|id| !self.spatial_hidden.contains(id))
+            .collect();
         let mut keys = Vec::new();
         let viewport = self.viewport_bounds();
         let planar = self.visible_main_nodes();

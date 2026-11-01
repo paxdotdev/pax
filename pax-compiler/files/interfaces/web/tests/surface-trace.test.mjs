@@ -288,3 +288,24 @@ test('unsubmitted image diagnostics stay bounded and retirement clears them befo
     assert.equal(h.trace.imageStates.size, 0);
     assert.equal(h.trace.recordedImages.size, 0);
 });
+
+test('profile aggregates survive ring overflow and have bounded residency', () => {
+    const h = harness(2);
+    h.trace.profileUntil = Infinity;
+    for (let i=0; i<3000; i++) {
+        h.trace.recordPhase('render', i < 2048 ? 3 : 9);
+        h.trace.record('noise', {i});
+    }
+    const result = h.trace.profileSnapshot().render;
+    assert.equal(result.count, 3000);
+    assert.equal(result.mean, (2048*3 + 952*9)/3000);
+    assert.equal(result.max, 9);
+    assert.equal(result.p95, 3);
+    assert.equal(result.percentileSamples, 2048);
+    assert.equal(h.mount.paxSurfaceTrace.length, 2);
+    for (let i=0; i<100; i++) h.trace.recordPhase('phase'+i, 1);
+    assert.equal(h.trace.profilePhases.size, 64);
+    h.trace.dispose();
+    assert.equal(h.trace.profilePhases.size, 0);
+});
+

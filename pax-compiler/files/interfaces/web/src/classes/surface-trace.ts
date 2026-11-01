@@ -23,6 +23,12 @@ export class SurfaceTrace {
     private inspector?: HTMLDetailsElement;
     private lastUnready = '';
     private probeFrame?: number;
+    private profileFrame?: number;
+    private profileStart = 0;
+    private profileUntil = -Infinity;
+    private profilePhases = new Map<string, {count: number; total: number; max: number; samples: number[]}>();
+    private profileOutput?: HTMLPreElement;
+    private lastProfile?: object;
     private probeUntil = -Infinity;
     private scrollUntil = -Infinity;
     private wheelInputs = new TraceRing<WheelInputSample>(128);
@@ -109,6 +115,13 @@ export class SurfaceTrace {
             output.id = 'pax-surface-trace-snapshot';
             details.style.cssText = 'position:fixed;bottom:0;right:0;z-index:2147483647;background:#fff;color:#000;max-width:90vw;max-height:60vh;overflow:auto;font:11px monospace';
             details.append(summary, scroller, duration);
+            const profile = doc.createElement('button');
+            profile.textContent = 'Profile 2 seconds';
+            const profileOutput = doc.createElement('pre');
+            profileOutput.id = 'pax-surface-profile';
+            this.profileOutput = profileOutput;
+            profile.addEventListener('click', () => { details.open = false; this.runProfile(2000); });
+            details.append(profile, profileOutput);
             for (const [name,direction] of [['Probe down',1],['Probe up',-1]] as const) {
                 const button=doc.createElement('button'); button.textContent=name;
                 button.addEventListener('click',()=>{
@@ -141,11 +154,54 @@ export class SurfaceTrace {
                     this.record('wheel-input-summary', {samples: this.wheelInputs.snapshot()});
                     this.record('trace-overflow', {events: this.events.overwritten, samples: this.samples.overwritten});
                     output.textContent = JSON.stringify(this.snapshot());
+                    profileOutput.textContent = JSON.stringify(this.lastProfile ?? {status:'No profile recorded'});
                 }
             });
             doc.body.append(details);
             this.inspector = details;
         }
+    }
+
+    // Keep a bounded aggregate separately from the noisy event ring. This
+    // observes the chosen workload without injecting scroll or changing it.
+    private runProfile(duration: number) {
+        if (this.profileFrame != null) cancelAnimationFrame(this.profileFrame);
+        this.profileStart = performance.now();
+        this.profileUntil = this.profileStart + duration;
+        this.profilePhases.clear();
+        let previous = this.profileStart;
+        const step = () => {
+            const now = performance.now();
+            this.addProfileSample('raf-interval', now - previous);
+            previous = now;
+            if (now < this.profileUntil) this.profileFrame = requestAnimationFrame(step);
+            else {
+                this.profileFrame = undefined;
+                this.profileUntil = -Infinity;
+                this.lastProfile = {duration: now - this.profileStart, phases: this.profileSnapshot()};
+                if (this.profileOutput) this.profileOutput.textContent = JSON.stringify(this.lastProfile);
+            }
+        };
+        this.profileFrame = requestAnimationFrame(step);
+    }
+
+    private addProfileSample(phase: string, duration: number) {
+        if (!Number.isFinite(duration) || duration < 0) return;
+        if (!this.profilePhases.has(phase)) {
+            if (this.profilePhases.size >= 64) return;
+            this.profilePhases.set(phase, {count:0,total:0,max:0,samples:[]});
+        }
+        const stat = this.profilePhases.get(phase)!;
+        stat.count++; stat.total += duration; stat.max = Math.max(stat.max, duration);
+        if (stat.samples.length < 2048) stat.samples.push(duration);
+    }
+
+    private profileSnapshot() {
+        return Object.fromEntries([...this.profilePhases].map(([phase, stat]) => {
+            const samples = [...stat.samples].sort((a,b)=>a-b);
+            return [phase, {count:stat.count, mean:stat.total/stat.count, max:stat.max,
+                p95:samples[Math.ceil(samples.length*0.95)-1], percentileSamples:samples.length}];
+        }));
     }
 
     // Opt-in reproducible input, not a native compositor/frame-capture proxy.
@@ -191,6 +247,7 @@ export class SurfaceTrace {
         const value = this.phases.get(phase) ?? {count: 0, totalMs: 0, maxMs: 0};
         value.count += count; value.totalMs += duration; value.maxMs = Math.max(value.maxMs, maximum);
         this.phases.set(phase, value);
+        if (performance.now() <= this.profileUntil) this.addProfileSample(phase, duration);
     }
 
     beginFrame(epoch: number) {
@@ -320,6 +377,9 @@ export class SurfaceTrace {
 
     dispose() {
         if (this.probeFrame != null) cancelAnimationFrame(this.probeFrame);
+        if (this.profileFrame != null) cancelAnimationFrame(this.profileFrame);
+        this.profileUntil = -Infinity;
+        this.profilePhases.clear(); this.lastProfile = undefined; this.profileOutput = undefined;
         this.mount.removeEventListener('pax-surface-trace', this.listener);
         this.inspector?.remove();
         delete (this.mount as any).paxSurfaceTrace;

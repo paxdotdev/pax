@@ -1,8 +1,8 @@
 //! Orthographic flat-surface composition. A projected intersection can change paint order
 //! within one primitive, so sorting whole nodes (or writing opaque depth) is insufficient.
 //! Split surfaces at depth-equality lines, then paint fragments in source-over order.
-//! Uninterrupted translucent groups share one capture; interleaved scopes retain the
-//! region compositor's contiguous-run semantics.
+//! Uninterrupted translucent groups share one capture. Interleaved fades use the
+//! bounded presence-view compositor before entering this opaque scene painter.
 use super::*;
 use crate::render_backend::capture::CaptureKey;
 use crate::render_backend::RetainedBatchSegment;
@@ -12,6 +12,51 @@ const PLANE_EPSILON: f64 = 1.0e-7;
 type Polygon = Vec<[f64; 2]>;
 
 impl WgpuRenderer<'_> {
+    // Keep the existing one-capture path when geometry proves a fading scope
+    // contiguous. Presence views are needed only for actual depth interleaving
+    // (or meshes, whose depth varies across their projected silhouette).
+    pub(super) fn planar_opacity_is_contiguous(&self) -> bool {
+        let nodes = self.visible_main_nodes();
+        let viewport = self.viewport_bounds();
+        let node_planes: Vec<_> = nodes
+            .iter()
+            .map(|id| self.depth_planes.get(id).copied().unwrap_or_default())
+            .collect();
+        let (planes, membership) = unique_planes(&node_planes, &box_polygon(viewport));
+        let bounds: Vec<_> = nodes
+            .iter()
+            .map(|id| expand_box(self.scene[id].bounds(), 1.))
+            .collect();
+        let mut plane_bounds: Vec<Option<Box2D>> = vec![None; planes.len()];
+        let mut coverage = vec![Vec::new(); planes.len()];
+        for (i, bound) in bounds.iter().enumerate() {
+            let total = &mut plane_bounds[membership[i]];
+            *total = Some(total.map_or(*bound, |old| old.union(bound)));
+            match &self.scene[&nodes[i]] {
+                RetainedNode::Vector(node) => {
+                    coverage[membership[i]].extend_from_slice(&node.spatial_coverage)
+                }
+                _ => coverage[membership[i]].extend(box_polygon(*bound)),
+            }
+        }
+        let plane_bounds: Vec<_> = plane_bounds.into_iter().map(Option::unwrap).collect();
+        let coverage: Vec<_> = coverage.into_iter().map(convex_hull).collect();
+        let groups = surface_paint_groups(
+            &planes,
+            &plane_bounds,
+            &coverage,
+            &nodes,
+            &membership,
+            &bounds,
+            viewport,
+            |i| node_planes[i].coplanar_order(self.scene[&nodes[i]].z_index() as i64),
+        );
+        opacity_scopes_are_contiguous(
+            groups.iter().flat_map(|g| g.nodes.iter().copied()),
+            &self.opacity_scopes,
+        ) || regroup_disjoint_scopes(&groups, &self.opacity_scopes).is_some()
+    }
+
     /// Updates an orthographic plane independently of retained paint resources.
     pub fn set_node_depth_plane(&mut self, node_id: u32, plane: Option<DepthPlane>) {
         // The runtime supplies canvas-content coordinates; physical tiles can add a base
@@ -41,6 +86,12 @@ impl WgpuRenderer<'_> {
     }
 
     pub(super) fn draw_spatial_scene(&mut self, active: &mut HashSet<CaptureKey>) {
+        if !self.draw_spatial_fades(active) {
+            self.draw_spatial_scene_unfaded(active);
+        }
+    }
+
+    pub(super) fn draw_spatial_scene_unfaded(&mut self, active: &mut HashSet<CaptureKey>) {
         self.prepare_and_draw_solids();
         if self.depth_planes.is_empty() {
             self.clip_arena
@@ -93,7 +144,8 @@ impl WgpuRenderer<'_> {
             |i| node_planes[i].coplanar_order(self.scene[&nodes[i]].z_index() as i64),
         );
         // Contiguity is a conservative proof that capturing a group cannot move it
-        // across an outside object. Interleaved groups still need per-region runs.
+        // across an outside object. Noncontiguous fades are handled by spatial_fade;
+        // region runs remain the fallback for the underlying geometry painter.
         let surface_painter = opacity_scopes_are_contiguous(
             surface_groups
                 .iter()
@@ -103,7 +155,7 @@ impl WgpuRenderer<'_> {
         // A BSP splits against infinite planes. A distant, non-overlapping panel
         // can therefore appear between two fragments of the same opacity scope.
         // Preserve every overlapping pair's order, but allow disjoint fragments
-        // to commute before deciding that a scope genuinely needs region captures.
+        // to commute before deciding that a scope genuinely needs presence views.
         let regrouped = (!surface_painter)
             .then(|| regroup_disjoint_scopes(&surface_groups, &self.opacity_scopes))
             .flatten();
@@ -203,7 +255,7 @@ impl WgpuRenderer<'_> {
             let (key, id) = self
                 .clip_arena
                 .sync_key(
-                    ClipArenaKey::SpatialRegion(index),
+                    ClipArenaKey::SpatialRegion(self.spatial_namespace, index),
                     signature,
                     geometry,
                     Transform2D::identity(),
