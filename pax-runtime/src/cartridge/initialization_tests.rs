@@ -165,6 +165,7 @@ fn args() -> InstantiationArgs {
         children: None,
         component_template: None,
         component_settings: None,
+        component_camera: None,
         template_node_identifier: None,
         template_node_type_id: None,
         template_node_selector_info: None,
@@ -1105,7 +1106,8 @@ fn imported_provider_scope_and_inline_base_remain_reactive() {
             settings: vec![SettingsBlockElement::SelectorBlock(
                 pax_manifest::Token::new_without_location("Probe".into()),
                 LiteralBlockDefinition::new(vec![setting("value", expression("theme"))]),
-            )].into(),
+            )]
+            .into(),
         });
     let plan = plan(vec![setting("value", expression("@base + 1"))], None, None);
     let node = child(
@@ -1602,7 +1604,8 @@ fn animated_layer(
         settings: vec![SettingsBlockElement::SelectorBlock(
             pax_manifest::Token::new_without_location("Probe".into()),
             LiteralBlockDefinition::new(settings),
-        )].into(),
+        )]
+        .into(),
         transition: Some(LocalProperty::new(Some(SettingsTransitionConfig {
             duration: Duration::Milliseconds(100.into()),
             curve: "Linear",
@@ -1679,113 +1682,120 @@ fn late_mounted_components_resolve_their_theme_before_the_first_presentation() {
     }
 
     for resumable in [false, true] {
-    for phase in [TICK_HANDLERS, PRE_RENDER_HANDLERS, "frame", "millis"] {
-        let clock = Rc::new(Cell::new(0_u128));
-        let clock_read = clock.clone();
-        let mut engine = crate::test_support::empty_engine(
-            (320.0, 240.0),
-            Platform::Web,
-            OS::Mac,
-            Box::new(move || clock_read.get()),
-            Default::default(),
-        );
-        if resumable { engine.enable_resumable_startup(); }
-        let mut root_args = args();
-        let mut registry = HandlerRegistry::default();
-        registry
-            .handlers
-            .insert(phase.into(), vec![Handler::new_inline_handler(open_detail)]);
-        root_args.handler_registry = Some(Rc::new(RefCell::new(registry)));
-        let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
-        let context = engine.runtime_context.clone();
-        let open = match phase {
-            "frame" => {
-                let frames = context.globals().elapsed_frames;
-                let dependencies = [frames.untyped()];
-                LocalProperty::computed(
-                    move || if frames.get() > 0 { 1.0 } else { 0.0 },
-                    &dependencies,
-                )
+        for phase in [TICK_HANDLERS, PRE_RENDER_HANDLERS, "frame", "millis"] {
+            let clock = Rc::new(Cell::new(0_u128));
+            let clock_read = clock.clone();
+            let mut engine = crate::test_support::empty_engine(
+                (320.0, 240.0),
+                Platform::Web,
+                OS::Mac,
+                Box::new(move || clock_read.get()),
+                Default::default(),
+            );
+            if resumable {
+                engine.enable_resumable_startup();
             }
-            "millis" => {
-                let millis = context.globals().elapsed_millis;
-                let dependencies = [millis.untyped()];
-                LocalProperty::computed(
-                    move || if millis.get() > 0 { 1.0 } else { 0.0 },
-                    &dependencies,
-                )
-            }
-            _ => root.with_properties_unwrapped(|p: &mut Probe| p.value.clone()),
-        };
-        let detail = Rc::new(RefCell::new(None));
-        let effect = {
-            let root = Rc::downgrade(&root);
-            let weak_context = Rc::downgrade(&context);
-            let detail = detail.clone();
-            let dependencies = [open.untyped()];
-            context.register_node_effect(root.upgrade().unwrap().id, &dependencies, move || {
-                if open.get() != 1.0 || detail.as_ref().borrow().is_some() {
-                    return;
+            let mut root_args = args();
+            let mut registry = HandlerRegistry::default();
+            registry
+                .handlers
+                .insert(phase.into(), vec![Handler::new_inline_handler(open_detail)]);
+            root_args.handler_registry = Some(Rc::new(RefCell::new(registry)));
+            let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+            let context = engine.runtime_context.clone();
+            let open = match phase {
+                "frame" => {
+                    let frames = context.globals().elapsed_frames;
+                    let dependencies = [frames.untyped()];
+                    LocalProperty::computed(
+                        move || if frames.get() > 0 { 1.0 } else { 0.0 },
+                        &dependencies,
+                    )
                 }
-                let (Some(root), Some(context)) = (root.upgrade(), weak_context.upgrade()) else {
-                    return;
-                };
-                let mut detail_args = args();
-                detail_args.component_template = Some(RefCell::new(vec![
-                    ThemeImport::instantiate(args()) as Rc<dyn InstanceNode>,
-                    template(&plan(vec![], None, None)),
-                ]));
-                let nodes = root.generate_children(
-                    [(
-                        ComponentInstance::instantiate(detail_args) as Rc<dyn InstanceNode>,
-                        context.globals().stack_frame(),
-                    )],
-                    &context,
-                    &root.parent_frame,
-                    true,
-                );
-                *detail.as_ref().borrow_mut() = Some(Rc::downgrade(&nodes[0]));
-                root.children.set(nodes);
-            })
-        };
-        clock.set(10);
-        if resumable {
-            for _ in 0..10000 {
-                if !engine.startup_pending() { break; }
-                engine.service_startup(0., || 0.);
+                "millis" => {
+                    let millis = context.globals().elapsed_millis;
+                    let dependencies = [millis.untyped()];
+                    LocalProperty::computed(
+                        move || if millis.get() > 0 { 1.0 } else { 0.0 },
+                        &dependencies,
+                    )
+                }
+                _ => root.with_properties_unwrapped(|p: &mut Probe| p.value.clone()),
+            };
+            let detail = Rc::new(RefCell::new(None));
+            let effect = {
+                let root = Rc::downgrade(&root);
+                let weak_context = Rc::downgrade(&context);
+                let detail = detail.clone();
+                let dependencies = [open.untyped()];
+                context.register_node_effect(root.upgrade().unwrap().id, &dependencies, move || {
+                    if open.get() != 1.0 || detail.as_ref().borrow().is_some() {
+                        return;
+                    }
+                    let (Some(root), Some(context)) = (root.upgrade(), weak_context.upgrade())
+                    else {
+                        return;
+                    };
+                    let mut detail_args = args();
+                    detail_args.component_template = Some(RefCell::new(vec![
+                        ThemeImport::instantiate(args()) as Rc<dyn InstanceNode>,
+                        template(&plan(vec![], None, None)),
+                    ]));
+                    let nodes = root.generate_children(
+                        [(
+                            ComponentInstance::instantiate(detail_args) as Rc<dyn InstanceNode>,
+                            context.globals().stack_frame(),
+                        )],
+                        &context,
+                        &root.parent_frame,
+                        true,
+                    );
+                    *detail.as_ref().borrow_mut() = Some(Rc::downgrade(&nodes[0]));
+                    root.children.set(nodes);
+                })
+            };
+            clock.set(10);
+            if resumable {
+                for _ in 0..10000 {
+                    if !engine.startup_pending() {
+                        break;
+                    }
+                    engine.service_startup(0., || 0.);
+                }
+                assert!(!engine.startup_pending());
+            } else {
+                engine.tick();
             }
-            assert!(!engine.startup_pending());
-        } else { engine.tick(); }
-        let detail = detail
-            .as_ref()
-            .borrow()
-            .as_ref()
-            .and_then(std::rc::Weak::upgrade)
-            .expect("late handler mounted detail");
-        let children = detail.children.get();
-        let receiver = &children[1];
-        assert_eq!(values(receiver).0, 19.0, "first presentation after {phase}");
-        engine.tick();
-        assert_eq!(
-            values(receiver).0,
-            19.0,
-            "no default-to-theme fade after {phase}"
-        );
+            let detail = detail
+                .as_ref()
+                .borrow()
+                .as_ref()
+                .and_then(std::rc::Weak::upgrade)
+                .expect("late handler mounted detail");
+            let children = detail.children.get();
+            let receiver = &children[1];
+            assert_eq!(values(receiver).0, 19.0, "first presentation after {phase}");
+            engine.tick();
+            assert_eq!(
+                values(receiver).0,
+                19.0,
+                "no default-to-theme fade after {phase}"
+            );
 
-        // A later provider update must retain the ordinary animated behavior.
-        children[0].sidecar_children.borrow()[0]
-            .with_properties_unwrapped(|p: &mut Probe| p.untouched.set(27.0));
-        context.drain_node_effects();
-        assert_eq!(values(receiver).0, 19.0);
-        context.globals().elapsed_millis.set(60);
-        assert_eq!(
-            values(receiver).0,
-            23.0,
-            "theme changes still animate after {phase}"
-        );
-        drop(effect);
-        engine.unmount();
-    }
+            // A later provider update must retain the ordinary animated behavior.
+            children[0].sidecar_children.borrow()[0]
+                .with_properties_unwrapped(|p: &mut Probe| p.untouched.set(27.0));
+            context.drain_node_effects();
+            assert_eq!(values(receiver).0, 19.0);
+            context.globals().elapsed_millis.set(60);
+            assert_eq!(
+                values(receiver).0,
+                23.0,
+                "theme changes still animate after {phase}"
+            );
+            drop(effect);
+            engine.unmount();
+        }
     }
 }
 
@@ -2021,6 +2031,7 @@ fn rich_and_binary_manifests_build_the_same_shared_node_local_plan() {
         primitive_instance_import_path: None,
         settings: None,
         timelines: vec![],
+        camera: None,
         route_branch: None,
     };
     let mut rich = PaxManifest {
@@ -2074,9 +2085,15 @@ fn rich_and_binary_manifests_build_the_same_shared_node_local_plan() {
         };
         let plan = plan.clone();
         let enabled = LocalProperty::new(true);
-        let node = child(&root, &engine.runtime_context, instance, HashMap::from([
-            ("enabled".into(), Variable::new_from_typed_property(enabled.clone())),
-        ]));
+        let node = child(
+            &root,
+            &engine.runtime_context,
+            instance,
+            HashMap::from([(
+                "enabled".into(),
+                Variable::new_from_typed_property(enabled.clone()),
+            )]),
+        );
         assert_eq!(
             (
                 CREATES.with(Cell::get),
@@ -2087,9 +2104,15 @@ fn rich_and_binary_manifests_build_the_same_shared_node_local_plan() {
             (1, 1, 1, 1)
         );
         assert_eq!(values(&node), (42.0, 19.0));
-        assert_eq!(node.get_common_properties().as_ref().borrow().height.get(), Some(Size::Pixels(50.into())));
+        assert_eq!(
+            node.get_common_properties().as_ref().borrow().height.get(),
+            Some(Size::Pixels(50.into()))
+        );
         enabled.set(false);
-        assert_eq!(node.get_common_properties().as_ref().borrow().height.get(), Some(Size::Pixels(70.into())));
+        assert_eq!(
+            node.get_common_properties().as_ref().borrow().height.get(),
+            Some(Size::Pixels(70.into()))
+        );
         assert_eq!(
             node.get_common_properties().as_ref().borrow().width.get(),
             Some(Size::Pixels(80.into()))
@@ -2102,11 +2125,20 @@ fn rich_and_binary_manifests_build_the_same_shared_node_local_plan() {
         root.sync_imported_settings(ctx);
         assert_eq!(plan.resolutions.get(), 2);
         assert_eq!(values(&node), (42.0, 19.0), "inline values still win");
-        traverser.0.borrow_mut().components.get_mut(&root_type).unwrap().settings =
-            Some(vec![height_selector("90px")]);
-        let replacement = traverser.build_template_node(&root_type, &leaf_id.get_template_node_id(), None);
+        traverser
+            .0
+            .borrow_mut()
+            .components
+            .get_mut(&root_type)
+            .unwrap()
+            .settings = Some(vec![height_selector("90px")]);
+        let replacement =
+            traverser.build_template_node(&root_type, &leaf_id.get_template_node_id(), None);
         node.recreate_with_new_data(replacement, ctx);
-        assert_eq!(node.get_common_properties().as_ref().borrow().height.get(), Some(Size::Pixels(90.into())));
+        assert_eq!(
+            node.get_common_properties().as_ref().borrow().height.get(),
+            Some(Size::Pixels(90.into()))
+        );
         assert_eq!(values(&node), (42.0, 19.0));
         root.recurse_unmount(ctx);
         ctx.drain_node_effects();

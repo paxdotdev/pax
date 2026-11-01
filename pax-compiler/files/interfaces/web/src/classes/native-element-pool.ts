@@ -1699,11 +1699,12 @@ export class NativeElementPool {
                 content:[state.contentWidth ?? width,state.contentHeight ?? height],
                 contentOrigin:[state.contentOriginX ?? 0,state.contentOriginY ?? 0],
                 offset:[state.lastMeasuredPresentationScrollX,state.lastMeasuredPresentationScrollY],
-                // Input intent is motion in content space, not a finite-pane recenter.
                 observed:[state.lastMeasuredPresentationScrollX,state.lastMeasuredPresentationScrollY],
-                basis:state.transform?.slice(0,4) ?? [rectWidth(record.presentedBounds)/Math.max(1,width),0,0,rectHeight(record.presentedBounds)/Math.max(1,height)],
+                projection: state.presentationProjection ?? null,
+                basis: state.presentationProjection ? [1,0,0,1] : state.transform?.slice(0,4) ?? [rectWidth(record.presentedBounds)/Math.max(1,width),0,0,rectHeight(record.presentedBounds)/Math.max(1,height)],
                 intermediateClip:clip ? edges(clip) : null, active:true,
-                geometry:[parentId,width,height,state.contentWidth,state.contentHeight].join(':')});
+                // A view change invalidates motion history; only observed local scroll deltas predict scrolling.
+                geometry:[parentId,width,height,state.contentWidth,state.contentHeight,...(state.transform ?? [])].join(':')});
             candidates.set(id,{id,hosts,state,record,parentId,intent:'cold',
                 visibleBounds:{left:0,top:0,right:0,bottom:0},distance:0,
                 mandatory:state.isRootScroller || state.delegatesToPageScroll});
@@ -1957,8 +1958,7 @@ export class NativeElementPool {
         return this.layerCanvasPlanCache.get(layerId);
     }
 
-    private syncWarmScrollerHosts(continuation = false) {
-        const now = performance.now();
+    private syncWarmScrollerHosts(continuation = false, densityReplanned = false, now = performance.now()): boolean {
         let hosts: Map<number, ScrollerWarmCandidate>;
         try { hosts = this.buildWarmScrollerCandidates(now, continuation); }
         catch (error) {
@@ -1986,7 +1986,7 @@ export class NativeElementPool {
         });
         for (const layerId of this.layers.layerIds()) {
             const host = owners.get(layerId);
-            const plan = this.candidatePlan(layerId, host?.state.transform?.slice(0, 4) ?? [1, 0, 0, 1], now, host?.coverageKey);
+            const plan = this.candidatePlan(layerId, host?.state.presentationProjection ?? host?.state.transform?.slice(0, 4) ?? [1, 0, 0, 1], now, host?.coverageKey);
             if (!plan) { pendingLayers.add(layerId); continue; }
             if (host?.intent === "cold") continue;
             for (const surface of plan.surfaces) {
@@ -2025,6 +2025,10 @@ export class NativeElementPool {
                 rect: [c.surface.left, c.surface.top, c.surface.left + c.surface.width, c.surface.top + c.surface.height],
                 retained: !!c.rank.retained, ready: !!c.rank.ready,
                 pixels: (c.surface.backingWidth ?? 0) * (c.surface.backingHeight ?? 0)}))});
+        if (shared.densityReplan && !densityReplanned) {
+            this.layerCanvasPlanCache.clear();
+            return this.syncWarmScrollerHosts(continuation, true, now);
+        }
         const decision = materializeSurfaceSchedule(candidates, shared);
         if (this.surfaceTrace) this.recordSurfaceFramePhase("surface.admission",
             performance.now() - admissionStart);
@@ -2742,6 +2746,7 @@ export class NativeElementPool {
         if (patch.contentLayerId != null) {
             queued.contentLayerId = patch.contentLayerId;
         }
+        if (patch.presentationProjection != null) queued.presentationProjection = [...patch.presentationProjection];
         if (patch.presentedBounds != null) {
             queued.presentedBounds = [...patch.presentedBounds];
         }
@@ -2935,6 +2940,10 @@ export class NativeElementPool {
         let contentHost = this.getScrollerContentHost(leaf);
         if (scrollerInner == null || snapHost == null || canvasHost == null || contentHost == null) {
             return;
+        }
+        if (patch.presentationProjection != null) {
+            const state = this.scrollerMeasurementStates.get(patch.id!);
+            if (state) state.presentationProjection = patch.presentationProjection.length === 16 ? [...patch.presentationProjection] : undefined;
         }
         this.updatePresentationRecord(
             patch.id!,
@@ -4749,6 +4758,7 @@ type ScrollerMeasurementState = {
     contentHeight?: number;
     clipContent?: boolean;
     transform: number[];
+    presentationProjection?: number[];
     lastMeasuredScrollX: number;
     lastMeasuredScrollY: number;
     lastMeasuredPresentationScrollX: number;

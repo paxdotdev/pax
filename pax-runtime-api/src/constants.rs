@@ -28,10 +28,12 @@ pub const TYPE_ID_SLOT: &str = "SLOT";
 pub const TYPE_ID_COMMENT: &str = "COMMENT";
 
 // Property names that every renderable node may accept.
-pub const COMMON_PROPERTIES: [&str; 24] = [
+pub const COMMON_PROPERTIES: [&str; 26] = [
     "id",
     "x",
     "y",
+    "z",
+    "position",
     "padding_x",
     "padding_y",
     "scale",
@@ -84,10 +86,14 @@ const BLESSED_INTOABLE_DOWNSTREAM_TYPES: [&'static str; 7] = [
 ];
 
 // Common property names paired with their compiler-facing type spellings.
+// Group shorthands use their XY axis type for reflection; runtime expansion
+// checks list arity and coerces each axis separately (position's z is Depth).
 pub const COMMON_PROPERTIES_TYPE: &[(&str, &str)] = &[
     ("id", "String"),
     ("x", "pax_engine::api::Size"),
     ("y", "pax_engine::api::Size"),
+    ("z", "pax_engine::api::Depth"),
+    ("position", "pax_engine::api::Size"),
     ("padding_x", "pax_engine::api::Size"),
     ("padding_y", "pax_engine::api::Size"),
     ("scale", "pax_engine::api::Size"),

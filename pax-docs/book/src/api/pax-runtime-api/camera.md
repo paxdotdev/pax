@@ -4,8 +4,10 @@
 
 Camera math shared by spatial presentation and picking.
 
-These are Rust geometry contracts, not template camera elements or an active
-renderer camera. The current renderer and native-control protocol remain 2D.
+These Rust geometry utilities do not activate a renderer view. Use a root
+`@camera` declaration to select a runtime view. Perspective uses homogeneous
+surface geometry and requires a GPU renderer; native host capabilities are
+separate from these geometry utilities.
 Orthographic projection preserves window x/y in logical pixels. Perspective
 views look along -z, with x right and y down; clip depth is 0 at the near/front
 plane and 1 at the far/back plane. View matrices move the world into camera
@@ -54,6 +56,13 @@ pickable here; the caller owns back-face visibility and logical bounds.
 Projects a world point to logical window pixels and normalized depth.
 Rejects points behind the eye or outside the front/back clipping planes.
 Window x/y are not clipped, so callers can compute conservative coverage.
+
+##### `project_plane`
+<pre><code class="api-signature language-rust ignore">pub fn project_plane&lt;L: <a href="../../api/pax-runtime-api/math.md#space">Space</a>&gt;(&amp;self, local_to_world: <a href="../../api/pax-runtime-api/math/spatial.md#transform3">Transform3</a>&lt;L, W&gt;) -&gt; Option&lt;<a href="../../api/pax-runtime-api/math/projection.md#projectedplane">ProjectedPlane</a>&gt;</code></pre>
+
+Resolves a local flat surface into pixel-homogeneous presentation geometry.
+Rendering, clipped coverage and input can share this plane. Its depth is
+reversed from GPU normalized depth so larger values remain nearer in Pax.
 
 ##### `unproject`
 <pre><code class="api-signature language-rust ignore">pub fn unproject(&amp;self, position: Point2&lt;<a href="../../api/pax-runtime-api/platform.md#window">Window</a>&gt;, depth: f64) -&gt; Option&lt;<a href="../../api/pax-runtime-api/math/spatial.md#point3">Point3</a>&lt;W&gt;&gt;</code></pre>
@@ -154,3 +163,15 @@ Window coordinates in logical pixels; may lie outside the viewport.
 Type: `f64`
 
 Near/front = 0, far/back = 1. Smaller values are nearer the camera.
+
+## Enums
+### `CameraMode`
+Projection used by a root component's `@camera` declaration.
+Perspective requires a GPU renderer; orthographic remains the default.
+
+#### Variants
+##### `Orthographic`
+Parallel projection preserving existing pixel geometry at zoom 1.
+
+##### `Perspective`
+A finite field of view looking along the camera's local -Z axis.

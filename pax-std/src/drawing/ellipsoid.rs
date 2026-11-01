@@ -18,6 +18,8 @@ use_RefCell!();
 /// An opaque ellipsoid with width × height × depth extents, centered on local Z=0.
 /// Requires `pax-kit/3d` and the GPU renderer. Ordinary transforms, hard clips,
 /// lighting, and depth-aware native-control occlusion apply to the complete volume.
+/// Root `@camera` pan, zoom, rotation and perspective apply to rendering, picking
+/// and occlusion. Near/far clipping cuts the surface without adding caps.
 ///
 /// Node and ancestor opacity fade the assembled opaque appearance through the
 /// bounded spatial group compositor; hidden rear surfaces stay hidden.
@@ -130,6 +132,7 @@ impl InstanceNode for EllipsoidInstance {
             color.untyped(),
             appearance.untyped(),
             node.spatial_geometry().untyped(),
+            node.presentation_geometry().untyped(),
             node.transform_and_bounds.untyped(),
             node.computed_opacity.untyped(),
             node.computed_opacity_scopes.untyped(),
@@ -198,6 +201,7 @@ impl InstanceNode for EllipsoidInstance {
     }
     fn resolve_coverage_path(&self, node: &ExpandedNode) -> Option<kurbo::BezPath> {
         self.resolve_convex_mesh(node)
+            .and_then(|s| node.project_convex_mesh(&s))
             .map(|s| polygon_path(&s.silhouette()))
     }
     fn resolve_coverage_opacity(&self, node: &ExpandedNode) -> f64 {
@@ -209,6 +213,7 @@ impl InstanceNode for EllipsoidInstance {
     }
     fn ray_cast_test(&self, node: &ExpandedNode, ray: Point2<Window>) -> bool {
         self.resolve_convex_mesh(node)
+            .and_then(|s| node.project_convex_mesh(&s))
             .is_some_and(|s| s.depth_at(ray.x, ray.y).is_some())
     }
     fn render(&self, node: &ExpandedNode, ctx: &Rc<RuntimeContext>, rc: &mut dyn RenderContext) {
@@ -223,15 +228,10 @@ impl InstanceNode for EllipsoidInstance {
                 static WARN: std::sync::Once = std::sync::Once::new();
                 WARN.call_once(|| log::warn!("Ellipsoid requires the GPU renderer, opaque surface color, and hard clips; translucent materials, alpha masks and effect captures are not supported yet"));
             }
-        } else if let Some(solid) = &ctx.canvas_geometry_for_node(node).solid {
-            let inverse = ctx
-                .canvas_surface_to_world(scope.layer_id)
-                .inverse()
-                .as_coeffs();
-            let surface = Matrix::new([
-                inverse[0], inverse[1], 0., 0., inverse[2], inverse[3], 0., 0., 0., 0., 1., 0.,
-                inverse[4], inverse[5], 0., 1.,
-            ]) * Matrix::new(solid.transform);
+        } else if let (Some(solid), Some(surface)) = (
+            &ctx.canvas_geometry_for_node(node).solid,
+            ctx.canvas_geometry_for_node(node).solid_projection,
+        ) {
             node.with_properties_unwrapped(|p: &mut Ellipsoid| {
                 rc.set_node_depth_plane(scope.layer_id, scope.node_id, None);
                 rc.draw_convex_mesh(
@@ -239,7 +239,7 @@ impl InstanceNode for EllipsoidInstance {
                     OpaqueMeshDraw {
                         mesh: solid.mesh.clone(),
                         world: solid.transform,
-                        surface: surface.coeffs(),
+                        surface,
                         color: p.color.local().get(),
                         material: p.material.local().get().resolve_in_graph(),
                     },
@@ -276,6 +276,7 @@ mod tests {
             children: None,
             component_template: None,
             component_settings: None,
+            component_camera: None,
             template_node_identifier: None,
             template_node_type_id: None,
             template_node_selector_info: None,

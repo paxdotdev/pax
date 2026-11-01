@@ -19,6 +19,7 @@ export class ScrollerUpdatePatch {
     public presentationScrollX?: number;
     public presentationScrollY?: number;
     public contentLayerId? : number;
+    public presentationProjection?: number[];
     public presentedBounds? : number[];
     public presentedClipBounds? : number[];
 
@@ -43,6 +44,7 @@ export class ScrollerUpdatePatch {
         this.presentationScrollX = jsonMessage["presentation_scroll_x"];
         this.presentationScrollY = jsonMessage["presentation_scroll_y"];
         this.contentLayerId = jsonMessage["content_layer_id"];
+        this.presentationProjection = jsonMessage["presentation_projection"];
         this.presentedBounds = jsonMessage["presented_bounds"];
         this.presentedClipBounds = jsonMessage["presented_clip_bounds"];
     }
@@ -68,6 +70,7 @@ export class ScrollerUpdatePatch {
         this.presentationScrollX = 0;
         this.presentationScrollY = 0;
         this.contentLayerId = undefined;
+        this.presentationProjection = undefined;
         this.presentedBounds = undefined;
         this.presentedClipBounds = undefined;
     }

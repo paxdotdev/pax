@@ -24,6 +24,7 @@ pub(super) enum Command {
     Save,
     Restore,
     Transform(Transform2D),
+    Project(pax_runtime_api::math::ProjectedPlane),
     Clip(Path),
     Alpha(Vec<AlphaMaskPaint>, f32),
     BeginSource(Transform2D, f32),
@@ -79,6 +80,7 @@ impl Command {
             Self::Save => gpu.save(),
             Self::Restore => gpu.restore(),
             Self::Transform(t) => gpu.transform(*t),
+            Self::Project(plane) => gpu.project(*plane),
             Self::Clip(p) => gpu.clip(p.clone()),
             Self::Alpha(paints, feather) => gpu.clip_alpha(
                 paints
@@ -91,7 +93,7 @@ impl Command {
                             fill: to_pax_gpu_alpha_fill(
                                 &p.fill,
                                 p.paint_bounds,
-                                transform.then(&gpu.current_transform()),
+                                transform.then(&gpu.paint_transform()),
                             ),
                             transform,
                             opacity: p.opacity.clamp(0.0, 1.0) as f32,
@@ -116,7 +118,7 @@ impl Command {
                 opacity,
                 smoothing,
             } => {
-                let fill = to_pax_gpu_fill(paint, *bounds, gpu.current_transform());
+                let fill = to_pax_gpu_fill(paint, *bounds, gpu.paint_transform());
                 gpu.fill_path_with_material_and_opacity_and_smoothing(
                     path.clone(),
                     fill,
@@ -138,7 +140,7 @@ impl Command {
                 smoothing,
             } => {
                 let stroke = Stroke {
-                    fill: to_pax_gpu_fill(paint, *bounds, gpu.current_transform()),
+                    fill: to_pax_gpu_fill(paint, *bounds, gpu.paint_transform()),
                     weight: *width,
                     cap: *cap,
                     join: *join,

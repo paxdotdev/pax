@@ -3,10 +3,10 @@ use lyon::tessellation::VertexBuffers;
 use std::ops::Range;
 use wgpu::util::DeviceExt;
 
-// Keep this in sync with transform_2d.wgsl and transform_3d.wgsl. Each binding is 15 KiB,
+// Keep this in sync with transform_2d.wgsl and transform_3d.wgsl. Each binding is at most 15 KiB,
 // independent of scene size, and requires no storage-buffer features.
 #[cfg(feature = "3d")]
-pub(super) const TRANSFORMS_PER_PAGE: usize = 160;
+pub(super) const TRANSFORMS_PER_PAGE: usize = 80;
 #[cfg(not(feature = "3d"))]
 pub(super) const TRANSFORMS_PER_PAGE: usize = 480;
 

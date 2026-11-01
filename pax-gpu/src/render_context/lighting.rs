@@ -36,6 +36,7 @@ impl LightingDependencies {
         bytemuck::bytes_of(&lighting.ambient).hash(&mut hash);
         eligible.hash(&mut hash);
         if eligible != 0 {
+            bytemuck::bytes_of(&lighting.view).hash(&mut hash);
             bytemuck::bytes_of(&lighting.surface_to_world_x).hash(&mut hash);
             bytemuck::bytes_of(&lighting.surface_to_world_y).hash(&mut hash);
         }
@@ -56,7 +57,12 @@ impl WgpuRenderer<'_> {
             // mask even when the source itself is absent from the visible draw list.
             for node in self.scene.values() {
                 #[cfg(feature = "3d")]
-                if let RetainedNode::Solid(n) = node { dependencies.include(LightingDependencies { direct: n.light_mask, lit: !n.material.unlit }); }
+                if let RetainedNode::Solid(n) = node {
+                    dependencies.include(LightingDependencies {
+                        direct: n.light_mask,
+                        lit: !n.material.unlit,
+                    });
+                }
                 if let RetainedNode::Vector(node) = node {
                     dependencies.include(node.lighting_dependencies);
                 }
@@ -84,6 +90,13 @@ mod tests {
         assert_eq!(deps.signature(&lighting), before);
         lighting.lights[0].position[0] = 30.0;
         assert_ne!(deps.signature(&lighting), before);
+        let before_camera = deps.signature(&lighting);
+        lighting.view = [20., 30., 200., 1.];
+        assert_ne!(
+            deps.signature(&lighting),
+            before_camera,
+            "camera motion invalidates lit captures"
+        );
         assert_eq!(LightingDependencies::default().signature(&lighting), 0);
 
         let ambient_only = LightingDependencies {
@@ -94,6 +107,12 @@ mod tests {
         lighting.meta[2] = 1;
         let ambient = ambient_only.signature(&lighting);
         assert_ne!(ambient, 0);
+        lighting.view = [0., 0., 1., 0.];
+        assert_eq!(
+            ambient_only.signature(&lighting),
+            ambient,
+            "ambient-only captures do not depend on the camera"
+        );
         lighting.lights[0].position[0] = 60.0;
         assert_eq!(ambient_only.signature(&lighting), ambient);
         lighting.ambient[3] = 0.5;

@@ -9,6 +9,7 @@ repository = "https://www.github.com/paxproject/pax"
 description = "WGPU rendering library for the pax framework"
 
 [dependencies]
+kurbo = "0.11.1"
 naga = { version = "28.0.0", features = ["wgsl-in"], optional = true }
 pax-runtime-api = {path = "../pax-runtime-api", version="0.39.1"}
 log = "0.4.20"

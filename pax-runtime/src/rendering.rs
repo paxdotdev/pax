@@ -280,6 +280,7 @@ pub struct InstantiationArgs {
     pub children: Option<InstanceNodePtrList>,
     pub component_template: Option<InstanceNodePtrList>,
     pub component_settings: Option<Vec<SettingsBlockElement>>,
+    pub component_camera: Option<pax_manifest::LiteralBlockDefinition>,
 
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     pub template_node_type_id: Option<TypeId>,
@@ -450,11 +451,18 @@ pub trait InstanceNode {
     /// reuses the prepared record without invoking this method again.
     /// A closed opaque convex volume in unscrolled world coordinates, if present.
     #[cfg(feature = "3d")]
-    fn resolve_convex_mesh(&self, _node: &ExpandedNode) -> Option<Rc<pax_runtime_api::mesh3::PosedConvexMesh>> { None }
+    fn resolve_convex_mesh(
+        &self,
+        _node: &ExpandedNode,
+    ) -> Option<Rc<pax_runtime_api::mesh3::PosedConvexMesh>> {
+        None
+    }
 
     /// Whether descendants can use the initial opaque-volume rendering contract.
     #[cfg(feature = "3d")]
-    fn permits_opaque_mesh_content(&self, _node: &ExpandedNode) -> bool { true }
+    fn permits_opaque_mesh_content(&self, _node: &ExpandedNode) -> bool {
+        true
+    }
 
     fn prepare_canvas_geometry(
         &self,
@@ -542,16 +550,27 @@ pub trait InstanceNode {
         false
     }
 
-    /// Override when a primitive needs a more precise hit region than its layout bounds.
+    /// Override when a primitive needs a more precise local hit region.
+    fn local_hit_test(&self, expanded_node: &ExpandedNode, point: kurbo::Point) -> bool {
+        let (width, height) = expanded_node.presentation_transform_and_bounds.get().bounds;
+        point.x > 0. && point.y > 0. && point.x < width && point.y < height
+    }
+
+    /// Tests the same camera-clipped plane used for presentation.
     fn ray_cast_test(&self, expanded_node: &ExpandedNode, ray: Point2<Window>) -> bool {
-        let t_and_b = expanded_node.transform_and_bounds.get();
-        let inverted_transform = t_and_b.transform.inverse();
-        let transformed_ray = inverted_transform * ray;
-        let (width, height) = t_and_b.bounds;
-        transformed_ray.x > 0.0
-            && transformed_ray.y > 0.0
-            && transformed_ray.x < width
-            && transformed_ray.y < height
+        if !expanded_node.has_perspective_camera() {
+            let local = expanded_node
+                .presentation_transform_and_bounds
+                .get()
+                .transform
+                .inverse()
+                * ray;
+            return self.local_hit_test(expanded_node, kurbo::Point::new(local.x, local.y));
+        }
+        expanded_node
+            .presentation_projection()
+            .and_then(|plane| plane.local_point(kurbo::Point::new(ray.x, ray.y)))
+            .is_some_and(|point| self.local_hit_test(expanded_node, point))
     }
 
     /// Used by scroller-like primitives to allocate a browser-owned presentation layer.
@@ -644,8 +663,14 @@ pub trait InstanceNode {
     ) {
     }
 
-    fn resolve_coverage_path(&self, _expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
+    /// Painted coverage in local geometry, before camera projection.
+    fn resolve_local_coverage_path(&self, _expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
         None
+    }
+
+    fn resolve_coverage_path(&self, node: &ExpandedNode) -> Option<kurbo::BezPath> {
+        let local = self.resolve_local_coverage_path(node)?;
+        Some(node.presentation_projection()?.project_path(&local, None))
     }
 
     /// Resolves vector paint for an alpha-mask source without rendering or
@@ -664,16 +689,31 @@ pub trait InstanceNode {
     /// The default uses the same coverage path as masks and hit-style geometry, but primitives
     /// with render-side animation may return a conservative stable path here so animation-only
     /// properties do not force the occlusion pass to rebuild expensive geometry every frame.
-    fn resolve_occlusion_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
-        self.resolve_coverage_path(expanded_node)
+    fn resolve_local_occlusion_path(&self, node: &ExpandedNode) -> Option<kurbo::BezPath> {
+        self.resolve_local_coverage_path(node)
+    }
+
+    fn resolve_occlusion_path(&self, node: &ExpandedNode) -> Option<kurbo::BezPath> {
+        if let Some(local) = self.resolve_local_occlusion_path(node) {
+            Some(node.presentation_projection()?.project_path(&local, None))
+        } else {
+            self.resolve_coverage_path(node)
+        }
     }
 
     fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
         expanded_node.computed_opacity.get()
     }
 
-    fn resolve_effect_clip_path(&self, _expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
+    fn resolve_local_clip_path(&self, _node: &ExpandedNode) -> Option<kurbo::BezPath> {
         None
+    }
+
+    fn resolve_effect_clip_path(&self, node: &ExpandedNode) -> Option<kurbo::BezPath> {
+        Some(
+            node.presentation_projection()?
+                .project_path(&self.resolve_local_clip_path(node)?, None),
+        )
     }
 }
 
@@ -685,6 +725,7 @@ pub struct BaseInstance {
     /// Prepared definitions shared by expanded instances. Instantiation inputs
     /// remain manifest settings; replacing a template prepares a new definition.
     pub component_settings: Option<crate::PreparedRuntimeSettings>,
+    pub component_camera: Option<pax_manifest::LiteralBlockDefinition>,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     pub template_node_type_id: Option<TypeId>,
     pub template_node_selector_info: Option<TemplateNodeSelectorInfo>,
@@ -816,6 +857,7 @@ impl BaseInstance {
             handler_registry: args.handler_registry,
             instance_prototypical_common_properties: args.prototypical_common_properties,
             instance_prototypical_properties: args.prototypical_properties,
+            component_camera: args.component_camera,
             component_settings: args
                 .component_settings
                 .map(crate::PreparedRuntimeSettings::from),

@@ -33,18 +33,26 @@ impl CanvasGeometry {
 /// Observed layout-only targets and their ancestors share these records without
 /// entering either rendering index.
 ///
-/// Coverage is in the owning canvas's content coordinates, so native scrolling
-/// changes the queried region without invalidating every descendant record.
+/// Coverage is in the owning canvas's content coordinates. Affine native scrolling
+/// changes only the queried region. Perspective scrolling also updates projected
+/// records because surfaces at different depths move by different screen distances.
 pub struct PreparedCanvasGeometry {
-    /// Layout transform in unscrolled scene coordinates, shared with viewport observation.
+    /// Camera-projected transform before native scroll offsets, shared with viewport observation.
     pub world_transform: Affine,
-    /// Unprojected geometry used to inspect depth and geometric coplanarity.
+    /// Camera-projected geometry used to inspect depth and geometric coplanarity.
     /// Kept separate from canvas ownership and logical opacity scopes.
     #[cfg(feature = "3d")]
     pub spatial_geometry: crate::SpatialGeometry,
     /// Retained convex volume, in unscrolled world space.
     #[cfg(feature = "3d")]
     pub solid: Option<Rc<pax_runtime_api::mesh3::PosedConvexMesh>>,
+    /// Camera-clipped volume in window coordinates. Orthographic scrolling is
+    /// applied by consumers; perspective scrolling is already included.
+    #[cfg(feature = "3d")]
+    pub projected_solid: Option<Rc<pax_runtime_api::mesh3::ProjectedConvexMesh>>,
+    /// Mesh-local projection into the owning canvas, preserving camera clip planes.
+    #[cfg(feature = "3d")]
+    pub solid_projection: Option<pax_runtime_api::mesh3::MeshProjection>,
     pub(crate) is_canvas: bool,
     pub(crate) is_native: bool,
     /// Owning logical canvas layer.
@@ -53,6 +61,10 @@ pub struct PreparedCanvasGeometry {
     pub bounds: (f64, f64),
     /// Transform from primitive-local space to canvas content space.
     pub surface_transform: Affine,
+    /// Projective local-to-surface mapping, including camera clipping.
+    pub projection: Option<pax_runtime_api::math::ProjectedPlane>,
+    /// Projective mapping into window coordinates, including ancestor scrolling.
+    pub world_projection: Option<pax_runtime_api::math::ProjectedPlane>,
     /// Transformed paint coverage including the renderer's conservative culling pad.
     pub coverage_bounds: Option<Rect>,
     /// Primitive-local geometry backing this prepared record.
@@ -60,6 +72,14 @@ pub struct PreparedCanvasGeometry {
 }
 
 impl PreparedCanvasGeometry {
+    pub(crate) fn native_bounds(&self) -> Option<Rect> {
+        let bounds = Rect::new(0., 0., self.bounds.0, self.bounds.1);
+        match self.projection {
+            Some(projection) => projection.coverage(bounds, None),
+            None => Some(self.surface_transform.transform_rect_bbox(bounds)),
+        }
+    }
+
     pub(crate) fn new(
         layer: usize,
         bounds: (f64, f64),
@@ -83,11 +103,17 @@ impl PreparedCanvasGeometry {
             }),
             #[cfg(feature = "3d")]
             solid: None,
+            #[cfg(feature = "3d")]
+            projected_solid: None,
+            #[cfg(feature = "3d")]
+            solid_projection: None,
             is_canvas: true,
             is_native: false,
             layer,
             bounds,
             surface_transform,
+            projection: None,
+            world_projection: None,
             coverage_bounds,
             local,
         }
@@ -165,11 +191,12 @@ impl SceneGeometry {
         self.stats.preparations += 1;
         #[cfg(feature = "3d")]
         {
-            if geometry.solid.is_none() && geometry
-                .spatial_geometry
-                .world_transform()
-                .try_as_2d()
-                .is_some()
+            if geometry.solid.is_none()
+                && geometry
+                    .spatial_geometry
+                    .world_transform()
+                    .try_as_2d()
+                    .is_some()
             {
                 self.spatial_nodes.remove(&id);
             } else {
@@ -183,7 +210,8 @@ impl SceneGeometry {
                 || old.is_native != geometry.is_native
                 || (geometry.is_native
                     && (old.bounds != geometry.bounds
-                        || old.surface_transform != geometry.surface_transform))
+                        || old.surface_transform != geometry.surface_transform
+                        || old.projection != geometry.projection))
         });
         if changed {
             if let Some(old) = self.records.get(&id) {
@@ -210,15 +238,7 @@ impl SceneGeometry {
                 self.native_layers
                     .entry(geometry.layer)
                     .or_default()
-                    .insert(
-                        id,
-                        Some(geometry.surface_transform.transform_rect_bbox(Rect::new(
-                            0.0,
-                            0.0,
-                            geometry.bounds.0,
-                            geometry.bounds.1,
-                        ))),
-                    );
+                    .insert(id, geometry.native_bounds());
             }
             self.stats.index_updates += 1;
         }
@@ -431,11 +451,17 @@ mod tests {
             spatial_geometry: crate::SpatialGeometry::default(),
             #[cfg(feature = "3d")]
             solid: None,
+            #[cfg(feature = "3d")]
+            projected_solid: None,
+            #[cfg(feature = "3d")]
+            solid_projection: None,
             is_canvas: true,
             is_native: false,
             layer,
             bounds: (10.0, 10.0),
             surface_transform: Affine::IDENTITY,
+            projection: None,
+            world_projection: None,
             coverage_bounds: bounds,
             local: CanvasGeometry::default(),
         }

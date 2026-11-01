@@ -157,21 +157,33 @@ impl NodeContext {
     }
 
     /// Convert a window-space point into this node's local coordinate space, including any
-    /// presentation offsets inherited from ancestor scrollers.
+    /// camera projection and presentation offsets inherited from ancestor scrollers.
     pub fn local_point(&self, p: Point2<Window>) -> Point2<NodeLocal> {
-        let presentation_transform = self
+        if let Some(node) = self
+            .expanded_node
+            .upgrade()
+            .filter(|n| n.has_perspective_camera())
+        {
+            let bounds = node.transform_and_bounds.get().bounds;
+            return self
+                .runtime_context
+                .presented_projection_for_node(&node)
+                .and_then(|plane| plane.local_point(kurbo::Point::new(p.x, p.y)))
+                .map(|p| Point2::new(p.x / bounds.0, p.y / bounds.1))
+                .unwrap_or_else(|| Point2::new(f64::NAN, f64::NAN));
+        }
+        let (node_transform, presentation_transform) = self
             .expanded_node
             .upgrade()
             .map(|node| {
-                self.runtime_context
-                    .presentation_scroll_transform_for_node(&node)
+                (
+                    node.presentation_transform_and_bounds.get(),
+                    self.runtime_context
+                        .presentation_scroll_transform_for_node(&node),
+                )
             })
-            .unwrap_or(Affine::IDENTITY);
-        local_point_with_presentation_transform(
-            self.node_transform_and_bounds,
-            presentation_transform,
-            p,
-        )
+            .unwrap_or((self.node_transform_and_bounds, Affine::IDENTITY));
+        local_point_with_presentation_transform(node_transform, presentation_transform, p)
     }
 
     /// Return the interface for this node's containing component, when present.

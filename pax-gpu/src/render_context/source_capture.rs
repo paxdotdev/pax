@@ -14,6 +14,7 @@ pub(super) struct SourceRecording {
     pub nodes: HashSet<u32>,
     feather: f32,
     transforms: Vec<Transform2D>,
+    projection: Option<pax_runtime_api::math::ProjectedPlane>,
     clips: Vec<ClipReference>,
     saves: Vec<SceneStateSave>,
     consumer: PendingNode,
@@ -37,6 +38,7 @@ impl WgpuRenderer<'_> {
                 0.0
             },
             transforms: std::mem::replace(&mut self.transform_stack, vec![transform]),
+            projection: self.projection.take(),
             clips: std::mem::take(&mut self.clip_stack),
             saves: std::mem::take(&mut self.saves),
             consumer,
@@ -59,6 +61,7 @@ impl WgpuRenderer<'_> {
             }
         }
         self.transform_stack = recording.transforms;
+        self.projection = recording.projection;
         self.clip_stack = recording.clips;
         self.saves = recording.saves;
         self.current_node = Some(recording.consumer);

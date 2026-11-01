@@ -37,25 +37,37 @@ Native surfaces use a separate bounds lookup in the same geometry service.
 Observed layout-only targets and their ancestors share these records without
 entering either rendering index.
 
-Coverage is in the owning canvas's content coordinates, so native scrolling
-changes the queried region without invalidating every descendant record.
+Coverage is in the owning canvas's content coordinates. Affine native scrolling
+changes only the queried region. Perspective scrolling also updates projected
+records because surfaces at different depths move by different screen distances.
 
 #### Properties
 ##### `world_transform`
 Type: `Affine`
 
-Layout transform in unscrolled scene coordinates, shared with viewport observation.
+Camera-projected transform before native scroll offsets, shared with viewport observation.
 
 ##### `spatial_geometry`
 Type: [`SpatialGeometry`](../../../api/internal/pax-runtime/spatial.md#spatialgeometry)
 
-Unprojected geometry used to inspect depth and geometric coplanarity.
+Camera-projected geometry used to inspect depth and geometric coplanarity.
 Kept separate from canvas ownership and logical opacity scopes.
 
 ##### `solid`
 Type: `Option`<`Rc`<[`PosedConvexMesh`](../../../api/pax-runtime-api/mesh3.md#posedconvexmesh)>>
 
 Retained convex volume, in unscrolled world space.
+
+##### `projected_solid`
+Type: `Option`<`Rc`<[`ProjectedConvexMesh`](../../../api/pax-runtime-api/mesh3/projection.md#projectedconvexmesh)>>
+
+Camera-clipped volume in window coordinates. Orthographic scrolling is
+applied by consumers; perspective scrolling is already included.
+
+##### `solid_projection`
+Type: `Option`<[`MeshProjection`](../../../api/pax-runtime-api/mesh3/projection.md#meshprojection)>
+
+Mesh-local projection into the owning canvas, preserving camera clip planes.
 
 ##### `layer`
 Type: `usize`
@@ -71,6 +83,16 @@ Layout dimensions, kept separate from overflowing paint coverage.
 Type: `Affine`
 
 Transform from primitive-local space to canvas content space.
+
+##### `projection`
+Type: `Option`<[`ProjectedPlane`](../../../api/pax-runtime-api/math/projection.md#projectedplane)>
+
+Projective local-to-surface mapping, including camera clipping.
+
+##### `world_projection`
+Type: `Option`<[`ProjectedPlane`](../../../api/pax-runtime-api/math/projection.md#projectedplane)>
+
+Projective mapping into window coordinates, including ancestor scrolling.
 
 ##### `coverage_bounds`
 Type: `Option`<`Rect`>

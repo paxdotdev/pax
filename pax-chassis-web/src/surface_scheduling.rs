@@ -43,6 +43,8 @@ pub(crate) struct Host {
     offset: [f64; 2],
     observed: [f64; 2],
     basis: [f64; 4],
+    #[serde(default)]
+    projection: Option<[f64; 16]>,
     active: bool,
     geometry: String,
     #[serde(default)]
@@ -166,6 +168,7 @@ fn validate_host(h: &Host) -> Result<(), &'static str> {
         .chain(h.offset.iter())
         .chain(h.observed.iter())
         .chain(h.basis.iter())
+        .chain(h.projection.iter().flatten())
         .chain(h.content.iter().flatten())
         .chain(h.intermediate_clip.iter().flatten())
         .all(|v| v.is_finite())
@@ -191,6 +194,12 @@ fn observation(h: Host) -> HostObservation {
         viewport: h.viewport,
         offset: h.offset,
         basis: h.basis,
+        projection: h.projection.and_then(|m| {
+            pax_runtime::api::math::ProjectedPlane::new(
+                pax_runtime::api::math::Transform3::<pax_runtime::api::math::Generic>::new(m),
+                true,
+            )
+        }),
         active: h.active,
     }
 }
@@ -212,7 +221,8 @@ pub(crate) struct Decision {
     admitted: Vec<usize>,
     denied: Vec<(usize, &'static str)>,
     ranks: Vec<Rank>,
-    overloaded: bool,
+    pub(crate) overloaded: bool,
+    pub(crate) density_replan: bool,
     backing_pixels: u64,
     backing_limit: u64,
     optional_pixels: u64,
@@ -270,6 +280,7 @@ pub(crate) fn schedule(
                     viewport: h.viewport,
                     offset: h.offset,
                     basis: h.basis,
+        projection: h.projection.and_then(|m| pax_runtime::api::math::ProjectedPlane::new(pax_runtime::api::math::Transform3::<pax_runtime::api::math::Generic>::new(m), true)),
                     active: h.active,
                 },
             )
@@ -356,6 +367,7 @@ pub(crate) fn schedule(
             })
             .collect(),
         overloaded: result.overloaded,
+        density_replan: false,
         backing_pixels: result.backing_pixels,
         backing_limit: policy.backing_pixels,
         optional_pixels: result.optional_pixels,

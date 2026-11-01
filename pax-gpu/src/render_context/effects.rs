@@ -1,12 +1,13 @@
 //! Effect boundaries retain the original scene draws for source caching and native geometry.
 use super::*;
 use crate::render_backend::capture::CaptureKey;
-use pax_runtime_api::ShaderEffect;
+use pax_runtime_api::{math::ProjectedPlane, ShaderEffect};
 
 pub(super) struct EffectCapture {
     effect: ShaderEffect,
-    transform: Transform2D,
+    projection: ProjectedPlane,
     layout: Box2D,
+    local_bounds: kurbo::Rect,
     children: Vec<u32>,
     pub(super) signature: u64,
 }
@@ -46,6 +47,28 @@ impl WgpuRenderer<'_> {
         scopes: &[OpacityScope],
         children: &[u32],
     ) -> bool {
+        self.begin_projected_shader_effect(
+            id,
+            z,
+            effect,
+            ProjectedPlane::affine(kurbo_affine(transform)),
+            size,
+            scopes,
+            children,
+        )
+    }
+
+    /// Starts an effect whose local sampling coordinates follow a camera projection.
+    pub fn begin_projected_shader_effect(
+        &mut self,
+        id: u32,
+        z: i32,
+        effect: &ShaderEffect,
+        projection: ProjectedPlane,
+        size: (f64, f64),
+        scopes: &[OpacityScope],
+        children: &[u32],
+    ) -> bool {
         effect
             .encode_parameters()
             .unwrap_or_else(|e| panic!("shader effect {}: {e}", effect.program.label));
@@ -53,19 +76,16 @@ impl WgpuRenderer<'_> {
             self.current_node.is_none() && self.source_recordings.is_empty(),
             "shader effects cannot be used as detached mask sources"
         );
-        let transform = transform.then(&self.current_transform());
-        assert!(
-            transform.to_array().iter().all(|v| v.is_finite()),
-            "shader effect transform must be finite"
+        let projection = projection.post_affine(kurbo_affine(self.current_transform()));
+        let local = kurbo::Rect::new(0., 0., size.0, size.1);
+        let layout = projected_box(
+            Box2D::new(point(0., 0.), point(size.0 as f32, size.1 as f32)),
+            projection,
         );
-        let layout = transform.outer_transformed_box(&Box2D::new(
-            point(0., 0.),
-            point(size.0 as f32, size.1 as f32),
-        ));
         let replay = self
             .effect_captures
             .get(&id)
-            .is_none_or(|old| old.children != children || old.transform != transform);
+            .is_none_or(|old| old.children != children || old.projection != projection);
         let signature = self.effect_captures.get(&id).map_or(0, |e| e.signature);
         self.effect_nodes.retain(|_, owner| *owner != id);
         self.effect_nodes
@@ -74,8 +94,9 @@ impl WgpuRenderer<'_> {
             id,
             EffectCapture {
                 effect: effect.clone(),
-                transform,
+                projection,
                 layout,
+                local_bounds: local,
                 children: children.to_vec(),
                 signature,
             },
@@ -115,13 +136,50 @@ impl WgpuRenderer<'_> {
         self.saves = saved.saves;
     }
 
+    fn effect_support(&self, id: u32) -> f32 {
+        let capture = &self.effect_captures[&id];
+        if capture.effect.outset == 0. {
+            return 0.;
+        }
+        let Some(inverse) = capture.projection.mapping().inverse() else {
+            return 0.;
+        };
+        let inverse = ProjectedPlane::affine(kurbo::Affine::IDENTITY).post_mapping(inverse);
+        let local = capture
+            .children
+            .iter()
+            .filter_map(|id| self.scene.get(id))
+            .map(|node| node.bounds())
+            .filter_map(|b| {
+                inverse.coverage(
+                    kurbo::Rect::new(
+                        b.min.x as f64,
+                        b.min.y as f64,
+                        b.max.x as f64,
+                        b.max.y as f64,
+                    ),
+                    None,
+                )
+            })
+            .fold(capture.local_bounds, |a, b| a.union(b));
+        // Include overflowing children and the full local sampling halo. Near-plane
+        // magnification is bounded before allocation, never sampled only at the center.
+        (capture
+            .projection
+            .magnification_bound(
+                local.inflate(capture.effect.outset, capture.effect.outset),
+                None,
+            )
+            .unwrap_or(0.)
+            * capture.effect.outset
+            * std::f64::consts::SQRT_2) as f32
+    }
+
     pub(super) fn effect_margin(&self) -> f32 {
         fn margin(renderer: &WgpuRenderer<'_>, id: u32, visiting: &mut HashSet<u32>) -> f32 {
             assert!(visiting.insert(id), "shader effect dependency cycle");
             let effect = &renderer.effect_captures[&id];
-            let t = effect.transform;
-            let own = effect.effect.outset as f32
-                * (t.m11.abs() + t.m21.abs()).max(t.m12.abs() + t.m22.abs());
+            let own = renderer.effect_support(id);
             let child = effect
                 .children
                 .iter()
@@ -198,8 +256,8 @@ impl WgpuRenderer<'_> {
         }
         let capture = &self.effect_captures[&id];
         let effect = capture.effect.clone();
-        let transform = capture.transform;
-        if transform.inverse().is_none() {
+        let projection = capture.projection;
+        if projection.mapping().inverse().is_none() {
             if let Some(RetainedNode::Effect(node)) = self.scene.get_mut(&id) {
                 node.visible = false;
             }
@@ -212,9 +270,8 @@ impl WgpuRenderer<'_> {
             .collect();
         nodes.sort_unstable();
         let nodes: Vec<_> = nodes.into_iter().map(|(_, id)| id).collect();
-        let t = transform;
-        let dx = effect.outset as f32 * (t.m11.abs() + t.m21.abs());
-        let dy = effect.outset as f32 * (t.m12.abs() + t.m22.abs());
+        let dx = self.effect_support(id);
+        let dy = dx;
         let mut bounds = nodes
             .iter()
             .map(|id| self.scene[id].bounds())
@@ -244,6 +301,12 @@ impl WgpuRenderer<'_> {
             .max()
             .unwrap() as f32;
         let dpr = globals.dpr;
+        // All tiles anchor their coarse sampling grid to the same authored origin.
+        // A fixed tile-local zero would shift samples during fractional scrolling.
+        let origin = projection
+            .mapping()
+            .project(kurbo::Point::ZERO)
+            .unwrap_or_default();
         let align = |low: f32, high: f32, vlow: f32, vhigh: f32, origin: f32, density: f32| {
             let step = divisor / density;
             let origin = (origin * density).floor() / density;
@@ -264,7 +327,7 @@ impl WgpuRenderer<'_> {
             bounds.max.x,
             viewport.min.x,
             viewport.max.x,
-            transform.m31,
+            origin.x as f32,
             dpr[0],
         );
         let (min_y, max_y) = align(
@@ -272,7 +335,7 @@ impl WgpuRenderer<'_> {
             bounds.max.y,
             viewport.min.y,
             viewport.max.y,
-            transform.m32,
+            origin.y as f32,
             dpr[1],
         );
         if max_x <= min_x || max_y <= min_y {
@@ -324,12 +387,21 @@ impl WgpuRenderer<'_> {
         }
         effect.program.hash(&mut hash);
         effect.encode_parameters().unwrap().hash(&mut hash);
-        transform.to_array().map(f32::to_bits).hash(&mut hash);
+        projection
+            .matrix()
+            .coeffs()
+            .map(f64::to_bits)
+            .hash(&mut hash);
+        projection
+            .camera_clip_rows()
+            .map(|row| row.map(f64::to_bits))
+            .hash(&mut hash);
+        projection.clips_depth().hash(&mut hash);
         let signature = hash.finish();
         self.render_backend.render_effect(
             id,
             &effect,
-            transform,
+            projection,
             signature,
             &globals,
             &mut self.resource_churn_stats,

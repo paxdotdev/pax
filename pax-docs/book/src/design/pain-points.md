@@ -63,6 +63,12 @@ Last triaged: 2026-10-05 — [PAX-972](https://linear.app/paxdev/issue/PAX-972/p
 
 - 2026-10-30, PAX-1054 fixture creation: `CARGO_NET_OFFLINE=true ./examples/create-example.sh overlay-transfer` invoked `pax-cli create --libdev`, but the generated fixture depended on the published `pax-kit = { version = "0.39.1" }`. Expected local monorepo dependencies. A subsequent Cargo resolution added registry copies of the Pax crates. Changed the new fixture dependency to `path = "../../../pax-kit", default-features = false` before building it. Reproduced at base `08bc206e` with the locally built CLI.
 
+- 2026-10-31, PAX-1055 docs validation: invoking
+  `target/debug/gen_api_docs --help` to inspect its options starts full API
+  generation instead of showing help or rejecting the flag. Its `main` ignores
+  arguments. Stopped the redundant generator; inspect
+  `pax-docs/src/bin/gen_api_docs.rs` for configuration until CLI help is supported.
+
 - 2026-10-25, PAX-1047 modal capture: `pax-cli dev look` of the oscilloscope's
   open message editor omits the dark native `EventBlocker` backdrop and puts
   the native OK label at the button's left edge. Expected the same image as
@@ -1256,6 +1262,7 @@ carousel allocation or broadening this fix into renderer work.
   path geometry separately; no capacity-reuse change made.
 
 - 2026-10-26, PAX-1047 web interface refresh: after rebuilding the local web interface, ordinary reloads in IAB and Chrome at `localhost:8147` retained the earlier JavaScript while loading the new Wasm. Expected keyboard-bridge changes to become active on refresh; observed Escape still ignored and temporary key logging absent. The served file contained the new handler (verified with curl); loading `127.0.0.1:8147` immediately delivered Escape and closed the editor. Workaround for verification: use a fresh local origin; investigate development bundle cache headers/invalidation. Diagnostic logging removed.
+  Reproduced 2026-10-29 during PAX-1055 camera easing: after rebuilding and restarting the debug server on `127.0.0.1:8092`, IAB reload retained discrete camera movement. Loading `localhost:8092` fetched the new Wasm and showed intermediate pan/zoom transforms over the authored 450 ms. Evidence: `/tmp/pax-camera-animation-web.log` records asset requests only after changing origins. No runtime animation change was needed.
 
 - 2026-10-26 — PAX-1039 website validation: after scrolling the release homepage down roughly 4800–5600 px, resizing from 1280×800 to 390×844 reports `reactive drain hit 100000 evaluations in one tick; deferring remaining work`. Expected a bounded responsive-layout update. Reproduces on both forced WebGPU and Vello CPU; no browser exception was observed. Evidence: `/private/tmp/pax-1039-migration/scroll-check.json` and `final-extended.json`; release Wasm SHA-256 `385371f94f9b03aa4941b405048cd257bb1ab00111e40fc0b1ec8dbd10edb223`. The warning is associated with resize, not the earlier scroll steps. Cause and relation to website layout work remain unestablished.
 
@@ -1518,3 +1525,5 @@ Coordinating lifecycle entry with native presentation readiness remains open.
   the same build on a fresh localhost origin with `Cache-Control: no-store`
   loaded the new controls. Evidence: `/tmp/pax-spatial-release-server.log` and
   `/tmp/pax-spatial-preview-server.log`; no compiler or baking fault was found.
+
+- 2026-10-29 (PAX-1055): A cold `pax-cli run --libdev` web build stayed silent for over four minutes while `pax-compiler/files/interfaces/web/build-interface.sh` ran `npm install` under restricted network access. Expected a prompt setup failure or progress indication; the preview never reached Wasm compilation until that install was stopped. An offline retry reported missing cached `@types/web`; installing with approved network/npm-cache access resolved setup. Evidence: `/tmp/pax-1055-web.log` and `/tmp/pax-1055-npm.log`. No build-tool workaround committed.

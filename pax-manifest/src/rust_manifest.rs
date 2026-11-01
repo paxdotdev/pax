@@ -85,7 +85,7 @@ impl RustManifestWriter {
 
     fn component_definition(&self, definition: &ComponentDefinition) -> String {
         format!(
-            "{mp}::ComponentDefinition {{ type_id: {type_id}, is_main_component: {is_main_component}, is_primitive: {is_primitive}, is_struct_only_component: {is_struct_only_component}, module_path: {module_path}, primitive_instance_import_path: {primitive_instance_import_path}, template: {template}, settings: {settings}, timelines: {timelines}, route_branch: {route_branch} }}",
+            "{mp}::ComponentDefinition {{ type_id: {type_id}, is_main_component: {is_main_component}, is_primitive: {is_primitive}, is_struct_only_component: {is_struct_only_component}, module_path: {module_path}, primitive_instance_import_path: {primitive_instance_import_path}, template: {template}, settings: {settings}, timelines: {timelines}, camera: {camera}, route_branch: {route_branch} }}",
             mp = self.manifest_path,
             type_id = self.type_id(&definition.type_id),
             is_main_component = definition.is_main_component,
@@ -96,6 +96,7 @@ impl RustManifestWriter {
             template = self.option(&definition.template, |value| self.component_template(value)),
             settings = self.option(&definition.settings, |value| self.vec(value, |element| self.settings_block_element(element))),
             timelines = self.vec(&definition.timelines, |timeline| self.timeline_definition(timeline)),
+            camera = self.option(&definition.camera, |camera| self.literal_block_definition(camera)),
             route_branch = self.option(&definition.route_branch, |descriptor| self.route_branch_descriptor(descriptor)),
         )
     }
@@ -132,7 +133,10 @@ impl RustManifestWriter {
                 format!(
                     "({}, {})",
                     self.template_node_id(id),
-                    self.constructor("TemplateNodeDefinition", self.template_node_definition(node))
+                    self.constructor(
+                        "TemplateNodeDefinition",
+                        self.template_node_definition(node)
+                    )
                 )
             })
             .collect::<Vec<_>>();

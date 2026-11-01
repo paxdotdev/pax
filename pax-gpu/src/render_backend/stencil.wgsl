@@ -10,6 +10,7 @@ struct Globals {
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
+    @location(0) camera_clip: vec2<f32>,
 }
 
 @vertex
@@ -21,16 +22,15 @@ fn vs_main(
     let stencil_transform = stencil_transforms.transforms[transform_id % TRANSFORMS_PER_PAGE];
     let t_p_x = position.x * stencil_transform.xx + position.y * stencil_transform.yx + stencil_transform.zx;
     let t_p_y = position.x * stencil_transform.xy + position.y * stencil_transform.yy + stencil_transform.zy;
-    var pos = vec2<f32>(t_p_x, t_p_y);
-    pos = (pos - globals.origin) / globals.resolution;
-    pos *= 2.0;
-    pos -= 1.0;
-    pos.y *= -1.0;
-    out.clip_position = vec4<f32>(pos, 0.0, 1.0);
+    let h = projected_position(stencil_transform, position, vec2<f32>(t_p_x, t_p_y));
+    let xy = (h.xy - globals.origin * h.w) / globals.resolution * 2.0 - vec2<f32>(h.w);
+    out.clip_position = vec4<f32>(xy.x, -xy.y, 0.0, h.w);
+    out.camera_clip = projected_camera_clip(stencil_transform, position);
     return out;
 }
 
 @fragment
-fn fs_main() -> @location(0) vec4<f32> {
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    if in.camera_clip.y <= 0.0 || in.camera_clip.x < 0.0 || in.camera_clip.x > in.camera_clip.y { discard; }
     return vec4<f32>(1.0, 1.0, 1.0, 1.0);
 }                    

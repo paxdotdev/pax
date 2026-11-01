@@ -1,0 +1,46 @@
+<Group width=100% height=100%>
+    <Text class="title" x=24px y=62px width={100% - 48px} height=34px text="Camera / tiled content"/>
+    <Text class="label" x=24px y=103px width={100% - 48px} height=44px
+        text="A 4096 × 4096 canvas. Jump to cold tiles, zoom, and return to the same live editor."/>
+    <Button class="control" x=24px y=154px width=146px label={distant ? "Return to origin" : "Jump to far tiles"} @button_click=jump/>
+    <Button class="control" x=182px y=154px width=120px label="Animate zoom" @button_click=zoom/>
+    <Button class="control" x=314px y=154px width=170px label={near ? "Restore near plane" : "Cross near plane"} @button_click=cross_near/>
+    <Scroller id=tile_outer anchor=0% x=24px y=210px width={100% - 48px} height={100% - 234px}
+        scroll_width=4096px scroll_height=4096px scroll_pos_x=bind:scroll_x scroll_pos_y=bind:scroll_y corner_radius=16>
+        <Group anchor=0% x={distant ? 3120px : 48px} y={distant ? 3120px : 48px} width=620px height=320px
+            rotate_y=12deg rotate_x=6deg z={(near ? @viewport.height * 0.866025403784 - 10 : 40)px}>
+            <Text class="title" x=24px y=18px width=550px height=30px text="Nested viewport / live state"/>
+            <Textbox x=24px y=64px width=540px height=40px text=bind:note background=rgb(235, 250, 245)
+                style={font_size: 17px, fill: rgb(15, 59, 61)}/>
+            <Scroller id=tile_inner anchor=0% x=24px y=122px width=540px height=170px
+                scroll_height=2304px scroll_pos_y=bind:inner_y corner_radius=10>
+                for row in 0..24 {
+                    <Text class="label" x=16px y={(row * 96 + 18)px} width=480px height=26px text={"Nested row " + row}/>
+                    <Rectangle x=12px y={(row * 96 + 56)px} width=510px height=2px fill=rgb(99, 216, 188)/>
+                }
+                <Rectangle width=100% height=2304px fill=rgb(16, 44, 53)/>
+            </Scroller>
+            <Rectangle width=100% height=100% corner_radius=16 fill=rgb(23, 102, 105)/>
+        </Group>
+        for row in 0..16 {
+            for column in 0..16 {
+                <Group anchor=0% x={(column * 256)px} y={(row * 256)px} width=256px height=256px>
+                    <Text class="label" x=16px y=210px width=220px height=28px text={"Tile " + column + " / " + row}/>
+                    <Rectangle x=0px y=0px width=256px height=256px fill={(row + column) %% 2 == 0 ? rgb(20, 39, 48) : rgb(27, 49, 57)}
+                        stroke={paint: rgb(52, 81, 90), width: 1px}/>
+                </Group>
+            }
+        }
+    </Scroller>
+    <Rectangle width=100% height=100% fill=rgb(10, 21, 29)/>
+</Group>
+
+@settings {
+    @mount: mount
+    .title { anchor: 0%, style: {font: "Georgia", font_size: 25px, fill: rgb(235, 244, 242)} }
+    .label { anchor: 0%, style: {font: "Arial", font_size: 13px, fill: rgb(188, 221, 222)} }
+    .control {
+        anchor: 0%, height: 34px, color: rgb(36, 58, 68), hover_color: rgb(48, 79, 87), corner_radius: 7,
+        style: {font: "Arial", font_size: 12px, fill: rgb(220, 240, 235), align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center}
+    }
+}

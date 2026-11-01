@@ -685,11 +685,21 @@ component instances:
 ```
 
 LightSource is a non-rendering resource; it does not draw a visible lamp.
-Its point-light position uses its local center plus the authored depth,
-transformed through its own pose and ancestor groups.
-Use pixel values for `radius` and `z`. Depth here affects lighting, not the
-element order established by the template. Directional lights are also
+Its point-light position is its local center transformed through common
+`x`, `y`, and `z` placement and ancestor transforms. The common
+[`position` shorthand](layout-responsiveness.md#multi-axis-common-properties)
+also works here. Use pixel values for `radius`; `z` accepts numbers or pixels
+but not percentages. The light emits no visible surface to order by depth.
+Directional lights are also
 available through `shape=LightShape::Directional` and a `direction` vector.
+
+LightSource now uses common `z`, with the same zero default as other elements.
+If an older light omitted its light-specific `z`, add `z=200px` to preserve
+its previous default depth. Explicit `z` continues to work, but now inherits
+ancestor depth and rotation. Rust code that accessed `LightSource::z` should
+set the node's common `z` instead. This does not yet add transformed surface
+normals or depth-aware shading: vector materials still shade a flat raster
+surface in the current lighting backend.
 
 Each fill and stroke layer has its own material; the default is matte. `Material::glossy(...)` and
 `Material::metallic(...)` adjust the response; `Material::unlit()` preserves
@@ -737,8 +747,7 @@ If you maintain a custom Rust lighting primitive, implement
 `InstanceNode::has_scene_lighting()` as `true` alongside
 `resolve_scene_light` or `resolve_scene_ambient_light`. This capability hook
 must stay true while the primitive is disabled or returns `None`; it describes
-its role, not its current contribution. Existing `.pax` lighting templates
-need no changes.
+its role, not its current contribution.
 For value changes, call `RuntimeContext::mark_scene_lighting_dirty()` to schedule
 lighting resolution without requesting a full canvas redraw. Structural changes
 still use the runtime's normal scene invalidation.
@@ -748,8 +757,8 @@ response, with a current limit of eight active direct lights in each canvas
 layer's lighting set, shared across its LightFrames. The Vello CPU fallback draws
 the ordinary fills and strokes without
 that response. Native Text, native controls, and bitmap Images are not lit
-vector materials. Texture maps, cast shadows, and a 3D camera are not part
-of this API. Keep information legible when lighting is absent.
+vector materials. Texture maps and cast shadows are not implemented.
+Camera views are configured separately with [root `@camera`](layout-responsiveness.md#controlling-the-root-camera). Keep information legible when lighting is absent.
 
 Try [Materials in Compositing and Effects](compositing-effects.md#lighting-and-other-effects)
 to compare surface responses as scrolling moves a light through the scene.
@@ -781,9 +790,9 @@ unlit appearance.
 </LightFrame>
 ```
 
-`LightSource.z` is a local offset, so rotating its group also rotates that
-offset into X/Y. `translate_z` moves the light's coordinate frame like any
-other node. A directional light's `direction` is local and follows the same
+Common `z` places a light in its parent coordinate frame, just as it places
+other elements. Rotating the parent carries that depth into X/Y; the light
+does not apply a second light-specific depth offset. A directional light's `direction` is local and follows the same
 linear transform (without translation). Radius remains a distance in world
 pixels; scaling a parent moves the light but does not scale its authored
 radius. LightFrame still determines which descendants a light can reach.
@@ -793,13 +802,16 @@ rebasing. Scrolling a tilted container carries the light displacement through
 all three axes. Rigid pose changes update retained shading and transform data;
 they do not require retessellating the local paths. Surface normals stay
 perpendicular under nonuniform scale and shear. Back faces retain their
-oriented normal; this is not automatic two-sided lighting. The current
-implicit orthographic view looks along -Z, so specular response uses +Z as the
-surface-to-viewer direction.
+oriented normal; this is not automatic two-sided lighting. The implicit
+orthographic view uses +Z as the surface-to-viewer direction. An authored
+`@camera` rotates that direction; perspective specular response uses the vector
+from each shaded world position to the camera eye. Camera changes invalidate
+retained lit captures without rebuilding local mesh geometry.
 
 Native text and controls keep their platform appearance, and bitmap Images
 remain unlit. A live panel on a face is still interactive. This checkpoint
-adds no cast shadows, texture-map material inputs, or camera authoring API.
+adds no cast shadows or texture-map material inputs. Camera authoring is
+covered in [Controlling the root camera](layout-responsiveness.md#controlling-the-root-camera).
 General group transparency across interleaved surfaces remains subject to the
 [spatial composition limits](layout-responsiveness.md#rotating-flat-surfaces-in-3d).
 

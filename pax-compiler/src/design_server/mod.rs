@@ -1666,6 +1666,7 @@ mod tests {
                 )),
                 settings: Some(vec![]),
                 timelines: vec![],
+                camera: None,
                 route_branch: None,
             },
         );
@@ -1681,6 +1682,7 @@ mod tests {
                 template: None,
                 settings: None,
                 timelines: vec![],
+                camera: None,
                 route_branch: None,
             },
         );

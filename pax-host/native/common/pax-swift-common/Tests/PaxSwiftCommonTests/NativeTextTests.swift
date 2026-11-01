@@ -338,7 +338,11 @@ final class NativeTextTests: XCTestCase {
             let resolved = try XCTUnwrap(NSFont(name: "Courier", size: 24))
             model.textStyle.font.cachedNSFont = resolved
             NotificationCenter.default.post(name: .paxFontRegistered, object: nil)
-            flush(host)
+            // Font invalidation is deferred, then reconciled through SwiftUI.
+            // One fixed-duration run-loop pass need not complete both steps.
+            let deadline = Date(timeIntervalSinceNow: 3)
+            repeat { flush(host) } while
+                (field.font != resolved || model.lastMeasuredSize == lastSize) && Date() < deadline
             XCTAssertEqual(field.font, resolved)
             XCTAssertNotEqual(model.lastMeasuredSize, lastSize)
         }

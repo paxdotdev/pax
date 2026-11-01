@@ -90,6 +90,7 @@ fn renamed_rules(rule: &Rule) -> String {
         Rule::settings_event_binding => "handler binding".to_string(),
         Rule::settings_key => "setting key (e.g. PROPERTY_NAME: )".to_string(),
         Rule::settings_value => "literal value, literal object, {expression}, @gradient".to_string(),
+        Rule::camera_block_declaration => "camera block".to_string(),
         Rule::timeline_block_declaration => "timeline block".to_string(),
         Rule::timeline_block_setting => "timeline block setting".to_string(),
         Rule::timeline_block_setting_value => "timeline block setting value".to_string(),

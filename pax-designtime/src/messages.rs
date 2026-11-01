@@ -379,4 +379,7 @@ pub struct UpdateTemplateRequest {
     /// The named timeline blocks for the component.
     #[serde(default)]
     pub timelines: Vec<TimelineDefinition>,
+    /// The default camera configuration for this component.
+    #[serde(default)]
+    pub camera: Option<pax_manifest::LiteralBlockDefinition>,
 }

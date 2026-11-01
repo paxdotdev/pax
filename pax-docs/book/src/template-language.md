@@ -282,6 +282,11 @@ There are a few precise rules worth keeping nearby:
 `class` selects settings; it cannot itself be assigned inside a selector,
 settings, or timeline block. Give every inline property a single assignment.
 
+A top-level `@camera { ... }` block configures the mounted root's orthographic
+view without adding an element to its scene. The same declaration is dormant
+when its component is embedded. See [Controlling the root camera](layout-responsiveness.md#controlling-the-root-camera)
+for reactive position, rotations, zoom, and current limits.
+
 ## Conditional settings
 
 Settings can respond to a condition while keeping the same elements in the

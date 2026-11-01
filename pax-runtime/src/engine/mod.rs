@@ -1320,10 +1320,11 @@ impl PaxEngine {
                 .collect_scene_lighting_for_layer(*layer);
             drop(collect_timing);
             let _upload_timing = Span::new(Phase::LightingUpload);
-            rcs.set_scene_lighting_with_transform(
+            rcs.set_scene_lighting_with_view(
                 *layer,
                 &lighting,
                 self.runtime_context.canvas_surface_to_world(*layer),
+                self.runtime_context.lighting_view_for_layer(*layer),
             );
         }
         // Slot/scope changes can invalidate node masks during lighting resolution.
@@ -1740,6 +1741,7 @@ mod tests {
             children: None,
             component_template: None,
             component_settings: None,
+            component_camera: None,
             template_node_identifier: None,
             template_node_type_id: None,
             template_node_selector_info: None,
@@ -1768,6 +1770,7 @@ mod tests {
             children: None,
             component_template: None,
             component_settings: None,
+            component_camera: None,
             template_node_identifier: None,
             template_node_type_id: None,
             template_node_selector_info: None,
@@ -1796,6 +1799,7 @@ mod tests {
             children: None,
             component_template: None,
             component_settings: None,
+            component_camera: None,
             template_node_identifier: None,
             template_node_type_id: None,
             template_node_selector_info: None,

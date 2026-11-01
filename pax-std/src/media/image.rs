@@ -1,4 +1,4 @@
-use kurbo::{Affine, Rect, Shape};
+use kurbo::{Rect, Shape};
 use pax_engine::api::LocalProperty;
 use pax_engine::*;
 use pax_runtime::api::{borrow_mut, use_RefCell};
@@ -206,7 +206,7 @@ impl InstanceNode for ImageInstance {
         let source =
             expanded_node.with_properties_unwrapped(|props: &mut Image| props.source.clone());
 
-        let tab = expanded_node.transform_and_bounds.clone();
+        let tab = expanded_node.presentation_transform_and_bounds.clone();
         let deps = [
             tab.untyped(),
             expanded_node.computed_opacity.untyped(),
@@ -283,10 +283,10 @@ impl InstanceNode for ImageInstance {
         borrow_mut!(self.needs_to_load_data).remove(&id);
     }
 
-    fn resolve_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
-        let tab = expanded_node.transform_and_bounds.get();
+    fn resolve_local_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
+        let tab = expanded_node.presentation_transform_and_bounds.get();
         let rect = Rect::new(0.0, 0.0, tab.bounds.0, tab.bounds.1);
-        Some(Affine::from(tab.transform) * rect.into_path(0.01))
+        Some(rect.into_path(0.01))
     }
 
     fn prepare_canvas_geometry(
@@ -294,7 +294,7 @@ impl InstanceNode for ImageInstance {
         node: &ExpandedNode,
     ) -> pax_runtime::scene_geometry::CanvasGeometry {
         pax_runtime::scene_geometry::CanvasGeometry::for_layout(
-            node.transform_and_bounds.get().bounds,
+            node.presentation_transform_and_bounds.get().bounds,
         )
     }
 
@@ -367,7 +367,7 @@ impl InstanceNode for ImageInstance {
             let transformed_bounds = kurbo::Rect::new(x, y, x + width, y + height);
             let clip_path = kurbo::Rect::new(0.0, 0.0, container_width, container_height);
             rc.save(scope.layer_id);
-            rc.transform(scope.layer_id, scope.surface_transform);
+            scope.apply_transform(rc);
             rc.clip(scope.layer_id, clip_path.into_path(0.01));
             rc.draw_image_with_opacity(
                 scope.layer_id,

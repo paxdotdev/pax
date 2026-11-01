@@ -1,3 +1,4 @@
+import { inversePlane, planeMapping, planeMatrix3d, projectPoint } from "./projection";
 export async function readImageToByteBuffer(imagePath: string, signal?: AbortSignal): Promise<{ pixels: Uint8ClampedArray, width: number, height: number }> {
     let attempts = 8;
     let delay = 100;
@@ -80,6 +81,7 @@ export function waitForDocumentFrame(
 // Ax:=x1a∗,1+x2a∗,2+⋯+xna∗,n
 // where a∗,i is the ith column vector of A.
 export function affineMultiply(point: number[], matrix: number[]) : number[] {
+    if (matrix.length === 16) return projectPoint(matrix, point) ?? [NaN, NaN];
     let x = point[0];
     let y = point[1];
     let a = matrix[0];
@@ -94,6 +96,7 @@ export function affineMultiply(point: number[], matrix: number[]) : number[] {
 }
 
 export function invertAffineCoeffs(coeffs: number[]): number[] | undefined {
+    if (coeffs.length === 16) return inversePlane(coeffs);
     if (coeffs.length < 6) {
         return undefined;
     }
@@ -132,6 +135,11 @@ export function invertAffineCoeffs(coeffs: number[]): number[] | undefined {
 ///  and then unroll into a comma-separated list, following column-major order
 ///
 export function packAffineCoeffsIntoMatrix3DString(coeffs: number[]) : string {
+    if (coeffs.length === 16) {
+        // Preserve all significant digits: small projective terms can dominate
+        // near the eye. Depth order belongs to Pax rather than CSS z sorting.
+        return `matrix3d(${planeMatrix3d(planeMapping(coeffs)).join(",")})`;
+    }
     // Keep a composited surface under zero-sized clip wrappers without pinning
     // its raster scale via will-change. The affine matrix alone can be reduced
     // to a 2D operation by the browser, even when serialized as matrix3d.

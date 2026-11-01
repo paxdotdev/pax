@@ -506,6 +506,7 @@ impl DesigntimeManager {
                             update.new_template,
                             update.settings_block,
                             update.timelines,
+                            update.camera,
                         ) {
                             self.revision_gate.reject_manifest();
                             log::warn!("failed to apply template update from design-server: {err}");

@@ -63,6 +63,7 @@ pub fn add_runtime_root(manifest: &mut PaxManifest) {
             template: Some(template),
             settings: None,
             timelines: Vec::new(),
+            camera: None,
             route_branch: None,
         },
     );

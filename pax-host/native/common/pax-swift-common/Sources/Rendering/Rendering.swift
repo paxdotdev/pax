@@ -228,8 +228,10 @@ private func clipPathSignature(_ paths: [CGPath], size: CGSize) -> Int {
     return hasher.finalize()
 }
 
-private func transformedClipPaths(_ paths: [CGPath], by transform: CGAffineTransform) -> [CGPath] {
+private func transformedClipPaths(_ paths: [CGPath], by transform: CGAffineTransform,
+                                  projection: PaxNativeProjection? = nil) -> [CGPath] {
     paths.map { path in
+        if let projection { return projection.projectPath(path) ?? CGMutablePath() }
         var transform = transform
         return path.copy(using: &transform) ?? path
     }
@@ -1093,6 +1095,7 @@ public struct NativeRenderingLayer: View {
         let zIndex: Int
         let parentFrame: PaxNodeId?
         let localTransform: CGAffineTransform
+        var localProjection: PaxNativeProjection? = nil
         let size: CGSize
         let opacity: Double
         let kind: NativeLeafKind
@@ -1104,6 +1107,7 @@ public struct NativeRenderingLayer: View {
         let zIndex: Int
         let parentFrame: PaxNodeId?
         let localTransform: CGAffineTransform
+        var localProjection: PaxNativeProjection? = nil
         let size: CGSize
         let opacity: Double
         let clipContent: Bool
@@ -1118,6 +1122,7 @@ public struct NativeRenderingLayer: View {
         let zIndex: Int
         let parentFrame: PaxNodeId?
         let localTransform: CGAffineTransform
+        var localProjection: PaxNativeProjection? = nil
         let size: CGSize
         let opacity: Double
         let clipContent: Bool
@@ -1199,14 +1204,20 @@ public struct NativeRenderingLayer: View {
         private struct AppliedGeometry: Equatable {
             let size: CGSize
             let localTransform: CGAffineTransform
+            let projection: PaxNativeProjection?
             let zIndex: Int
             let opacity: Double
         }
         private var appliedGeometry: AppliedGeometry?
 #if os(macOS)
         private var appliedViewBackedTransform: ViewBackedTransform?
+        private(set) var nativeProjection: PaxNativeProjection?
+        private let projectedFocusLayer = CAShapeLayer()
+        private weak var projectedFocusOwner: NSView?
+        private var originalFocusRingType: NSFocusRingType?
 #endif
         private var appliedClipSignature: Int?
+        private var inputClipPath: CGPath?
         private var nativeMaskOpacityMultiplier: Double = 1.0
 
         private static func clampedOpacity(_ opacity: Double) -> Double {
@@ -1231,6 +1242,26 @@ public struct NativeRenderingLayer: View {
 #elseif os(macOS)
         override var isFlipped: Bool { true }
         override var preservesContentDuringLiveResize: Bool { false }
+        override var wantsUpdateLayer: Bool { true }
+
+        override func updateLayer() {
+            // AppKit initializes backing geometry again when newly attached
+            // descendants acquire layers. updateLayer runs after that pass.
+            if let projection = nativeProjection {
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                backingLayer.anchorPoint = .zero
+                backingLayer.position = .zero
+                backingLayer.transform = projection.layerTransform
+                CATransaction.commit()
+            }
+        }
+
+        override var visibleRect: NSRect {
+            guard let projection = nativeProjection, let parent = superview else { return super.visibleRect }
+            guard let local = projection.inverse()?.bounds(of: parent.visibleRect) else { return bounds }
+            return bounds.intersection(local)
+        }
 
         override init(frame frameRect: CGRect) {
             super.init(frame: frameRect)
@@ -1247,8 +1278,49 @@ public struct NativeRenderingLayer: View {
         }
 
         override func hitTest(_ point: NSPoint) -> NSView? {
-            let hitView = super.hitTest(point)
+            let hitView: NSView?
+            if let projection = nativeProjection {
+                guard let local = projection.inverse()?.project(point) else { return nil }
+                if let inputClipPath, !inputClipPath.contains(local) { return nil }
+                hitView = super.hitTest(convert(local, to: superview))
+            } else {
+                if let inputClipPath, !inputClipPath.contains(convert(point, from: superview)) { return nil }
+                hitView = super.hitTest(point)
+            }
             return hitView === self ? nil : hitView
+        }
+
+        func updateProjectedFocus(_ owner: NSView?, focused: Bool) {
+            let nextOwner = nativeProjection == nil ? nil
+                : (focused ? owner : (projectedFocusOwner === owner ? nil : projectedFocusOwner))
+            if nextOwner !== projectedFocusOwner || nativeProjection == nil {
+                if let old = projectedFocusOwner, let ring = originalFocusRingType { old.focusRingType = ring }
+                originalFocusRingType = nil
+            }
+            projectedFocusOwner = nextOwner
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            if nativeProjection != nil, let owner = projectedFocusOwner {
+                if originalFocusRingType == nil {
+                    originalFocusRingType = owner.focusRingType
+                    owner.focusRingType = .none
+                }
+                if projectedFocusLayer.superlayer == nil {
+                    projectedFocusLayer.fillColor = nil
+                    projectedFocusLayer.lineWidth = 3
+                    projectedFocusLayer.zPosition = 2_000
+                    backingLayer.addSublayer(projectedFocusLayer)
+                }
+                let rect = convert(owner.bounds, from: owner).insetBy(dx: 1.5, dy: 1.5)
+                projectedFocusLayer.path = CGPath(roundedRect: rect, cornerWidth: 4, cornerHeight: 4, transform: nil)
+                projectedFocusLayer.strokeColor = NSColor.keyboardFocusIndicatorColor.cgColor
+            } else { projectedFocusLayer.path = nil }
+            CATransaction.commit()
+        }
+
+        override func accessibilityFrame() -> NSRect {
+            let rect = super.accessibilityFrame()
+            return paxHasNativeProjection ? paxVisualScreenRect(rect) : rect
         }
 
 #endif
@@ -1360,6 +1432,8 @@ public struct NativeRenderingLayer: View {
             if appliedClipSignature == signature {
                 return
             }
+            inputClipPath = clipContent ? (path ?? CGPath(roundedRect: bounds,
+                cornerWidth: borderRadius, cornerHeight: borderRadius, transform: nil)) : nil
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             if !clipContent {
@@ -1390,18 +1464,54 @@ public struct NativeRenderingLayer: View {
         func applyGeometry(
             size: CGSize,
             localTransform: CGAffineTransform,
+            projection: PaxNativeProjection? = nil,
             zIndex: Int,
             opacity: Double
         ) {
             let geometry = AppliedGeometry(
                 size: size,
                 localTransform: localTransform,
+                projection: projection,
                 zIndex: zIndex,
                 opacity: opacity
             )
             if appliedGeometry == geometry {
                 return
             }
+#if os(macOS)
+            if let projection {
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                // Keep AppKit's drawing scale local. Scaling the frame relative
+                // to bounds also scales its backing stores and distorts native
+                // text. visibleRect supplies the projected viewport separately.
+                nativeProjection = projection
+                if frameRotation != 0 { frameRotation = 0 }
+                let rect = CGRect(origin: .zero, size: size)
+                let visibleFrame = projection.bounds(of: rect) ?? .zero
+                if frame.origin != visibleFrame.origin { setFrameOrigin(visibleFrame.origin) }
+                if frame.size != size { setFrameSize(size) }
+                if bounds != rect { bounds = rect }
+                backingLayer.anchorPoint = .zero
+                backingLayer.position = .zero
+                backingLayer.transform = projection.layerTransform
+                backingLayer.zPosition = CGFloat(zIndex)
+                backingLayer.opacity = Float(Self.clampedOpacity(opacity * nativeMaskOpacityMultiplier))
+                CATransaction.commit()
+                if appliedGeometry?.size != size { syncGlassContainerFrame() }
+                appliedGeometry = geometry
+                appliedViewBackedTransform = nil
+                needsDisplay = true
+                updateProjectedFocus(projectedFocusOwner, focused: true)
+                return
+            }
+            if nativeProjection != nil {
+                nativeProjection = nil
+                backingLayer.transform = CATransform3DIdentity
+                appliedGeometry = nil
+                updateProjectedFocus(projectedFocusOwner, focused: true)
+            }
+#endif
             let rect = CGRect(
                 origin: CGPoint(x: localTransform.tx, y: localTransform.ty),
                 size: size
@@ -1624,7 +1734,8 @@ public struct NativeRenderingLayer: View {
         }
 
         func canDetach(item: NativeRenderItem) -> Bool {
-            guard item.kind.liquidGlass == nil, !hasActiveNativeInteraction else { return false }
+            guard item.kind.liquidGlass == nil, !hasActiveNativeInteraction,
+                  !paxHasNativeProjection else { return false }
             switch item.kind {
             case .text(let element):
                 guard !element.editable, let text = contentView as? PaxNativeTextLeafView else { return false }
@@ -1640,10 +1751,15 @@ public struct NativeRenderingLayer: View {
 
 #if os(macOS)
         override func hitTest(_ point: NSPoint) -> NSView? {
-            guard contentKey != "text-static",
-                  !nativeMaskOccludesPoint(pointerMask, point: convert(point, from: superview)) else {
+            guard contentKey != "text-static" else {
                 return nil
             }
+            let local: NSPoint
+            if let nativeProjection {
+                guard let projected = nativeProjection.inverse()?.project(point) else { return nil }
+                local = projected
+            } else { local = convert(point, from: superview) }
+            if nativeMaskOccludesPoint(pointerMask, point: local) { return nil }
             let hitView = super.hitTest(point)
             return hitView === self ? nil : hitView
         }
@@ -1670,6 +1786,10 @@ public struct NativeRenderingLayer: View {
                 appliedContentSignature = contentSignature
             }
 #if os(macOS)
+            if paxHasNativeProjection, let responder = window?.firstResponder as? NSView,
+               responder.isDescendant(of: self) {
+                updateProjectedFocus(contentView, focused: true)
+            }
             updateSnapshot(for: item, contentSignature: contentSignature)
             updateMask(maskInSnapshotCoordinates(item.mask))
 #else
@@ -1724,7 +1844,14 @@ public struct NativeRenderingLayer: View {
             guard let contentView else {
                 return
             }
-            let shouldUseSnapshot = item.mask != nil
+            // A projective host must retain live selection/caret painting. Its
+            // layer mask clips the actual native subtree, including focus feedback.
+            let shouldUseSnapshot: Bool
+            if case .text(let text) = item.kind {
+                shouldUseSnapshot = item.mask != nil && !text.editable && !paxHasNativeProjection
+            } else {
+                shouldUseSnapshot = false
+            }
             if !shouldUseSnapshot {
                 guard snapshotLayer.superlayer != nil || appliedSnapshotSignature != nil else { return }
                 snapshotLayer.removeFromSuperlayer()
@@ -1853,6 +1980,7 @@ public struct NativeRenderingLayer: View {
         }
 
         private func updateMask(_ mask: ResolvedNativeMask?) {
+            pointerMask = mask
             let layer = backingLayer
             guard let mask else {
                 guard appliedMaskSignature != nil || currentMaskLayer != nil
@@ -2427,12 +2555,14 @@ public struct NativeRenderingLayer: View {
         }
 #elseif os(macOS)
         override func applyGeometry(size: CGSize, localTransform: CGAffineTransform,
+                                    projection: PaxNativeProjection? = nil,
                                     zIndex: Int, opacity: Double) {
             // Fractional placement can realign AppKit's clip origin to backing pixels.
             let wasSuppressing = suppressScrollEvents
             suppressScrollEvents = true
             defer { suppressScrollEvents = wasSuppressing }
             super.applyGeometry(size: size, localTransform: localTransform,
+                                projection: projection,
                                 zIndex: zIndex, opacity: opacity)
         }
 
@@ -3253,6 +3383,7 @@ public struct NativeRenderingLayer: View {
                     for item in items {
                         guard let view = leafViews[item.id] else { continue }
                         view.applyGeometry(size: item.size, localTransform: item.localTransform,
+                                           projection: item.localProjection,
                                            zIndex: item.zIndex, opacity: item.opacity)
                         view.update(item: item)
 #if os(macOS)
@@ -3306,7 +3437,8 @@ public struct NativeRenderingLayer: View {
                 case .frame(let frame):
                     let inheritedFrameClips = transformedClipPaths(
                         positiveClipPaths,
-                        by: safeInverseTransform(frame.localTransform)
+                        by: safeInverseTransform(frame.localTransform),
+                        projection: frame.localProjection.map { $0.inverse() ?? .collapsed }
                     )
                     var childClipPaths = inheritedFrameClips
                     activeFrames.insert(frame.id)
@@ -3320,6 +3452,7 @@ public struct NativeRenderingLayer: View {
                     frameView.applyGeometry(
                         size: frame.size,
                         localTransform: frame.localTransform,
+                        projection: frame.localProjection,
                         zIndex: frame.zIndex,
                         opacity: frame.opacity
                     )
@@ -3344,7 +3477,8 @@ public struct NativeRenderingLayer: View {
                 case .scroller(let scroller):
                     let scrollerClipPaths = transformedClipPaths(
                         positiveClipPaths,
-                        by: safeInverseTransform(scroller.localTransform)
+                        by: safeInverseTransform(scroller.localTransform),
+                        projection: scroller.localProjection.map { $0.inverse() ?? .collapsed }
                     )
                     activeScrollers.insert(scroller.id)
                     let scrollerView = scrollerViews[scroller.id] ?? {
@@ -3357,6 +3491,7 @@ public struct NativeRenderingLayer: View {
                     scrollerView.applyGeometry(
                         size: scroller.size,
                         localTransform: scroller.localTransform,
+                        projection: scroller.localProjection,
                         zIndex: scroller.zIndex,
                         opacity: scroller.opacity
                     )
@@ -3392,6 +3527,7 @@ public struct NativeRenderingLayer: View {
                     leafView.applyGeometry(
                         size: item.size,
                         localTransform: item.localTransform,
+                        projection: item.localProjection,
                         zIndex: item.zIndex,
                         opacity: item.opacity
                     )
@@ -3542,6 +3678,7 @@ public struct NativeRenderingLayer: View {
             parentFrame: element.parentFrame,
             localTransform: affineTransform(from: element.transform)
                 .concatenating(safeInverse(parentFrameTransform(element.parentFrame))),
+            localProjection: localProjection(element.transform, parent: element.parentFrame),
             size: size,
             opacity: clampOpacity(element.opacity),
             kind: kind,
@@ -3556,6 +3693,7 @@ public struct NativeRenderingLayer: View {
             parentFrame: element.parentFrame,
             localTransform: affineTransform(from: element.transform)
                 .concatenating(safeInverse(parentFrameTransform(element.parentFrame))),
+            localProjection: localProjection(element.transform, parent: element.parentFrame),
             size: CGSize(width: width, height: height),
             opacity: clampOpacity(element.opacity),
             kind: .text(element),
@@ -3574,6 +3712,15 @@ public struct NativeRenderingLayer: View {
             return affineTransform(from: scroller.transform)
         }
         return .identity
+    }
+
+    private func localProjection(_ coefficients: [Float], parent: PaxNodeId?) -> PaxNativeProjection? {
+        let parentCoefficients = parent.flatMap { frameElements.elements[$0]?.transform
+            ?? scrollerElements.elements[$0]?.transform } ?? [1, 0, 0, 1, 0, 0]
+        guard coefficients.count == 16 || parentCoefficients.count == 16 else { return nil }
+        guard let world = PaxNativeProjection(coefficients),
+              let inverse = PaxNativeProjection(parentCoefficients)?.inverse() else { return .collapsed }
+        return inverse * world
     }
 
     private func safeInverse(_ transform: CGAffineTransform) -> CGAffineTransform {
@@ -3615,6 +3762,11 @@ public struct NativeRenderingLayer: View {
         if let clipPath = frame.clipPath,
            !clipPath.isEmpty,
            let worldPath = parseSVGPath(clipPath) {
+            if frame.transform.count == 16 {
+                guard let inverse = PaxNativeProjection(frame.transform)?.inverse(),
+                      let path = inverse.projectPath(worldPath.cgPath) else { return Path() }
+                return Path(path)
+            }
             let localPath = worldPath.applying(safeInverse(affineTransform(from: frame.transform)))
             return localPath
         }
@@ -3687,6 +3839,7 @@ public struct NativeRenderingLayer: View {
                 zIndex: frame.zIndex,
                 parentFrame: frame.parentFrame,
                 localTransform: frameTransformInParentFrame(frame),
+                localProjection: localProjection(frame.transform, parent: frame.parentFrame),
                 size: frameSize(frame),
                 opacity: clampOpacity(frame.opacity),
                 clipContent: frame.clipContent,
@@ -3707,6 +3860,7 @@ public struct NativeRenderingLayer: View {
                 parentFrame: scroller.parentFrame,
                 localTransform: affineTransform(from: scroller.transform)
                     .concatenating(safeInverse(parentFrameTransform(scroller.parentFrame))),
+                localProjection: localProjection(scroller.transform, parent: scroller.parentFrame),
                 size: scrollerSize(scroller),
                 opacity: clampOpacity(scroller.opacity),
                 clipContent: scroller.clipContent,
@@ -5358,6 +5512,12 @@ private func configuredLiquidGlassView(
 
 // AppKit's cell supplies native selection; the surrounding Pax host owns clipping.
 private final class PaxNativeLabelCell: NSTextFieldCell {
+    private let projectedEditor = PaxProjectedTextView()
+    override func fieldEditor(for controlView: NSView) -> NSTextView? {
+        projectedEditor.isFieldEditor = true
+        projectedEditor.projectionFocusOwner = controlView
+        return projectedEditor
+    }
     override func drawingRect(forBounds rect: NSRect) -> NSRect { rect }
     override func titleRect(forBounds rect: NSRect) -> NSRect { rect }
 }
@@ -5460,7 +5620,7 @@ final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
         content = nil
         switch next {
         case .label:
-            let field = NSTextField(frame: .zero)
+            let field = PaxProjectedTextField(frame: .zero)
             field.cell = PaxNativeLabelCell(textCell: "")
             field.isBordered = false
             field.isBezeled = false
@@ -5480,7 +5640,8 @@ final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
             content = .label(field)
         case .document:
             let scroll = PaxNativeTextScrollView()
-            let text = NSTextView()
+            scroll.contentView = PaxProjectedClipView()
+            let text = PaxProjectedTextView()
             scroll.hasVerticalScroller = false
             scroll.hasHorizontalScroller = false
             scroll.drawsBackground = false
@@ -5668,7 +5829,7 @@ final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
     }
 }
 
-private final class PaxNativeButtonView: NSButton {
+private final class PaxNativeButtonView: PaxProjectedButton {
     private var nodeId: PaxNodeId = 0
 
     override init(frame frameRect: NSRect) {
@@ -5700,7 +5861,7 @@ private final class PaxNativeButtonView: NSButton {
     }
 }
 
-private final class PaxNativePhotoPickerView: NSButton {
+private final class PaxNativePhotoPickerView: PaxProjectedButton {
     private var element: PhotoPickerElement?
     private var lastTrigger: UInt64?
 
@@ -5803,7 +5964,7 @@ private final class NativePhotoPickerCoordinator {
     }
 }
 
-private final class PaxNativeCheckboxView: NSButton {
+private final class PaxNativeCheckboxView: PaxProjectedButton {
     private var nodeId: PaxNodeId = 0
 
     override init(frame frameRect: NSRect) {
@@ -5837,7 +5998,7 @@ private final class PaxNativeCheckboxView: NSButton {
     }
 }
 
-private final class PaxNativeSliderView: NSSlider {
+private final class PaxNativeSliderView: PaxProjectedSlider {
     private var nodeId: PaxNodeId = 0
 
     override init(frame frameRect: NSRect) {
@@ -5864,7 +6025,7 @@ private final class PaxNativeSliderView: NSSlider {
     }
 }
 
-private final class PaxNativeDropdownView: NSPopUpButton {
+private final class PaxNativeDropdownView: PaxProjectedPopUpButton {
     private var nodeId: PaxNodeId = 0
 
     override init(frame frameRect: NSRect, pullsDown flag: Bool) {
@@ -5983,7 +6144,7 @@ private final class PaxNativeRadioListView: NSStackView {
                 view.removeFromSuperview()
             }
             for index in element.options.indices {
-                let button = NSButton(radioButtonWithTitle: "", target: self, action: #selector(selectOption(_:)))
+                let button = PaxProjectedButton(radioButtonWithTitle: "", target: self, action: #selector(selectOption(_:)))
                 button.tag = index
                 button.isBordered = false
                 button.imagePosition = .imageLeading
@@ -6095,7 +6256,7 @@ private final class VerticallyCenteredTextFieldCell: NSTextFieldCell {
     }
 }
 
-private final class PaxNativeTextboxFieldView: NSTextField, NSTextFieldDelegate {
+private final class PaxNativeTextboxFieldView: PaxProjectedTextField, NSTextFieldDelegate {
     private var nodeId: PaxNodeId = 0
     private var isProgrammaticChange = false
 
@@ -6160,6 +6321,7 @@ private final class PaxNativeTextboxAreaView: NSScrollView, NSTextViewDelegate {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        contentView = PaxProjectedClipView()
         borderType = .noBorder
         drawsBackground = false
         hasVerticalScroller = false
@@ -6228,7 +6390,7 @@ private final class PaxNativeTextboxAreaView: NSScrollView, NSTextViewDelegate {
     }
 }
 
-private final class PaxNativeImageView: NSImageView {
+private final class PaxNativeImageView: PaxProjectedImageView {
     private var currentURL: String = ""
 
     override init(frame frameRect: NSRect) {
@@ -6258,7 +6420,7 @@ private final class PaxNativeImageView: NSImageView {
     }
 }
 
-private final class PaxNativeYoutubeView: NSButton {
+private final class PaxNativeYoutubeView: PaxProjectedButton {
     private var currentURL: URL?
 
     override init(frame frameRect: NSRect) {
@@ -6771,3 +6933,7 @@ public class ScrollerElements: ObservableObject {
         elements.removeAll()
     }
 }
+
+#if os(macOS)
+extension NativeRenderingLayer.PlatformContainerView: PaxProjectedNativeHost {}
+#endif

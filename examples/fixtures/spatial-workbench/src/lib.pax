@@ -1,7 +1,16 @@
-<Scroller width=100% height=100% scroll_height={(Math::max(@viewport.height, @viewport.width < 850 ? 1240 : 840))px}>
-    <Group anchor=0% width=100% height={(Math::max(@viewport.height, @viewport.width < 850 ? 1240 : 840))px}>
-        <Group anchor=0% width=100% height=100% translate_z=1000px>
-            <Text class="eyebrow" anchor=0% selectable=false x=32px y=26px width=500px height=20px text="PAX LAB / SPATIAL WORKBENCH / 01"/>
+<Button class="control" anchor=0% x=24px y={tile_lab ? 18px : 148px} width=190px height=26px
+    label={tile_lab ? "Return to card workbench" : "Open tile / near-plane lab"} @button_click=toggle_lab/>
+if !tile_lab {
+    <Button class="control" anchor=0% x=226px y=148px width=160px height=26px
+        label={solid ? "Show amber card" : "Show solid volume"} @button_click=toggle_solid/>
+}
+if tile_lab {
+    <TileLab width=100% height=100% camera_zoom=bind:camera_zoom/>
+} else {
+<Scroller width=100% height=100% scroll_height={(Math::max(@viewport.height, @viewport.width < 850 ? 1520 : 1100))px}>
+    <Group anchor=0% width=100% height={(Math::max(@viewport.height, @viewport.width < 850 ? 1520 : 1100))px}>
+        <Group anchor=0% width=100% height=100%>
+            <Text class="eyebrow" anchor=0% selectable=false position=[32px, 26px] width=500px height=20px text="PAX LAB / SPATIAL WORKBENCH / 01"/>
             <Text anchor=0% selectable=false x=32px y=54px width=600px height=52px text="A new dimension." style={
                 font: "Georgia"
                 font_size: 38px
@@ -10,10 +19,10 @@
             <Text class="muted" anchor=0% selectable=false x=34px y=112px width={100% - 68px} height=26px
                 text="Live native controls. Flat surfaces. Real geometric depth."/>
             <Text class="eyebrow" anchor=0% selectable=false x=34px y={100% - 40px} width={100% - 68px} height=22px
-                text="ORTHOGRAPHIC VIEW  /  ZERO-THICKNESS SURFACES  /  WEBGPU"/>
+                text={perspective ? "PERSPECTIVE VIEW  /  ZERO-THICKNESS SURFACES  /  GPU" : "ORTHOGRAPHIC VIEW  /  ZERO-THICKNESS SURFACES  /  GPU"}/>
         </Group>
         <Group anchor=0% x={@viewport.width < 850 ? 24px : (100% - 302px)} y={@viewport.width < 850 ? 570px : 168px}
-            width={@viewport.width < 850 ? (100% - 48px) : 270px} height=612px translate_z=1000px>
+            width={@viewport.width < 850 ? (100% - 48px) : 270px} height=866px>
             <Text class="eyebrow" anchor=0% selectable=false x=18px y=18px width=234px height=20px text="SURFACE CONTROLS"/>
             <Button class="control" anchor=0% id=play x=18px y=52px width=110px label={playing ? "Pause motion" : "Play motion"}
                 @button_click=toggle_play/>
@@ -48,7 +57,22 @@
                 @button_click=toggle_clip/>
             <Button class="control" anchor=0% id=cross x=140px y=514px width=110px label={crossing ? "Hide amber" : "Show amber"}
                 @button_click=toggle_crossing/>
-            <Text class="muted" anchor=0% selectable=false x=18px y=568px width=234px height=24px text="Typed text survives every pose."/>
+            <Button class="control" anchor=0% id=camera_pan x=18px y=562px width=110px
+                label={camera_panned ? "Center camera" : "Pan camera"} @button_click=move_camera/>
+            <Button class="control" anchor=0% id=camera_zoom x=140px y=562px width=110px
+                label={camera_zoomed_out ? "Zoom reset" : "Zoom out"} @button_click=zoom_camera/>
+            <Button class="control" anchor=0% id=camera_projection x=18px y=610px width=232px
+                label={perspective ? "Switch to orthographic" : "Switch to perspective"} @button_click=toggle_perspective/>
+            <Text class="label" anchor=0% selectable=false x=18px y=660px width=232px height=20px
+                text={"Vertical field of view   " + Example::rounded(camera_fov) + "°"}/>
+            <Slider anchor=0% id=camera_fov x=18px y=684px width=232px height=24px value=bind:camera_fov min=60.0 max=100.0 step=1.0
+                accent=rgb(99, 216, 188) background=rgb(40, 63, 72)/>
+            <Text class="label" anchor=0% selectable=false x=18px y=718px width=232px height=20px
+                text={"Dolly back   " + Example::rounded(camera_dolly) + " px"}/>
+            <Slider anchor=0% id=camera_dolly x=18px y=742px width=232px height=24px value=bind:camera_dolly min=0.0 max=300.0 step=1.0
+                accent=rgb(99, 216, 188) background=rgb(40, 63, 72)/>
+            <Text class="muted" anchor=0% selectable=false x=18px y=796px width=234px height=42px
+                text="FOV and dolly affect perspective. Typed text survives every view."/>
             <Rectangle anchor=0% width=100% height=100% corner_radius=18 fill=rgb(22, 38, 47) stroke={
                 paint: rgb(46, 68, 77)
                 width: 1px
@@ -58,8 +82,8 @@
             height={@viewport.width < 850 ? 370px : (100% - 252px)}>
             <Frame anchor=50% x=50% y=50% width={clipping ? (@viewport.width < 600 ? 260px : 350px) : 100%}
                 height={clipping ? (@viewport.width < 600 ? 200px : 240px) : 100%} corner_radius=24 _clip_content={clipping}>
-                <Group anchor=50% x=50% y=50% width=430px height=300px scale={@viewport.width < 600 ? 75% : 100%} rotate_x={(tilt_x)deg}
-                    rotate_y={(tilt_y)deg} translate_z={(depth)px} opacity={alpha}>
+                <Group anchor=50% position={[50%, 50%, (depth)px]} width=430px height=300px scale={@viewport.width < 600 ? 75% : 100%} rotate_x={(tilt_x)deg}
+                    rotate_y={(tilt_y)deg} opacity={alpha}>
                     <Textbox anchor=0% id=live_note x=26px y=122px width=378px height=42px text=bind:note background=rgb(235, 250, 245)
                         corner_radius=8 style={
                             font: "Arial"
@@ -114,8 +138,16 @@
                             width: 1px
                         }/>
                 </Group>
-                if crossing {
-                    <Group anchor=50% x=57% y=52% width=350px height=238px rotate_y=42deg rotate_x=-8deg translate_z={(crossing_depth)px}>
+                if crossing && solid {
+                    <LightFrame width=100% height=100%>
+                        <Ellipsoid anchor=50% x=57% y=52% width=330px height=238px depth=300px
+                            rotate_y=42deg rotate_x=-8deg z={(crossing_depth)px}
+                            color=rgb(231, 170, 105) material={Material::glossy(0.35)}/>
+                        <LightSource x=10% y=5% z=500px radius=1800px intensity=1.4/>
+                    </LightFrame>
+                }
+                if crossing && !solid {
+                    <Group anchor=50% x=57% y=52% width=350px height=238px rotate_y=42deg rotate_x=-8deg z={(crossing_depth)px}>
                         <Text anchor=0% selectable=false x=22px y=24px width=300px height=20px text="SURFACE B / DEPTH PROBE" style={
                             font: "Arial"
                             font_size: 11px
@@ -136,7 +168,7 @@
                     </Group>
                 }
             </Frame>
-            <Group anchor=0% width=100% height=100% translate_z=-1000px>
+            <Group anchor=0% width=100% height=100% z=-1000px>
                 <Text class="eyebrow" anchor=0% selectable=false x=22px y=20px width=400px height=20px text="01 / TWO SURFACES, ONE WORLD"/>
                 for row in 0..14 {
                     <Rectangle anchor=0% x=0px y={(row * 100 / 14)%} width=100% height=1px fill=rgba(84, 130, 139, 25)/>
@@ -150,9 +182,12 @@
                 }/>
             </Group>
         </Group>
-        <Rectangle anchor=0% width=100% height=100% translate_z=-2000px fill=rgb(10, 21, 29)/>
+        <Rectangle anchor=50% x=50% y=50% width={perspective ? 2000% : 100%} height={perspective ? 2000% : 100%}
+            z=-2000px fill=rgb(10, 21, 29)/>
     </Group>
 </Scroller>
+
+}
 
 @settings {
     @mount: mount
@@ -191,4 +226,13 @@
             align_vertical: TextAlignVertical::Center
         }
     }
+}
+
+@camera {
+    projection: {perspective ? CameraMode::Perspective : CameraMode::Orthographic}
+    position: {[50% + (camera_pan)px, 50%, (perspective ? @viewport.height * 0.866025403784 + camera_dolly : 0)px]}
+    zoom: {camera_zoom}
+    vertical_fov: {(camera_fov)deg}
+    near: 1px
+    far: 10000px
 }

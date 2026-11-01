@@ -30,6 +30,10 @@
 }
 {% endif %}
 
+{% if camera %}
+@camera {{ macros::render_literal_block(lb=camera) }}
+{% endif %}
+
 {% if timelines and timelines | length > 0 %}
     {% for timeline in timelines %}
 @timeline{% if timeline.name %} {{ timeline.name.token_value }}{% endif %} {

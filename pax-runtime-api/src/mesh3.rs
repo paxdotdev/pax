@@ -8,6 +8,9 @@ use std::rc::Rc;
 
 use crate::DepthPlane;
 
+pub mod projection;
+pub use projection::{MeshProjection, ProjectedConvexMesh};
+
 /// One local-space mesh vertex. Normals are outward-facing; UVs span the surface.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MeshVertex {
@@ -123,6 +126,7 @@ impl ConvexMesh {
             vertices,
             silhouette: OnceCell::new(),
             front_coverage: RefCell::new(Vec::new()),
+            projections: RefCell::new(Vec::new()),
         }))
     }
 }
@@ -137,6 +141,8 @@ pub struct PosedConvexMesh {
     // Native siblings, physical tiles, and fade views often ask about the same
     // plane. Bound residency even when a stationary solid meets animated planes.
     front_coverage: RefCell<Vec<([f64; 3], Vec<[f64; 2]>)>>,
+    // Unscrolled, window, and canvas charts share this mounted world pose.
+    projections: RefCell<Vec<Rc<ProjectedConvexMesh>>>,
 }
 
 impl PosedConvexMesh {
@@ -352,8 +358,8 @@ pub struct OpaqueMeshDraw {
     pub mesh: Rc<ConvexMesh>,
     /// Local mesh to unscrolled world, used for lighting.
     pub world: [f64; 16],
-    /// Local mesh to canvas-content x/y, with world z retained.
-    pub surface: [f64; 16],
+    /// Local mesh to homogeneous canvas-content coordinates, with camera clipping.
+    pub surface: MeshProjection,
     pub color: crate::Color,
     pub material: crate::ResolvedMaterial,
 }

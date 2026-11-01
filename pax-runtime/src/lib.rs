@@ -24,6 +24,8 @@ pub mod scene_geometry;
 pub mod shader_effect;
 #[cfg(feature = "shaders")]
 pub use shader_effect::bind_shader_effect;
+#[cfg(feature = "3d")]
+mod camera;
 pub mod settings_motion;
 pub mod slot;
 #[cfg(feature = "3d")]

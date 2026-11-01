@@ -54,6 +54,7 @@ pub(crate) struct GpuSceneLight {
 pub(crate) struct GpuSceneLighting {
     pub surface_to_world_x: [f32; 4],
     pub surface_to_world_y: [f32; 4],
+    pub view: [f32; 4],
     pub ambient: [f32; 4],
     pub meta: [u32; 4],
     pub lights: [GpuSceneLight; MAX_SCENE_LIGHTS],
@@ -84,14 +85,19 @@ pub(crate) struct GpuGradient {
 pub(crate) struct GpuTransform {
     pub transform: [[f32; 2]; 3],
     pub opacity: f32,
-    pub _pad: f32,
+    /// 0 = affine; 1 = homogeneous; 2 = homogeneous with camera depth clipping.
+    pub projection_mode: f32,
+    #[cfg(feature = "3d")]
+    pub projection: [[f32; 4]; 3],
+    #[cfg(feature = "3d")]
+    pub camera_clip: [[f32; 4]; 2],
     #[cfg(feature = "3d")]
     pub lighting_x: [f32; 4],
     #[cfg(feature = "3d")]
     pub lighting_y: [f32; 4],
     #[cfg(feature = "3d")]
     pub lighting_origin: [f32; 4],
-    // w distinguishes an explicit world frame from the legacy immediate-draw path.
+    // w distinguishes an explicit world frame from immediate affine draws.
     #[cfg(feature = "3d")]
     pub lighting_normal: [f32; 4],
 }
@@ -101,7 +107,11 @@ impl Default for GpuTransform {
         Self {
             transform: Transform2D::identity().to_arrays(),
             opacity: 1.0,
-            _pad: 0.0,
+            projection_mode: 0.0,
+            #[cfg(feature = "3d")]
+            projection: [[0.; 4]; 3],
+            #[cfg(feature = "3d")]
+            camera_clip: [[0.; 4]; 2],
             #[cfg(feature = "3d")]
             lighting_x: [1., 0., 0., 0.],
             #[cfg(feature = "3d")]
@@ -110,6 +120,26 @@ impl Default for GpuTransform {
             lighting_origin: [0.; 4],
             #[cfg(feature = "3d")]
             lighting_normal: [0., 0., 1., 0.],
+        }
+    }
+}
+
+impl GpuTransform {
+    #[cfg(feature = "3d")]
+    pub(crate) fn projected(plane: pax_runtime_api::math::ProjectedPlane, opacity: f32) -> Self {
+        let m = plane.matrix().coeffs();
+        Self {
+            projection_mode: if plane.clips_depth() { 2. } else { 1. },
+            projection: [
+                [m[0], m[1], m[2], m[3]].map(|v| v as f32),
+                [m[4], m[5], m[6], m[7]].map(|v| v as f32),
+                [m[12], m[13], m[14], m[15]].map(|v| v as f32),
+            ],
+            camera_clip: plane
+                .camera_clip_rows()
+                .map(|r| [r[0] as f32, r[1] as f32, r[2] as f32, 0.]),
+            opacity,
+            ..Self::default()
         }
     }
 }

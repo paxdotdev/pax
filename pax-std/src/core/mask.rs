@@ -200,7 +200,9 @@ impl MaskInstance {
     ) -> LocalProperty<()> {
         let mut deps = vec![
             source.children.untyped(),
-            source.transform_and_bounds.untyped(),
+            source.presentation_transform_and_bounds.untyped(),
+            #[cfg(feature = "3d")]
+            source.presentation_geometry().untyped(),
             source.computed_opacity.untyped(),
             source.computed_opacity_scopes.untyped(),
         ];
@@ -265,7 +267,14 @@ impl MaskInstance {
         layer: usize,
         context: &RuntimeContext,
     ) -> kurbo::BezPath {
-        Self::mask_transform_for_layer(expanded_node, layer, context) * mask_path.clone()
+        if expanded_node.has_perspective_camera() {
+            context
+                .window_to_canvas_mapping(layer)
+                .map(|mapping| mapping.project_path(mask_path, 0.1))
+                .unwrap_or_default()
+        } else {
+            Self::mask_transform_for_layer(expanded_node, layer, context) * mask_path.clone()
+        }
     }
 
     fn mask_transform_for_layer(
@@ -279,7 +288,13 @@ impl MaskInstance {
         let Some(owner) = context.get_expanded_node_by_eid(owner_id) else {
             return Affine::IDENTITY;
         };
-        let owner_inverse = Affine::from(owner.transform_and_bounds.get().transform.inverse());
+        let owner_inverse = Affine::from(
+            owner
+                .presentation_transform_and_bounds
+                .get()
+                .transform
+                .inverse(),
+        );
         let mut layer_transform = owner_inverse;
 
         // If this mask contains the scroller that owns the target canvas layer, the mask is fixed
@@ -331,7 +346,9 @@ impl MaskInstance {
 
 impl InstanceNode for MaskInstance {
     #[cfg(feature = "3d")]
-    fn permits_opaque_mesh_content(&self, node: &ExpandedNode) -> bool { !Self::alpha_settings(node).0 }
+    fn permits_opaque_mesh_content(&self, node: &ExpandedNode) -> bool {
+        !Self::alpha_settings(node).0
+    }
 
     fn plan_startup(
         &self,
@@ -432,7 +449,8 @@ impl InstanceNode for MaskInstance {
         }));
 
         let mut deps = vec![
-            expanded_node.transform_and_bounds.untyped(),
+            #[cfg(feature = "3d")]
+            expanded_node.presentation_geometry().untyped(),
             expanded_node.computed_opacity.untyped(),
             expanded_node.occlusion.untyped(),
         ];
@@ -472,7 +490,7 @@ impl InstanceNode for MaskInstance {
                         id,
                         ..Default::default()
                     };
-                    let computed_tab = expanded_node.transform_and_bounds.get();
+                    let computed_tab = expanded_node.presentation_transform_and_bounds.get();
                     let (width, height) = computed_tab.bounds;
 
                     let updates = [
@@ -491,7 +509,7 @@ impl InstanceNode for MaskInstance {
                         patch_if_needed(
                             &mut old_state.transform,
                             &mut patch.transform,
-                            computed_tab.transform.coeffs().to_vec(),
+                            context.native_presentation_matrix_for_node(&expanded_node),
                         ),
                         patch_if_needed(&mut old_state.clip_path, &mut patch.clip_path, clip_path),
                         patch_if_needed(
@@ -607,7 +625,7 @@ impl InstanceNode for MaskInstance {
             }
             rcs.save(layer);
             if alpha && rcs.supports_alpha_source_capture() {
-                let mapping = if source_layer.is_some() {
+                let mapping = if source_layer.is_some() || expanded_node.has_perspective_camera() {
                     Affine::IDENTITY
                 } else {
                     Self::mask_transform_for_layer(expanded_node, layer, rtc)
@@ -632,7 +650,7 @@ impl InstanceNode for MaskInstance {
             } else if let Some(path) = &mask_path {
                 rcs.clip(
                     layer,
-                    if source_layer.is_some() {
+                    if source_layer.is_some() && !expanded_node.has_perspective_camera() {
                         path.clone()
                     } else {
                         Self::mask_path_for_layer(path, expanded_node, layer, rtc)

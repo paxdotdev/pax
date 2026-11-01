@@ -4,15 +4,13 @@ mod effects;
 use effects::{EffectCapture, EffectNode, EffectRecording};
 mod lighting;
 mod opacity;
+#[cfg(feature = "3d")]
+mod solid;
 mod source_capture;
 #[cfg(feature = "3d")]
 mod spatial;
 #[cfg(feature = "3d")]
-mod solid;
-#[cfg(feature = "3d")]
 mod spatial_fade;
-#[cfg(feature = "3d")]
-use solid::RetainedSolid;
 use crate::render_backend::stencil;
 use crate::render_backend::CpuBuffers;
 use crate::render_backend::RetainedImageDraw;
@@ -47,6 +45,8 @@ use lyon::tessellation::StrokeVertex;
 use lyon::tessellation::VertexSource;
 use opacity::collect_opacity_group_keys;
 use pax_runtime_api::{OpacityScope, PathSmoothing};
+#[cfg(feature = "3d")]
+use solid::RetainedSolid;
 use source_capture::{SourceCapture, SourceRecording};
 
 use crate::point;
@@ -328,6 +328,7 @@ pub struct WgpuRenderer<'w> {
     last_scene_lighting: Option<SceneLighting>,
     cached_images: HashMap<String, CachedImageEntry>,
     transform_stack: Vec<Transform2D>,
+    projection: Option<pax_runtime_api::math::ProjectedPlane>,
     clip_stack: Vec<ClipReference>,
     saves: Vec<SceneStateSave>,
     current_node: Option<PendingNode>,
@@ -673,7 +674,7 @@ impl ClipArena {
             transform: transform.to_arrays(),
             ..GpuTransform::default()
         };
-        if self.slots[clip_id as usize].transform != value.transform {
+        if self.slots[clip_id as usize] != value {
             self.slots[clip_id as usize] = value;
             self.dirty = true;
         }
@@ -836,6 +837,7 @@ impl<'w> WgpuRenderer<'w> {
             last_scene_lighting: None,
             cached_images: HashMap::new(),
             transform_stack: vec![Transform2D::identity()],
+            projection: None,
             clip_stack: Vec::new(),
             saves: vec![],
             current_node: None,
@@ -1017,6 +1019,7 @@ impl<'w> WgpuRenderer<'w> {
         smoothing: PathSmoothing,
     ) {
         let current_transform = self.current_transform();
+        let projection = self.projection;
         let light_mask = self
             .current_node
             .as_ref()
@@ -1044,6 +1047,7 @@ impl<'w> WgpuRenderer<'w> {
             material,
             light_mask,
             transform: current_transform,
+            projection,
             opacity,
             kind: PendingVectorOpKind::Stroke(stroke.weight, stroke.cap, stroke.join),
             geometry_signature,
@@ -1089,6 +1093,7 @@ impl<'w> WgpuRenderer<'w> {
         smoothing: PathSmoothing,
     ) {
         let current_transform = self.current_transform();
+        let projection = self.projection;
         let light_mask = self
             .current_node
             .as_ref()
@@ -1112,6 +1117,7 @@ impl<'w> WgpuRenderer<'w> {
             material,
             light_mask,
             transform: current_transform,
+            projection,
             opacity,
             kind: PendingVectorOpKind::Fill,
             geometry_signature,
@@ -1151,6 +1157,7 @@ impl<'w> WgpuRenderer<'w> {
     pub fn reset_drawing_state(&mut self) {
         debug_assert!(self.source_recordings.is_empty());
         self.transform_stack.truncate(1);
+        self.projection = None;
         self.clip_stack.clear();
         self.saves.clear();
         self.current_node = None;
@@ -1222,11 +1229,27 @@ impl<'w> WgpuRenderer<'w> {
             );
         }
         let transform = self.current_transform();
+        let projection = self.projection;
         let clip_stack = self.clip_stack.clone();
-        let bounds = transform_box(rect, &transform);
+        let bounds = projection.map_or_else(
+            || transform_box(rect, &transform),
+            |p| projected_box(rect, p),
+        );
         let mut signature = DefaultHasher::new();
         image_key.hash(&mut signature);
         image_version.hash(&mut signature);
+        if let Some(plane) = projection {
+            plane
+                .matrix()
+                .coeffs()
+                .map(f64::to_bits)
+                .hash(&mut signature);
+            plane.clips_depth().hash(&mut signature);
+            plane
+                .camera_clip_rows()
+                .map(|r| r.map(f64::to_bits))
+                .hash(&mut signature);
+        }
         for value in transform
             .to_array()
             .into_iter()
@@ -1252,12 +1275,21 @@ impl<'w> WgpuRenderer<'w> {
             None
         } else {
             self.resource_churn_stats.image_draw_creates += 1;
-            Some(self.render_backend.create_image_draw(
-                image_key.to_owned(),
-                transform,
-                rect,
-                opacity.clamp(0.0, 1.0),
-            ))
+            Some(if let Some(plane) = projection {
+                self.render_backend.create_projected_image_draw(
+                    image_key.to_owned(),
+                    plane,
+                    rect,
+                    opacity.clamp(0., 1.),
+                )
+            } else {
+                self.render_backend.create_image_draw(
+                    image_key.to_owned(),
+                    transform,
+                    rect,
+                    opacity.clamp(0., 1.),
+                )
+            })
         };
         current_node.kind = PendingNodeKind::Image(PendingImageNode {
             signature,
@@ -1286,6 +1318,7 @@ impl<'w> WgpuRenderer<'w> {
             .retain(|owner, _| active_alpha_masks.contains(owner));
         if !self.scene_dirty {
             self.transform_stack.truncate(1);
+            self.projection = None;
             self.clip_stack.clear();
             self.saves.clear();
             self.current_node = None;
@@ -1316,6 +1349,7 @@ impl<'w> WgpuRenderer<'w> {
             self.flush_vector_scene_batch(defer_submit);
             self.scene_dirty = false;
             self.transform_stack.truncate(1);
+            self.projection = None;
             self.clip_stack.clear();
             self.saves.clear();
             self.current_node = None;
@@ -1357,6 +1391,7 @@ impl<'w> WgpuRenderer<'w> {
         self.finish_backend_frame(defer_submit);
         self.scene_dirty = false;
         self.transform_stack.truncate(1);
+        self.projection = None;
         self.clip_stack.clear();
         self.saves.clear();
         self.current_node = None;
@@ -1411,7 +1446,11 @@ impl<'w> WgpuRenderer<'w> {
             }
             match node {
                 #[cfg(feature = "3d")]
-                RetainedNode::Solid(node) => { if let Some(resource) = &node.resource { current_batch.push(RetainedDraw::Solid(resource)); } }
+                RetainedNode::Solid(node) => {
+                    if let Some(resource) = &node.resource {
+                        current_batch.push(RetainedDraw::Solid(resource));
+                    }
+                }
                 #[cfg(feature = "shaders")]
                 RetainedNode::Effect(node) => {
                     if node.visible {
@@ -1474,6 +1513,7 @@ impl<'w> WgpuRenderer<'w> {
         self.saves.push(SceneStateSave {
             transform_depth: self.transform_stack.len(),
             clip_depth: self.clip_stack.len(),
+            projection: self.projection,
         });
     }
 
@@ -1481,12 +1521,39 @@ impl<'w> WgpuRenderer<'w> {
         if let Some(save) = self.saves.pop() {
             self.transform_stack.truncate(save.transform_depth);
             self.clip_stack.truncate(save.clip_depth);
+            self.projection = save.projection;
         }
     }
 
     pub fn transform(&mut self, transform: Transform2D) {
+        if let Some(projection) = &mut self.projection {
+            *projection = projection.pre_affine(kurbo_affine(transform));
+        }
         self.transform_stack
             .push(transform.then(&self.current_transform()));
+    }
+
+    /// Applies homogeneous geometry after the current affine tile/capture mapping.
+    pub fn project(&mut self, plane: pax_runtime_api::math::ProjectedPlane) {
+        assert!(
+            cfg!(feature = "3d"),
+            "Perspective rendering requires the 3d feature"
+        );
+        assert!(
+            self.projection.is_none(),
+            "compose projected surfaces before drawing"
+        );
+        self.projection = Some(plane.post_affine(kurbo_affine(self.current_transform())));
+    }
+
+    /// Paint coordinates remain local under perspective; the shader interpolates
+    /// them with the same homogeneous w as the surface.
+    pub fn paint_transform(&self) -> Transform2D {
+        if self.projection.is_some() {
+            Transform2D::identity()
+        } else {
+            self.current_transform()
+        }
     }
 
     pub fn clip(&mut self, path: Path) {
@@ -1495,8 +1562,11 @@ impl<'w> WgpuRenderer<'w> {
             log::warn!("clip called without an active node");
             return;
         };
-        if let Some(scissor) =
-            axis_aligned_rect_scissor(&path, &transform, self.render_backend.globals.dpr)
+        if let Some(scissor) = self
+            .projection
+            .is_none()
+            .then(|| axis_aligned_rect_scissor(&path, &transform, self.render_backend.globals.dpr))
+            .flatten()
         {
             self.clip_stack.push(ClipReference::Scissor(scissor));
             return;
@@ -1513,13 +1583,21 @@ impl<'w> WgpuRenderer<'w> {
         ) else {
             return;
         };
+        #[cfg(feature = "3d")]
+        if let Some(plane) = self.projection {
+            let value = GpuTransform::projected(plane, 1.);
+            if self.clip_arena.slots[clip_id as usize] != value {
+                self.clip_arena.slots[clip_id as usize] = value;
+                self.clip_arena.dirty = true;
+            }
+        }
         current_node.owned_clip_keys.push(clip_key);
         self.clip_stack.push(ClipReference::Stencil { clip_id });
     }
 
     /// Installs a painted alpha mask in the current save/restore scope.
     pub fn clip_alpha(&mut self, paints: Vec<AlphaMaskPaint>, feather: f32) {
-        use crate::render_backend::alpha_mask::{Draw, Paint};
+        use crate::render_backend::alpha_mask::{Draw, MaskVertex, Paint};
         let Some(node) = &self.current_node else {
             return;
         };
@@ -1636,7 +1714,33 @@ impl<'w> WgpuRenderer<'w> {
             let vertices = geometry
                 .vertices
                 .iter()
-                .map(|v| mapping.transform_point(point(v[0], v[1])).to_array())
+                .map(|v| {
+                    if let Some(projection) = self.projection {
+                        let plane = projection.pre_affine(kurbo_affine(source.transform));
+                        let h = plane.matrix().transform_homogeneous([
+                            v[0] as f64,
+                            v[1] as f64,
+                            0.,
+                            1.,
+                        ]);
+                        MaskVertex {
+                            position: [h[0] as f32, h[1] as f32, 0., h[3] as f32],
+                            paint: source
+                                .transform
+                                .transform_point(point(v[0], v[1]))
+                                .to_array(),
+                            camera_clip: if plane.clips_depth() {
+                                plane.camera_clip_rows().map(|r| {
+                                    (r[0] * v[0] as f64 + r[1] * v[1] as f64 + r[2]) as f32
+                                })
+                            } else {
+                                [0.5, 1.]
+                            },
+                        }
+                    } else {
+                        MaskVertex::affine(mapping.transform_point(point(v[0], v[1])).to_array())
+                    }
+                })
                 .collect::<Vec<_>>();
             bytemuck::cast_slice::<_, u8>(&vertices).hash(&mut hash);
             geometry.indices.hash(&mut hash);
@@ -1783,9 +1887,14 @@ impl<'w> WgpuRenderer<'w> {
         let updated = match pending_node.kind {
             #[cfg(feature = "3d")]
             PendingNodeKind::Solid(mut solid) => {
-                if let Some(RetainedNode::Vector(old)) = previous.as_ref() { self.transform_arena.release_keys(&old.transform_keys); }
+                if let Some(RetainedNode::Vector(old)) = previous.as_ref() {
+                    self.transform_arena.release_keys(&old.transform_keys);
+                }
                 if let Some(RetainedNode::Solid(old)) = previous {
-                    if Rc::ptr_eq(&old.pose.mesh, &solid.pose.mesh) { solid.resource = old.resource; solid.last_uniform = old.last_uniform; }
+                    if Rc::ptr_eq(&old.pose.mesh, &solid.pose.mesh) {
+                        solid.resource = old.resource;
+                        solid.last_uniform = old.last_uniform;
+                    }
                 }
                 Some(RetainedNode::Solid(solid))
             }
@@ -2396,6 +2505,7 @@ impl<'w> WgpuRenderer<'w> {
 struct SceneStateSave {
     transform_depth: usize,
     clip_depth: usize,
+    projection: Option<pax_runtime_api::math::ProjectedPlane>,
 }
 
 struct PendingNode {
@@ -2429,6 +2539,7 @@ struct PendingVectorOp {
     #[cfg(feature = "3d")]
     lighting_surface: Option<pax_runtime_api::LightingSurface>,
     transform: Transform2D,
+    projection: Option<pax_runtime_api::math::ProjectedPlane>,
     opacity: f32,
     kind: PendingVectorOpKind,
     geometry_signature: u64,
@@ -2588,7 +2699,12 @@ fn op_gpu_transform(op: &PendingVectorOp) -> GpuTransform {
         ..GpuTransform::default()
     };
     #[cfg(feature = "3d")]
-    let transform = transform.with_lighting(op.lighting_surface);
+    let transform = op
+        .projection
+        .map_or(transform, |plane| {
+            GpuTransform::projected(plane, op.opacity)
+        })
+        .with_lighting(op.lighting_surface);
     transform
 }
 
@@ -3106,9 +3222,8 @@ fn vector_geometry_bytes(vertices: usize, indices: usize) -> usize {
 fn append_cpu_buffers(dst: &mut CpuBuffers, src: &CpuBuffers) {
     let vertex_offset = dst.geometry.vertices.len() as u16;
     let primitive_offset = dst.primitives.len() as u32;
-    let src_uses_only_identity_transform = src.transforms.len() == 1
-        && src.transforms[0].transform == GpuTransform::default().transform
-        && (src.transforms[0].opacity - GpuTransform::default().opacity).abs() <= f32::EPSILON;
+    let src_uses_only_identity_transform =
+        src.transforms.len() == 1 && src.transforms[0] == GpuTransform::default();
     let transform_offset = if src_uses_only_identity_transform {
         0
     } else {
@@ -3165,6 +3280,25 @@ fn push_gpu_transform(buffers: &mut CpuBuffers, transform: GpuTransform) -> u32 
     let index = buffers.transforms.len() as u32;
     buffers.transforms.push(transform);
     index
+}
+
+fn kurbo_affine(transform: Transform2D) -> kurbo::Affine {
+    kurbo::Affine::new(transform.to_array().map(|v| v as f64))
+}
+
+fn projected_box(bounds: Box2D, plane: pax_runtime_api::math::ProjectedPlane) -> Box2D {
+    let rect = kurbo::Rect::new(
+        bounds.min.x as f64,
+        bounds.min.y as f64,
+        bounds.max.x as f64,
+        bounds.max.y as f64,
+    );
+    plane.coverage(rect, None).map_or_else(empty_box, |r| {
+        Box2D::new(
+            point(r.x0 as f32, r.y0 as f32),
+            point(r.x1 as f32, r.y1 as f32),
+        )
+    })
 }
 
 fn would_exceed_batch_capacity(dst: &CpuBuffers, src: &CpuBuffers) -> bool {
@@ -3231,21 +3365,52 @@ fn compute_vector_node_extent(ops: &[PendingVectorOp]) -> (Box2D, SpatialCoverag
         let Some(path_bounds) = path_control_bounds(&op.path) else {
             continue;
         };
-        let mut op_bounds = transform_box(path_bounds, &op.transform);
-        if let PendingVectorOpKind::Stroke(width, _, _) = op.kind {
-            op_bounds = expand_box(op_bounds, width * 0.5);
-        }
-        #[cfg(feature = "3d")]
-        if matches!(op.kind, PendingVectorOpKind::Stroke(..)) {
-            coverage.extend(spatial::box_polygon(expand_box(op_bounds, 1.0)));
+        let op_bounds = if let Some(plane) = op.projection {
+            let local_bounds = match op.kind {
+                PendingVectorOpKind::Stroke(width, _, _) => expand_box(path_bounds, width * 0.5),
+                _ => path_bounds,
+            };
+            projected_box(local_bounds, plane)
         } else {
-            // Preserve the projected parallelogram instead of its screen-aligned box.
-            // A near-edge-on plane extrapolates to enormous false depths in that box.
-            for p in spatial::box_polygon(path_bounds) {
-                let p = op
-                    .transform
-                    .transform_point(point(p[0] as f32, p[1] as f32));
-                coverage.push([p.x as f64, p.y as f64]);
+            let bounds = transform_box(path_bounds, &op.transform);
+            match op.kind {
+                PendingVectorOpKind::Stroke(width, _, _) => expand_box(bounds, width * 0.5),
+                _ => bounds,
+            }
+        };
+        #[cfg(feature = "3d")]
+        if let Some(plane) = op.projection {
+            let local = match op.kind {
+                PendingVectorOpKind::Stroke(width, _, _) => expand_box(path_bounds, width * 0.5),
+                _ => path_bounds,
+            };
+            coverage.extend(
+                plane
+                    .footprint(
+                        kurbo::Rect::new(
+                            local.min.x as f64,
+                            local.min.y as f64,
+                            local.max.x as f64,
+                            local.max.y as f64,
+                        ),
+                        None,
+                    )
+                    .into_iter()
+                    .map(|p| [p.x, p.y]),
+            );
+        } else {
+            #[cfg(feature = "3d")]
+            if matches!(op.kind, PendingVectorOpKind::Stroke(..)) {
+                coverage.extend(spatial::box_polygon(expand_box(op_bounds, 1.0)));
+            } else {
+                // Preserve the projected parallelogram instead of its screen-aligned box.
+                // A near-edge-on plane extrapolates to enormous false depths in that box.
+                for p in spatial::box_polygon(path_bounds) {
+                    let p = op
+                        .transform
+                        .transform_point(point(p[0] as f32, p[1] as f32));
+                    coverage.push([p.x as f64, p.y as f64]);
+                }
             }
         }
         bounds = Some(match bounds {
@@ -3576,6 +3741,7 @@ fn to_gpu_scene_lighting(lighting: &SceneLighting) -> GpuSceneLighting {
     let mut out = GpuSceneLighting {
         surface_to_world_x: [m[0], m[2], m[4], 0.],
         surface_to_world_y: [m[1], m[3], m[5], 0.],
+        view: lighting.view,
         ambient: [
             lighting.ambient_color.rgba[0],
             lighting.ambient_color.rgba[1],
@@ -4266,6 +4432,8 @@ pub struct SceneLight {
 pub struct SceneLighting {
     /// Canvas-content to unscrolled world coordinates, in affine coefficient order.
     pub surface_to_world: [f32; 6],
+    /// World eye position (w=1), or direction toward the viewer (w=0).
+    pub view: [f32; 4],
     pub active: bool,
     pub ambient_is_authored: bool,
     pub ambient_color: Color,
@@ -4277,6 +4445,7 @@ impl Default for SceneLighting {
     fn default() -> Self {
         Self {
             surface_to_world: [1., 0., 0., 1., 0., 0.],
+            view: [0., 0., 1., 0.],
             active: false,
             ambient_is_authored: false,
             ambient_color: Color::rgba(1.0, 1.0, 1.0, 1.0),
@@ -4661,6 +4830,7 @@ mod tests {
                 material: Material::default(),
                 light_mask: 0,
                 transform: Transform2D::identity(),
+                projection: None,
                 opacity: 1.0,
                 kind: PendingVectorOpKind::Fill,
                 draw_range: DrawRange::disabled(),
@@ -4692,6 +4862,7 @@ mod tests {
             material: Material::default(),
             light_mask: 0,
             transform: Transform2D::identity(),
+            projection: None,
             opacity: 1.0,
             kind: PendingVectorOpKind::Fill,
             geometry_signature: hash_vector_path(
@@ -4711,6 +4882,7 @@ mod tests {
                 material: Material::default(),
                 light_mask: 0,
                 transform: Transform2D::identity(),
+                projection: None,
                 opacity: 1.0,
                 kind: PendingVectorOpKind::Fill,
                 geometry_signature: op.geometry_signature,
@@ -4791,6 +4963,7 @@ mod tests {
                 material: Material::default(),
                 light_mask: 0,
                 transform: Transform2D::identity(),
+                projection: None,
                 opacity: 1.0,
                 kind,
                 geometry_signature,
@@ -4805,6 +4978,7 @@ mod tests {
                 material: Material::default(),
                 light_mask: 0,
                 transform: Transform2D::identity(),
+                projection: None,
                 opacity: 1.0,
                 kind,
                 geometry_signature,
@@ -4849,6 +5023,7 @@ mod tests {
             material: Material::default(),
             light_mask: 0,
             transform: Transform2D::identity(),
+            projection: None,
             opacity: 1.0,
             kind,
             geometry_signature: hash_vector_path(&path, kind, PathSmoothing::None),
@@ -4907,6 +5082,7 @@ mod tests {
                 material: Material::default(),
                 light_mask: 0,
                 transform: Transform2D::identity(),
+                projection: None,
                 opacity: 1.0,
                 kind,
                 geometry_signature,
@@ -4967,6 +5143,7 @@ mod tests {
                 material: Material::default(),
                 light_mask: 0,
                 transform: Transform2D::identity(),
+                projection: None,
                 opacity: 1.0,
                 kind,
                 geometry_signature,
@@ -4995,6 +5172,7 @@ mod tests {
             material: Material::default(),
             light_mask: 0,
             transform: Transform2D::identity(),
+            projection: None,
             opacity: 1.0,
             kind,
             geometry_signature,

@@ -111,13 +111,18 @@ Return the direct-light membership mask resolved for a retained canvas node.
 Select canvas nodes using settled runtime geometry, even before their first draw.
 Call after draining scene effects; querying does not advance layout or dispatch events.
 
-##### `canvas_surface_transform_for_node`
-<pre><code class="api-signature language-rust ignore">pub fn canvas_surface_transform_for_node(&amp;self, node: &amp;ExpandedNode) -&gt; Affine</code></pre>
+##### `canvas_projection_on_layer`
+<pre><code class="api-signature language-rust ignore">pub fn canvas_projection_on_layer(&amp;self, node: &amp;ExpandedNode, layer: usize) -&gt; Option&lt;<a href="../../../api/pax-runtime-api/math/projection.md#projectedplane">ProjectedPlane</a>&gt;</code></pre>
 
-Resolve a node's local coordinates into its owning canvas's content space.
-Scroller-owned layers use the registered owner's origin; root layers use
-window coordinates. Detached mask sources retain their scene transform until
-capture projection. Physical tile offsets are applied later by the renderer.
+Projects a detached source directly into its consuming canvas, preserving
+camera clipping before the canvas owner's projective mapping is inverted.
+
+##### `canvas_surface_projection_for_node`
+<pre><code class="api-signature language-rust ignore">pub fn canvas_surface_projection_for_node(&amp;self, node: &amp;ExpandedNode) -&gt; Option&lt;<a href="../../../api/pax-runtime-api/math/projection.md#projectedplane">ProjectedPlane</a>&gt;</code></pre>
+
+Projects into the owning canvas's scroll-content chart. The browser
+applies the owner's projection and local scroll after this rendering.
+Camera clipping remains in the source plane's original coordinates.
 
 ##### `capture_startup_input`
 <pre><code class="api-signature language-rust ignore">pub fn capture_startup_input(&amp;self, ray: Option&lt;Point2&lt;<a href="../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;&gt;) -&gt; <a href="../../../api/internal/pax-runtime/engine/startup.md#startupinput">StartupInput</a></code></pre>
@@ -264,6 +269,18 @@ Mount/unmount notifications separately reconcile scene membership.
 Schedule lighting resolution without invalidating canvas geometry or contents.
 The retained renderer decides which surfaces depend on the changed lights.
 
+##### `native_presentation_matrix_for_node`
+<pre><code class="api-signature language-rust ignore">pub fn native_presentation_matrix_for_node(&amp;self, node: &amp;ExpandedNode) -&gt; Vec&lt;f64&gt;</code></pre>
+
+Matrix delivered to a native host whose ancestor scrollers already apply
+their own projected scroll motion. Compensates that motion so each plane
+receives its world-space scroll displacement before perspective division.
+
+##### `native_presentation_projection_for_node`
+<pre><code class="api-signature language-rust ignore">pub fn native_presentation_projection_for_node(&amp;self, node: &amp;ExpandedNode) -&gt; Option&lt;<a href="../../../api/pax-runtime-api/math/projection.md#projectedplane">ProjectedPlane</a>&gt;</code></pre>
+
+Native presentation with camera clipping retained for projected clip paths.
+
 ##### `new`
 <pre><code class="api-signature language-rust ignore">pub fn new(globals: <a href="../../../api/internal/pax-runtime/engine.md#globals">Globals</a>) -&gt; Self</code></pre>
 
@@ -278,6 +295,11 @@ Cumulative work performed by native compositing, including conservative rebuilds
 <pre><code class="api-signature language-rust ignore">pub fn prepare_scene_geometry(&amp;self)</code></pre>
 
 Prepare geometry dirtied by scene changes. Surface replay alone does not invalidate it.
+
+##### `presented_projection_for_node`
+<pre><code class="api-signature language-rust ignore">pub fn presented_projection_for_node(&amp;self, node: &amp;ExpandedNode) -&gt; Option&lt;<a href="../../../api/pax-runtime-api/math/projection.md#projectedplane">ProjectedPlane</a>&gt;</code></pre>
+
+Projects a node after applying ancestor scrolling in world space.
 
 ##### `register_layer_scroller_owner`
 <pre><code class="api-signature language-rust ignore">pub fn register_layer_scroller_owner(&amp;self, layer_id: usize, scroller_id: <a href="../../../api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>)</code></pre>
@@ -365,6 +387,12 @@ Cache the browser visual viewport state for root scroller math.
 
 Update hot scroll offsets for an existing native scroller surface without touching
 structural state.
+
+##### `window_to_canvas_mapping`
+<pre><code class="api-signature language-rust ignore">pub fn window_to_canvas_mapping(&amp;self, layer: usize) -&gt; Option&lt;<a href="../../../api/pax-runtime-api/math/projection.md#planarprojection">PlanarProjection</a>&gt;</code></pre>
+
+Maps presented window coordinates into a canvas's scroll-content chart.
+This also applies to detached sources whose logical layer differs from the consumer.
 
 ##### `viewport_proximity_stats`
 <pre><code class="api-signature language-rust ignore">pub fn viewport_proximity_stats(&amp;self) -&gt; <a href="../../../api/internal/pax-runtime/viewport_proximity.md#viewportproximitystats">ViewportProximityStats</a></code></pre>

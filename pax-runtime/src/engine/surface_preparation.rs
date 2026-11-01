@@ -301,9 +301,43 @@ fn swept_intersection(clips: &[MovingClip]) -> CoverageRect {
     }
 }
 
-fn unproject(rect: CoverageRect, h: &HostObservation) -> Option<CoverageRect> {
+fn unproject(rect: CoverageRect, h: &HostObservation, content: [f64; 2]) -> Option<CoverageRect> {
     if !rect.has_area() {
         return Some(CoverageRect::default());
+    }
+    if let Some(plane) = h.projection {
+        // Clip bounded content against the window in homogeneous coordinates.
+        // Inverting only the window's four corners fails across the eye plane.
+        let plane = plane.pre_affine(kurbo::Affine::translate((-h.offset[0], -h.offset[1])));
+        let polygon = plane.clip_polygon(
+            vec![
+                kurbo::Point::ZERO,
+                kurbo::Point::new(content[0], 0.),
+                kurbo::Point::new(content[0], content[1]),
+                kurbo::Point::new(0., content[1]),
+            ],
+            Some(kurbo::Rect::new(
+                rect.left,
+                rect.top,
+                rect.right,
+                rect.bottom,
+            )),
+        );
+        if polygon.len() < 3 {
+            return Some(CoverageRect::default());
+        }
+        let r = polygon
+            .iter()
+            .skip(1)
+            .fold(kurbo::Rect::from_points(polygon[0], polygon[0]), |r, p| {
+                r.union_pt(*p)
+            });
+        return Some(CoverageRect {
+            left: r.x0,
+            top: r.y0,
+            right: r.x1,
+            bottom: r.y1,
+        });
     }
     let [a, b, c, d] = h.basis;
     let det = a * d - b * c;
@@ -407,6 +441,13 @@ fn validate_host(host: &PreparationHost) -> Result<(), &'static str> {
         .any(|v| *v < 0.0)
     {
         return Err("negative surface extent");
+    }
+    if let Some(projection) = g.projection {
+        return projection
+            .mapping()
+            .inverse()
+            .map(|_| ())
+            .ok_or("singular projected surface");
     }
     let [a, b, c, d] = g.basis;
     let determinant = a * d - b * c;
@@ -535,8 +576,8 @@ pub fn prepare_hosts(
                 right: host.content_origin[0] + host.content[0],
                 bottom: host.content_origin[1] + host.content[1],
             };
-            let required =
-                unproject(visible, &host.geometry).ok_or("singular surface transform")?;
+            let required = unproject(visible, &host.geometry, host.content)
+                .ok_or("singular surface transform")?;
             let coverage = safety
                 .iter()
                 .chain(&reversal)
@@ -545,8 +586,8 @@ pub fn prepare_hosts(
                 .fold(swept_intersection(&clips), |bounds, path| {
                     union(bounds, swept_intersection(path))
                 });
-            let prepared =
-                unproject(coverage, &host.geometry).ok_or("singular surface transform")?;
+            let prepared = unproject(coverage, &host.geometry, host.content)
+                .ok_or("singular surface transform")?;
             Ok(PreparedHost {
                 unavailable_reason: None,
                 visible,
@@ -579,6 +620,53 @@ mod tests {
             bottom: y + h,
         }
     }
+    #[test]
+    fn projective_exposure_clips_bounded_content_across_the_near_plane() {
+        use pax_runtime_api::{
+            camera::{Camera, CameraProjection, CameraSpace},
+            math::{Generic, Transform3, Vector3},
+        };
+        let camera: Camera = Camera::new(
+            Transform3::<Generic, CameraSpace>::identity(),
+            CameraProjection::perspective((100., 100.), 1.2, 1., 1000.).unwrap(),
+        )
+        .unwrap();
+        let plane = camera
+            .project_plane(
+                Transform3::<Generic>::translate(Vector3::new(-10., -20., -30.))
+                    * Transform3::<Generic>::rotate_y(-1.),
+            )
+            .unwrap();
+        let mut h = host(1, None, r(0., 0., 100., 100.), [500., 100.]);
+        h.geometry.projection = Some(plane);
+        h.geometry.offset = [8., 0.];
+        let visible = r(0., 0., 100., 100.);
+        let required = unproject(visible, &h.geometry, h.content).unwrap();
+        assert!(required.has_area());
+        assert!(required.left >= 0. && required.right <= 500.);
+        assert!(required.top >= 0. && required.bottom <= 100.);
+        let shifted = plane.pre_affine(kurbo::Affine::translate((-8., 0.)));
+        let mut seen = 0;
+        for x in 0..500 {
+            for y in 0..100 {
+                let p = kurbo::Point::new(x as f64 + 0.5, y as f64 + 0.5);
+                if !shifted.contains_local(p) {
+                    continue;
+                }
+                let Some(screen) = shifted.mapping().project(p) else {
+                    continue;
+                };
+                if screen.x < 0. || screen.x > 100. || screen.y < 0. || screen.y > 100. {
+                    continue;
+                }
+                seen += 1;
+                assert!(p.x >= required.left - 1e-8 && p.x <= required.right + 1e-8);
+                assert!(p.y >= required.top - 1e-8 && p.y <= required.bottom + 1e-8);
+            }
+        }
+        assert!(seen > 0);
+    }
+
     fn host(
         id: u32,
         parent: Option<u32>,
@@ -594,6 +682,7 @@ mod tests {
                 viewport: [bounds.right - bounds.left, bounds.bottom - bounds.top],
                 offset: [0.0; 2],
                 basis: [1.0, 0.0, 0.0, 1.0],
+                projection: None,
                 active: true,
             },
             content,

@@ -2189,6 +2189,10 @@ impl RenderContext for PaxGpuRenderer {
         );
     }
 
+    fn project(&mut self, layer: usize, plane: pax_runtime_api::math::ProjectedPlane) {
+        self.apply_drawing_command(layer, DrawingCommand::Project(plane));
+    }
+
     fn load_image(&mut self, identifier: &str, image: &[u8], width: usize, height: usize) {
         self.image_map.insert(
             identifier.to_string(),
@@ -2384,8 +2388,19 @@ impl RenderContext for PaxGpuRenderer {
         lighting: &SceneLighting,
         surface_to_world: Affine,
     ) {
+        self.set_scene_lighting_with_view(layer, lighting, surface_to_world, [0., 0., 1., 0.]);
+    }
+
+    fn set_scene_lighting_with_view(
+        &mut self,
+        layer: usize,
+        lighting: &SceneLighting,
+        surface_to_world: Affine,
+        view: [f32; 4],
+    ) {
         let mut lighting = to_pax_gpu_scene_lighting(lighting);
         lighting.surface_to_world = surface_to_world.as_coeffs().map(|v| v as f32);
+        lighting.view = view;
         self.update_scene_lighting_cache(layer, &lighting);
         let mut backends = self.backends.borrow_mut();
         match backends.get_mut(layer) {
@@ -2512,6 +2527,30 @@ impl RenderContext for PaxGpuRenderer {
         scopes: &[pax_runtime_api::OpacityScope],
         children: &[u32],
     ) -> bool {
+        self.begin_projected_shader_effect(
+            layer,
+            id,
+            z,
+            effect,
+            pax_runtime_api::math::ProjectedPlane::affine(transform),
+            bounds,
+            scopes,
+            children,
+        )
+    }
+
+    #[cfg(feature = "shaders")]
+    fn begin_projected_shader_effect(
+        &mut self,
+        layer: usize,
+        id: u32,
+        z: i32,
+        effect: &pax_runtime_api::ShaderEffect,
+        projection: pax_runtime_api::math::ProjectedPlane,
+        bounds: (f64, f64),
+        scopes: &[pax_runtime_api::OpacityScope],
+        children: &[u32],
+    ) -> bool {
         if self.recording_layer.is_some()
             || self
                 .direct_surface_layer
@@ -2553,15 +2592,17 @@ impl RenderContext for PaxGpuRenderer {
                             || self.direct_surface_layer == Some(layer)
                     });
                     for index in &selected {
-                        replay |= target.renderers[*index].renderer.begin_shader_effect(
-                            id,
-                            z,
-                            effect,
-                            Transform2D::from_array(transform.as_coeffs().map(|v| v as f32)),
-                            bounds,
-                            &scopes[inherited..],
-                            children,
-                        );
+                        replay |= target.renderers[*index]
+                            .renderer
+                            .begin_projected_shader_effect(
+                                id,
+                                z,
+                                effect,
+                                projection,
+                                bounds,
+                                &scopes[inherited..],
+                                children,
+                            );
                     }
                 }
             }
@@ -3149,6 +3190,7 @@ pub(super) fn to_pax_gpu_material(material: &pax_runtime_api::ResolvedMaterial) 
 fn to_pax_gpu_scene_lighting(lighting: &SceneLighting) -> PixelSceneLighting {
     PixelSceneLighting {
         surface_to_world: [1., 0., 0., 1., 0., 0.],
+        view: [0., 0., 1., 0.],
         active: lighting.active,
         ambient_is_authored: lighting.ambient_is_authored,
         ambient_color: to_pax_gpu_color(&lighting.ambient.color),

@@ -1,13 +1,15 @@
 use pax_engine::api::LocalProperty;
 use pax_engine::*;
 use pax_runtime::api::{
-    Color, Depth, Layer, LightShape, Numeric, SceneAmbientLight, SceneLight, SceneLighting, Size,
-    Vector3,
+    Color, Layer, LightShape, Numeric, SceneAmbientLight, SceneLight, SceneLighting, Size, Vector3,
 };
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use std::rc::Rc;
+
+#[cfg(test)]
+mod tests;
 
 /// A non-rendering container that keeps descendant lights from escaping its subtree.
 ///
@@ -59,6 +61,10 @@ impl InstanceNode for LightFrameInstance {
 }
 
 /// A non-rendering light resource that affects light-reactive vector materials in its scene.
+///
+/// The emitter is the transformed center of this node, using common `x`, `y`,
+/// and `z` placement (or `position`). Depth inherits ancestor transforms and
+/// defaults to zero. Set `z=200px` to retain the former light-specific default.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[custom(Default)]
@@ -70,8 +76,6 @@ pub struct LightSource {
     pub intensity: Property<f64>,
     /// Point-light attenuation radius in world pixels; ancestor scale does not resize it.
     pub radius: Property<Size>,
-    /// Local depth in pixels, transformed with the light and its ancestors.
-    pub z: Property<Depth>,
     /// Positional or directional light shape.
     pub shape: Property<LightShape>,
     /// Local direction for directional lights, transformed with the light's ancestors.
@@ -86,7 +90,6 @@ impl Default for LightSource {
             color: Property::new(Color::WHITE),
             intensity: Property::new(1.0),
             radius: Property::new(Size::Pixels(Numeric::F64(240.0))),
-            z: Property::new(Depth(Numeric::F64(200.0))),
             shape: Property::new(LightShape::Point),
             direction: Property::new(Vector3::new(0.0, 0.0, -1.0)),
             enabled: Property::new(true),
@@ -130,25 +133,25 @@ impl InstanceNode for LightSourceInstance {
         let geometry = expanded_node.spatial_geometry();
         #[cfg(not(feature = "3d"))]
         let geometry = expanded_node.transform_and_bounds.clone();
-        let (color, intensity, radius, z, shape, direction, enabled) = expanded_node
+        let (color, intensity, radius, shape, direction, enabled) = expanded_node
             .with_properties_unwrapped(|properties: &mut LightSource| {
                 (
                     properties.color.clone(),
                     properties.intensity.clone(),
                     properties.radius.clone(),
-                    properties.z.clone(),
                     properties.shape.clone(),
                     properties.direction.clone(),
                     properties.enabled.clone(),
                 )
             });
 
+        let common_z = expanded_node.get_common_properties().borrow().z.clone();
         let deps = &[
             geometry.untyped(),
+            common_z.untyped(),
             color.untyped(),
             intensity.untyped(),
             radius.untyped(),
-            z.untyped(),
             shape.untyped(),
             direction.untyped(),
             enabled.untyped(),
@@ -179,11 +182,18 @@ impl InstanceNode for LightSourceInstance {
             let geometry = expanded_node.spatial_geometry().get();
             #[cfg(not(feature = "3d"))]
             let geometry = expanded_node.transform_and_bounds.get();
-            let (position, direction) = light_pose(
-                geometry,
-                properties.z.local().get().to_float(),
-                properties.direction.local().get(),
-            )?;
+            #[cfg(feature = "3d")]
+            let local_z = 0.; // The world pose already includes common z.
+            #[cfg(not(feature = "3d"))]
+            let local_z = expanded_node
+                .get_common_properties()
+                .borrow()
+                .z
+                .get()
+                .unwrap_or_default()
+                .to_float();
+            let (position, direction) =
+                light_pose(geometry, local_z, properties.direction.local().get())?;
             Some(SceneLight {
                 shape: properties.shape.local().get(),
                 position,
@@ -377,7 +387,7 @@ fn light_pose(
 }
 
 #[cfg(all(test, feature = "3d"))]
-mod tests {
+mod pose_tests {
     use super::*;
     use pax_runtime::api::{
         math::{Transform3, Vector3 as GeometricVector},

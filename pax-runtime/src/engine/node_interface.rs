@@ -123,7 +123,8 @@ impl NodeInterface {
         cp.id.read(|i| i.as_ref().is_some_and(|i| i == id))
     }
 
-    /// Reactive transform-and-bounds property for this node.
+    /// Reactive world footprint before camera projection and native scrolling.
+    /// Use `presentation_transform_and_bounds` to inspect the camera-projected footprint.
     pub fn transform_and_bounds(&self) -> LocalProperty<TransformAndBounds<NodeLocal, Window>> {
         self.inner.transform_and_bounds.clone()
     }
@@ -142,7 +143,21 @@ impl NodeInterface {
     /// This does not enable template-level spatial transforms or depth ordering.
     #[cfg(feature = "3d")]
     pub fn spatial_geometry(&self) -> LocalProperty<crate::SpatialGeometry> {
-        self.inner.spatial_geometry.clone()
+        self.inner.spatial_geometry()
+    }
+
+    /// Affine presentation compatibility view before native scroll offsets.
+    /// Use `presentation_projection` for homogeneous camera geometry.
+    pub fn presentation_transform_and_bounds(
+        &self,
+    ) -> LocalProperty<TransformAndBounds<NodeLocal, Window>> {
+        self.inner.presentation_transform_and_bounds.clone()
+    }
+
+    /// Homogeneous camera geometry before ancestor scrolling, with camera clipping
+    /// preserved independently of local layout. Singular input mappings are unavailable.
+    pub fn presentation_projection(&self) -> Option<pax_runtime_api::math::ProjectedPlane> {
+        self.inner.presentation_projection()
     }
 
     /// Parent in render traversal order.

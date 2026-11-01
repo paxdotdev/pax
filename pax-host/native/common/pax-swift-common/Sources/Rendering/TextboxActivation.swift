@@ -4,9 +4,8 @@ import Messages
 
 // NSTextView consumes mouse-up inside its selection tracking loop. Bracket that
 // loop with the complete Pax sequence while leaving caret/selection and focus native.
-final class PaxTextboxTextView: NSTextView {
-    weak var activationView: NSView?
-
+final class PaxTextboxTextView: PaxProjectedTextView {
+    weak var activationView: NSView? { didSet { projectionFocusOwner = activationView } }
     override func mouseDown(with event: NSEvent) {
         forwardMouseSequence(from: event) {
             super.mouseDown(with: event)
@@ -35,8 +34,9 @@ final class PaxTextboxTextView: NSTextView {
         dispatchPointerMouseInterrupt(type: "MouseUp", x: Double(point.x), y: Double(point.y),
                                       focusCanvas: false)
         let hitView = activationView ?? self
+        let releasePoint = hitView.convert(convert(completed.locationInWindow, from: nil), from: self)
         guard Self.isActivation(from: start, to: completed),
-              hitView.bounds.contains(hitView.convert(completed.locationInWindow, from: nil))
+              hitView.bounds.contains(releasePoint)
         else { return }
         dispatchPointerMouseInterrupt(type: "Click", x: Double(point.x), y: Double(point.y))
     }

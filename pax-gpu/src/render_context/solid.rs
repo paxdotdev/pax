@@ -3,14 +3,15 @@
 use super::*;
 use crate::render_backend::solid;
 use pax_runtime_api::math::{Generic, Transform3};
-use pax_runtime_api::mesh3::{OpaqueMeshDraw, PosedConvexMesh};
+use pax_runtime_api::mesh3::{OpaqueMeshDraw, ProjectedConvexMesh};
 
 type Matrix = Transform3<Generic>;
 type Polygon = Vec<[f64; 2]>;
 
 pub(super) struct RetainedSolid {
-    pub pose: Rc<PosedConvexMesh>,
+    pub pose: Rc<ProjectedConvexMesh>,
     world: [f64; 16],
+    projection_viewport: kurbo::Rect,
     color: Color,
     pub material: Material,
     pub light_mask: u32,
@@ -24,9 +25,24 @@ pub(super) struct RetainedSolid {
 impl RetainedSolid {
     pub(super) fn hash_content(&self, hash: &mut DefaultHasher) {
         (Rc::as_ptr(&self.pose.mesh) as usize).hash(hash);
-        for value in self.world.iter().chain(self.pose.transform.iter()) {
+        for value in self
+            .world
+            .iter()
+            .chain(self.pose.projection.matrix().iter())
+            .chain(self.pose.projection.camera_clip_rows().iter().flatten())
+            .chain(
+                [
+                    self.projection_viewport.x0,
+                    self.projection_viewport.y0,
+                    self.projection_viewport.x1,
+                    self.projection_viewport.y1,
+                ]
+                .iter(),
+            )
+        {
             value.to_bits().hash(hash);
         }
+        self.pose.projection.clips_depth().hash(hash);
         bytemuck::bytes_of(&self.color.rgba).hash(hash);
         bytemuck::bytes_of(&to_gpu_material(self.material)).hash(hash);
         self.light_mask.hash(hash);
@@ -36,6 +52,7 @@ impl RetainedSolid {
 impl WgpuRenderer<'_> {
     /// Retains immutable topology; pose/material changes update only uniforms.
     pub fn draw_convex_mesh(&mut self, draw: &OpaqueMeshDraw, color: Color, material: Material) {
+        let viewport = self.viewport_bounds();
         let Some(pending) = &mut self.current_node else {
             return;
         };
@@ -49,39 +66,34 @@ impl WgpuRenderer<'_> {
             return;
         }
         let t = self.transform_stack[0].to_array();
-        let base = Matrix::new([
-            t[0] as f64,
-            t[1] as f64,
-            0.,
-            0.,
-            t[2] as f64,
-            t[3] as f64,
-            0.,
-            0.,
-            0.,
-            0.,
-            1.,
-            0.,
-            t[4] as f64,
-            t[5] as f64,
-            0.,
-            1.,
-        ]);
-        let transform = (base * Matrix::new(draw.surface)).coeffs();
-        // Paint/opacity updates do not change coverage. Preserve the pose's
-        // bounded plane-contour cache across retained-node replacement.
+        let projection = draw
+            .surface
+            .post_mapping(kurbo::Affine::new(t.map(f64::from)).into());
+        let projection_viewport = kurbo::Rect::new(
+            viewport.min.x as f64,
+            viewport.min.y as f64,
+            viewport.max.x as f64,
+            viewport.max.y as f64,
+        );
+        // Paint-only updates reuse coverage, but camera clipping and the tile
+        // viewport are part of the pose identity even if world geometry is fixed.
         let retained_pose = self.scene.get(&pending.id).and_then(|node| match node {
-            RetainedNode::Solid(s) if Rc::ptr_eq(&s.pose.mesh, &draw.mesh)
-                && s.pose.transform == transform => Some(s.pose.clone()),
+            RetainedNode::Solid(s)
+                if Rc::ptr_eq(&s.pose.mesh, &draw.mesh)
+                    && s.pose.projection == projection
+                    && s.projection_viewport == projection_viewport =>
+            {
+                Some(s.pose.clone())
+            }
             _ => None,
         });
-        let Some(pose) = retained_pose.or_else(|| draw.mesh.posed(transform)) else {
-            return;
-        };
+        let pose = retained_pose
+            .unwrap_or_else(|| draw.mesh.projected(projection, Some(projection_viewport)));
         let bounds = bounds_of(&pose.silhouette());
         pending.kind = PendingNodeKind::Solid(RetainedSolid {
             pose,
             world: draw.world,
+            projection_viewport,
             color,
             material,
             light_mask: pending.light_mask,
@@ -106,7 +118,7 @@ impl WgpuRenderer<'_> {
             let RetainedNode::Solid(s) = &self.scene[id] else {
                 unreachable!()
             };
-            for p in s.pose.vertices() {
+            for p in s.pose.triangles().flatten() {
                 min = min.min(p[2]);
                 max = max.max(p[2]);
             }
@@ -115,6 +127,10 @@ impl WgpuRenderer<'_> {
         // between separately retained meshes; padding avoids near/far clipping.
         min -= 1.;
         max += 1.;
+        if !min.is_finite() || !max.is_finite() {
+            min = -1.;
+            max = 1.;
+        }
         for id in &solids {
             let RetainedNode::Solid(s) = self.scene.get_mut(id).unwrap() else {
                 unreachable!()
@@ -123,14 +139,24 @@ impl WgpuRenderer<'_> {
             let uniform = solid::Uniform {
                 world: std::array::from_fn(|c| std::array::from_fn(|r| s.world[c * 4 + r] as f32)),
                 surface: std::array::from_fn(|c| {
-                    std::array::from_fn(|r| s.pose.transform[c * 4 + r] as f32)
+                    std::array::from_fn(|r| s.pose.projection.matrix()[c * 4 + r] as f32)
                 }),
+                camera_clip: s
+                    .pose
+                    .projection
+                    .camera_clip_rows()
+                    .map(|row| row.map(|v| v as f32)),
                 normal: std::array::from_fn(|c| {
                     std::array::from_fn(|r| if r < 3 { inverse[r * 4 + c] as f32 } else { 0. })
                 }),
                 color: s.color.rgba,
                 material: to_gpu_material(s.material),
-                depth_range: [min as f32, max as f32, (1. / (max - min)) as f32, 0.],
+                depth_range: [
+                    min as f32,
+                    max as f32,
+                    (1. / (max - min)) as f32,
+                    f32::from(s.pose.projection.clips_depth()),
+                ],
                 lights: [s.light_mask, 0, 0, 0],
             };
             let bytes = bytemuck::bytes_of(&uniform);
@@ -163,11 +189,39 @@ impl WgpuRenderer<'_> {
                 if !boxes_intersect(&self.scene[&id].bounds(), &s.bounds) {
                     continue;
                 }
-                let front = s.pose.coverage_in_front(plane);
-                if front.len() < 3 {
+                let contours = s.pose.front_contours(plane);
+                if contours.is_empty() {
                     continue;
                 }
-                let pieces = clipped_coverage(front, &s.clip_stack, &self.clip_arena);
+                // Union overlapping front/back triangles before reversing them
+                // into holes. Otherwise overlapping holes become visible again.
+                let fronts = if contours.len() == 1 {
+                    contours
+                } else {
+                    let mut union = Path::builder();
+                    for contour in &contours {
+                        append_polygon(&mut union, contour);
+                    }
+                    let geometry = tessellate_clip_geometry(&union.build(), self.tolerance);
+                    geometry
+                        .indices
+                        .chunks_exact(3)
+                        .map(|indices| {
+                            let mut polygon: Polygon = indices
+                                .iter()
+                                .map(|i| geometry.vertices[*i as usize].position.map(f64::from))
+                                .collect();
+                            if cross(polygon[0], polygon[1], polygon[2]) < 0. {
+                                polygon.reverse();
+                            }
+                            polygon
+                        })
+                        .collect()
+                };
+                let pieces: Vec<_> = fronts
+                    .into_iter()
+                    .flat_map(|front| clipped_coverage(front, &s.clip_stack, &self.clip_arena))
+                    .collect();
                 if pieces.is_empty() {
                     continue;
                 }
@@ -217,6 +271,9 @@ impl WgpuRenderer<'_> {
 }
 
 fn bounds_of(p: &[[f64; 2]]) -> Box2D {
+    if p.is_empty() {
+        return Box2D::new(point(0., 0.), point(0., 0.));
+    }
     let mut min = [f64::INFINITY; 2];
     let mut max = [f64::NEG_INFINITY; 2];
     for p in p {

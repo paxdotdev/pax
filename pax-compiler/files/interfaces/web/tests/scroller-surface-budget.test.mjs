@@ -91,6 +91,41 @@ for (const ios of [false, true]) {
     });
 }
 
+test('excess density is replanned before an overloaded plan reaches the DOM', () => {
+    const h = harness(false);
+    const host = h.candidates.get(1);
+    h.candidates.clear();
+    h.candidates.set(1, host);
+    h.pool.layers.layerIds = () => [1];
+    let replanned = false, decisions = 0, planReads = 0;
+    h.pool.chassis.get_layer_canvas_plan_for_transform = () => {
+        planReads++;
+        return {layerId: 1, active: true, densityPending: !replanned,
+            surfaces: Array.from({length: replanned ? 1 : 100}, (_, i) => ({
+                id: `1:${i}`, key: String(i), left: 0, top: 0, width: 100, height: 100,
+                hostSignature: 'scroller:1', surfaceSignature: '100', transformSignature: '0,0',
+                replayPriority: 0,
+            }))};
+    };
+    const schedule = h.pool.chassis.schedule_surfaces;
+    h.pool.chassis.schedule_surfaces = snapshot => {
+        decisions++;
+        assert.equal(h.pool.admittedPlans, undefined, 'no intermediate plan is published');
+        const decision = schedule(snapshot);
+        if (!replanned) {
+            assert.equal(decision.overloaded, true);
+            replanned = true;
+            return {...decision, densityReplan: true};
+        }
+        return decision;
+    };
+    assert.equal(h.pool.syncWarmScrollerHosts(), true);
+    assert.equal(decisions, 2);
+    assert.equal(planReads, 2);
+    assert.equal(h.cost(), 1);
+    assert.equal(h.pool.mount.dataset.surfaceBudgetState, 'within-budget');
+});
+
 test('visible nested shelves outrank closer warm-only candidates', () => {
     const h = harness(false);
     const visible = h.candidates.get(2);

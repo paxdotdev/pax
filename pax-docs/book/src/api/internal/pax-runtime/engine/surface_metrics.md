@@ -10,6 +10,14 @@ Grow immediately at display-quality density, but shrink only after 500 ms
 at a stable scale. Logarithmic upward quantization bounds extra density to
 about 4.5% and makes rotation/floating-point noise allocation-inert.
 
+#### Implementations
+##### `release_excess_density`
+<pre><code class="api-signature language-rust ignore">pub fn release_excess_density(&amp;mut self) -&gt; bool</code></pre>
+
+Discard shrink hysteresis when excess retained density prevents visible
+coverage from fitting. The current quantized target still supplies full
+display quality; only density kept for allocation reuse is released.
+
 ## Functions
 ### `installed_surface_metrics`
 <pre><code class="api-signature language-rust ignore">pub fn installed_surface_metrics(width: f64, height: f64, backing: [u32; 2], density_clamped: bool) -&gt; SurfaceMetrics</code></pre>

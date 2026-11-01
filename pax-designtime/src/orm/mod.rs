@@ -550,7 +550,7 @@ impl PaxManifestORM {
         self.next_command_id += 1;
         if let Some(reload_type) = response.get_reload_type() {
             match &reload_type {
-                ReloadType::Tree | ReloadType::Subtree(_) => {
+                ReloadType::Tree | ReloadType::Subtree(_) | ReloadType::Camera => {
                     self.manifest_modification_data.tree_modified = true
                 }
                 ReloadType::Node(_, props) => self
@@ -615,6 +615,7 @@ impl PaxManifestORM {
         template: ComponentTemplate,
         settings_block: Vec<SettingsBlockElement>,
         timelines: Vec<TimelineDefinition>,
+        camera: Option<pax_manifest::LiteralBlockDefinition>,
     ) -> Result<usize, String> {
         if !self.manifest.components.contains_key(&component_type_id) {
             return Err(format!(
@@ -637,6 +638,7 @@ impl PaxManifestORM {
         component.template = Some(template.clone());
         component.settings = Some(settings_block.clone());
         component.timelines.clone_from(&timelines);
+        component.camera.clone_from(&camera);
         prospective_manifest
             .validate_runtime_capabilities(pax_manifest::pax_runtime_api::SUPPORTS_3D)
             .map_err(str::to_owned)?;
@@ -653,6 +655,7 @@ impl PaxManifestORM {
             template,
             settings_block,
             timelines,
+            camera,
         );
         let resp = self.execute_command(command)?;
         Ok(resp.get_id())
@@ -948,6 +951,8 @@ pub struct MoveToComponentEntry {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Hash, Eq)]
 pub enum ReloadType {
+    /// Camera-only source edits preserve the mounted content and native controls.
+    Camera,
     Tree,
     Subtree(UniqueTemplateNodeIdentifier),
     Node(UniqueTemplateNodeIdentifier, Vec<String>),

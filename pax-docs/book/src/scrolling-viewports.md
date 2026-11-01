@@ -8,6 +8,10 @@ to show content that extends beyond the available space. `Scroller` gives
 that content a viewport, clips it at the edges, and connects it to the
 platform's scrolling behavior on web, macOS, iOS, and iPadOS.
 
+A root [`@camera`](layout-responsiveness.md#controlling-the-root-camera) changes
+the presented view while preserving local scroll extents and offsets. Tile
+preparation follows camera exposure without treating camera motion as scrolling.
+
 The scroll position is also a property. You can use it to return to the top,
 show reading progress, or move through an animation as the reader explores.
 
@@ -88,9 +92,18 @@ text retains the browser's own rasterization.
 
 The full affine transform determines density: rotated orthogonal axes retain
 their individual scales; shear uses a conservative bound. Density is rounded
-up in small steps, grows immediately, and shrinks after 500ms at a stable scale
-to avoid reallocating for tiny variations. Translation and pure rotation do not
-change density. Singular transforms do not request drawable surfaces.
+up in small steps, grows immediately, and normally shrinks after 500ms at a stable
+scale to avoid reallocating for tiny variations. If that retained surplus would
+exclude visible tiles from the surface budget, it is released before publishing
+the next plan. The current view's required display density is preserved.
+Translation and pure rotation in an affine view do not change density. Singular
+transforms do not request drawable surfaces.
+
+With an experimental [perspective camera](layout-responsiveness.md#experimental-perspective),
+density uses a conservative bound over the visible projected viewport. Moving a
+tilted pane near the camera can increase this bound substantially; restoring its
+pose must not retain the surplus at the expense of visible tile coverage.
+
 Once the shrink settles, the web host installs the updated surface dimensions
 without waiting for another scroll or resize. An unchanged plan retains its
 existing canvases; settling alone does not force a refresh if the dimensions

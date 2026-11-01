@@ -381,7 +381,7 @@ pub fn apply_designtime_userland_reload(
     let reload_queue = designtime_manager.borrow_mut().take_reload_queue();
     for reload_type in reload_queue {
         match reload_type {
-            ReloadType::Tree => {
+            reload_type @ (ReloadType::Tree | ReloadType::Camera) => {
                 // Template reload must keep the initialized root and its Rust
                 // dependencies. Only a process/page restart reruns initialization.
                 let properties = engine
@@ -396,7 +396,15 @@ pub fn apply_designtime_userland_reload(
                 let root = definition_to_instance_traverser
                     .get_main_component_with_properties(USERLAND_COMPONENT_ROOT, properties)
                     as Rc<dyn InstanceNode>;
-                engine.full_reload_userland(root);
+                if matches!(reload_type, ReloadType::Camera) {
+                    let node = engine
+                        .runtime_context
+                        .get_userland_root_expanded_node()
+                        .expect("mounted userland root");
+                    node.recreate_with_new_data(root, &engine.runtime_context);
+                } else {
+                    engine.full_reload_userland(root);
+                }
             }
             ReloadType::Subtree(uni) => {
                 let manifest = definition_to_instance_traverser.get_manifest();
@@ -686,7 +694,7 @@ fn serialize_designtime_inspect_tree_node(
     let raycastable_override = common_properties._raycastable.get();
     let suspended_override = common_properties._suspended.get();
 
-    let transform_and_bounds = node.transform_and_bounds.get();
+    let transform_and_bounds = node.presentation_transform_and_bounds.get();
     let transform_parts: TransformParts = transform_and_bounds.transform.into();
     let occlusion = node.occlusion.get();
     let child_nodes = node.mounted_children.borrow();

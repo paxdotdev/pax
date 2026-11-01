@@ -789,10 +789,14 @@ pub struct ReplaceTemplateRequest {
     settings_block: Vec<SettingsBlockElement>,
     #[serde(default)]
     timelines: Vec<TimelineDefinition>,
+    #[serde(default)]
+    camera: Option<pax_manifest::LiteralBlockDefinition>,
     _cached_prev_template: Option<ComponentTemplate>,
     _cached_prev_settings_block: Option<Vec<SettingsBlockElement>>,
     #[serde(default)]
     _cached_prev_timelines: Option<Vec<TimelineDefinition>>,
+    #[serde(default)]
+    _cached_prev_camera: Option<pax_manifest::LiteralBlockDefinition>,
 }
 
 impl ReplaceTemplateRequest {
@@ -801,12 +805,15 @@ impl ReplaceTemplateRequest {
         new_template: ComponentTemplate,
         settings_block: Vec<SettingsBlockElement>,
         timelines: Vec<TimelineDefinition>,
+        camera: Option<pax_manifest::LiteralBlockDefinition>,
     ) -> Self {
         Self {
             component_type_id,
             new_template,
             settings_block,
             timelines,
+            camera,
+            _cached_prev_camera: None,
             _cached_prev_template: None,
             _cached_prev_settings_block: None,
             _cached_prev_timelines: None,
@@ -816,6 +823,7 @@ impl ReplaceTemplateRequest {
 
 pub struct ReplaceTemplateResponse {
     command_id: Option<usize>,
+    camera_only: bool,
     _affected_component_type_id: TypeId,
 }
 
@@ -827,7 +835,11 @@ impl Response for ReplaceTemplateResponse {
         self.command_id.unwrap()
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::Tree)
+        Some(if self.camera_only {
+            ReloadType::Camera
+        } else {
+            ReloadType::Tree
+        })
     }
 }
 
@@ -842,17 +854,31 @@ impl Command<ReplaceTemplateRequest> for ReplaceTemplateRequest {
             .get_mut(&self.component_type_id)
             .unwrap();
 
+        // Compare sanitized runtime semantics so moving a camera block or
+        // changing source locations does not turn a view edit into a remount.
+        let mut previous = pax_manifest::program_ir::ProgramComponent::from(&*component);
+        let previous_camera = previous.camera.take();
         self._cached_prev_template.clone_from(&component.template);
         self._cached_prev_settings_block
             .clone_from(&component.settings);
         self._cached_prev_timelines = Some(component.timelines.clone());
+        self._cached_prev_camera = component.camera.clone();
 
         component.template = Some(self.new_template.clone());
         component.settings = Some(self.settings_block.clone());
         component.timelines.clone_from(&self.timelines);
+        component.camera.clone_from(&self.camera);
 
+        let mut current = pax_manifest::program_ir::ProgramComponent::from(&*component);
+        let current_camera = current.camera.take();
+        let camera_changed = serde_json::to_value(previous_camera).map_err(|e| e.to_string())?
+            != serde_json::to_value(current_camera).map_err(|e| e.to_string())?;
+        let camera_only = camera_changed
+            && serde_json::to_value(previous).map_err(|e| e.to_string())?
+                == serde_json::to_value(current).map_err(|e| e.to_string())?;
         Ok(ReplaceTemplateResponse {
             command_id: None,
+            camera_only,
             _affected_component_type_id: self.component_type_id.clone(),
         })
     }
@@ -875,6 +901,7 @@ impl Undo for ReplaceTemplateRequest {
             .settings
             .clone_from(&self._cached_prev_settings_block);
         component.timelines = self._cached_prev_timelines.clone().unwrap_or_default();
+        component.camera.clone_from(&self._cached_prev_camera);
         Ok(())
     }
 }
@@ -1252,6 +1279,7 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
             template: Some(new_template),
             settings: None,
             timelines: vec![],
+            camera: None,
             route_branch: None,
         };
 

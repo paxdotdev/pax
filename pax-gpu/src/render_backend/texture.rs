@@ -335,24 +335,28 @@ impl TextureRenderer {
         let height = rgba.len() as u32 / (rgba_width * 4);
         let verts = [
             TextureVertex {
-                position: points[0].to_array(),
+                position: [points[0].x, points[0].y, 0., 1.],
                 texture_coord: [0.0, 0.0],
                 opacity: 1.0,
+                camera_clip: [0.5, 1.],
             },
             TextureVertex {
-                position: points[1].to_array(),
+                position: [points[1].x, points[1].y, 0., 1.],
                 texture_coord: [1.0, 0.0],
                 opacity: 1.0,
+                camera_clip: [0.5, 1.],
             },
             TextureVertex {
-                position: points[2].to_array(),
+                position: [points[2].x, points[2].y, 0., 1.],
                 texture_coord: [0.0, 1.0],
                 opacity: 1.0,
+                camera_clip: [0.5, 1.],
             },
             TextureVertex {
-                position: points[3].to_array(),
+                position: [points[3].x, points[3].y, 0., 1.],
                 texture_coord: [1.0, 1.0],
                 opacity: 1.0,
+                camera_clip: [0.5, 1.],
             },
         ];
         queue.write_buffer(&self.vertices_buffer, 0, bytemuck::cast_slice(&verts));
@@ -601,15 +605,16 @@ impl TextureRenderer {
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub(crate) struct TextureVertex {
-    pub position: [f32; 2],
+    pub position: [f32; 4],
     pub texture_coord: [f32; 2],
     pub opacity: f32,
+    pub camera_clip: [f32; 2],
 }
 
 impl TextureVertex {
     pub(crate) fn desc() -> wgpu::VertexBufferLayout<'static> {
-        const ATTRIBS: [wgpu::VertexAttribute; 3] =
-            wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Float32];
+        const ATTRIBS: [wgpu::VertexAttribute; 4] =
+            wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x2, 2 => Float32, 3 => Float32x2];
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<TextureVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
@@ -624,24 +629,28 @@ pub(crate) fn corners_to_texture_vertices(
 ) -> [TextureVertex; 4] {
     [
         TextureVertex {
-            position: points[0],
+            position: [points[0][0], points[0][1], 0., 1.],
             texture_coord: [0.0, 0.0],
             opacity,
+            camera_clip: [0.5, 1.],
         },
         TextureVertex {
-            position: points[1],
+            position: [points[1][0], points[1][1], 0., 1.],
             texture_coord: [1.0, 0.0],
             opacity,
+            camera_clip: [0.5, 1.],
         },
         TextureVertex {
-            position: points[2],
+            position: [points[2][0], points[2][1], 0., 1.],
             texture_coord: [0.0, 1.0],
             opacity,
+            camera_clip: [0.5, 1.],
         },
         TextureVertex {
-            position: points[3],
+            position: [points[3][0], points[3][1], 0., 1.],
             texture_coord: [1.0, 1.0],
             opacity,
+            camera_clip: [0.5, 1.],
         },
     ]
 }

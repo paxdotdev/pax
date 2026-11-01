@@ -167,12 +167,31 @@ pub struct HostObservation {
     pub viewport: [f64; 2],
     pub offset: [f64; 2],
     pub basis: [f64; 4],
+    /// Camera-clipped host plane in window coordinates, before its own scroll offset.
+    pub projection: Option<pax_runtime_api::math::ProjectedPlane>,
     pub active: bool,
 }
 
 /// Project a content-local rectangle using its affine basis and measured host
 /// bounds. Browser scroll translation never becomes a scale estimate.
 pub fn project_surface(rect: CoverageRect, host: &HostObservation) -> CoverageRect {
+    if let Some(plane) = host.projection {
+        let local = kurbo::Rect::new(
+            rect.left - host.offset[0],
+            rect.top - host.offset[1],
+            rect.right - host.offset[0],
+            rect.bottom - host.offset[1],
+        );
+        return plane
+            .coverage(local, None)
+            .map(|r| CoverageRect {
+                left: r.x0,
+                top: r.y0,
+                right: r.x1,
+                bottom: r.y1,
+            })
+            .unwrap_or_default();
+    }
     let [a, b, c, d] = host.basis;
     let transform = |r: CoverageRect| {
         let points = [
@@ -580,6 +599,7 @@ mod tests {
             viewport,
             offset: [0.0; 2],
             basis,
+            projection: None,
             active: true,
         }
     }

@@ -289,7 +289,10 @@ and reload it. If the URL already has a query, add `&pax_log=info` instead.
 The supported levels are `error`, `warn`, `info`, `debug`, and `trace`.
 
 At `info`, renderer diagnostics identify WebGPU or Vello CPU and related graphics
-configuration. The same messages are available in the browser console.
+configuration. GPU startup also logs adapter and device requests so a blank
+page can be distinguished from a stalled browser graphics request. Before
+the chassis mounts, inspect these messages in the browser console; the CLI's
+live development session is not connected yet.
 Verbose output can be noisy, and captured logs are bounded recent history;
 collect the relevant messages while reproducing the problem.
 

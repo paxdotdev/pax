@@ -57,6 +57,20 @@ impl RasterDensityTracker {
     pub fn retain(&mut self, layers: &HashSet<usize>) {
         self.layers.retain(|id, _| layers.contains(id));
     }
+
+    /// Discard shrink hysteresis when excess retained density prevents visible
+    /// coverage from fitting. The current quantized target still supplies full
+    /// display quality; only density kept for allocation reuse is released.
+    pub fn release_excess_density(&mut self) -> bool {
+        let mut changed = false;
+        for state in self.layers.values_mut() {
+            if state.density != state.target {
+                state.density = state.target;
+                changed = true;
+            }
+        }
+        changed
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -165,5 +179,24 @@ mod tests {
         assert!(density[0] >= 2.2 && density[0] < 2.2 * 1.045);
         t.retain(&HashSet::new());
         assert_eq!(t.observe(1, None, [0.5; 2], 2.0), ([0.5; 2], false));
+    }
+
+    #[test]
+    fn near_plane_recovery_can_release_excess_density_without_losing_quality() {
+        let mut tracker = RasterDensityTracker::default();
+        tracker.observe(1, Some(1), [100.; 2], 0.);
+        let requested = [2.2, 1.4];
+        let (held, pending) = tracker.observe(1, Some(1), requested, 16.);
+        assert!(pending);
+        assert!(held[0] * held[1] * 540. * 170. > 64. * 1024. * 1024.);
+        assert!(tracker.release_excess_density());
+        let (actual, pending) = tracker.observe(1, Some(1), requested, 16.);
+        assert!(!pending);
+        for axis in 0..2 {
+            assert!(actual[axis] >= requested[axis]);
+            assert!(actual[axis] < requested[axis] * 1.045);
+        }
+        assert!(actual[0] * actual[1] * 540. * 170. < 64. * 1024. * 1024.);
+        assert!(!tracker.release_excess_density());
     }
 }

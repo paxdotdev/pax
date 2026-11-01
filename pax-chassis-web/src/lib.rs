@@ -791,8 +791,12 @@ impl PaxChassisWeb {
     pub fn native_pointer_hit_test(&self, id: u32, x: f64, y: f64) -> bool {
         let engine = borrow!(self.engine);
         let id = pax_runtime::ExpandedNodeIdentifier(id);
-        engine.runtime_context.get_elements_beneath_ray(None, Point2::new(x, y), true, vec![], false)
-            .into_iter().next().is_some_and(|hit| hit.id == id || hit.is_descendant_of(&id))
+        engine
+            .runtime_context
+            .get_elements_beneath_ray(None, Point2::new(x, y), true, vec![], false)
+            .into_iter()
+            .next()
+            .is_some_and(|hit| hit.id == id || hit.is_descendant_of(&id))
     }
 
     pub fn interrupt(
@@ -1864,12 +1868,17 @@ impl PaxChassisWeb {
         self.surface_density
             .borrow_mut()
             .retain(&snapshot.layers.iter().copied().collect());
-        let decision = surface_scheduling::schedule(
+        let mut decision = surface_scheduling::schedule(
             snapshot,
             &mut self.surface_activity.borrow_mut(),
             self.surface_preparation.borrow().as_ref(),
         )
         .map_err(JsValue::from_str)?;
+        // Near-plane magnification can be orders of magnitude larger than the
+        // next pose. Keeping that density for the usual shrink delay must not
+        // evict currently visible tiles. Replan before installing any surfaces.
+        decision.density_replan =
+            decision.overloaded && self.surface_density.borrow_mut().release_excess_density();
         Ok(js_value_serde::to_value(&decision))
     }
 
@@ -1903,10 +1912,28 @@ impl PaxChassisWeb {
         let engine = self.engine.borrow();
         let ctx = &engine.runtime_context;
         let window = window().unwrap();
-        let Some(density) = pax_runtime::engine::surface_scheduling::projected_density(
-            [a, b, c, d],
-            window.device_pixel_ratio(),
-        ) else {
+        let owner = ctx
+            .get_layer_scroller_owner(layer)
+            .and_then(|id| ctx.get_expanded_node_by_eid(id));
+        let projected_density =
+            if let Some(owner) = owner.filter(|node| node.has_perspective_camera()) {
+                let bounds = owner.transform_and_bounds.get().bounds;
+                let viewport = ctx.globals().viewport.get().bounds;
+                ctx.presented_projection_for_node(&owner)
+                    .and_then(|plane| {
+                        plane.magnification_bound(
+                            kurbo::Rect::new(0., 0., bounds.0, bounds.1),
+                            Some(kurbo::Rect::new(0., 0., viewport.0, viewport.1)),
+                        )
+                    })
+                    .map(|scale| [scale * window.device_pixel_ratio(); 2])
+            } else {
+                pax_runtime::engine::surface_scheduling::projected_density(
+                    [a, b, c, d],
+                    window.device_pixel_ratio(),
+                )
+            };
+        let Some(density) = projected_density else {
             return js_value_serde::to_value(&WebLayerCanvasPlan {
                 layer_id: layer,
                 active: false,

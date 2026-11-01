@@ -1241,6 +1241,12 @@ Type: `Option`<`bool`>
 ##### `content_layer_id`
 Type: `Option`<`u32`>
 
+##### `presentation_projection`
+Type: `Option`<`Vec`<`f64`>>
+
+Homogeneous host plane after ancestor scrolling, including camera depth.
+An empty array clears projective presentation when returning to orthographic.
+
 ##### `presented_bounds`
 Type: `Option`<[`f64`; 4]>
 

@@ -594,7 +594,9 @@ class SvgEffectManager {
             return;
         }
 
-        if (!pathData || pathData.length === 0) {
+        // An empty clip intersects to nothing. Removing its definition would
+        // leave a dangling SVG reference, which browsers can treat as no clip.
+        if (pathData == null) {
             this.removeElement(id);
             return;
         }

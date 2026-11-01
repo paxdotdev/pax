@@ -80,6 +80,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
                 ),
             ]),
             timelines: vec![],
+            camera: None,
             route_branch: None,
         },
     );

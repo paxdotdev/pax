@@ -1,4 +1,5 @@
 use super::*;
+use kurbo::Affine;
 use kurbo::{BezPath, Rect};
 use pax_runtime::api::pax_value::ToFromPaxAny;
 use pax_runtime::api::{CommonProperties, Paint, ResolvedMaterial, ResolvedStroke};
@@ -20,6 +21,7 @@ fn args() -> InstantiationArgs {
         children: None,
         component_template: None,
         component_settings: None,
+        component_camera: None,
         template_node_identifier: None,
         template_node_type_id: None,
         template_node_selector_info: None,

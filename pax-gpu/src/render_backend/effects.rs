@@ -24,7 +24,7 @@ struct PassOutput {
 struct Output {
     recipe: &'static pax_runtime_api::ShaderProgram,
     source: Texture,
-    domain: [[f32; 4]; 6],
+    domain: [[f32; 4]; 10],
     domain_buffer: wgpu::Buffer,
     rect_buffer: wgpu::Buffer,
     passes: Vec<PassOutput>,
@@ -246,7 +246,7 @@ impl RenderBackend<'_> {
         &mut self,
         id: u32,
         effect: &ShaderEffect,
-        transform: Transform2D,
+        projection: pax_runtime_api::math::ProjectedPlane,
         signature: u64,
         source_globals: &data::GpuGlobals,
         stats: &mut crate::ResourceChurnStats,
@@ -259,12 +259,25 @@ impl RenderBackend<'_> {
             .as_ref()
             .unwrap()
             .effect_source(capture::CaptureKey::EffectSource(id), source_globals);
-        let inverse = transform
+        let mapping = projection.mapping();
+        let inverse = mapping
             .inverse()
-            .expect("shader effect requires an invertible transform");
-        let rows = |t: Transform2D| [[t.m11, t.m21, t.m31, 0.0], [t.m12, t.m22, t.m32, 0.0]];
+            .expect("shader effect requires an invertible projection");
+        let rows = |t: pax_runtime_api::math::PlanarProjection| {
+            std::array::from_fn::<_, 3, _>(|r| {
+                [t.0[r] as f32, t.0[3 + r] as f32, t.0[6 + r] as f32, 0.]
+            })
+        };
         let a = rows(inverse);
-        let b = rows(transform);
+        let b = rows(mapping);
+        let clips = projection.camera_clip_rows().map(|r| {
+            [
+                r[0] as f32,
+                r[1] as f32,
+                r[2] as f32,
+                projection.clips_depth() as u8 as f32,
+            ]
+        });
         let pixels = [
             (rect[2] * source_globals.dpr[0]).round() as u32,
             (rect[3] * source_globals.dpr[1]).round() as u32,
@@ -275,7 +288,7 @@ impl RenderBackend<'_> {
             source.width() as f32,
             source.height() as f32,
         ];
-        let domain = [rect, a[0], a[1], b[0], b[1], storage];
+        let domain = [rect, a[0], a[1], a[2], b[0], b[1], b[2], clips[0], clips[1], storage];
         let final_downsample = effect.program.passes.last().unwrap().downsample;
         let composite_rect = [
             rect,

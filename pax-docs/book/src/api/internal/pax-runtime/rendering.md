@@ -22,6 +22,9 @@ Type: `Option`<[`PreparedRuntimeSettings`](../../../api/internal/pax-runtime/car
 Prepared definitions shared by expanded instances. Instantiation inputs
 remain manifest settings; replacing a template prepares a new definition.
 
+##### `component_camera`
+Type: `Option`<[`LiteralBlockDefinition`](../../../api/internal/pax-manifest/index.md#literalblockdefinition)>
+
 ##### `template_node_identifier`
 Type: `Option`<[`UniqueTemplateNodeIdentifier`](../../../api/internal/pax-manifest/index.md#uniquetemplatenodeidentifier)>
 
@@ -127,6 +130,9 @@ Type: `Option`<`InstanceNodePtrList`>
 
 ##### `component_settings`
 Type: `Option`<`Vec`<[`SettingsBlockElement`](../../../api/internal/pax-manifest/index.md#settingsblockelement)>>
+
+##### `component_camera`
+Type: `Option`<[`LiteralBlockDefinition`](../../../api/internal/pax-manifest/index.md#literalblockdefinition)>
 
 ##### `template_node_identifier`
 Type: `Option`<[`UniqueTemplateNodeIdentifier`](../../../api/internal/pax-manifest/index.md#uniquetemplatenodeidentifier)>

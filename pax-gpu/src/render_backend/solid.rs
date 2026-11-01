@@ -21,6 +21,7 @@ struct Vertex {
 pub(crate) struct Uniform {
     pub world: [[f32; 4]; 4],
     pub surface: [[f32; 4]; 4],
+    pub camera_clip: [[f32; 4]; 2],
     pub normal: [[f32; 4]; 3],
     pub color: [f32; 4],
     pub material: GpuMaterial,

@@ -1,4 +1,5 @@
 use super::*;
+use kurbo::{Affine, BezPath, Rect};
 use pax_runtime::api::{
     pax_value::{PaxAny, ToFromPaxAny},
     Paint, Platform, ResolvedMaterial, ResolvedStroke, OS,
@@ -8,7 +9,6 @@ use pax_runtime::{
     PropertiesInit, PropertiesScopeInit,
 };
 use pax_std::media::image::{Image, ImageInstance, ImageSource};
-use kurbo::{Affine, BezPath, Rect};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 // Model retained node recording while exercising the real Image primitive and
@@ -95,6 +95,7 @@ fn args(properties: PropertiesInit) -> InstantiationArgs {
         children: None,
         component_template: None,
         component_settings: None,
+        component_camera: None,
         template_node_identifier: None,
         template_node_type_id: None,
         template_node_selector_info: None,

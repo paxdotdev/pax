@@ -51,6 +51,11 @@ Type: [`f64`; 2]
 ##### `basis`
 Type: [`f64`; 4]
 
+##### `projection`
+Type: `Option`<[`ProjectedPlane`](../../../../api/pax-runtime-api/math/projection.md#projectedplane)>
+
+Camera-clipped host plane in window coordinates, before its own scroll offset.
+
 ##### `active`
 Type: `bool`
 

@@ -1400,6 +1400,8 @@ pub(super) fn parse_pax_source_update(
             pax_manifest::parsing::parse_settings_from_component_definition_string(ast.clone());
         let timelines =
             pax_manifest::parsing::parse_timeline_from_component_definition_string(ast.clone());
+        let camera =
+            pax_manifest::parsing::parse_camera_from_component_definition_string(ast.clone());
         if let Some(rust_source_path) =
             resolve_component_rust_source_path(project_root, &component_module_path)
         {
@@ -1423,6 +1425,7 @@ pub(super) fn parse_pax_source_update(
             new_template: tpc.template,
             settings_block: settings,
             timelines,
+            camera,
         })
     }))
     .map_err(panic_payload_to_string)?
@@ -2123,6 +2126,7 @@ mod tests {
                 template: None,
                 settings: None,
                 timelines: vec![],
+                camera: None,
                 route_branch: None,
             },
         );
@@ -2284,6 +2288,7 @@ mod tests {
                 )),
                 settings: Some(vec![]),
                 timelines: vec![],
+                camera: None,
                 route_branch: None,
             },
         );
@@ -2299,6 +2304,7 @@ mod tests {
                 template: None,
                 settings: None,
                 timelines: vec![],
+                camera: None,
                 route_branch: None,
             },
         );

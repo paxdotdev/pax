@@ -352,9 +352,17 @@ pub struct ExpandedNode {
     /// Selector-facing metadata used by runtime and designtime queries.
     pub selector_metadata: RefCell<RuntimeSelectorMetadata>,
 
-    /// The layout information (width, height, transform) used to render this node.
-    /// computed property based on parent bounds + common properties
+    /// Unprojected world footprint used for layout measurement.
+    /// Camera-aware paint and input use `presentation_projection`.
     pub transform_and_bounds: LocalProperty<TransformAndBounds<NodeLocal, Window>>,
+    /// Camera-projected geometry used by paint, native presentation and input.
+    pub presentation_transform_and_bounds: LocalProperty<TransformAndBounds<NodeLocal, Window>>,
+    #[cfg(feature = "3d")]
+    pub(crate) presentation_geometry: LocalProperty<crate::SpatialGeometry>,
+    #[cfg(feature = "3d")]
+    pub(crate) presentation_view: LocalProperty<crate::camera::PresentationView>,
+    #[cfg(feature = "3d")]
+    pub(crate) own_camera_view: LocalProperty<Option<crate::camera::PresentationView>>,
     /// Placement relative to the render parent, including padding and assigned frames.
     pub(crate) local_transform_and_bounds: LocalProperty<TransformAndBounds<NodeLocal, NodeLocal>>,
     // Dimensions have their own dependency chain so ancestor pose cannot dirty
@@ -830,10 +838,67 @@ macro_rules! dispatch_event_handler {
 }
 
 impl ExpandedNode {
-    /// Retained world geometry before camera, tile, and scroll presentation.
+    /// Engine-owned unprojected geometry in unscrolled world coordinates.
+    /// Primitives may inspect or subscribe to this property; do not replace its binding.
     #[cfg(feature = "3d")]
     pub fn spatial_geometry(&self) -> LocalProperty<crate::SpatialGeometry> {
         self.spatial_geometry.clone()
+    }
+
+    /// Camera-projected geometry before native scroll displacement.
+    #[cfg(feature = "3d")]
+    pub fn presentation_geometry(&self) -> LocalProperty<crate::SpatialGeometry> {
+        self.presentation_geometry.clone()
+    }
+
+    /// Projects a world-space solid through this node's camera, before ancestor
+    /// scrolling. Runtime presentation queries additionally account for scrollers.
+    #[cfg(feature = "3d")]
+    pub fn project_convex_mesh(
+        &self,
+        solid: &pax_runtime_api::mesh3::PosedConvexMesh,
+    ) -> Option<Rc<pax_runtime_api::mesh3::ProjectedConvexMesh>> {
+        Some(solid.projected(self.presentation_view.get().mesh(solid.transform)?))
+    }
+
+    /// Homogeneous presentation of this plane, before ancestor scrolling.
+    /// Use this for camera-aware geometry; layout remains in `spatial_geometry`.
+    pub fn presentation_projection(&self) -> Option<pax_runtime_api::math::ProjectedPlane> {
+        #[cfg(feature = "3d")]
+        {
+            self.presentation_view
+                .get()
+                .plane(self.spatial_geometry.get())
+        }
+        #[cfg(not(feature = "3d"))]
+        {
+            Some(pax_runtime_api::math::ProjectedPlane::affine(
+                self.transform_and_bounds.get().transform.into(),
+            ))
+        }
+    }
+
+    /// Native matrix transport: six coefficients for exact affine presentation,
+    /// otherwise a column-major 4x4 plane homography. Camera clipping is separate.
+    pub fn presentation_matrix(&self) -> Vec<f64> {
+        let Some(plane) = self.presentation_projection() else {
+            return vec![0.; 6];
+        };
+        plane.mapping().as_affine().map_or_else(
+            || plane.mapping().matrix3d().to_vec(),
+            |affine| affine.as_coeffs().to_vec(),
+        )
+    }
+
+    pub fn has_perspective_camera(&self) -> bool {
+        #[cfg(feature = "3d")]
+        {
+            self.presentation_view.get().is_perspective()
+        }
+        #[cfg(not(feature = "3d"))]
+        {
+            false
+        }
     }
 
     /// Whether this live node supplies a mask rather than visible scene content.
@@ -1129,6 +1194,26 @@ impl ExpandedNode {
         let render_source_owner = parent
             .upgrade()
             .and_then(|parent| parent.render_source_owner.get());
+        let transform_and_bounds = LocalProperty::new(TransformAndBounds::default());
+        #[cfg(not(feature = "3d"))]
+        let presentation_transform_and_bounds = transform_and_bounds.clone();
+        #[cfg(feature = "3d")]
+        let (presentation_transform_and_bounds, spatial_geometry, presentation_geometry) = {
+            let world_tab = transform_and_bounds.clone();
+            let deps = [world_tab.untyped()];
+            let presentation_transform_and_bounds =
+                LocalProperty::computed(move || world_tab.get(), &deps);
+            let spatial_geometry = LocalProperty::new(crate::SpatialGeometry::default());
+            let world_geometry = spatial_geometry.clone();
+            let deps = [world_geometry.untyped()];
+            let presentation_geometry =
+                LocalProperty::computed(move || world_geometry.get(), &deps);
+            (
+                presentation_transform_and_bounds,
+                spatial_geometry,
+                presentation_geometry,
+            )
+        };
         let res = Rc::new(ExpandedNode {
             move_origin: LocalProperty::new(None),
             move_progress: LocalProperty::new(1.0),
@@ -1169,11 +1254,18 @@ impl ExpandedNode {
             exiting_children_view: LocalProperty::new(Vec::new()),
             sidecar_children: RefCell::new(Vec::new()),
             render_source_owner: Cell::new(render_source_owner),
-            transform_and_bounds: LocalProperty::new(TransformAndBounds::default()),
+            transform_and_bounds,
+            presentation_transform_and_bounds,
+            #[cfg(feature = "3d")]
+            presentation_geometry,
+            #[cfg(feature = "3d")]
+            presentation_view: LocalProperty::default(),
+            #[cfg(feature = "3d")]
+            own_camera_view: LocalProperty::default(),
             local_transform_and_bounds: LocalProperty::new(TransformAndBounds::default()),
             layout_bounds: LocalProperty::new((100.0, 100.0)),
             #[cfg(feature = "3d")]
-            spatial_geometry: LocalProperty::new(crate::SpatialGeometry::default()),
+            spatial_geometry,
             subtree_layout_hull: LocalProperty::new(LayoutHull::default()),
             container_frame: LocalProperty::new(None),
             computed_opacity: LocalProperty::new(1.0),
@@ -1307,6 +1399,7 @@ impl ExpandedNode {
         self.refresh_properties_scope(&template);
         self.bind_selector_classes_listener(context);
         self.reapply_runtime_settings(context);
+        context.rebind_root_camera(self);
         self.bind_to_parent_bounds(context);
         self.bind_occlusion_listener(context);
         self.mark_non_reactive_update_subtree_dirty();
@@ -1336,6 +1429,7 @@ impl ExpandedNode {
         self.mark_non_reactive_update_subtree_dirty();
         context.mark_occlusion_dirty_for_node(self.id.to_u32());
         Rc::clone(self).recurse_mount(context);
+        context.rebind_root_camera(self);
         context.drain_node_effects();
         self.recurse_emit_mount_updates();
     }
@@ -2295,8 +2389,7 @@ impl ExpandedNode {
                 cp.rotate_x.untyped(),
                 #[cfg(feature = "3d")]
                 cp.rotate_y.untyped(),
-                #[cfg(feature = "3d")]
-                cp.translate_z.untyped(),
+                cp.z.untyped(),
             ]
         };
         let sources = ParentBindingSources {
@@ -2545,20 +2638,20 @@ impl ExpandedNode {
             let local = self.local_transform_and_bounds.clone();
             let rotate_x = borrow!(common_props).rotate_x.clone();
             let rotate_y = borrow!(common_props).rotate_y.clone();
-            let translate_z = borrow!(common_props).translate_z.clone();
+            let z = borrow!(common_props).z.clone();
             let deps = [
                 parent_geometry.untyped(),
                 local.untyped(),
                 rotate_x.untyped(),
                 rotate_y.untyped(),
-                translate_z.untyped(),
+                z.untyped(),
             ];
             let target_geometry = LocalProperty::computed(
                 move || {
                     let local = local.get();
                     let rx = rotate_x.get().unwrap_or_default().get_as_radians();
                     let ry = rotate_y.get().unwrap_or_default().get_as_radians();
-                    let z = translate_z.get().unwrap_or_default().to_float();
+                    let z = z.get().unwrap_or_default().to_float();
                     if rx == 0. && ry == 0. && z == 0. {
                         return parent_geometry.get().append_local_2d(local);
                     }
@@ -2614,15 +2707,61 @@ impl ExpandedNode {
                 .map(|node| node.transform_and_bounds.clone())
                 .unwrap_or_else(|| ctx.globals().viewport);
             let local = self.local_transform_and_bounds.clone();
-            let deps = [parent.untyped(), local.untyped()];
+            let z = self.get_common_properties().borrow().z.clone();
+            let depth_is_light_height = borrow!(self.instance_node).has_scene_lighting();
+            let deps = [parent.untyped(), local.untyped(), z.untyped()];
             self.transform_and_bounds
                 .replace_with(LocalProperty::computed(
                     move || {
+                        // Two-axis position remains a 2D API. A reactive third axis
+                        // must not silently become an inert setting in a 2D build.
+                        assert!(
+                            depth_is_light_height || z.get().unwrap_or_default().to_float() == 0.,
+                            "{}",
+                            pax_manifest::capabilities::REQUIRES_3D
+                        );
                         let local = local.get();
                         TransformAndBounds {
                             transform: parent.get().transform * local.transform,
                             bounds: local.bounds,
                         }
+                    },
+                    &deps,
+                ));
+        }
+
+        #[cfg(feature = "3d")]
+        {
+            let inherited_view = render_parent
+                .as_ref()
+                .map(|parent| parent.presentation_view.clone())
+                .unwrap_or_default();
+            let own_view = self.own_camera_view.clone();
+            let deps = [inherited_view.untyped(), own_view.untyped()];
+            self.presentation_view.replace_with(LocalProperty::computed(
+                move || own_view.get().unwrap_or_else(|| inherited_view.get()),
+                &deps,
+            ));
+            let view = self.presentation_view.clone();
+            let geometry = self.spatial_geometry.clone();
+            let deps = [view.untyped(), geometry.untyped()];
+            self.presentation_geometry
+                .replace_with(LocalProperty::computed(
+                    move || view.get().project(geometry.get()),
+                    &deps,
+                ));
+            let geometry = self.presentation_geometry.clone();
+            let deps = [geometry.untyped()];
+            self.presentation_transform_and_bounds
+                .replace_with(LocalProperty::computed(
+                    move || {
+                        let geometry = geometry.get();
+                        geometry
+                            .orthographic_projection()
+                            .unwrap_or(TransformAndBounds {
+                                transform: pax_runtime_api::math::Transform2::new([0.0; 6]),
+                                bounds: geometry.bounds,
+                            })
                     },
                     &deps,
                 ));
@@ -2685,9 +2824,9 @@ impl ExpandedNode {
         // reconciliation; data-only repeat invalidation is not an occlusion change.
         deps.extend([
             self.presentation_layer.untyped(),
-            self.transform_and_bounds.untyped(),
+            self.presentation_transform_and_bounds.untyped(),
             #[cfg(feature = "3d")]
-            self.spatial_geometry.untyped(),
+            self.presentation_geometry.untyped(),
             self.computed_opacity.untyped(),
             self.liquid_glass_scope.untyped(),
             self.get_common_properties().borrow().unclippable.untyped(),
@@ -3413,6 +3552,16 @@ impl ExpandedNode {
             self.parent_binding_sources.borrow_mut().take();
             self.transform_and_bounds
                 .replace_with(LocalProperty::default());
+            self.presentation_transform_and_bounds
+                .replace_with(LocalProperty::default());
+            #[cfg(feature = "3d")]
+            {
+                self.presentation_geometry
+                    .replace_with(LocalProperty::default());
+                self.presentation_view
+                    .replace_with(LocalProperty::default());
+                self.own_camera_view.replace_with(LocalProperty::default());
+            }
             self.computed_opacity.replace_with(LocalProperty::new(1.0));
             self.subtree_layout_hull
                 .replace_with(LocalProperty::default());
@@ -4103,10 +4252,11 @@ impl ExpandedNode {
         }
         #[cfg(feature = "3d")]
         {
-            let geometry = self.spatial_geometry.get();
-            if borrow!(self.instance_node)
-                .resolve_convex_mesh(self)
-                .is_none()
+            let geometry = self.presentation_geometry.get();
+            if !self.has_perspective_camera()
+                && borrow!(self.instance_node)
+                    .resolve_convex_mesh(self)
+                    .is_none()
                 && geometry.is_spatial()
                 && geometry
                     .plane()

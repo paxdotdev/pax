@@ -143,7 +143,7 @@ impl RuntimeContext {
     }
 
     fn startup_bounds(&self, node: &ExpandedNode) -> Option<kurbo::Rect> {
-        let tab = node.transform_and_bounds.get();
+        let tab = node.presentation_transform_and_bounds.get();
         let transform =
             self.presentation_scroll_transform_for_node(node) * kurbo::Affine::from(tab.transform);
         let bounds =
@@ -662,6 +662,7 @@ mod tests {
             children: None,
             component_template: Some(RefCell::new(children)),
             component_settings: None,
+            component_camera: None,
             template_node_identifier: None,
             template_node_type_id: None,
             template_node_selector_info: None,

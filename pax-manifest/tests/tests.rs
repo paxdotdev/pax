@@ -1013,28 +1013,39 @@ mod tests {
         ] {
             let owner = TypeId::build_singleton("Example", Some("Example"));
             let group = TypeId::build_singleton("Group", Some("Group"));
-            let source = format!(r#"
+            let source = format!(
+                r#"
                 <Group id=panel @out=@timeline {{
                     duration: {duration},
                     opacity: {{0: 1, {marker}: 0}},
                 }} />
-            "#);
+            "#
+            );
             let (_, component) = assemble_component_definition(
-                ParsingContext::default(), &source, false,
+                ParsingContext::default(),
+                &source,
+                false,
                 HashMap::from([("Group".to_string(), group)]),
-                "crate", owner.clone(), "example.pax", file!(),
+                "crate",
+                owner.clone(),
+                "example.pax",
+                file!(),
             );
             let manifest = PaxManifest {
                 components: BTreeMap::from([(owner.clone(), component)]),
                 main_component_type_id: owner.clone(),
-                type_table: Default::default(), assets_dirs: vec![],
+                type_table: Default::default(),
+                assets_dirs: vec![],
                 engine_import_path: "pax_engine".to_string(),
             };
-            let rich = pax_manifest::binary::from_slice(
-                &pax_manifest::binary::to_vec(&manifest).unwrap()).unwrap();
+            let rich =
+                pax_manifest::binary::from_slice(&pax_manifest::binary::to_vec(&manifest).unwrap())
+                    .unwrap();
             let program = pax_manifest::program_ir::ProgramIR::from_manifest(&manifest);
             let program = pax_manifest::program_ir::binary::from_slice(
-                &pax_manifest::program_ir::binary::to_vec(&program).unwrap()).unwrap();
+                &pax_manifest::program_ir::binary::to_vec(&program).unwrap(),
+            )
+            .unwrap();
             let mut baked = manifest.clone();
             let component = baked.components.get_mut(&owner).unwrap();
             component.template = program.components[&owner].template.clone();
@@ -1904,6 +1915,7 @@ mod tests {
             primitive_instance_import_path: None,
             template: None,
             settings: None,
+            camera: None,
             timelines: vec![TimelineDefinition {
                 name: Some(Token::new_without_location("orbital".to_string())),
                 playhead: Some(ValueDefinition::Identifier(
@@ -2037,6 +2049,7 @@ mod tests {
             primitive_instance_import_path: None,
             template: Some(template),
             settings: None,
+            camera: None,
             timelines: vec![TimelineDefinition {
                 name: None,
                 playhead: None,
@@ -2215,6 +2228,7 @@ mod tests {
             template: Some(template),
             settings: None,
             timelines: vec![],
+            camera: None,
             route_branch: None,
         };
 

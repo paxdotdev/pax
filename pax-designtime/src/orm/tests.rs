@@ -29,6 +29,7 @@ mod tests {
                     LiteralBlockDefinition::new(vec![]),
                 )]),
                 timelines: vec![],
+                camera: None,
                 route_branch: None,
             },
         );
@@ -117,6 +118,34 @@ mod tests {
     }
 
     #[test]
+    fn camera_only_source_update_keeps_a_view_only_reload() {
+        let mut manifest = create_basic_manifest();
+        let id = manifest.main_component_type_id.clone();
+        let template = ComponentTemplate::new(id.clone(), None);
+        manifest.components.get_mut(&id).unwrap().template = Some(template.clone());
+        let settings = manifest.components[&id].settings.clone().unwrap();
+        let camera = LiteralBlockDefinition::new(vec![pax_manifest::SettingElement::Setting(
+            Token::new_without_location("zoom".into()),
+            ValueDefinition::LiteralValue(PaxValue::Numeric(2.into())),
+        )]);
+        let mut orm = PaxManifestORM::new(manifest);
+        orm.replace_template(
+            id.clone(),
+            template.clone(),
+            settings.clone(),
+            vec![],
+            Some(camera),
+        )
+        .unwrap();
+        assert_eq!(orm.take_reload_queue(), [ReloadType::Camera].into());
+        assert!(orm.get_manifest().components[&id].camera.is_some());
+        orm.replace_template(id.clone(), template, settings, vec![], None)
+            .unwrap();
+        assert_eq!(orm.take_reload_queue(), [ReloadType::Camera].into());
+        assert!(orm.get_manifest().components[&id].camera.is_none());
+    }
+
+    #[test]
     fn template_update_replaces_timelines_and_rebuilds_component_property_layers() {
         let mut manifest = create_basic_manifest();
         let main_type_id = manifest.main_component_type_id.clone();
@@ -133,6 +162,7 @@ mod tests {
             template,
             vec![],
             vec![self_opacity_timeline(1)],
+            None,
         )
         .unwrap();
 
@@ -330,6 +360,7 @@ mod tests {
                 template: None,
                 settings: None,
                 timelines: vec![],
+                camera: None,
                 route_branch: None,
             },
         );
@@ -415,7 +446,7 @@ mod tests {
 
         let mut orm = PaxManifestORM::new(manifest);
         let err = orm
-            .replace_template(main_type_id, template, vec![], vec![])
+            .replace_template(main_type_id, template, vec![], vec![], None)
             .unwrap_err();
 
         assert!(err.contains("references missing component"));
@@ -431,7 +462,7 @@ mod tests {
         let mut orm = PaxManifestORM::new(manifest);
 
         let err = orm
-            .replace_template(missing_type_id, template, vec![], vec![])
+            .replace_template(missing_type_id, template, vec![], vec![], None)
             .unwrap_err();
 
         assert!(err.contains("targets missing component"));
@@ -474,6 +505,7 @@ mod tests {
                 template,
                 vec![handler("click", "self.handle_click")],
                 vec![],
+                None,
             )
             .unwrap_err();
 
@@ -577,6 +609,7 @@ mod tests {
                 ComponentTemplate::new(main_type_id, None),
                 reordered_settings,
                 vec![],
+                None,
             )
             .unwrap_err();
 
@@ -618,6 +651,7 @@ mod tests {
                 ComponentTemplate::new(main_type_id, None),
                 conflicting_settings,
                 vec![],
+                None,
             )
             .unwrap_err();
 

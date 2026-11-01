@@ -63,7 +63,12 @@ pub fn native_surface_opacity(expanded_node: &ExpandedNode, context: &RuntimeCon
 // Resolves the transform a canvas primitive should use inside its owning canvas surface.
 pub fn canvas_surface_transform(expanded_node: &ExpandedNode, context: &RuntimeContext) -> Affine {
     if expanded_node.is_render_source() {
-        return Affine::from(expanded_node.transform_and_bounds.get().transform);
+        return Affine::from(
+            expanded_node
+                .presentation_transform_and_bounds
+                .get()
+                .transform,
+        );
     }
     context.canvas_surface_transform_for_node(expanded_node)
 }
@@ -73,9 +78,20 @@ pub struct CanvasNodeRenderScope {
     pub layer_id: usize,
     pub node_id: u32,
     pub surface_transform: Affine,
+    pub projection: Option<pax_runtime_api::math::ProjectedPlane>,
     pub bounds: (f64, f64),
     /// Paint opacity within the canvas composition; the backend applies outer scopes once.
     pub paint_opacity: f64,
+}
+
+impl CanvasNodeRenderScope {
+    pub fn apply_transform(&self, rc: &mut dyn RenderContext) {
+        if let Some(projection) = self.projection {
+            rc.project(self.layer_id, projection);
+        } else {
+            rc.transform(self.layer_id, self.surface_transform);
+        }
+    }
 }
 
 // Begin a bounded retained vector/image node.
@@ -89,6 +105,12 @@ pub fn begin_bounded_canvas_node(
 ) -> Option<CanvasNodeRenderScope> {
     let geometry = context.canvas_geometry_for_node(expanded_node);
     let layer_id = rc.alpha_source_layer().unwrap_or(geometry.layer);
+    let projection = if rc.alpha_source_layer().is_some() && expanded_node.has_perspective_camera()
+    {
+        context.canvas_projection_on_layer(expanded_node, layer_id)
+    } else {
+        geometry.projection
+    };
     let node_id = expanded_node.id.to_u32();
     let coverage_bounds = geometry.coverage_bounds.unwrap_or(kurbo::Rect::new(
         f64::NEG_INFINITY,
@@ -115,7 +137,7 @@ pub fn begin_bounded_canvas_node(
         rc.set_node_lighting_surface(
             layer_id,
             node_id,
-            geometry.spatial_geometry.lighting_surface(),
+            expanded_node.spatial_geometry().get().lighting_surface(),
         );
         rc.set_node_depth_plane(
             layer_id,
@@ -123,10 +145,15 @@ pub fn begin_bounded_canvas_node(
             context.depth_plane_in_presentation(
                 expanded_node,
                 geometry
-                    .spatial_geometry
-                    .depth_plane(pax_runtime_api::math::Transform2::new(
-                        geometry.surface_transform.as_coeffs(),
-                    )),
+                    .projection
+                    .and_then(|plane| plane.depth_plane())
+                    .or_else(|| {
+                        geometry.spatial_geometry.depth_plane(
+                            pax_runtime_api::math::Transform2::new(
+                                geometry.surface_transform.as_coeffs(),
+                            ),
+                        )
+                    }),
             ),
         );
     }
@@ -144,6 +171,7 @@ pub fn begin_bounded_canvas_node(
         layer_id,
         node_id,
         surface_transform: geometry.surface_transform,
+        projection,
         bounds: geometry.bounds,
         paint_opacity,
     })
@@ -167,7 +195,7 @@ pub(crate) fn alpha_mask_paints_with_range(
     draw_end: f64,
 ) -> Vec<pax_runtime_api::AlphaMaskPaint> {
     use pax_runtime_api::drawing::{path_trim::trim_bez_path, stroke_utils::stroked_outline_path};
-    let transform = kurbo::Affine::from(node.transform_and_bounds.get().transform);
+    let transform = kurbo::Affine::from(node.presentation_transform_and_bounds.get().transform);
     let mut paints = Vec::new();
     for fill in fills.iter().rev() {
         paints.push(pax_runtime_api::AlphaMaskPaint {

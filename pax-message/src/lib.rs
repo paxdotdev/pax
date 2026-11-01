@@ -1098,6 +1098,9 @@ pub struct ScrollerPatch {
     pub scroll_enabled_x: Option<bool>,
     pub scroll_enabled_y: Option<bool>,
     pub content_layer_id: Option<u32>,
+    /// Homogeneous host plane after ancestor scrolling, including camera depth.
+    /// An empty array clears projective presentation when returning to orthographic.
+    pub presentation_projection: Option<Vec<f64>>,
     pub presented_bounds: Option<[f64; 4]>,
     pub presented_clip_bounds: Option<[f64; 4]>,
     pub subtree_depth: u32,

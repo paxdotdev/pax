@@ -464,6 +464,24 @@ impl RuntimeContext {
     /// Store the root expanded node after it has been initialized.
     pub fn register_root_expanded_node(&self, root: &Rc<ExpandedNode>) {
         *borrow_mut!(self.root_expanded_node) = Rc::downgrade(root);
+        #[cfg(feature = "3d")]
+        crate::camera::bind_root(root, self.globals().renderer_is_gpu);
+    }
+
+    #[cfg(not(feature = "3d"))]
+    pub(crate) fn rebind_root_camera(&self, _node: &Rc<ExpandedNode>) {}
+
+    #[cfg(feature = "3d")]
+    pub(crate) fn rebind_root_camera(&self, node: &Rc<ExpandedNode>) {
+        #[cfg(feature = "designtime")]
+        let root = self
+            .get_userland_root_expanded_node()
+            .or_else(|| self.get_root_expanded_node());
+        #[cfg(not(feature = "designtime"))]
+        let root = self.get_root_expanded_node();
+        if root.as_ref().is_some_and(|root| root.id == node.id) {
+            crate::camera::bind_root(node, self.globals().renderer_is_gpu);
+        }
     }
 
     /// Clear the registered root expanded node.
@@ -848,6 +866,10 @@ impl RuntimeContext {
             }
         }
 
+        if change != ScrollerSurfaceStateChange::Unchanged {
+            self.invalidate_projected_scroll_descendants(id);
+        }
+
         change
     }
 
@@ -888,6 +910,7 @@ impl RuntimeContext {
             self.mark_occlusion_presentation_dirty(id);
             self.invalidate_viewport_presentation();
             self.mark_layer_canvas_plans_dirty();
+            self.invalidate_projected_scroll_descendants(id);
         }
 
         change
@@ -988,7 +1011,7 @@ impl RuntimeContext {
         }
         #[cfg(feature = "3d")]
         {
-            let geometry = node.spatial_geometry.get();
+            let geometry = node.presentation_geometry.get();
             if geometry.is_spatial() {
                 let m = geometry.world_transform().coeffs();
                 // Project the local scroll vector directly. The projected plane can be
@@ -999,14 +1022,19 @@ impl RuntimeContext {
                 ));
             }
         }
-        let world_transform = Affine::from(node.transform_and_bounds.get().transform);
-        let inverse_world = Affine::from(node.transform_and_bounds.get().transform.inverse());
+        let world_transform = Affine::from(node.presentation_transform_and_bounds.get().transform);
+        let inverse_world = Affine::from(
+            node.presentation_transform_and_bounds
+                .get()
+                .transform
+                .inverse(),
+        );
         world_transform * Affine::translate((-scroll_x, -scroll_y)) * inverse_world
     }
 
     #[cfg(feature = "3d")]
     fn scroller_content_depth_offset(&self, node: &ExpandedNode) -> f64 {
-        let geometry = node.spatial_geometry.get();
+        let geometry = node.presentation_geometry.get();
         if !geometry.is_spatial() {
             return 0.0;
         }
@@ -1021,15 +1049,17 @@ impl RuntimeContext {
         node: &ExpandedNode,
         presented: Affine,
     ) -> Option<pax_runtime_api::DepthPlane> {
+        if node.has_perspective_camera() {
+            return self.presented_projection_for_node(node)?.depth_plane();
+        }
         let offset = self.presentation_depth_offset(node);
-        let plane = self.depth_plane_in_presentation(
-            node,
-            node.spatial_geometry
-                .get()
-                .depth_plane(pax_runtime_api::math::Transform2::new(
-                    presented.as_coeffs(),
-                )),
-        );
+        let plane =
+            self.depth_plane_in_presentation(
+                node,
+                node.presentation_geometry.get().depth_plane(
+                    pax_runtime_api::math::Transform2::new(presented.as_coeffs()),
+                ),
+            );
         if plane.is_none() && offset == 0.0 {
             return None;
         }
@@ -1129,6 +1159,23 @@ impl RuntimeContext {
             .collect::<Vec<_>>();
         for layer in layers {
             self.set_canvas_dirty(layer);
+        }
+    }
+
+    fn invalidate_projected_scroll_descendants(&self, scroller_id: u32) {
+        let Some(owner) = self.get_expanded_node_by_eid(ExpandedNodeIdentifier(scroller_id)) else {
+            return;
+        };
+        if !owner.has_perspective_camera() {
+            return;
+        }
+        // A scroll translation occurs before projection. Surfaces at different
+        // depths cannot share the browser's single post-projection translation.
+        let mut pending = owner.children.get();
+        while let Some(node) = pending.pop() {
+            node.changed_listener.invalidate();
+            self.mark_canvas_node_dirty(node.id);
+            pending.extend(node.children.get());
         }
     }
 
@@ -1754,6 +1801,28 @@ impl RuntimeContext {
         }
     }
 
+    pub(crate) fn lighting_view_for_layer(&self, layer: usize) -> [f32; 4] {
+        #[cfg(all(feature = "3d", feature = "designtime"))]
+        let root = self
+            .get_userland_root_expanded_node()
+            .or_else(|| self.get_root_expanded_node());
+        #[cfg(all(feature = "3d", not(feature = "designtime")))]
+        let root = self.get_root_expanded_node();
+        #[cfg(feature = "3d")]
+        if let Some(root) = root {
+            let mut view = root.presentation_view.get().lighting_view;
+            if view[3] != 0. {
+                let scroll = self.lighting_layer_scrolls(layer)[&layer];
+                for axis in 0..3 {
+                    view[axis] -= scroll[axis];
+                }
+            }
+            return view.map(|v| v as f32);
+        }
+        let _ = layer;
+        [0., 0., 1., 0.]
+    }
+
     fn nearest_light_frame(node: &ExpandedNode) -> Option<ExpandedNodeIdentifier> {
         let mut current = node.presentation_parent_node();
         while let Some(parent) = current {
@@ -1864,8 +1933,181 @@ impl RuntimeContext {
     /// Scroller-owned layers use the registered owner's origin; root layers use
     /// window coordinates. Detached mask sources retain their scene transform until
     /// capture projection. Physical tile offsets are applied later by the renderer.
+    pub(crate) fn presented_clip_path(&self, node: &ExpandedNode) -> Option<kurbo::BezPath> {
+        let instance = borrow!(node.instance_node);
+        if let Some(local) = instance.resolve_local_clip_path(node) {
+            return Some(
+                self.presented_projection_for_node(node)?
+                    .project_path(&local, None),
+            );
+        }
+        let path = instance.resolve_effect_clip_path(node)?;
+        let mapping = self.presented_projection_for_node(node)?.mapping()
+            * node.presentation_projection()?.mapping().inverse()?;
+        Some(mapping.project_path(&path, 0.1))
+    }
+
+    /// Projects a node after applying ancestor scrolling in world space.
+    pub fn presented_projection_for_node(
+        &self,
+        node: &ExpandedNode,
+    ) -> Option<pax_runtime_api::math::ProjectedPlane> {
+        #[cfg(not(feature = "3d"))]
+        {
+            return Some(
+                node.presentation_projection()?
+                    .post_affine(self.presentation_scroll_transform_for_node(node)),
+            );
+        }
+        #[cfg(feature = "3d")]
+        {
+            use pax_runtime_api::math::{Transform3, Vector3};
+            let offset = self.world_scroll_offset(node);
+            let world = node.spatial_geometry.get();
+            let moved = crate::SpatialGeometry::new(
+                Transform3::<Window, Window>::translate(Vector3::new(
+                    offset[0], offset[1], offset[2],
+                )) * world.world_transform(),
+                world.bounds,
+            );
+            node.presentation_view.get().plane(moved)
+        }
+    }
+
+    #[cfg(feature = "3d")]
+    fn world_scroll_offset(&self, node: &ExpandedNode) -> [f64; 3] {
+        let mut offset = [0.; 3];
+        let mut ancestor = node.render_parent_node();
+        while let Some(parent) = ancestor {
+            if borrow!(parent.instance_node).scrolls_content(&parent) {
+                let (x, y) = self.scroller_presentation_offset(&parent);
+                let m = parent.spatial_geometry.get().world_transform().coeffs();
+                for axis in 0..3 {
+                    offset[axis] -= m[axis] * x + m[4 + axis] * y;
+                }
+            }
+            ancestor = parent.render_parent_node();
+        }
+        offset
+    }
+
+    /// Matrix delivered to a native host whose ancestor scrollers already apply
+    /// their own projected scroll motion. Compensates that motion so each plane
+    /// receives its world-space scroll displacement before perspective division.
+    pub fn native_presentation_matrix_for_node(&self, node: &ExpandedNode) -> Vec<f64> {
+        let mapping = self
+            .native_presentation_projection_for_node(node)
+            .map(|p| p.mapping());
+        mapping.map_or_else(
+            || vec![0.; 6],
+            |mapping| {
+                mapping.as_affine().map_or_else(
+                    || mapping.matrix3d().to_vec(),
+                    |affine| affine.as_coeffs().to_vec(),
+                )
+            },
+        )
+    }
+
+    /// Native presentation with camera clipping retained for projected clip paths.
+    pub fn native_presentation_projection_for_node(
+        &self,
+        node: &ExpandedNode,
+    ) -> Option<pax_runtime_api::math::ProjectedPlane> {
+        if !node.has_perspective_camera() {
+            return node.presentation_projection();
+        }
+        Some(
+            self.presented_projection_for_node(node)?
+                .post_mapping(self.native_scroll_mapping(node)?.inverse()?),
+        )
+    }
+
+    fn native_scroll_mapping(
+        &self,
+        node: &ExpandedNode,
+    ) -> Option<pax_runtime_api::math::PlanarProjection> {
+        use pax_runtime_api::math::PlanarProjection;
+        let mut ancestors = Vec::new();
+        let mut parent = node.render_parent_node();
+        while let Some(node) = parent {
+            parent = node.render_parent_node();
+            if borrow!(node.instance_node).scrolls_content(&node) {
+                ancestors.push(node);
+            }
+        }
+        let mut mapping = PlanarProjection::default();
+        for owner in ancestors.into_iter().rev() {
+            let (x, y) = self.scroller_presentation_offset(&owner);
+            if x == 0. && y == 0. {
+                continue;
+            }
+            let plane = self.presented_projection_for_node(&owner)?.mapping();
+            mapping = plane
+                * PlanarProjection::from(Affine::translate((-x, -y)))
+                * plane.inverse()?
+                * mapping;
+        }
+        Some(mapping)
+    }
+
+    /// Projects into the owning canvas's scroll-content chart. The browser
+    /// applies the owner's projection and local scroll after this rendering.
+    /// Camera clipping remains in the source plane's original coordinates.
+    pub fn canvas_surface_projection_for_node(
+        &self,
+        node: &ExpandedNode,
+    ) -> Option<pax_runtime_api::math::ProjectedPlane> {
+        let projection = self.presented_projection_for_node(node)?;
+        if node.is_render_source() {
+            return Some(projection);
+        }
+        Some(
+            projection
+                .post_mapping(self.window_to_canvas_mapping(node.occlusion.get().render_layer_id)?),
+        )
+    }
+
+    /// Maps presented window coordinates into a canvas's scroll-content chart.
+    /// This also applies to detached sources whose logical layer differs from the consumer.
+    pub fn window_to_canvas_mapping(
+        &self,
+        layer: usize,
+    ) -> Option<pax_runtime_api::math::PlanarProjection> {
+        use pax_runtime_api::math::PlanarProjection;
+        let owner = self
+            .get_layer_scroller_owner(layer)
+            .and_then(|id| self.get_expanded_node_by_eid(id));
+        match owner {
+            Some(owner) => {
+                let (x, y) = self.scroller_presentation_offset(&owner);
+                Some(
+                    PlanarProjection::from(Affine::translate((x, y)))
+                        * self
+                            .presented_projection_for_node(&owner)?
+                            .mapping()
+                            .inverse()?,
+                )
+            }
+            None => Some(PlanarProjection::default()),
+        }
+    }
+
+    /// Projects a detached source directly into its consuming canvas, preserving
+    /// camera clipping before the canvas owner's projective mapping is inverted.
+    pub fn canvas_projection_on_layer(
+        &self,
+        node: &ExpandedNode,
+        layer: usize,
+    ) -> Option<pax_runtime_api::math::ProjectedPlane> {
+        Some(
+            self.presented_projection_for_node(node)?
+                .post_mapping(self.window_to_canvas_mapping(layer)?),
+        )
+    }
+
     pub fn canvas_surface_transform_for_node(&self, node: &ExpandedNode) -> Affine {
-        let transform = Affine::from(node.transform_and_bounds.get().transform);
+        let transform = Affine::from(node.presentation_transform_and_bounds.get().transform);
         if node.is_render_source() {
             return transform;
         }
@@ -1876,7 +2118,13 @@ impl RuntimeContext {
         self.get_layer_scroller_owner(own_layer)
             .and_then(|owner| self.get_expanded_node_by_eid(owner))
             .map_or(transform, |owner| {
-                Affine::from(owner.transform_and_bounds.get().transform.inverse()) * transform
+                Affine::from(
+                    owner
+                        .presentation_transform_and_bounds
+                        .get()
+                        .transform
+                        .inverse(),
+                ) * transform
             })
     }
 
@@ -1921,7 +2169,7 @@ impl RuntimeContext {
         &self,
         node: &ExpandedNode,
     ) -> Rc<crate::scene_geometry::PreparedCanvasGeometry> {
-        let tab = node.transform_and_bounds.get();
+        let tab = node.presentation_transform_and_bounds.get();
         let local = borrow!(node.instance_node).prepare_canvas_geometry(node);
         let mut prepared = crate::scene_geometry::PreparedCanvasGeometry::new(
             node.occlusion.get().render_layer_id,
@@ -1929,23 +2177,63 @@ impl RuntimeContext {
             self.canvas_surface_transform_for_node(node),
             local,
         );
+        if node.has_perspective_camera() {
+            prepared.projection = self.canvas_surface_projection_for_node(node);
+            prepared.world_projection = self.presented_projection_for_node(node);
+            prepared.coverage_bounds = prepared.local.local_bounds.map(|bounds| {
+                prepared
+                    .projection
+                    .and_then(|p| p.coverage(bounds, None))
+                    .map(|r| r.inflate(64., 64.))
+                    .unwrap_or(kurbo::Rect::ZERO)
+            });
+        }
         prepared.world_transform = Affine::from(tab.transform);
         #[cfg(feature = "3d")]
         {
-            prepared.spatial_geometry = node.spatial_geometry.get();
+            prepared.spatial_geometry = node.presentation_geometry.get();
             prepared.solid = borrow!(node.instance_node).resolve_convex_mesh(node);
             if let Some(solid) = &prepared.solid {
-                let inverse = self.canvas_surface_to_world(prepared.layer).inverse();
-                let mut path = kurbo::BezPath::new();
-                for (i, p) in solid.silhouette().iter().enumerate() {
-                    if i == 0 {
-                        path.move_to((p[0], p[1]));
-                    } else {
-                        path.line_to((p[0], p[1]));
-                    }
+                use pax_runtime_api::math::{Generic, Transform3, Vector3};
+                let mut world = Transform3::<Generic>::new(solid.transform);
+                if node.has_perspective_camera() {
+                    let offset = self.world_scroll_offset(node);
+                    world = Transform3::translate(Vector3::new(offset[0], offset[1], offset[2]))
+                        * world;
                 }
-                path.close_path();
-                prepared.coverage_bounds = Some((inverse * path).bounding_box().inflate(64., 64.));
+                let projection = node.presentation_view.get().mesh(world.coeffs());
+                prepared.projected_solid = projection.map(|projection| solid.projected(projection));
+                let mapping = if node.has_perspective_camera() {
+                    self.window_to_canvas_mapping(prepared.layer)
+                } else {
+                    Some(
+                        self.get_layer_scroller_owner(prepared.layer)
+                            .and_then(|id| self.get_expanded_node_by_eid(id))
+                            .map_or(Affine::IDENTITY, |owner| {
+                                Affine::from(
+                                    owner
+                                        .presentation_transform_and_bounds
+                                        .get()
+                                        .transform
+                                        .inverse(),
+                                )
+                            })
+                            .into(),
+                    )
+                };
+                prepared.solid_projection = projection
+                    .zip(mapping)
+                    .map(|(projection, mapping)| projection.post_mapping(mapping));
+                prepared.coverage_bounds = prepared
+                    .solid_projection
+                    .and_then(|projection| solid.projected(projection).coverage_bounds())
+                    .map(|bounds| {
+                        if bounds.area() == 0. {
+                            bounds
+                        } else {
+                            bounds.inflate(64., 64.)
+                        }
+                    });
             }
         }
         // Detached mask sources reuse prepared geometry without entering visible
@@ -2184,7 +2472,49 @@ impl RuntimeContext {
                 } else {
                     0.0
                 };
-            let hit = node.ray_cast_test(active_scroll_transform.inverse() * ray);
+            let projected = node
+                .has_perspective_camera()
+                .then(|| self.presented_projection_for_node(&node))
+                .flatten();
+            #[cfg(feature = "3d")]
+            let solid = if spatial_possible
+                && borrow!(node.instance_node).base().flags().layer == crate::api::Layer::Canvas
+            {
+                self.canvas_geometry_for_node(&node).projected_solid.clone()
+            } else {
+                None
+            };
+            #[cfg(feature = "3d")]
+            let solid_depth = solid.as_ref().and_then(|solid| {
+                let p = if node.has_perspective_camera() {
+                    ray
+                } else {
+                    active_scroll_transform.inverse() * ray
+                };
+                solid.depth_at(p.x, p.y)
+            });
+            #[cfg(feature = "3d")]
+            let solid_hit = solid.as_ref().map(|_| {
+                borrow!(node.get_common_properties())
+                    ._raycastable
+                    .get()
+                    .unwrap_or(true)
+                    && solid_depth.is_some()
+            });
+            #[cfg(not(feature = "3d"))]
+            let solid_hit: Option<bool> = None;
+            let hit = solid_hit.unwrap_or_else(|| {
+                if node.has_perspective_camera() {
+                    let props = node.get_common_properties();
+                    let enabled = borrow!(props)._raycastable.get().unwrap_or(true);
+                    enabled
+                        && projected
+                            .and_then(|p| p.local_point(kurbo::Point::new(ray.x, ray.y)))
+                            .is_some_and(|p| borrow!(node.instance_node).local_hit_test(&node, p))
+                } else {
+                    node.ray_cast_test(active_scroll_transform.inverse() * ray)
+                }
+            });
             if hit && !clipped {
                 if hit_invisible
                     || !borrow!(node.instance_node)
@@ -2198,22 +2528,20 @@ impl RuntimeContext {
                     #[cfg(feature = "3d")]
                     {
                         let presented = active_scroll_transform
-                            * Affine::from(node.transform_and_bounds.get().transform);
-                        let plane = spatial_possible
-                            .then(|| {
-                                node.spatial_geometry.get().depth_plane(
-                                    pax_runtime_api::math::Transform2::new(presented.as_coeffs()),
-                                )
-                            })
-                            .flatten();
-                        let solid_depth = self
-                            .canvas_geometry_for_node(&node)
-                            .solid
-                            .as_ref()
-                            .and_then(|solid| {
-                                let p = active_scroll_transform.inverse() * ray;
-                                solid.depth_at(p.x, p.y)
-                            });
+                            * Affine::from(node.presentation_transform_and_bounds.get().transform);
+                        let plane = if node.has_perspective_camera() {
+                            projected.and_then(|p| p.depth_plane())
+                        } else {
+                            spatial_possible
+                                .then(|| {
+                                    node.presentation_geometry.get().depth_plane(
+                                        pax_runtime_api::math::Transform2::new(
+                                            presented.as_coeffs(),
+                                        ),
+                                    )
+                                })
+                                .flatten()
+                        };
                         has_spatial_hit |=
                             solid_depth.is_some() || plane.is_some() || active_depth_offset != 0.0;
                         let plane = plane.unwrap_or_default();
@@ -2221,7 +2549,11 @@ impl RuntimeContext {
                             node.id,
                             (
                                 solid_depth.unwrap_or_else(|| plane.depth_at(ray.x, ray.y))
-                                    + active_depth_offset,
+                                    + if node.has_perspective_camera() {
+                                        0.
+                                    } else {
+                                        active_depth_offset
+                                    },
                                 plane.backface,
                                 accum.len(),
                                 node.presentation_layer.get(),
@@ -2370,7 +2702,21 @@ impl RuntimeContext {
 
     pub fn edit_globals(&self, f: impl Fn(&mut Globals)) {
         let mut globals = borrow_mut!(self.globals);
+        let previous_gpu = globals.renderer_is_gpu;
         f(&mut globals);
+        let changed = previous_gpu != globals.renderer_is_gpu;
+        drop(globals);
+        if changed {
+            #[cfg(feature = "designtime")]
+            let root = self
+                .get_userland_root_expanded_node()
+                .or_else(|| self.get_root_expanded_node());
+            #[cfg(not(feature = "designtime"))]
+            let root = self.get_root_expanded_node();
+            if let Some(root) = root {
+                self.rebind_root_camera(&root);
+            }
+        }
     }
 
     pub fn queue_custom_event(&self, source_expanded_node: Rc<ExpandedNode>, name: &'static str) {
@@ -2399,6 +2745,20 @@ impl RuntimeContext {
 
     #[cfg(feature = "designtime")]
     pub fn set_userland_root_expanded_node(&self, root: Option<Rc<ExpandedNode>>) {
+        #[cfg(feature = "3d")]
+        {
+            if let Some(previous) = self
+                .get_userland_root_expanded_node()
+                .or_else(|| self.get_root_expanded_node())
+            {
+                previous
+                    .own_camera_view
+                    .replace_with(LocalProperty::new(None));
+            }
+            if let Some(root) = &root {
+                crate::camera::bind_root(root, self.globals().renderer_is_gpu);
+            }
+        }
         *borrow_mut!(self.userland_root_expanded_node) = root;
     }
 
@@ -2756,6 +3116,7 @@ mod light_scope_tests {
             children: Some(RefCell::new(children)),
             component_template: None,
             component_settings: None,
+            component_camera: None,
             template_node_identifier: None,
             template_node_type_id: None,
             template_node_selector_info: None,
@@ -2772,6 +3133,7 @@ mod light_scope_tests {
             children: None,
             component_template: Some(RefCell::new(template)),
             component_settings: None,
+            component_camera: None,
             template_node_identifier: None,
             template_node_type_id: None,
             template_node_selector_info: None,
@@ -3679,7 +4041,7 @@ mod light_scope_tests {
             (&mask, mask_transform, 0, Some(inner.id)),
             (&leaf, leaf_transform, 2, Some(mask.id)),
         ] {
-            node.transform_and_bounds
+            node.presentation_transform_and_bounds
                 .replace_with(LocalProperty::new(TransformAndBounds {
                     transform: Transform2::new(transform.as_coeffs()),
                     bounds: (100.0, 100.0),
@@ -3734,7 +4096,7 @@ mod light_scope_tests {
         let knob = root.children.get()[0].clone();
         let display = root.children.get()[1].clone();
         for (node, x) in [(&knob, 0.), (&display, 120.)] {
-            node.transform_and_bounds
+            node.presentation_transform_and_bounds
                 .replace_with(LocalProperty::new(TransformAndBounds {
                     transform: Transform2::new(Affine::translate((x, 0.)).as_coeffs()),
                     bounds: (100., 100.),

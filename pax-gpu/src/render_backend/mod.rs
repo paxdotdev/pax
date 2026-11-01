@@ -174,6 +174,7 @@ impl GpuContext {
         compatible_surface: &wgpu::Surface<'_>,
         _config: &RenderConfig,
     ) -> Result<SharedGpuContext, anyhow::Error> {
+        log::info!("render backend: requesting GPU adapter");
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: default_power_preference(),
@@ -181,7 +182,7 @@ impl GpuContext {
                 force_fallback_adapter: false,
             })
             .await
-            .map_err(|_| anyhow!("couldn't find adapter"))?;
+            .map_err(|error| anyhow!("GPU adapter request failed: {error}"))?;
         let adapter_info = adapter.get_info();
         log::info!(
             "render backend: using {:?} adapter \"{}\"",
@@ -201,6 +202,7 @@ impl GpuContext {
         let required_limits = adapter.limits();
         #[cfg(test)]
         let required_limits = _config.required_limits.clone().unwrap_or(required_limits);
+        log::info!("render backend: requesting GPU device");
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
@@ -956,7 +958,7 @@ impl<'w> RenderBackend<'w> {
             return Ok((backend, context));
         }
 
-        let instance = Self::new_browser_instance(config.debug).await;
+        let instance = Self::new_browser_instance(config.debug);
         let surface_target = wgpu::SurfaceTarget::Canvas(canvas.clone());
         let surface = instance.create_surface(surface_target)?;
         let context = GpuContext::new(instance, &surface, &config).await?;
@@ -1360,7 +1362,7 @@ impl<'w> RenderBackend<'w> {
     }
 
     #[cfg(target_arch = "wasm32")]
-    async fn new_browser_instance(debug: bool) -> wgpu::Instance {
+    fn new_browser_instance(debug: bool) -> wgpu::Instance {
         let descriptor = wgpu::InstanceDescriptor {
             backends: wgpu::Backends::BROWSER_WEBGPU,
             flags: if debug {
@@ -1372,7 +1374,11 @@ impl<'w> RenderBackend<'w> {
             backend_options: Default::default(),
         };
 
-        wgpu::util::new_instance_with_webgpu_detection(&descriptor).await
+        // The detection helper requests and discards an adapter before we can
+        // request our own. It is for WebGPU/WebGL selection; this backend is
+        // WebGPU-only. Let the real surface/adapter/device attempt report
+        // failure to the chassis, which owns Vello CPU fallback selection.
+        wgpu::Instance::new(&descriptor)
     }
 
     fn create_pipeline(
@@ -2288,7 +2294,11 @@ impl<'w> RenderBackend<'w> {
         }
 
         #[cfg(feature = "3d")]
-        let solid_depth = runs.iter().any(|run| run.draws.iter().any(|d| matches!(d, RetainedDraw::Solid(_))));
+        let solid_depth = runs.iter().any(|run| {
+            run.draws
+                .iter()
+                .any(|d| matches!(d, RetainedDraw::Solid(_)))
+        });
         #[cfg(not(feature = "3d"))]
         let solid_depth = false;
         let load_op = self.take_color_load_op();
@@ -2300,7 +2310,10 @@ impl<'w> RenderBackend<'w> {
             let stencil_texture = self.stencil_renderer.stencil_view_clone();
             let depth_stencil_attachment = Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &stencil_texture,
-                depth_ops: solid_depth.then_some(wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store }),
+                depth_ops: solid_depth.then_some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
                 stencil_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
@@ -2351,7 +2364,11 @@ impl<'w> RenderBackend<'w> {
                 for draw in &run.draws {
                     match draw {
                         #[cfg(feature = "3d")]
-                        RetainedDraw::Solid(resource) => self.solid_renderer.as_ref().unwrap().draw(resource, &mut render_pass),
+                        RetainedDraw::Solid(resource) => self
+                            .solid_renderer
+                            .as_ref()
+                            .unwrap()
+                            .draw(resource, &mut render_pass),
                         #[cfg(feature = "shaders")]
                         RetainedDraw::Effect(id) => {
                             if let Some(effects) = &self.effects {
@@ -2400,7 +2417,10 @@ impl<'w> RenderBackend<'w> {
             let stencil_texture = self.stencil_renderer.stencil_view_clone();
             let depth_stencil_attachment = Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &stencil_texture,
-                depth_ops: solid_depth.then_some(wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store }),
+                depth_ops: solid_depth.then_some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
                 stencil_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
@@ -2435,7 +2455,11 @@ impl<'w> RenderBackend<'w> {
                 for draw in &run.draws {
                     match draw {
                         #[cfg(feature = "3d")]
-                        RetainedDraw::Solid(resource) => self.solid_renderer.as_ref().unwrap().draw(resource, &mut render_pass),
+                        RetainedDraw::Solid(resource) => self
+                            .solid_renderer
+                            .as_ref()
+                            .unwrap()
+                            .draw(resource, &mut render_pass),
                         #[cfg(feature = "shaders")]
                         RetainedDraw::Effect(id) => {
                             if let Some(effects) = &self.effects {
@@ -2531,6 +2555,37 @@ impl<'w> RenderBackend<'w> {
     ) -> RetainedImageDraw {
         let corners = transformed_corners(&rect, &transform);
         let verts = corners_to_texture_vertices(corners, opacity);
+        let resource =
+            self.texture_renderer
+                .create_retained_image_resource(&self.device, image_key, verts);
+        RetainedImageDraw { resource }
+    }
+
+    pub(crate) fn create_projected_image_draw(
+        &self,
+        image_key: String,
+        plane: pax_runtime_api::math::ProjectedPlane,
+        rect: Box2D,
+        opacity: f32,
+    ) -> RetainedImageDraw {
+        let corners = [
+            rect.min,
+            crate::point(rect.max.x, rect.min.y),
+            crate::point(rect.min.x, rect.max.y),
+            rect.max,
+        ];
+        let mut verts = corners_to_texture_vertices(corners.map(|p| p.to_array()), opacity);
+        for (vertex, point) in verts.iter_mut().zip(corners) {
+            let h = plane
+                .matrix()
+                .transform_homogeneous([point.x as f64, point.y as f64, 0., 1.]);
+            vertex.position = [h[0], h[1], 0., h[3]].map(|v| v as f32);
+            if plane.clips_depth() {
+                vertex.camera_clip = plane
+                    .camera_clip_rows()
+                    .map(|r| (r[0] * point.x as f64 + r[1] * point.y as f64 + r[2]) as f32);
+            }
+        }
         let resource =
             self.texture_renderer
                 .create_retained_image_resource(&self.device, image_key, verts);
@@ -3620,9 +3675,9 @@ mod shader_tests {
     #[test]
     fn transform_abi_matches_geometry_and_stencil_shaders() {
         let size = std::mem::size_of::<super::data::GpuTransform>();
-        assert_eq!(size, if cfg!(feature = "3d") { 96 } else { 32 });
+        assert_eq!(size, if cfg!(feature = "3d") { 176 } else { 32 });
         let page_size = size * super::transform_pages::TRANSFORMS_PER_PAGE;
-        assert_eq!(page_size, 15 * 1024);
+        assert!(page_size <= 15 * 1024);
         for source in [
             super::geometry_shader_source(),
             super::stencil_shader_source(),

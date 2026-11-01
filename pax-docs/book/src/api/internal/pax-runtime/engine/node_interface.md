@@ -76,6 +76,18 @@ Reactive measured bounds, distinct from provisional parent-derived layout.
 `None` means that no measurement is available. Subscribe to this property
 when feeding a child's measured extent back into an ancestor's layout.
 
+##### `presentation_projection`
+<pre><code class="api-signature language-rust ignore">pub fn presentation_projection(&amp;self) -&gt; Option&lt;<a href="../../../../api/pax-runtime-api/math/projection.md#projectedplane">ProjectedPlane</a>&gt;</code></pre>
+
+Homogeneous camera geometry before ancestor scrolling, with camera clipping
+preserved independently of local layout. Singular input mappings are unavailable.
+
+##### `presentation_transform_and_bounds`
+<pre><code class="api-signature language-rust ignore">pub fn presentation_transform_and_bounds(&amp;self) -&gt; LocalProperty&lt;<a href="../../../../api/internal/pax-runtime/layout.md#transformandbounds">TransformAndBounds</a>&lt;<a href="../../../../api/internal/pax-runtime/engine/node_interface.md#nodelocal">NodeLocal</a>, <a href="../../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;&gt;</code></pre>
+
+Affine presentation compatibility view before native scroll offsets.
+Use `presentation_projection` for homogeneous camera geometry.
+
 ##### `render_parent`
 <pre><code class="api-signature language-rust ignore">pub fn render_parent(&amp;self) -&gt; Option&lt;<a href="../../../../api/internal/pax-runtime/engine/node_interface.md#nodeinterface">NodeInterface</a>&gt;</code></pre>
 
@@ -101,7 +113,8 @@ Parent in template ownership order.
 ##### `transform_and_bounds`
 <pre><code class="api-signature language-rust ignore">pub fn transform_and_bounds(&amp;self) -&gt; LocalProperty&lt;<a href="../../../../api/internal/pax-runtime/layout.md#transformandbounds">TransformAndBounds</a>&lt;<a href="../../../../api/internal/pax-runtime/engine/node_interface.md#nodelocal">NodeLocal</a>, <a href="../../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;&gt;</code></pre>
 
-Reactive transform-and-bounds property for this node.
+Reactive world footprint before camera projection and native scrolling.
+Use `presentation_transform_and_bounds` to inspect the camera-projected footprint.
 
 ##### `with_properties`
 <pre><code class="api-signature language-rust ignore">pub fn with_properties&lt;V, T: <a href="../../../../api/pax-runtime-api/pax_value.md#tofrompaxany">ToFromPaxAny</a>&gt;(&amp;self, f: impl FnOnce(&amp;mut T) -&gt; V) -&gt; Option&lt;V&gt;</code></pre>

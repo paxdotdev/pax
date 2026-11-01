@@ -442,7 +442,7 @@ pub(crate) fn calculate_spatial_transform(
     container: TransformAndBounds<NodeLocal, Window>,
     rotate_x: f64,
     rotate_y: f64,
-    translate_z: f64,
+    z: f64,
 ) -> pax_runtime_api::math::Transform3<NodeLocal, NodeLocal> {
     use pax_runtime_api::math::{Transform3, Vector3};
     let (parts, anchor, _) = resolve_layout_transform(layout, container.bounds);
@@ -455,7 +455,7 @@ pub(crate) fn calculate_spatial_transform(
     }
     .into();
     Transform3::from(container.transform.cast_spaces::<NodeLocal, NodeLocal>())
-        * Transform3::<NodeLocal>::translate(Vector3::new(origin.x, origin.y, translate_z))
+        * Transform3::<NodeLocal>::translate(Vector3::new(origin.x, origin.y, z))
         * Transform3::<NodeLocal>::rotate_z(rotation)
         * Transform3::<NodeLocal>::rotate_y(rotate_y)
         * Transform3::<NodeLocal>::rotate_x(rotate_x)

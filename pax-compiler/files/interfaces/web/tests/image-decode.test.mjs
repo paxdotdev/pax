@@ -1,13 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
 import vm from 'node:vm';
-import {transformSync} from 'esbuild';
+import {buildSync} from 'esbuild';
 
-const source = readFileSync(new URL('../src/utils/helpers.ts', import.meta.url), 'utf8');
+const source = buildSync({
+    entryPoints: [fileURLToPath(new URL('../src/utils/helpers.ts', import.meta.url))],
+    bundle: true, format: 'cjs', write: false,
+}).outputFiles[0].text;
 function load(globals) {
     const module = {exports: {}};
-    vm.runInNewContext(transformSync(source, {loader: 'ts', format: 'cjs'}).code,
+    vm.runInNewContext(source,
         {module, exports: module.exports, ...globals});
     return module.exports.readImageToByteBuffer;
 }

@@ -1,4 +1,4 @@
-use kurbo::{Affine, BezPath, Rect, Shape};
+use kurbo::{BezPath, Rect, Shape};
 use pax_engine::api::LocalProperty;
 
 use pax_engine::api::PathElement;
@@ -147,7 +147,7 @@ impl InstanceNode for PathInstance {
             }
         });
 
-        let tab = expanded_node.transform_and_bounds.clone();
+        let tab = expanded_node.presentation_transform_and_bounds.clone();
         let (elements, stroke, fill, smoothing, draw_start, draw_end) = expanded_node
             .with_properties_unwrapped(|properties: &mut Path| {
                 (
@@ -202,9 +202,9 @@ impl InstanceNode for PathInstance {
         }
     }
 
-    fn resolve_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
+    fn resolve_local_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-            let bounds = expanded_node.transform_and_bounds.get().bounds;
+            let bounds = expanded_node.presentation_transform_and_bounds.get().bounds;
             let elements = properties.elements.local().get();
             let local_path = smooth_bez_path(
                 &build_local_bez_path(&elements, bounds)?,
@@ -226,8 +226,7 @@ impl InstanceNode for PathInstance {
             if coverage.elements().is_empty() {
                 return None;
             }
-            let tab = expanded_node.transform_and_bounds.get();
-            Some(Affine::from(tab.transform) * coverage)
+            Some(coverage)
         })
     }
 
@@ -238,7 +237,7 @@ impl InstanceNode for PathInstance {
         node.with_properties_unwrapped(|p: &mut Path| {
             let Some(path) = build_local_bez_path(
                 &p.elements.local().get(),
-                node.transform_and_bounds.get().bounds,
+                node.presentation_transform_and_bounds.get().bounds,
             ) else {
                 return Vec::new();
             };
@@ -254,9 +253,9 @@ impl InstanceNode for PathInstance {
         })
     }
 
-    fn resolve_occlusion_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
+    fn resolve_local_occlusion_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-            let bounds = expanded_node.transform_and_bounds.get().bounds;
+            let bounds = expanded_node.presentation_transform_and_bounds.get().bounds;
             let elements = properties.elements.local().get();
             let local_path = smooth_bez_path(
                 &build_local_bez_path(&elements, bounds)?,
@@ -271,8 +270,7 @@ impl InstanceNode for PathInstance {
             if coverage.elements().is_empty() {
                 return None;
             }
-            let tab = expanded_node.transform_and_bounds.get();
-            Some(Affine::from(tab.transform) * coverage)
+            Some(coverage)
         })
     }
 
@@ -294,7 +292,7 @@ impl InstanceNode for PathInstance {
         &self,
         expanded_node: &ExpandedNode,
     ) -> pax_runtime::scene_geometry::CanvasGeometry {
-        let bounds = expanded_node.transform_and_bounds.get().bounds;
+        let bounds = expanded_node.presentation_transform_and_bounds.get().bounds;
         let layout_bounds = Rect::new(0.0, 0.0, bounds.0, bounds.1);
         let (bez_path, local_coverage_bounds) =
             expanded_node.with_properties_unwrapped(|properties: &mut Path| {
@@ -344,7 +342,7 @@ impl InstanceNode for PathInstance {
         if let Some(bez_path) = bez_path {
             expanded_node.with_properties_unwrapped(|properties: &mut Path| {
                 rc.save(scope.layer_id);
-                rc.transform(scope.layer_id, scope.surface_transform);
+                scope.apply_transform(rc);
                 crate::common::draw_appearance(
                     rc,
                     scope.layer_id,

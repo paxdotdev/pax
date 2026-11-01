@@ -40,14 +40,15 @@ mode. Phase durations measure CPU work, not GPU time or presented frames; see
 
 The solid uses a shared, immutable 64 × 32 sphere mesh. Width, height, depth, and
 pose transform that mesh; motion does not upload new vertex/index data. Each
-immutable pose retains its silhouette and at most 32 recently used plane
-coverage contours. Paint-only updates reuse the pose; motion replaces it and
+immutable world pose retains up to four camera/chart projections, each with its
+silhouette and at most 32 recently used plane coverage contours. Paint-only updates reuse the pose; motion replaces it and
 removing the solid releases its contours. Hard
 projected clips and whole-group fades are supported. Exact spatial fades use up
 to eight scene views per canvas tile (one assembly needs two); overflow reports a
 warning and leaves intermediate GPU fades opaque, while zero remains hidden.
 Opacity-only changes reuse captures. Alpha masks, shader captures, translucent
-solid materials, perspective, and arbitrary concave meshes are not supported.
+solid materials and arbitrary concave meshes are not supported. Root cameras,
+including experimental GPU perspective, apply to the solids and their fades.
 Native transparency stacking remains approximate; this checkpoint does not
 rasterize native text or controls into those scene views. Native/scroller layers
 keep their existing stacking limits; intersections resolve within one logical

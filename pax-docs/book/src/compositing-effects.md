@@ -488,10 +488,14 @@ results are cached. A moving or fading overlay can invalidate that cache every
 frame, so a large masked surface can still be expensive. Native and rendered
 content are published synchronously to keep their coverage aligned. The browser
 uses SVG/CSS masks; the Apple rasterization cost is not a measurement of that path.
-macOS text snapshots consume that same coverage, including fully hidden pixels
-and partial opacity; changing text reapplies the mask to the new snapshot.
+On macOS, editable text and form controls use live layer masks, preserving native
+caret and selection updates as coverage changes. Read-only Text under affine
+presentation uses snapshots that consume the same coverage, including fully
+hidden pixels and partial opacity; changing text reapplies the mask to the new
+snapshot. Experimental perspective hosts keep their native content live; see
+[perspective support](layout-responsiveness.md#experimental-perspective).
 
-On macOS, masked Text snapshots include the text's painted overflow when
+On macOS, those masked Text snapshots include the text's painted overflow when
 `clip=false`; entering an overlap does not itself crop the label to its layout
 box. `clip=true` and ancestor Frame clips still constrain the text. Occlusion
 candidates are currently selected using layout bounds, so give text a box that
@@ -803,6 +807,14 @@ own opacity applies after filtering. Nested containers run from the inside
 out. Filters may expand beyond layout bounds by their declared sampling
 support; an enclosing Frame clips that expansion. Layout and hit testing
 continue to use the original tree.
+
+With `3d` and a perspective `@camera`, shader sampling coordinates remain local
+to the effect container. The renderer projects those coordinates into the source
+capture and clips output at the camera's near/far planes. A blur radius therefore
+follows the surface's local units. Detached vector alpha-mask sources likewise
+project into their consuming canvas, including a scroller's content space;
+feathering remains measured in that canvas's logical pixels. Existing capture
+restrictions and allocation limits still apply.
 
 The filtered output carries the container's presentation order. Moving a subtree
 with a shader into an `Overlay` preserves the effect above ordinary page content,

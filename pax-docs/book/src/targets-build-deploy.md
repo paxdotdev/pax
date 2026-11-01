@@ -28,18 +28,21 @@ local dependency patches and registry configuration.
 pax-kit = { version = "0.39.1", features = ["3d"] }
 ```
 
-It enables spatial common properties (`rotate_x`, `rotate_y`, `translate_z`),
+It enables root `@camera` declarations and spatial common properties (`rotate_x`, `rotate_y`, `z`),
 depth composition and picking, Cuboid/CuboidFace, RouteCuboid, and world-space
 lighting frames. With it disabled, nodes omit spatial property handles and
 retained geometry, the GPU omits spatial composition, and each GPU transform
-uses 32 bytes instead of 96. Standalone spatial math remains available.
+uses 32 bytes instead of 176. Standalone spatial math remains available.
 The separate `shaders` feature is independent; ordinary 2D lighting, materials,
 masking and subtree opacity do not require either feature.
 
 The same dependency declaration applies to CLI builds, direct Cargo builds,
 debug template reload and release-baked cartridges. A 2D application rejects
-spatial common properties at compilation; adding them through template reload
-is rejected until you enable the feature and rebuild. Applications using direct
+camera declarations and X/Y rotations at compilation; adding them through template reload
+is rejected until you enable the feature and rebuild. Common `position=[x, y]`
+remains available in 2D. A nonzero common `z` outside a light resource requires
+`3d` and is checked when resolved, including reactive third-axis values.
+`LightSource` retains planar lighting height through common `z` in 2D builds. Applications using direct
 engine/standard-library dependencies should enable `3d` on both `pax-engine`
 and `pax-std`. Dependencies that need spatial components should declare their
 own `3d` dependency requirement.

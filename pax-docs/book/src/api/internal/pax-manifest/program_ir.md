@@ -3,6 +3,15 @@
 <!-- tags: api, pax-manifest -->
 
 ## Structs
+### `ProgramComponent`
+#### Properties
+##### `camera`
+Type: `Option`<[`LiteralBlockDefinition`](../../../api/internal/pax-manifest/index.md#literalblockdefinition)>
+
+Default view configuration; active only on the mounted application root.
+
+---
+
 ### `ProgramIR`
 Runtime-facing semantic program model derived from a rich `PaxManifest`.
 
@@ -13,7 +22,7 @@ rich manifests directly until later phases cut execution over to `ProgramIR`.
 
 #### Properties
 ##### `components`
-Type: `BTreeMap`<[`TypeId`](../../../api/internal/pax-manifest/index.md#typeid), `ProgramComponent`>
+Type: `BTreeMap`<[`TypeId`](../../../api/internal/pax-manifest/index.md#typeid), [`ProgramComponent`](../../../api/internal/pax-manifest/program_ir.md#programcomponent)>
 
 ##### `main_component_type_id`
 Type: [`TypeId`](../../../api/internal/pax-manifest/index.md#typeid)

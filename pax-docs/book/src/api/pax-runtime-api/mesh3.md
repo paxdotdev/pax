@@ -7,12 +7,21 @@ Retained convex surface geometry for the opt-in spatial renderer.
 Mesh topology is immutable. Poses retain projected coverage independently of
 GPU resources; clipping a convex volume against a plane never splits its mesh.
 
+## Submodules
+- [mesh3::projection](mesh3/projection.md)
+
 ## Structs
 ### `ConvexMesh`
 An immutable, closed convex mesh. This type's coverage algorithms require
 convexity; arbitrary concave triangle soups must not use this contract.
 
 #### Implementations
+##### `projected`
+<pre><code class="api-signature language-rust ignore">pub fn projected(self: &amp;Rc&lt;Self&gt;, projection: <a href="../../api/pax-runtime-api/mesh3/projection.md#meshprojection">MeshProjection</a>, viewport: Option&lt;Rect&gt;) -&gt; Rc&lt;<a href="../../api/pax-runtime-api/mesh3/projection.md#projectedconvexmesh">ProjectedConvexMesh</a>&gt;</code></pre>
+
+Projects the actual mesh surface, clipping before division. Supplying a
+viewport also bounds a canvas chart whose projective horizon crosses it.
+
 ##### `posed`
 <pre><code class="api-signature language-rust ignore">pub fn posed(self: &amp;Rc&lt;Self&gt;, transform: [f64; 16]) -&gt; Option&lt;Rc&lt;<a href="../../api/pax-runtime-api/mesh3.md#posedconvexmesh">PosedConvexMesh</a>&gt;&gt;</code></pre>
 
@@ -53,9 +62,9 @@ Type: [`f64`; 16]
 Local mesh to unscrolled world, used for lighting.
 
 ##### `surface`
-Type: [`f64`; 16]
+Type: [`MeshProjection`](../../api/pax-runtime-api/mesh3/projection.md#meshprojection)
 
-Local mesh to canvas-content x/y, with world z retained.
+Local mesh to homogeneous canvas-content coordinates, with camera clipping.
 
 ##### `color`
 Type: [`Color`](../../api/pax-runtime-api/color.md#color)
@@ -76,6 +85,13 @@ Type: `Rc`<[`ConvexMesh`](../../api/pax-runtime-api/mesh3.md#convexmesh)>
 Type: [`f64`; 16]
 
 #### Implementations
+##### `projected`
+<pre><code class="api-signature language-rust ignore">pub fn projected(&amp;self, projection: <a href="../../api/pax-runtime-api/mesh3/projection.md#meshprojection">MeshProjection</a>) -&gt; Rc&lt;<a href="../../api/pax-runtime-api/mesh3/projection.md#projectedconvexmesh">ProjectedConvexMesh</a>&gt;</code></pre>
+
+Retains up to four camera/chart projections of this world pose. The
+supplied projection includes the world transform and camera clip planes;
+coverage is not additionally clipped to a viewport.
+
 ##### `coverage_in_front`
 <pre><code class="api-signature language-rust ignore">pub fn coverage_in_front(&amp;self, plane: <a href="../../api/pax-runtime-api/rendering.md#depthplane">DepthPlane</a>) -&gt; Vec&lt;[f64; 2]&gt;</code></pre>
 

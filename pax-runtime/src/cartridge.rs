@@ -115,10 +115,25 @@ fn runtime_property_entry(
     }
 }
 
-fn common_property_2d_axes(name: &str) -> Option<[&'static str; 2]> {
+fn common_property_axes(name: &str) -> Option<&'static [&'static str]> {
+    if name == "position" {
+        return Some(&["x", "y", "z"]);
+    }
     COMMON_PROPERTIES_2D
         .iter()
-        .find_map(|(group_name, axes)| (*group_name == name).then_some(*axes))
+        .find_map(|(group_name, axes)| (*group_name == name).then_some(axes.as_slice()))
+}
+
+// Keep legacy authored/baked settings readable without reserving the old name
+// for a future post-layout offset. Canonical z wins within the same layer.
+fn canonical_common_property_name(name: &str, has_z: bool) -> Option<&str> {
+    if name == "translate_z" {
+        static WARNING: std::sync::Once = std::sync::Once::new();
+        WARNING.call_once(|| log::warn!("translate_z is deprecated; use z for depth placement"));
+        (!has_z).then_some("z")
+    } else {
+        Some(name)
+    }
 }
 
 fn setting_value_can_define_property(value: &ValueDefinition) -> bool {
@@ -140,7 +155,7 @@ fn is_lifecycle_transition_setting_key(key: &str) -> bool {
     matches!(key, "in" | "out")
 }
 
-fn append_2d_common_property_entries(
+fn append_common_property_group_entries(
     columns: &mut RuntimeResolvedPropertyColumns,
     key: &str,
     value: &ValueDefinition,
@@ -150,7 +165,7 @@ fn append_2d_common_property_entries(
     source_stack: Option<Rc<RuntimePropertiesStackFrame>>,
     condition: Option<RuntimeSettingsCondition>,
 ) -> bool {
-    let Some(axes) = common_property_2d_axes(key) else {
+    let Some(axes) = common_property_axes(key) else {
         return false;
     };
 
@@ -193,7 +208,7 @@ pub fn property_columns_from_defined_properties(
     let mut columns = BTreeMap::new();
     for (key, value) in defined_properties {
         if setting_value_can_define_property(value) {
-            append_2d_common_property_entries(
+            append_common_property_group_entries(
                 &mut columns,
                 key,
                 value,
@@ -206,9 +221,13 @@ pub fn property_columns_from_defined_properties(
         }
     }
     for (key, value) in defined_properties {
-        if common_property_2d_axes(key).is_some() || !setting_value_can_define_property(value) {
+        if common_property_axes(key).is_some() || !setting_value_can_define_property(value) {
             continue;
         }
+        let Some(key) = canonical_common_property_name(key, defined_properties.contains_key("z"))
+        else {
+            continue;
+        };
         append_resolved_property_entry(
             &mut columns,
             key,
@@ -234,6 +253,8 @@ fn append_setting_elements(
     source_stack: Option<Rc<RuntimePropertiesStackFrame>>,
     condition: Option<RuntimeSettingsCondition>,
 ) {
+    let has_z = elements.iter().any(|element| matches!(element,
+        SettingElement::Setting(key, value) if key.token_value == "z" && setting_value_can_define_property(value)));
     for element in elements {
         let SettingElement::Setting(key, value) = element else {
             continue;
@@ -242,7 +263,7 @@ fn append_setting_elements(
             continue;
         }
         if setting_value_can_define_property(value) {
-            append_2d_common_property_entries(
+            append_common_property_group_entries(
                 columns,
                 &key.token_value,
                 value,
@@ -262,14 +283,17 @@ fn append_setting_elements(
         if is_lifecycle_transition_setting_key(&key.token_value) {
             continue;
         }
-        if common_property_2d_axes(&key.token_value).is_some()
+        if common_property_axes(&key.token_value).is_some()
             || !setting_value_can_define_property(value)
         {
             continue;
         }
+        let Some(name) = canonical_common_property_name(&key.token_value, has_z) else {
+            continue;
+        };
         append_resolved_property_entry(
             columns,
-            &key.token_value,
+            name,
             runtime_property_entry(
                 source.clone(),
                 selector.clone(),
@@ -504,7 +528,7 @@ fn overlay_static_runtime_properties(
             value,
             ValueDefinition::Timeline(_) | ValueDefinition::Transition(_)
         ) {
-            if append_2d_common_property_entries(
+            if append_common_property_group_entries(
                 columns,
                 key,
                 value,
@@ -516,6 +540,11 @@ fn overlay_static_runtime_properties(
             ) {
                 continue;
             }
+            let Some(key) =
+                canonical_common_property_name(key, base_defined_properties.contains_key("z"))
+            else {
+                continue;
+            };
             append_resolved_property_entry(
                 columns,
                 key,
@@ -1594,6 +1623,7 @@ pub trait DefinitionToInstanceTraverser {
             component_template,
             children: None,
             component_settings: component.settings.clone(),
+            component_camera: component.camera.clone(),
             template_node_identifier: None,
             template_node_type_id: None,
             template_node_selector_info: None,
@@ -1733,6 +1763,7 @@ pub trait DefinitionToInstanceTraverser {
                         component_template: None,
                         children: Some(children),
                         component_settings: None,
+                        component_camera: None,
                         template_node_identifier: Some(unique_identifier),
                         template_node_type_id: Some(tnd.type_id.clone()),
                         template_node_selector_info: Some(tnd.selector_info.clone()),
@@ -1829,6 +1860,7 @@ pub trait DefinitionToInstanceTraverser {
                         component_template: None,
                         children: Some(children),
                         component_settings: None,
+                        component_camera: None,
                         template_node_identifier: Some(unique_identifier),
                         template_node_type_id: Some(tnd.type_id.clone()),
                         template_node_selector_info: Some(tnd.selector_info.clone()),
@@ -1957,6 +1989,7 @@ pub trait DefinitionToInstanceTraverser {
                     component_template: None,
                     children: Some(children),
                     component_settings: None,
+                    component_camera: None,
                     template_node_identifier: Some(unique_identifier),
                     template_node_type_id: Some(tnd.type_id.clone()),
                     template_node_selector_info: Some(tnd.selector_info.clone()),
@@ -2077,6 +2110,7 @@ pub trait DefinitionToInstanceTraverser {
                     component_template: None,
                     children: Some(children),
                     component_settings: None,
+                    component_camera: None,
                     template_node_identifier: Some(unique_identifier),
                     template_node_type_id: Some(tnd.type_id.clone()),
                     template_node_selector_info: Some(tnd.selector_info.clone()),
@@ -2327,7 +2361,7 @@ fn try_typed_property_binding<T: PropertyValue + CoercionRules>(
     variable.try_typed_binding(name)
 }
 
-fn build_common_property_value<T>(
+pub(crate) fn build_common_property_value<T>(
     name: &str,
     value_definition: &ValueDefinition,
     stack: &Rc<RuntimePropertiesStackFrame>,
@@ -2459,9 +2493,25 @@ where
     }
 }
 
-fn axis_component_value(value: PaxValue, axis_index: usize) -> Result<PaxValue, String> {
+fn axis_component_value(
+    value: PaxValue,
+    axis_index: usize,
+    position: bool,
+) -> Result<PaxValue, String> {
     match value {
         PaxValue::Vec(values) => {
+            if position {
+                if !(2..=3).contains(&values.len()) {
+                    return Err(format!(
+                        "position expects [x, y] or [x, y, z], got {} elements",
+                        values.len()
+                    ));
+                }
+                return Ok(values
+                    .get(axis_index)
+                    .cloned()
+                    .unwrap_or(PaxValue::Numeric(0.into())));
+            }
             if values.len() != 2 {
                 return Err(format!(
                     "expected 2 elements for multi-axis common property, got {}",
@@ -2471,9 +2521,12 @@ fn axis_component_value(value: PaxValue, axis_index: usize) -> Result<PaxValue, 
             Ok(values[axis_index].clone())
         }
         PaxValue::Option(value) => match *value {
-            Some(value) => axis_component_value(value, axis_index),
+            Some(value) => axis_component_value(value, axis_index, position),
             None => Ok(PaxValue::Option(Box::new(None))),
         },
+        _ if position => {
+            Err("position expects [x, y] or [x, y, z]; scalar values are not supported".into())
+        }
         value => Ok(value),
     }
 }
@@ -2486,9 +2539,13 @@ fn coerce_axis_component<T>(
 where
     T: CoercionRules + PropertyValue,
 {
-    let axis_value = axis_component_value(value, axis_index)?;
-    Option::<T>::try_coerce(axis_value)
-        .map_err(|err| format!("failed to coerce axis {axis_index} for {name}: {err}"))
+    axis_component_value(value, axis_index, matches!(name, "x" | "y" | "z"))
+        .and_then(Option::<T>::try_coerce)
+        .map_err(|err| {
+            let error = format!("failed to coerce axis {axis_index} for {name}: {err}");
+            log::warn!("Failed to resolve multi-axis property: {error}");
+            error
+        })
 }
 
 fn sample_axis_timeline_track<T: CoercionRules + PropertyValue>(
@@ -2688,7 +2745,7 @@ fn build_axis_transition_property<T: CoercionRules + PropertyValue>(
     )
 }
 
-fn build_common_property_axis_component_value<T>(
+pub(crate) fn build_common_property_axis_component_value<T>(
     name: &str,
     value_definition: &ValueDefinition,
     stack: &Rc<RuntimePropertiesStackFrame>,
@@ -2700,11 +2757,19 @@ where
     let cloned_stack = stack.clone();
     match value_definition {
         ValueDefinition::Timeline(track) => {
-            let track = timeline_track_with_base_starting_value(track);
+            let mut track = timeline_track_with_base_starting_value(track);
+            expand_position_base(name, &mut track.starting_value);
             build_axis_timeline_property(name, &track, cloned_stack, axis_index)
         }
         ValueDefinition::Transition(transition) => {
-            let transition = transition_with_base_starting_value(transition);
+            let mut transition = transition_with_base_starting_value(transition);
+            expand_position_base(name, &mut transition.starting_value);
+            for track in [&mut transition.enter, &mut transition.exit]
+                .into_iter()
+                .flatten()
+            {
+                expand_position_base(name, &mut track.starting_value);
+            }
             build_axis_transition_property(name, &transition, cloned_stack, axis_index)
         }
         ValueDefinition::LiteralValue(_)
@@ -2722,12 +2787,7 @@ where
                 move || {
                     evaluate_value_definition_to_pax_value(&value_definition, &cloned_stack)
                         .and_then(|value| {
-                            coerce_axis_component::<T>(value, axis_index, &property_name)
-                                .map_err(|err| {
-                                    log::warn!("Failed to resolve multi-axis property: {err}");
-                                    err
-                                })
-                                .ok()
+                            coerce_axis_component::<T>(value, axis_index, &property_name).ok()
                         })
                         .flatten()
                 },
@@ -2736,6 +2796,20 @@ where
             )
         }
         _ => unreachable!("Invalid value definition for {name}"),
+    }
+}
+
+fn expand_position_base(name: &str, starting_value: &mut Option<Box<ValueDefinition>>) {
+    // Axis columns bind @base to that axis's previous value. Supply a tuple for
+    // implicit animation starts without allowing authored position scalars.
+    if matches!(name, "x" | "y" | "z")
+        && matches!(starting_value.as_deref(), Some(ValueDefinition::Identifier(id)) if id.name == BASE_SYMBOL)
+    {
+        *starting_value = Some(Box::new(ValueDefinition::List(vec![
+            *base_identifier_value(
+            );
+            3
+        ])));
     }
 }
 
@@ -2794,7 +2868,7 @@ where
         "rotate" | "rotate_x" | "rotate_y" | "skew_x" | "skew_y" => {
             Some(PaxValue::Rotation(Rotation::ZERO()))
         }
-        "translate_z" => Some(PaxValue::Numeric(0.0.into())),
+        "z" => Some(PaxValue::Numeric(0.0.into())),
         "opacity" => Some(PaxValue::Numeric(1.0.into())),
         _ => None,
     };
@@ -4707,7 +4781,8 @@ mod timeline_tests {
 #[cfg(test)]
 mod base_symbol_tests {
     use super::{
-        build_component_property, create_new_common_properties_from_columns,
+        append_setting_elements, build_component_property, coerce_axis_component,
+        create_new_common_properties, create_new_common_properties_from_columns,
         property_columns_from_defined_properties, stack_with_base, RuntimePropertiesStackFrame,
         RuntimeResolvedPropertyColumns, RuntimeResolvedPropertyEntry, RuntimeSettingsCondition,
         RuntimeSettingsSource,
@@ -4717,8 +4792,9 @@ mod base_symbol_tests {
         TRANSITION_PHASE_ENTER, TRANSITION_PHASE_SYMBOL, TRANSITION_PLAYHEAD_SYMBOL,
     };
     use pax_manifest::{
-        ExpressionInfo, PaxIdentifier, TimelineKeyframe, TimelineMarker, TimelineTrackDefinition,
-        TimelineTrackElement, Token, TransitionDefinition, ValueDefinition,
+        ExpressionInfo, PaxIdentifier, SettingElement, TimelineKeyframe, TimelineMarker,
+        TimelineTrackDefinition, TimelineTrackElement, Token, TransitionDefinition,
+        ValueDefinition,
     };
     use pax_runtime_api::{Duration, LocalProperty, Numeric, Opacity, PaxValue, Size, Variable};
     use std::collections::{BTreeMap, HashMap};
@@ -5005,14 +5081,14 @@ mod base_symbol_tests {
             vec![entry(expression("@base + 40deg"))],
         ));
         columns.extend(columns_for(
-            "translate_z",
+            "z",
             vec![entry(size_literal(12.0)), entry(expression("@base + 8px"))],
         ));
         let common = create_new_common_properties_from_columns(&columns, &stack);
         let cp = common.borrow();
         assert!((cp.rotate_x.get().unwrap().get_as_radians() - 25_f64.to_radians()).abs() < 1e-9);
         assert!((cp.rotate_y.get().unwrap().get_as_radians() - 40_f64.to_radians()).abs() < 1e-9);
-        assert_eq!(cp.translate_z.get().unwrap().0.to_float(), 20.0);
+        assert_eq!(cp.z.get().unwrap().0.to_float(), 20.0);
         angle.set(pax_runtime_api::Rotation::Degrees(60.into()));
         assert!((cp.rotate_x.get().unwrap().get_as_radians() - 60_f64.to_radians()).abs() < 1e-9);
     }
@@ -5328,6 +5404,153 @@ mod base_symbol_tests {
         assert_percent(common.borrow().scale_x.get(), 20.0);
         assert_percent(common.borrow().scale_y.get(), 25.0);
     }
+
+    #[test]
+    fn position_splits_reactive_pairs_and_triples_with_longhand_precedence() {
+        let position = LocalProperty::new(vec![
+            Size::Percent(50.into()),
+            Size::Pixels(20.into()),
+            Size::Pixels(30.into()),
+        ]);
+        let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
+            "pose".into(),
+            Variable::new_from_typed_property(position.clone()),
+        )]));
+        let defined = BTreeMap::from([
+            ("position".into(), expression("pose")),
+            ("y".into(), expression("@base + 5px")),
+        ]);
+        let common = create_new_common_properties(&defined, &stack);
+        let cp = common.borrow();
+        assert_percent(cp.x.get(), 50.);
+        assert_eq!(cp.y.get().unwrap().get_pixels(100.), 25.);
+        assert_eq!(cp.z.get().unwrap().to_float(), 30.);
+        position.set(vec![Size::Pixels(10.into()), Size::Pixels(40.into())]);
+        assert_eq!(cp.x.get(), Some(Size::Pixels(10.into())));
+        assert_eq!(cp.y.get().unwrap().get_pixels(100.), 45.);
+        assert_eq!(cp.z.get().unwrap().to_float(), 0.);
+    }
+
+    #[test]
+    fn position_rejects_scalar_bad_arity_and_percentage_depth() {
+        for value in [
+            PaxValue::Numeric(7.into()),
+            PaxValue::Vec(vec![]),
+            PaxValue::Vec(vec![PaxValue::Numeric(1.into()); 1]),
+            PaxValue::Vec(vec![PaxValue::Numeric(1.into()); 4]),
+        ] {
+            assert!(coerce_axis_component::<Size>(value, 0, "x").is_err());
+        }
+        assert!(coerce_axis_component::<pax_runtime_api::Depth>(
+            PaxValue::Vec(vec![
+                PaxValue::Numeric(1.into()),
+                PaxValue::Numeric(2.into()),
+                PaxValue::Size(Size::Percent(3.into()))
+            ]),
+            2,
+            "z",
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn position_timeline_interpolates_each_axis_and_holds_previous_placement_before_start() {
+        let frames = LocalProperty::new(0_u64);
+        let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
+            "@frames".into(),
+            Variable::new_from_typed_property(frames.clone()),
+        )]));
+        let position = |x, y, z| {
+            ValueDefinition::List(vec![size_literal(x), size_literal(y), size_literal(z)])
+        };
+        let track = TimelineTrackDefinition {
+            elements: vec![
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(10),
+                    value: position(10., 20., 30.),
+                    easing: Some(Token::new_without_location("Linear".into())),
+                }),
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(20),
+                    value: position(30., 60., 90.),
+                    easing: None,
+                }),
+            ],
+            repeat: Some(false),
+            ..Default::default()
+        };
+        let mut columns = property_columns_from_defined_properties(&BTreeMap::from([(
+            "position".into(),
+            position(1., 2., 3.),
+        )]));
+        append_setting_elements(
+            &mut columns,
+            &[SettingElement::Setting(
+                Token::new_without_location("position".into()),
+                ValueDefinition::Timeline(track),
+            )],
+            RuntimeSettingsSource::Inline,
+            None,
+            None,
+            None,
+        );
+        let common = create_new_common_properties_from_columns(&columns, &stack);
+        let cp = common.borrow();
+        assert_eq!(cp.x.get(), Some(Size::Pixels(1.into())));
+        assert_eq!(cp.y.get(), Some(Size::Pixels(2.into())));
+        assert_eq!(cp.z.get().unwrap().to_float(), 3.);
+        frames.set(15);
+        assert_eq!(cp.x.get(), Some(Size::Pixels(20.into())));
+        assert_eq!(cp.y.get(), Some(Size::Pixels(40.into())));
+        assert_eq!(cp.z.get().unwrap().to_float(), 60.);
+    }
+
+    #[test]
+    fn legacy_depth_alias_yields_to_canonical_z_in_each_settings_layer() {
+        let stack = empty_stack();
+        let setting = |name: &str, value| {
+            SettingElement::Setting(Token::new_without_location(name.into()), value)
+        };
+        for settings in [
+            vec![
+                setting("z", size_literal(70.)),
+                setting("translate_z", size_literal(80.)),
+            ],
+            vec![
+                setting("translate_z", size_literal(80.)),
+                setting("z", size_literal(70.)),
+            ],
+        ] {
+            let mut columns = BTreeMap::new();
+            append_setting_elements(
+                &mut columns,
+                &settings,
+                RuntimeSettingsSource::Inline,
+                None,
+                None,
+                None,
+            );
+            assert_eq!(
+                create_new_common_properties_from_columns(&columns, &stack)
+                    .borrow()
+                    .z
+                    .get()
+                    .unwrap()
+                    .to_float(),
+                70.
+            );
+        }
+        let defined = BTreeMap::from([("translate_z".into(), size_literal(80.))]);
+        assert_eq!(
+            create_new_common_properties(&defined, &stack)
+                .borrow()
+                .z
+                .get()
+                .unwrap()
+                .to_float(),
+            80.
+        );
+    }
 }
 
 /// Applies resolved common-property columns to an existing expanded node,
@@ -5435,8 +5658,7 @@ pub fn create_new_common_properties_from_columns(
         rotate_x: resolve_property("rotate_x", property_columns, stack_frame),
         #[cfg(feature = "3d")]
         rotate_y: resolve_property("rotate_y", property_columns, stack_frame),
-        #[cfg(feature = "3d")]
-        translate_z: resolve_property("translate_z", property_columns, stack_frame),
+        z: resolve_property("z", property_columns, stack_frame),
         transform: resolve_property("transform", property_columns, stack_frame),
         opacity: resolve_property("opacity", property_columns, stack_frame),
         layout_role: resolve_property("layout_role", property_columns, stack_frame),
@@ -5483,7 +5705,7 @@ fn bind_common_setting<T: CoercionRules + PropertyValue + ToPaxValue>(
             | "rotate"
             | "rotate_x"
             | "rotate_y"
-            | "translate_z"
+            | "z"
             | "skew_x"
             | "skew_y"
             | "opacity"
@@ -5549,15 +5771,7 @@ fn update_common_properties(
         node,
         mode,
     );
-    #[cfg(feature = "3d")]
-    bind_common_setting(
-        &cp.translate_z,
-        "translate_z",
-        property_columns,
-        stack_frame,
-        node,
-        mode,
-    );
+    bind_common_setting(&cp.z, "z", property_columns, stack_frame, node, mode);
     bind_common_setting(
         &cp.padding_x,
         "padding_x",
@@ -5773,7 +5987,8 @@ mod runtime_settings_tests {
                 settings: vec![selector_block(
                     "Text",
                     vec![setting("height", 2), setting("fill", 2)],
-                )].into(),
+                )]
+                .into(),
             },
             RuntimeSettingsLayer {
                 transition: None,
@@ -5786,7 +6001,8 @@ mod runtime_settings_tests {
                 settings: vec![selector_block(
                     ".headline",
                     vec![setting("opacity", 3), setting("fill", 3)],
-                )].into(),
+                )]
+                .into(),
             },
         ];
 

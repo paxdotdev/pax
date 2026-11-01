@@ -138,6 +138,34 @@ pub trait RenderContext {
     ) -> bool {
         panic!("shader effects require the WGPU renderer; this backend does not support them")
     }
+    /// Begins an effect in a camera-projected coordinate system. The effect still
+    /// samples in its authored local coordinates; camera clipping bounds its output.
+    #[cfg(feature = "shaders")]
+    fn begin_projected_shader_effect(
+        &mut self,
+        layer: usize,
+        id: u32,
+        z: i32,
+        effect: &ShaderEffect,
+        projection: crate::math::ProjectedPlane,
+        bounds: (f64, f64),
+        scopes: &[OpacityScope],
+        children: &[u32],
+    ) -> bool {
+        self.begin_shader_effect(
+            layer,
+            id,
+            z,
+            effect,
+            projection
+                .mapping()
+                .as_affine()
+                .expect("this backend does not support projected effects"),
+            bounds,
+            scopes,
+            children,
+        )
+    }
     /// Finish the boundary begun by `begin_shader_effect`.
     #[cfg(feature = "shaders")]
     fn end_shader_effect(&mut self, _layer: usize, _id: u32) {}
@@ -277,6 +305,11 @@ pub trait RenderContext {
     fn end_alpha_source(&mut self, _layer: usize) {}
     /// Applies an affine transform to a layer.
     fn transform(&mut self, layer: usize, affine: kurbo::Affine);
+    /// Applies a homogeneous flat-surface projection, including camera depth clipping.
+    /// Perspective-capable backends must preserve w through rasterization.
+    fn project(&mut self, _layer: usize, _plane: crate::math::ProjectedPlane) {
+        panic!("this rendering backend does not support perspective projection");
+    }
 
     // Images
     /// Loads raw RGBA image bytes under an identifier.
@@ -314,9 +347,21 @@ pub trait RenderContext {
     fn refresh_layers(&mut self, layers: &[usize]);
     /// Installs resolved lighting for a logical canvas layer.
     fn set_scene_lighting(&mut self, _layer: usize, _lighting: &SceneLighting) {}
-    /// Installs lighting with the canvas's unscrolled world frame. Sharing this
-    /// affine frame across a canvas keeps planar lighting independent of tiling
-    /// and native scroller transforms without storing a world frame per draw.
+    /// Supply world-space camera lighting coordinates alongside layer lighting.
+    /// `view.xyz` is an eye position when `view.w` is one, or a direction toward
+    /// the viewer when zero. The default keeps software/legacy hosts compatible.
+    fn set_scene_lighting_with_view(
+        &mut self,
+        layer: usize,
+        lighting: &SceneLighting,
+        surface_to_world: kurbo::Affine,
+        _view: [f32; 4],
+    ) {
+        self.set_scene_lighting_with_transform(layer, lighting, surface_to_world);
+    }
+
+    /// Installs lighting with the canvas's unscrolled world frame. The affine
+    /// frame keeps planar lighting independent of tiling and native scrolling.
     fn set_scene_lighting_with_transform(
         &mut self,
         layer: usize,

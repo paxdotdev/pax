@@ -31,6 +31,9 @@ impl PaxManifest {
     /// alone does not imply a runtime requirement.
     pub fn requires_3d(&self) -> bool {
         for component in self.components.values() {
+            if component.camera.is_some() {
+                return true;
+            }
             if let Some(template) = &component.template {
                 if template
                     .get_nodes()

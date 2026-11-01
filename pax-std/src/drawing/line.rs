@@ -1,4 +1,4 @@
-use kurbo::{Affine, BezPath, Shape};
+use kurbo::{BezPath, Shape};
 use pax_engine::api::LocalProperty;
 use pax_engine::api::Size;
 use pax_engine::*;
@@ -68,7 +68,7 @@ impl InstanceNode for LineInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
-        let tab = expanded_node.transform_and_bounds.clone();
+        let tab = expanded_node.presentation_transform_and_bounds.clone();
         let (x1, y1, x2, y2, stroke) =
             expanded_node.with_properties_unwrapped(|properties: &mut Line| {
                 (
@@ -113,30 +113,21 @@ impl InstanceNode for LineInstance {
             ));
     }
 
-    fn ray_cast_test(
-        &self,
-        expanded_node: &ExpandedNode,
-        ray: pax_runtime::api::math::Point2<pax_runtime::api::Window>,
-    ) -> bool {
-        self.resolve_coverage_path(expanded_node)
-            .is_some_and(|path| {
-                path_contains_with_tolerance(&path, kurbo::Point::new(ray.x, ray.y))
-            })
+    fn local_hit_test(&self, node: &ExpandedNode, point: kurbo::Point) -> bool {
+        self.resolve_local_coverage_path(node)
+            .is_some_and(|path| path_contains_with_tolerance(&path, point))
     }
 
-    fn resolve_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
+    fn resolve_local_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
         expanded_node.with_properties_unwrapped(|properties: &mut Line| {
-            let tab = expanded_node.transform_and_bounds.get();
+            let tab = expanded_node.presentation_transform_and_bounds.get();
             let (start, end) = resolve_points(properties, tab.bounds);
             let stroke = properties.stroke.local().get();
-            Some(
-                Affine::from(tab.transform)
-                    * crate::common::appearance_coverage_path(
-                        &centerline_path(start, end),
-                        &[],
-                        &stroke,
-                    ),
-            )
+            Some(crate::common::appearance_coverage_path(
+                &centerline_path(start, end),
+                &[],
+                &stroke,
+            ))
         })
     }
 
@@ -145,7 +136,8 @@ impl InstanceNode for LineInstance {
         node: &ExpandedNode,
     ) -> Vec<pax_runtime_api::AlphaMaskPaint> {
         node.with_properties_unwrapped(|p: &mut Line| {
-            let (start, end) = resolve_points(p, node.transform_and_bounds.get().bounds);
+            let (start, end) =
+                resolve_points(p, node.presentation_transform_and_bounds.get().bounds);
             crate::common::alpha_mask_paints(
                 node,
                 centerline_path(start, end),
@@ -168,7 +160,7 @@ impl InstanceNode for LineInstance {
         &self,
         node: &ExpandedNode,
     ) -> pax_runtime::scene_geometry::CanvasGeometry {
-        let bounds = node.transform_and_bounds.get().bounds;
+        let bounds = node.presentation_transform_and_bounds.get().bounds;
         let local_bounds = node.with_properties_unwrapped(|p: &mut Line| {
             let (start, end) = resolve_points(p, bounds);
             crate::common::stroke_coverage_bounds(
@@ -199,7 +191,7 @@ impl InstanceNode for LineInstance {
         expanded_node.with_properties_unwrapped(|properties: &mut Line| {
             let (start, end) = resolve_points(properties, scope.bounds);
             rc.save(scope.layer_id);
-            rc.transform(scope.layer_id, scope.surface_transform);
+            scope.apply_transform(rc);
             crate::common::draw_appearance(
                 rc,
                 scope.layer_id,

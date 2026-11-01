@@ -1467,6 +1467,75 @@ fn derive_timeline_selector_block_definition(
     }
 }
 
+/// Parse the single default camera declaration, preserving value/source metadata.
+pub fn parse_camera_from_component_definition_string(
+    ast: Pair<Rule>,
+) -> Option<LiteralBlockDefinition> {
+    let mut camera = None;
+    for block in ast
+        .into_inner()
+        .filter(|p| p.as_rule() == Rule::camera_block_declaration)
+    {
+        let location = block.as_span().start_pos().line_col();
+        assert!(
+            camera.is_none(),
+            "duplicate @camera at {}:{}",
+            location.0,
+            location.1
+        );
+        let object = block.into_inner().next().unwrap();
+        let mut keys = HashSet::new();
+        let mut elements = Vec::new();
+        for setting in object.into_inner() {
+            if setting.as_rule() == Rule::comment {
+                elements.push(SettingElement::Comment(setting.as_str().to_owned()));
+                continue;
+            }
+            assert_eq!(
+                setting.as_rule(),
+                Rule::settings_key_value_pair,
+                "@camera cannot have a type name"
+            );
+            let mut pair = setting.into_inner();
+            let key = pair.next().unwrap().into_inner().next().unwrap();
+            let location = key.as_span().start_pos().line_col();
+            let name = key.as_str();
+            assert!(
+                matches!(
+                    name,
+                    "position"
+                        | "x"
+                        | "y"
+                        | "z"
+                        | "rotate"
+                        | "rotate_x"
+                        | "rotate_y"
+                        | "zoom"
+                        | "projection"
+                        | "vertical_fov"
+                        | "near"
+                        | "far"
+                ),
+                "unknown @camera setting `{name}` at {}:{}",
+                location.0,
+                location.1
+            );
+            assert!(
+                keys.insert(name.to_owned()),
+                "duplicate @camera setting `{name}` at {}:{}",
+                location.0,
+                location.1
+            );
+            elements.push(SettingElement::Setting(
+                Token::new(name.to_owned(), span_to_location(&key.as_span())),
+                parse_value_definition(pair.next().unwrap().into_inner().next().unwrap()),
+            ));
+        }
+        camera = Some(LiteralBlockDefinition::new(elements));
+    }
+    camera
+}
+
 pub fn parse_timeline_from_component_definition_string(
     pax_component_definition: Pair<Rule>,
 ) -> Vec<TimelineDefinition> {
@@ -2094,6 +2163,7 @@ pub fn assemble_component_definition(
     ctx.template_node_definitions = tpc.template.clone();
 
     let mut settings = parse_settings_from_component_definition_string(ast.clone());
+    let camera = parse_camera_from_component_definition_string(ast.clone());
     let timelines = parse_timeline_from_component_definition_string(ast);
     add_implicit_lifecycle_handlers(
         &mut settings,
@@ -2111,6 +2181,7 @@ pub fn assemble_component_definition(
         template: Some(tpc.template),
         settings: Some(settings),
         timelines,
+        camera,
         route_branch,
         module_path: modified_module_path,
     };
@@ -2146,6 +2217,7 @@ pub fn assemble_struct_only_component_definition(
         template: None,
         settings: None,
         timelines: vec![],
+        camera: None,
         route_branch,
     };
     (ctx, new_def)
@@ -2169,6 +2241,7 @@ pub fn assemble_primitive_definition(
         template: None,
         settings: None,
         timelines: vec![],
+        camera: None,
         route_branch,
         module_path: modified_module_path,
     }

@@ -57,11 +57,12 @@ BEGIN TEMPLATE
 ##### `raw_string_content`
 ##### `inner`
 ##### `char`
-##### `settings_block_declaration`
+##### `camera_block_declaration`
 /// ////// //////
 BEGIN SETTINGS
 ///
 
+##### `settings_block_declaration`
 ##### `settings_block_element`
 ##### `settings_conditional`
 ##### `settings_if_branch`

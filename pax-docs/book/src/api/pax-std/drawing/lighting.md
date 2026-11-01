@@ -35,6 +35,10 @@ frame instance has its own lexical lighting identity.
 ### `LightSource`
 A non-rendering light resource that affects light-reactive vector materials in its scene.
 
+The emitter is the transformed center of this node, using common `x`, `y`,
+and `z` placement (or `position`). Depth inherits ancestor transforms and
+defaults to zero. Set `z=200px` to retain the former light-specific default.
+
 #### Properties
 ##### `color`
 Type: `Property`<[`Color`](../../../api/pax-runtime-api/color.md#color)>
@@ -50,11 +54,6 @@ Light intensity multiplier.
 Type: `Property`<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
 
 Point-light attenuation radius in world pixels; ancestor scale does not resize it.
-
-##### `z`
-Type: `Property`<[`Depth`](../../../api/pax-runtime-api/drawing.md#depth)>
-
-Local depth in pixels, transformed with the light and its ancestors.
 
 ##### `shape`
 Type: `Property`<[`LightShape`](../../../api/pax-runtime-api/drawing.md#lightshape)>

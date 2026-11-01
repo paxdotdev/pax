@@ -223,6 +223,234 @@ fn assert_pixel(frame: &CapturedFrame, x: usize, y: usize, expected: [u8; 4]) {
     );
 }
 
+#[cfg(feature = "3d")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn perspective_vectors_images_and_stencil_share_clipped_projection() {
+    use pax_runtime_api::{
+        camera::{Camera, CameraProjection, CameraSpace},
+        math::{Generic, Point3, Transform3, Vector3},
+    };
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 128, 96, [1., 1.]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let camera: Camera = Camera::new(
+        Transform3::<Generic, CameraSpace>::identity(),
+        CameraProjection::perspective((128., 96.), std::f64::consts::FRAC_PI_2, 10., 1000.)
+            .unwrap(),
+    )
+    .unwrap();
+    let image = Image {
+        rgba: vec![0, 255, 0, 255],
+        pixel_width: 1,
+        pixel_height: 1,
+    };
+    let poses = [
+        Transform3::<Generic>::translate(Vector3::new(-40., -30., -80.))
+            * Transform3::<Generic>::rotate_y(0.8),
+        Transform3::<Generic>::translate(Vector3::new(0., -10., -30.))
+            * Transform3::<Generic>::rotate_y(-1.),
+        Transform3::<Generic>::translate(Vector3::new(-40., -30., -80.))
+            * Transform3::<Generic>::rotate_y(0.8),
+        Transform3::<Generic>::translate(Vector3::new(0., -10., -30.))
+            * Transform3::<Generic>::rotate_y(-1.),
+    ];
+    for (index, pose) in poses.into_iter().enumerate() {
+        let plane = camera.project_plane(pose).unwrap();
+        let plane = if index == 3 {
+            plane.post_mapping(pax_runtime_api::math::PlanarProjection([
+                1., 0., 0.002, 0., 1., 0., 0., 0., 1.,
+            ]))
+        } else {
+            plane
+        };
+        renderer.begin_node(0, 0, 0);
+        renderer.fill_path(
+            rect(0., 0., 128., 96.),
+            Fill::Solid(Color::rgba(0., 0., 0., 1.)),
+        );
+        renderer.end_node(0);
+        renderer.begin_node(1, 1, 0);
+        renderer.save();
+        renderer.project(plane);
+        renderer.fill_path(
+            rect(0., 0., 80., 60.),
+            Fill::Solid(Color::rgba(1., 0., 0., 1.)),
+        );
+        renderer.restore();
+        renderer.end_node(1);
+        renderer.begin_node(2, 2, 0);
+        renderer.save();
+        renderer.project(plane);
+        renderer.clip(rect(10., 10., 60., 40.));
+        renderer.clip_alpha(
+            vec![crate::AlphaMaskPaint {
+                path: rect(12., 0., 56., 60.),
+                transform: Transform2D::identity(),
+                fill: Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+                opacity: 1.,
+                composition: None,
+            }],
+            0.,
+        );
+        renderer.draw_image(
+            "perspective-green",
+            1,
+            &image,
+            Box2D::new(point(0., 0.), point(80., 60.)),
+        );
+        renderer.restore();
+        renderer.end_node(2);
+        renderer.request_screenshot_capture(index as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let captured = renderer
+            .take_screenshot_capture(index as u32)
+            .expect("captured frame");
+        // Pick several interior points through exactly the same matrix used by
+        // native/input projection; include the partially near-clipped frame.
+        for (x, y, color) in [(5., 20., [255, 0, 0, 255]), (15., 20., [0, 255, 0, 255])] {
+            let world = pose.project_point(Point3::new(x, y, 0.)).unwrap();
+            let _ = camera
+                .project(world)
+                .expect("sample lies inside the camera clip range");
+            let screen = plane.mapping().project(kurbo::Point::new(x, y)).unwrap();
+            assert_pixel(
+                &captured,
+                screen.x.floor() as usize,
+                screen.y.floor() as usize,
+                color,
+            );
+        }
+    }
+}
+
+#[cfg(all(feature = "3d", feature = "shaders"))]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn perspective_effect_and_detached_source_follow_camera_and_tile_charts() {
+    use pax_runtime_api::{
+        camera::{Camera, CameraProjection, CameraSpace},
+        math::{Generic, PlanarProjection, Transform3, Vector3},
+        ShaderEffect, ShaderInput, ShaderPass, ShaderProgram,
+    };
+    static PROGRAM: ShaderProgram = ShaderProgram {
+        label: "projected local sampling",
+        passes: &[ShaderPass {
+            label: "projected-local.wgsl",
+            source: "fn effect(p: vec2<f32>) -> vec4<f32> { let a = sample_input0(p - vec2<f32>(5.0,0.0)).a; return select(vec4<f32>(a,0.0,0.0,a),vec4<f32>(0.0,a,0.0,a),p.x >= 35.0); }",
+            parameters: &[], inputs: [ShaderInput::Subtree; 2], downsample: 1,
+        }],
+    };
+    let camera: Camera = Camera::new(
+        Transform3::<Generic, CameraSpace>::identity(),
+        CameraProjection::perspective((128., 96.), std::f64::consts::FRAC_PI_2, 10., 1000.)
+            .unwrap(),
+    )
+    .unwrap();
+    let poses = [
+        Transform3::<Generic>::translate(Vector3::new(-40., -30., -80.))
+            * Transform3::<Generic>::rotate_y(0.8),
+        Transform3::<Generic>::translate(Vector3::new(-40., -30., -60.))
+            * Transform3::<Generic>::rotate_y(0.5),
+        Transform3::<Generic>::translate(Vector3::new(-20., -15., -30.))
+            * Transform3::<Generic>::rotate_y(-0.9),
+    ];
+    for (width, tile_x) in [(128., 0.), (64., 0.), (64., 64.)] {
+        let layer = MetalLayer::new();
+        let backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, width as u32, 96, [1., 1.]),
+            )
+        })
+        .unwrap();
+        let device = backend.device.clone();
+        let mut renderer = WgpuRenderer::new(backend);
+        renderer.set_surface_transform(Transform2D::translation(-tile_x, 0.));
+        for frame in 0..6 {
+            let plane = camera
+                .project_plane(poses[frame / 2])
+                .unwrap()
+                .post_mapping(PlanarProjection([1., 0., 0.001, 0., 1., 0., 0., 0., 1.]));
+            let effect = ShaderEffect {
+                program: &PROGRAM,
+                parameters: vec![vec![]],
+                outset: 6.,
+            };
+            renderer.begin_projected_shader_effect(1, 1, &effect, plane, (80., 60.), &[], &[2, 4]);
+            renderer.begin_node(2, 1, 0);
+            renderer.save();
+            renderer.begin_alpha_source(Transform2D::identity(), 0.);
+            renderer.begin_node(3, 1, 0);
+            renderer.save();
+            renderer.project(plane);
+            renderer.fill_path(
+                rect(10., 0., 60., 60.),
+                Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+            );
+            renderer.restore();
+            renderer.end_node(3);
+            renderer.end_alpha_source();
+            renderer.end_node(2);
+            renderer.begin_node(4, 2, 0);
+            renderer.save();
+            renderer.project(plane);
+            renderer.fill_path(
+                rect(0., 0., 80., 60.),
+                Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+            );
+            renderer.restore();
+            renderer.end_node(4);
+            renderer.restore();
+            renderer.end_shader_effect();
+            renderer.request_screenshot_capture(frame as u32);
+            renderer.flush();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            let pixels = renderer.take_screenshot_capture(frame as u32).unwrap();
+            for (x, expected) in [
+                (6., [0, 0, 0, 0]),
+                (22., [255, 0, 0, 255]),
+                (48., [0, 255, 0, 255]),
+            ] {
+                let local = kurbo::Point::new(x, 25.);
+                if !plane.contains_local(local) {
+                    continue;
+                }
+                let point = plane.mapping().project(local).unwrap();
+                let x = point.x - tile_x as f64;
+                if x < 2. || x >= width as f64 - 2. || point.y < 2. || point.y >= 94. {
+                    continue;
+                }
+                assert_pixel(
+                    &pixels,
+                    x.floor() as usize,
+                    point.y.floor() as usize,
+                    expected,
+                );
+            }
+            let stats = renderer.take_resource_churn_stats();
+            if frame % 2 == 1 {
+                assert_eq!(
+                    stats.effect_source_renders, 0,
+                    "unchanged camera retains source capture"
+                );
+                assert_eq!(
+                    stats.effect_passes, 0,
+                    "unchanged camera retains filtered pixels"
+                );
+            }
+        }
+    }
+}
+
 #[test]
 #[ignore = "requires a macOS Metal device"]
 fn mesh_paint_retained_pixels_blends_and_masks() {
@@ -4598,6 +4826,7 @@ fn opaque_ellipsoid_intersection_matches_mesh_depth_and_reuses_topology() {
     let mut renderer = WgpuRenderer::new(backend);
     let mesh = ConvexMesh::sphere(64, 32);
     let plane = DepthPlane {
+        presentation_layer: 0,
         coefficients: [0.25, 0., -16.],
         backface: false,
     };
@@ -4614,7 +4843,7 @@ fn opaque_ellipsoid_intersection_matches_mesh_depth_and_reuses_topology() {
             &OpaqueMeshDraw {
                 mesh: mesh.clone(),
                 world: pose,
-                surface: pose,
+                surface: pax_runtime_api::mesh3::MeshProjection::new(pose, false).unwrap(),
                 color: pax_runtime_api::Color::RED,
                 material: pax_runtime_api::ResolvedMaterial::Unlit,
             },
@@ -4638,6 +4867,7 @@ fn opaque_ellipsoid_intersection_matches_mesh_depth_and_reuses_topology() {
             renderer.set_node_depth_plane(
                 0,
                 Some(DepthPlane {
+                    presentation_layer: 0,
                     coefficients: [0., 0., -1000.],
                     backface: false,
                 }),
@@ -4726,7 +4956,7 @@ fn overlapping_opaque_solids_respect_concave_clips_and_planar_opacity() {
         OpaqueMeshDraw {
             mesh: mesh.clone(),
             world: pose,
-            surface: pose,
+            surface: pax_runtime_api::mesh3::MeshProjection::new(pose, false).unwrap(),
             color: pax_runtime_api::Color::RED,
             material: pax_runtime_api::ResolvedMaterial::Unlit,
         }
@@ -4764,6 +4994,7 @@ fn overlapping_opaque_solids_respect_concave_clips_and_planar_opacity() {
             renderer.set_node_depth_plane(
                 0,
                 Some(DepthPlane {
+                    presentation_layer: 0,
                     coefficients: [0., 0., -1000.],
                     backface: false,
                 }),
@@ -4777,6 +5008,7 @@ fn overlapping_opaque_solids_respect_concave_clips_and_planar_opacity() {
             renderer.set_node_depth_plane(
                 3,
                 Some(DepthPlane {
+                    presentation_layer: 0,
                     coefficients: [0., 0., 42.],
                     backface: false,
                 }),
@@ -4801,8 +5033,8 @@ fn overlapping_opaque_solids_respect_concave_clips_and_planar_opacity() {
         renderer.flush();
         device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
         let image = renderer.take_screenshot_capture(frame).unwrap();
-        let red = mesh.posed(red.surface).unwrap();
-        let green = mesh.posed(green.surface).unwrap();
+        let red = mesh.posed(red.surface.matrix()).unwrap();
+        let green = mesh.posed(green.surface.matrix()).unwrap();
         for (x, y) in [
             (50, 48),
             (68, 60),
@@ -4848,110 +5080,113 @@ fn overlapping_opaque_solids_respect_concave_clips_and_planar_opacity() {
 #[cfg(feature = "3d")]
 #[test]
 #[ignore = "requires a macOS Metal device"]
-fn overlay_domain_stays_above_world_depth_and_reorders_retained_paint() {
-    use pax_runtime_api::DepthPlane;
+fn camera_clipped_solids_match_depth_and_keep_shared_topology() {
+    use pax_runtime_api::{
+        camera::{Camera, CameraProjection, CameraSpace},
+        math::{Generic, PlanarProjection, Transform3, Vector3},
+        mesh3::{ConvexMesh, MeshProjection, OpaqueMeshDraw},
+        DepthPlane,
+    };
+    type M = Transform3<Generic>;
     let layer = MetalLayer::new();
     let backend = pollster::block_on(unsafe {
         RenderBackend::to_core_animation_layer(
             layer.0.cast(),
-            RenderConfig::new(true, 64, 32, [1.0, 1.0]),
+            RenderConfig::new(true, 128, 128, [1., 1.]),
         )
     })
-    .expect("Metal backend");
+    .unwrap();
     let device = backend.device.clone();
     let mut renderer = WgpuRenderer::new(backend);
-    renderer.set_viewport(64.0, 32.0, [1.0, 1.0]);
-    for (id, z, color) in [
-        (1, 10, Color::rgba(1.0, 0.0, 0.0, 1.0)),
-        (2, -10, Color::rgba(0.0, 0.0, 1.0, 1.0)),
-    ] {
-        renderer.begin_node(id, z, 0);
-        renderer.fill_path(rect(0.0, 0.0, 64.0, 32.0), Fill::Solid(color));
-        renderer.end_node(id);
-    }
-    renderer.set_node_depth_plane(
-        1,
-        Some(DepthPlane {
-            presentation_layer: 0,
-            coefficients: [1.0, 0.0, 1_000_000.0],
-            ..Default::default()
-        }),
-    );
-    for (frame, domain) in [1, 0, 1].into_iter().enumerate() {
-        renderer.set_node_depth_plane(
-            2,
-            Some(DepthPlane {
-                presentation_layer: domain,
-                ..Default::default()
-            }),
+    let mesh = ConvexMesh::sphere(32, 16);
+    let camera = Camera::new(
+        Transform3::<Generic, CameraSpace>::identity(),
+        CameraProjection::perspective((128., 128.), 1.2, 1., 20.).unwrap(),
+    )
+    .unwrap();
+    let view = camera.project_plane(M::identity()).unwrap().matrix();
+    let plane = DepthPlane {
+        presentation_layer: 0,
+        coefficients: [0.001, 0., 0.45],
+        backface: false,
+    };
+    for (frame, z) in [-4., -2., -1.3, -0.5, 1., -25., -2.]
+        .into_iter()
+        .enumerate()
+    {
+        let world = M::translate(Vector3::new(0., 0., z))
+            * M::rotate_y(0.6)
+            * M::scale(Vector3::new(1.4, 0.9, 1.));
+        let mapping = if frame == 6 {
+            PlanarProjection([1., 0., 0.003, 0., 1., 0., 20., 10., 1.])
+        } else {
+            PlanarProjection::default()
+        };
+        let projection = MeshProjection::new((view * world).coeffs(), true)
+            .unwrap()
+            .post_mapping(mapping);
+        let projected = mesh.projected(projection, Some(kurbo::Rect::new(0., 0., 128., 128.)));
+        renderer.begin_node(1, 1, 0);
+        renderer.draw_convex_mesh(
+            &OpaqueMeshDraw {
+                mesh: mesh.clone(),
+                world: world.coeffs(),
+                surface: projection,
+                color: pax_runtime_api::Color::RED,
+                material: pax_runtime_api::ResolvedMaterial::Unlit,
+            },
+            Color::rgba(1., 0., 0., 1.),
+            crate::Material::unlit(),
         );
+        renderer.end_node(1);
+        if frame == 0 {
+            renderer.begin_node(2, 2, 0);
+            renderer.set_node_depth_plane(2, Some(plane));
+            renderer.fill_path(
+                rect(0., 0., 128., 128.),
+                Fill::Solid(Color::rgba(0., 0., 1., 1.)),
+            );
+            renderer.end_node(2);
+        }
         renderer.request_screenshot_capture(frame as u32);
         renderer.flush();
         device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
-        let pixels = renderer.take_screenshot_capture(frame as u32).unwrap();
-        for x in [8, 32, 56] {
-            assert_pixel(
-                &pixels,
-                x,
-                16,
-                if domain == 1 {
-                    [0, 0, 255, 255]
-                } else {
-                    [255, 0, 0, 255]
-                },
-            );
+        let image = renderer.take_screenshot_capture(frame as u32).unwrap();
+        let front = |x, y| {
+            projected
+                .depth_at(x, y)
+                .is_some_and(|z| z > plane.depth_at(x, y) + 1e-7)
+        };
+        let mut samples = 0;
+        for y in 4..124 {
+            for x in 4..124 {
+                let (px, py) = (x as f64 + 0.5, y as f64 + 0.5);
+                let expected = front(px, py);
+                if [(-1., 0.), (1., 0.), (0., -1.), (0., 1.)]
+                    .iter()
+                    .any(|(dx, dy)| front(px + dx, py + dy) != expected)
+                {
+                    continue;
+                }
+                assert_eq!(
+                    &image.rgba[(y * 128 + x) * 4..(y * 128 + x) * 4 + 4],
+                    &if expected {
+                        [255, 0, 0, 255]
+                    } else {
+                        [0, 0, 255, 255]
+                    },
+                    "frame {frame} z={z} at {x},{y}, depth {:?}",
+                    projected.depth_at(px, py)
+                );
+                samples += 1;
+            }
         }
-    }
-    renderer.set_node_depth_plane(
-        2,
-        Some(DepthPlane {
-            presentation_layer: 1,
-            ..Default::default()
-        }),
-    );
-    renderer.begin_node(3, -20, 0);
-    renderer.fill_path(
-        rect(0.0, 0.0, 64.0, 32.0),
-        Fill::Solid(Color::rgba(0.0, 1.0, 0.0, 1.0)),
-    );
-    renderer.end_node(3);
-    renderer.begin_node(4, -30, 0);
-    renderer.fill_path(
-        rect(32.0, 0.0, 64.0, 32.0),
-        Fill::Solid(Color::rgba(1.0, 1.0, 0.0, 1.0)),
-    );
-    renderer.end_node(4);
-    renderer.set_node_depth_plane(
-        4,
-        Some(DepthPlane {
-            presentation_layer: 3,
-            ..Default::default()
-        }),
-    );
-    for (frame, domain) in [2, 0, 2].into_iter().enumerate() {
-        renderer.set_node_depth_plane(
-            3,
-            Some(DepthPlane {
-                presentation_layer: domain,
-                ..Default::default()
-            }),
-        );
-        let capture = frame as u32 + 10;
-        renderer.request_screenshot_capture(capture);
-        renderer.flush();
-        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
-        let pixels = renderer.take_screenshot_capture(capture).unwrap();
-        assert_pixel(
-            &pixels,
-            8,
-            16,
-            if domain == 2 {
-                [0, 255, 0, 255]
-            } else {
-                [0, 0, 255, 255]
-            },
-        );
-        assert_pixel(&pixels, 56, 16, [255, 255, 0, 255]);
+        assert!(samples > 400, "frame {frame}: insufficient stable samples");
+        let stats = renderer.take_resource_churn_stats();
+        if frame > 0 {
+            assert_eq!(stats.solid_geometry_upload_bytes, 0);
+            assert_eq!(stats.solid_uniform_updates, 1);
+        }
     }
 }
 
@@ -5069,6 +5304,7 @@ fn spatial_group_fade_keeps_hidden_surfaces_hidden_across_external_geometry() {
     let mut renderer = WgpuRenderer::new(backend);
     let mesh = ConvexMesh::sphere(64, 32);
     let blue_plane = DepthPlane {
+        presentation_layer: 0,
         coefficients: [0.15, 0., -20.],
         backface: false,
     };
@@ -5119,7 +5355,7 @@ fn spatial_group_fade_keeps_hidden_surfaces_hidden_across_external_geometry() {
                 &OpaqueMeshDraw {
                     mesh: mesh.clone(),
                     world: *pose,
-                    surface: *pose,
+                    surface: pax_runtime_api::mesh3::MeshProjection::new(*pose, false).unwrap(),
                     color: pax_runtime_api::Color::RED,
                     material: pax_runtime_api::ResolvedMaterial::Unlit,
                 },
@@ -5137,6 +5373,7 @@ fn spatial_group_fade_keeps_hidden_surfaces_hidden_across_external_geometry() {
             renderer.set_node_depth_plane(
                 0,
                 Some(DepthPlane {
+                    presentation_layer: 0,
                     coefficients: [0., 0., -1000.],
                     backface: false,
                 }),
@@ -5150,6 +5387,7 @@ fn spatial_group_fade_keeps_hidden_surfaces_hidden_across_external_geometry() {
             renderer.set_node_depth_plane(
                 3,
                 Some(DepthPlane {
+                    presentation_layer: 0,
                     coefficients: [0., 0., -75.],
                     backface: false,
                 }),
@@ -5331,7 +5569,7 @@ fn spatial_fade_disjoint_components_and_overflow_are_bounded() {
             &OpaqueMeshDraw {
                 mesh: ConvexMesh::sphere(16, 8),
                 world: pose,
-                surface: pose,
+                surface: pax_runtime_api::mesh3::MeshProjection::new(pose, false).unwrap(),
                 color: pax_runtime_api::Color::RED,
                 material: pax_runtime_api::ResolvedMaterial::Unlit,
             },
@@ -5345,6 +5583,7 @@ fn spatial_fade_disjoint_components_and_overflow_are_bounded() {
                 renderer.set_node_depth_plane(
                     id,
                     Some(DepthPlane {
+                        presentation_layer: 0,
                         coefficients: [0., 0., id as f64],
                         backface: false,
                     }),
@@ -5397,5 +5636,238 @@ fn spatial_fade_disjoint_components_and_overflow_are_bounded() {
                 }
             }
         }
+    }
+}
+
+#[cfg(feature = "3d")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn spatial_fade_reuses_opacity_but_invalidates_camera_projection_and_clip_planes() {
+    use pax_runtime_api::{
+        camera::{Camera, CameraProjection, CameraSpace},
+        math::{Generic, Transform3, Vector3},
+        mesh3::{ConvexMesh, MeshProjection, OpaqueMeshDraw},
+        DepthPlane, OpacityScope,
+    };
+    type M = Transform3<Generic>;
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 128, 128, [1., 1.]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let mesh = ConvexMesh::sphere(32, 16);
+    let camera = Camera::new(
+        Transform3::<Generic, CameraSpace>::identity(),
+        CameraProjection::perspective((128., 128.), 1.2, 2., 20.).unwrap(),
+    )
+    .unwrap();
+    let world = M::translate(Vector3::new(0., 0., -2.));
+    let matrix = (camera.project_plane(M::identity()).unwrap().matrix() * world).coeffs();
+    let plane = DepthPlane {
+        presentation_layer: 0,
+        coefficients: [0., 0., 0.9],
+        backface: false,
+    };
+    renderer.begin_node(2, 2, 0);
+    renderer.set_node_depth_plane(2, Some(plane));
+    renderer.fill_path(
+        rect(0., 0., 128., 128.),
+        Fill::Solid(Color::rgba(0., 0., 1., 1.)),
+    );
+    renderer.end_node(2);
+    for (frame, (clipped, pan, opacity)) in [
+        (false, 0., 0.5),
+        (false, 0., 0.25),
+        (true, 0., 0.25),
+        (false, 0., 0.5),
+        (false, 24., 0.5),
+        (false, 24., 0.25),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let projection = MeshProjection::new(matrix, clipped)
+            .unwrap()
+            .post_mapping(kurbo::Affine::translate((pan, 0.)).into());
+        let projected = mesh.projected(projection, Some(kurbo::Rect::new(0., 0., 128., 128.)));
+        renderer.begin_node(1, 1, 0);
+        renderer.set_node_opacity_scopes(
+            1,
+            &[OpacityScope {
+                node_id: 10,
+                opacity,
+            }],
+        );
+        renderer.draw_convex_mesh(
+            &OpaqueMeshDraw {
+                mesh: mesh.clone(),
+                world: world.coeffs(),
+                surface: projection,
+                color: pax_runtime_api::Color::RED,
+                material: pax_runtime_api::ResolvedMaterial::Unlit,
+            },
+            Color::rgba(1., 0., 0., 1.),
+            crate::Material::unlit(),
+        );
+        renderer.end_node(1);
+        renderer.request_screenshot_capture(frame as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let image = renderer.take_screenshot_capture(frame as u32).unwrap();
+        let front = |x, y| projected.depth_at(x, y).is_some_and(|z| z > 0.9 + 1e-7);
+        for y in (4..124).step_by(5) {
+            for x in (4..124).step_by(5) {
+                let (px, py) = (x as f64 + 0.5, y as f64 + 0.5);
+                let red = front(px, py);
+                if [(-1., 0.), (1., 0.), (0., -1.), (0., 1.)]
+                    .iter()
+                    .any(|(dx, dy)| front(px + dx, py + dy) != red)
+                {
+                    continue;
+                }
+                let alpha = if red { opacity } else { 0. };
+                assert_pixel(
+                    &image,
+                    x,
+                    y,
+                    [
+                        (255. * alpha).round() as u8,
+                        0,
+                        (255. * (1. - alpha)).round() as u8,
+                        255,
+                    ],
+                );
+            }
+        }
+        let stats = renderer.take_resource_churn_stats();
+        if frame > 0 {
+            assert_eq!(stats.solid_geometry_upload_bytes, 0);
+        }
+        if frame == 1 || frame == 5 {
+            assert_eq!(
+                stats.spatial_fade_renders, 0,
+                "opacity preserves both camera views"
+            );
+        } else {
+            assert!(
+                stats.spatial_fade_renders > 0,
+                "camera/clip changes invalidate captures"
+            );
+        }
+    }
+}
+
+#[cfg(feature = "3d")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn overlay_domain_stays_above_world_depth_and_reorders_retained_paint() {
+    use pax_runtime_api::DepthPlane;
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 32, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.set_viewport(64.0, 32.0, [1.0, 1.0]);
+    for (id, z, color) in [
+        (1, 10, Color::rgba(1.0, 0.0, 0.0, 1.0)),
+        (2, -10, Color::rgba(0.0, 0.0, 1.0, 1.0)),
+    ] {
+        renderer.begin_node(id, z, 0);
+        renderer.fill_path(rect(0.0, 0.0, 64.0, 32.0), Fill::Solid(color));
+        renderer.end_node(id);
+    }
+    renderer.set_node_depth_plane(
+        1,
+        Some(DepthPlane {
+            presentation_layer: 0,
+            coefficients: [1.0, 0.0, 1_000_000.0],
+            ..Default::default()
+        }),
+    );
+    for (frame, domain) in [1, 0, 1].into_iter().enumerate() {
+        renderer.set_node_depth_plane(
+            2,
+            Some(DepthPlane {
+                presentation_layer: domain,
+                ..Default::default()
+            }),
+        );
+        renderer.request_screenshot_capture(frame as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let pixels = renderer.take_screenshot_capture(frame as u32).unwrap();
+        for x in [8, 32, 56] {
+            assert_pixel(
+                &pixels,
+                x,
+                16,
+                if domain == 1 {
+                    [0, 0, 255, 255]
+                } else {
+                    [255, 0, 0, 255]
+                },
+            );
+        }
+    }
+    renderer.set_node_depth_plane(
+        2,
+        Some(DepthPlane {
+            presentation_layer: 1,
+            ..Default::default()
+        }),
+    );
+    renderer.begin_node(3, -20, 0);
+    renderer.fill_path(
+        rect(0.0, 0.0, 64.0, 32.0),
+        Fill::Solid(Color::rgba(0.0, 1.0, 0.0, 1.0)),
+    );
+    renderer.end_node(3);
+    renderer.begin_node(4, -30, 0);
+    renderer.fill_path(
+        rect(32.0, 0.0, 64.0, 32.0),
+        Fill::Solid(Color::rgba(1.0, 1.0, 0.0, 1.0)),
+    );
+    renderer.end_node(4);
+    renderer.set_node_depth_plane(
+        4,
+        Some(DepthPlane {
+            presentation_layer: 3,
+            ..Default::default()
+        }),
+    );
+    for (frame, domain) in [2, 0, 2].into_iter().enumerate() {
+        renderer.set_node_depth_plane(
+            3,
+            Some(DepthPlane {
+                presentation_layer: domain,
+                ..Default::default()
+            }),
+        );
+        let capture = frame as u32 + 10;
+        renderer.request_screenshot_capture(capture);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let pixels = renderer.take_screenshot_capture(capture).unwrap();
+        assert_pixel(
+            &pixels,
+            8,
+            16,
+            if domain == 2 {
+                [0, 255, 0, 255]
+            } else {
+                [0, 0, 255, 255]
+            },
+        );
+        assert_pixel(&pixels, 56, 16, [255, 255, 0, 255]);
     }
 }

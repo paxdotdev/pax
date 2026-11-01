@@ -14,15 +14,17 @@ struct Globals {
 @group(1) @binding(2) var<uniform> alpha_domain: vec4<f32>;
 
 struct TextureVertex {
-    @location(0) position: vec2<f32>,
+    @location(0) position: vec4<f32>,
     @location(1) texture_coord: vec2<f32>,
     @location(2) opacity: f32,
+    @location(3) camera_clip: vec2<f32>,
 };
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) texture_coord: vec2<f32>,
     @location(1) opacity: f32,
+    @location(2) camera_clip: vec2<f32>,
 };
 
 @vertex
@@ -30,19 +32,20 @@ fn vs_main(
     model: TextureVertex,
 ) -> VertexOutput {
 	var out: VertexOutput;
-    var pos = model.position;
-    pos = (pos - globals.origin) / globals.resolution;
+    var pos = (model.position.xy - globals.origin * model.position.w) / globals.resolution;
     pos *= 2.0;
-    pos -= 1.0;
+    pos -= vec2<f32>(model.position.w);
     pos.y *= -1.0;
-    out.clip_position = vec4<f32>(pos, 0.0, 1.0);
+    out.clip_position = vec4<f32>(pos, model.position.z, model.position.w);
     out.texture_coord = model.texture_coord;
     out.opacity = model.opacity;
+    out.camera_clip = model.camera_clip;
     return out;
 }
 // Fragment shader
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    if in.camera_clip.y <= 0.0 || in.camera_clip.x < 0.0 || in.camera_clip.x > in.camera_clip.y { discard; }
     let t = textureSample(texture, texture_sampler, in.texture_coord);
     let alpha = textureSampleLevel(alpha_mask, alpha_sampler,
         (in.clip_position.xy / globals.dpr + globals.origin - alpha_domain.xy) / alpha_domain.zw, 0.0).r;

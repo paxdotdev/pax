@@ -21,12 +21,14 @@ Optional stable node identifier.
 ##### `x`
 Type: `LocalProperty`<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
 
-Horizontal position.
+Horizontal layout position in the parent. Percentages also infer an
+anchor unless `anchor_x` is explicit. Overrides this axis of `position`.
 
 ##### `y`
 Type: `LocalProperty`<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
 
-Vertical position.
+Vertical layout position in the parent. Percentages also infer an
+anchor unless `anchor_y` is explicit. Overrides this axis of `position`.
 
 ##### `padding_x`
 Type: `LocalProperty`<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
@@ -93,12 +95,13 @@ Type: `LocalProperty`<`Option`<[`Rotation`](../../api/pax-runtime-api/transform.
 
 Rotation around the local y axis, in addition to `rotate`. Defaults to zero.
 
-##### `translate_z`
+##### `z`
 Type: `LocalProperty`<`Option`<[`Depth`](../../api/pax-runtime-api/drawing.md#depth)>>
 
-Translation along the parent's z axis in logical pixels. Positive values
+Position along the parent's z axis in logical pixels. Positive values
 move toward the default viewer when the parent is unrotated. Percent depth
-is unsupported. Defaults to zero.
+is unsupported. Defaults to zero; does not introduce depth-based flow
+layout. Overrides this axis of the `position=[x, y, z]` shorthand.
 
 ##### `transform`
 Type: `LocalProperty`<`Option`<[`Transform2D`](../../api/pax-runtime-api/transform.md#transform2d)>>

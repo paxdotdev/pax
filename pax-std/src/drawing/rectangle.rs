@@ -1,4 +1,4 @@
-use kurbo::{Affine, RoundedRect, RoundedRectRadii, Shape};
+use kurbo::{RoundedRect, RoundedRectRadii, Shape};
 use pax_engine::api::LocalProperty;
 use pax_runtime::BaseInstance;
 use pax_runtime_api::use_RefCell;
@@ -66,7 +66,7 @@ impl InstanceNode for RectangleInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
-        let tab = expanded_node.transform_and_bounds.clone();
+        let tab = expanded_node.presentation_transform_and_bounds.clone();
         let (corner_radius, stroke, fill) =
             expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
                 (
@@ -103,9 +103,9 @@ impl InstanceNode for RectangleInstance {
             ));
     }
 
-    fn resolve_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
+    fn resolve_local_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
-            let tab = expanded_node.transform_and_bounds.get();
+            let tab = expanded_node.presentation_transform_and_bounds.get();
             let (width, height) = tab.bounds;
             let rect = RoundedRect::new(
                 0.0,
@@ -114,14 +114,11 @@ impl InstanceNode for RectangleInstance {
                 height,
                 properties.corner_radius.local().get().resolve_in_graph(),
             );
-            Some(
-                Affine::from(tab.transform)
-                    * crate::common::appearance_coverage_path(
-                        &rect.to_path(0.1),
-                        &properties.fill.local().get(),
-                        &properties.stroke.local().get(),
-                    ),
-            )
+            Some(crate::common::appearance_coverage_path(
+                &rect.to_path(0.1),
+                &properties.fill.local().get(),
+                &properties.stroke.local().get(),
+            ))
         })
     }
 
@@ -130,7 +127,7 @@ impl InstanceNode for RectangleInstance {
         node: &ExpandedNode,
     ) -> Vec<pax_runtime_api::AlphaMaskPaint> {
         node.with_properties_unwrapped(|p: &mut Rectangle| {
-            let (w, h) = node.transform_and_bounds.get().bounds;
+            let (w, h) = node.presentation_transform_and_bounds.get().bounds;
             crate::common::alpha_mask_paints(
                 node,
                 RoundedRect::new(
@@ -161,7 +158,7 @@ impl InstanceNode for RectangleInstance {
         &self,
         node: &ExpandedNode,
     ) -> pax_runtime::scene_geometry::CanvasGeometry {
-        let bounds = node.transform_and_bounds.get().bounds;
+        let bounds = node.presentation_transform_and_bounds.get().bounds;
         let local_bounds = node.with_properties_unwrapped(|p: &mut Rectangle| {
             crate::common::stroke_coverage_bounds(
                 kurbo::Rect::new(0.0, 0.0, bounds.0, bounds.1),
@@ -199,7 +196,7 @@ impl InstanceNode for RectangleInstance {
             );
             let bez_path = rect.to_path(0.1);
             rc.save(scope.layer_id);
-            rc.transform(scope.layer_id, scope.surface_transform);
+            scope.apply_transform(rc);
             crate::common::draw_appearance(
                 rc,
                 scope.layer_id,

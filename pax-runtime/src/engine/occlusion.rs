@@ -41,6 +41,36 @@ impl OcclusionBox {
         true
     }
 
+    fn union(&self, other: &Self) -> Self {
+        Self {
+            x1: self.x1.min(other.x1),
+            y1: self.y1.min(other.y1),
+            x2: self.x2.max(other.x2),
+            y2: self.y2.max(other.y2),
+        }
+    }
+
+    fn for_node(node: &ExpandedNode, ctx: &RuntimeContext) -> Self {
+        let (width, height) = node.transform_and_bounds.get().bounds;
+        let viewport = ctx.globals().viewport.get().bounds;
+        let rect = ctx
+            .presented_projection_for_node(node)
+            .and_then(|p| {
+                p.coverage(
+                    Rect::new(0., 0., width, height),
+                    node.has_perspective_camera()
+                        .then_some(Rect::new(0., 0., viewport.0, viewport.1)),
+                )
+            })
+            .unwrap_or(Rect::ZERO);
+        Self {
+            x1: rect.x0,
+            y1: rect.y0,
+            x2: rect.x1,
+            y2: rect.y1,
+        }
+    }
+
     fn new_from_transform_and_bounds_with_affine(
         t_and_b: TransformAndBounds<NodeLocal, Window>,
         affine: Affine,
@@ -445,7 +475,11 @@ pub(crate) fn update_node_occlusion_observed(
                 .records
                 .values()
                 .filter_map(|r| r.geometry.as_ref())
-                .any(|g| g.solid.is_some() || g.spatial_geometry.world_transform().try_as_2d().is_none())
+                .any(|g| {
+                    g.solid.is_some()
+                        || g.projection.is_some()
+                        || g.spatial_geometry.world_transform().try_as_2d().is_none()
+                })
         {
             let native: Vec<_> = state
                 .records
@@ -1217,13 +1251,14 @@ fn update_container_presentation(
             continue;
         };
         if owner_record.scrolls {
+            let bounds = OcclusionBox::for_node(&owner, ctx);
             clipped = clipped.intersect(&bounds).unwrap_or(clipped);
         }
         if let Some(bounds) = effect_bounds {
             clipped = clipped.intersect(&bounds).unwrap_or(clipped);
         }
     }
-    let hash = hash_presentation_bounds(Some(bounds), Some(clipped));
+    let hash = hash_node_presentation(node.as_ref(), ctx, Some(bounds), Some(clipped));
     if node.presentation_cache_hash.get() == hash {
         return;
     }
@@ -1231,6 +1266,13 @@ fn update_container_presentation(
         ctx.enqueue_native_message(pax_message::NativeMessage::ScrollerUpdate(ScrollerPatch {
             id,
             content_layer_id: state.owned_layers.get(&id).map(|layer| *layer as u32),
+            presentation_projection: Some(if node.has_perspective_camera() {
+                ctx.presented_projection_for_node(&node)
+                    .map(|p| p.matrix().coeffs().to_vec())
+                    .unwrap_or_default()
+            } else {
+                vec![]
+            }),
             presented_bounds: Some(bounds.as_array()),
             presented_clip_bounds: Some(clipped.as_array()),
             ..Default::default()
@@ -1250,7 +1292,7 @@ fn update_container_presentation(
 
 fn scroll_region(id: u32, ctx: &RuntimeContext) -> Option<Rect> {
     let node = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id))?;
-    let bounds = node.transform_and_bounds.get().bounds;
+    let bounds = node.presentation_transform_and_bounds.get().bounds;
     let scroll = ctx
         .get_scroller_surface_scroll(id)
         .or_else(|| borrow!(node.instance_node).resolve_scroll_offset(&node))
@@ -1259,7 +1301,7 @@ fn scroll_region(id: u32, ctx: &RuntimeContext) -> Option<Rect> {
     // their conservative overlap can include leaves just outside the local
     // viewport. Query that same envelope rather than dropping those leaves.
     let transform = ctx.presentation_scroll_transform_for_node(&node)
-        * Affine::from(node.transform_and_bounds.get().transform);
+        * Affine::from(node.presentation_transform_and_bounds.get().transform);
     if !transform
         .inverse()
         .as_coeffs()
@@ -1275,6 +1317,16 @@ fn scroll_region(id: u32, ctx: &RuntimeContext) -> Option<Rect> {
 }
 
 fn path_in_surface_bounds(path: &BezPath, geometry: &PreparedCanvasGeometry) -> Rect {
+    if geometry.projection.is_some() {
+        // Custom primitives may omit paint bounds. The spatial index treats a
+        // nonfinite query as unbounded, preserving conservative invalidation.
+        return geometry.coverage_bounds.unwrap_or(Rect::new(
+            f64::NEG_INFINITY,
+            f64::NEG_INFINITY,
+            f64::INFINITY,
+            f64::INFINITY,
+        ));
+    }
     (geometry.surface_transform * geometry.world_transform.inverse() * path.clone()).bounding_box()
 }
 
@@ -1296,8 +1348,13 @@ fn update_indexed_mask(id: u32, ctx: &RuntimeContext, state: &mut OcclusionState
     let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) else {
         return;
     };
+    #[cfg(feature = "3d")]
+    if node.has_perspective_camera() {
+        update_projected_mask(&node, ctx, state);
+        return;
+    }
     let geometry = ctx.canvas_geometry_for_node(&node);
-    let tab = node.transform_and_bounds.get();
+    let tab = node.presentation_transform_and_bounds.get();
     let query_bounds = geometry.surface_transform.transform_rect_bbox(Rect::new(
         0.0,
         0.0,
@@ -1403,6 +1460,181 @@ fn native_mask_entry(
             .map(|clip| bez_path_to_svg_path_data(&(inverse * clip)))
             .collect(),
         opacity: Some(coverage.opacity),
+#[cfg(feature = "3d")]
+fn solid_contours_path(
+    solid: &pax_runtime_api::mesh3::ProjectedConvexMesh,
+    plane: pax_runtime_api::DepthPlane,
+) -> BezPath {
+    let mut path = BezPath::new();
+    for contour in solid.front_contours(plane) {
+        path.move_to((contour[0][0], contour[0][1]));
+        for p in &contour[1..] {
+            path.line_to((p[0], p[1]));
+        }
+        path.close_path();
+    }
+    path
+}
+
+#[cfg(feature = "3d")]
+fn update_projected_mask(node: &ExpandedNode, ctx: &RuntimeContext, state: &mut OcclusionState) {
+    let geometry = ctx.canvas_geometry_for_node(node);
+    let size = geometry.bounds;
+    let Some(back) = ctx.presented_projection_for_node(node) else {
+        return;
+    };
+    let Some(inverse) = back.mapping().inverse() else {
+        emit_mask(node, size, vec![], ctx);
+        return;
+    };
+    let bounds = Rect::new(0., 0., size.0, size.1);
+    // Native controls need no canvas paint bounds. Query their projected layout
+    // rectangle, using the same coordinates as the native spatial index.
+    let query = geometry.native_bounds().unwrap_or(Rect::ZERO);
+    let candidates = if state
+        .records
+        .get(&node.id.to_u32())
+        .is_some_and(|r| r.layer == Layer::Native)
+    {
+        ctx.compositing_nodes_intersecting(geometry.layer, &[query], false)
+    } else {
+        vec![]
+    };
+    state.stats.masks_evaluated += 1;
+    state.stats.mask_candidates += candidates.len() as u64;
+    let mut entries = vec![];
+    let back_bounds = back.coverage(bounds, None).unwrap_or(Rect::ZERO);
+    for id in candidates {
+        let Some(record) = state.records.get(&id) else {
+            continue;
+        };
+        if record.opacity <= f64::EPSILON {
+            continue;
+        }
+        let Some(front_node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id))
+        else {
+            continue;
+        };
+        let Some(back_depth) = back.depth_plane() else {
+            continue;
+        };
+        let solid = ctx
+            .canvas_geometry_for_node(&front_node)
+            .projected_solid
+            .clone();
+        let (path, region) = if let Some(solid) = solid {
+            (solid_contours_path(&solid, back_depth), None)
+        } else {
+            let Some(front) = ctx.presented_projection_for_node(&front_node) else {
+                continue;
+            };
+            let Some(local) =
+                borrow!(front_node.instance_node).resolve_local_occlusion_path(&front_node)
+            else {
+                continue;
+            };
+            let path = front.project_path(&local, Some(back_bounds));
+            let Some(front_depth) = front.depth_plane() else {
+                continue;
+            };
+            let Some(region) = crate::spatial::front_region(
+                front_depth,
+                back_depth,
+                front_node.occlusion.get().z_index,
+                node.occlusion.get().z_index,
+                path.bounding_box().intersect(back_bounds),
+            ) else {
+                continue;
+            };
+            (path, Some(region))
+        };
+        if path.elements().is_empty() {
+            continue;
+        }
+        let inverse_projection =
+            pax_runtime_api::math::ProjectedPlane::affine(Affine::IDENTITY).post_mapping(inverse);
+        let mut clips: Vec<_> = record
+            .clips
+            .iter()
+            .filter_map(|id| {
+                let owner = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(*id))?;
+                ctx.presented_clip_path(&owner)
+            })
+            .collect();
+        clips.extend(region);
+        let mask_opacity = conditional_native_coverage_opacity(
+            record.opacity,
+            front_node.computed_opacity.get(),
+            &front_node.computed_opacity_scopes.get(),
+            &node.computed_opacity_scopes.get(),
+        );
+        if let Some(entry) =
+            project_mask_entry(&path, &clips, inverse_projection, bounds, mask_opacity)
+        {
+            entries.push(entry);
+        }
+    }
+    sort_mask_entries(&mut entries);
+    emit_mask(node, size, entries, ctx);
+}
+
+#[cfg(any(feature = "3d", test))]
+fn project_mask_entry(
+    path: &BezPath,
+    clips: &[BezPath],
+    inverse: pax_runtime_api::math::ProjectedPlane,
+    bounds: Rect,
+    opacity: f64,
+) -> Option<MaskPathPatch> {
+    // This is a computational viewport, not an authored clip. Keep its edges
+    // outside the control's mask texture so antialiasing cannot mix a fully
+    // covered border with the white mask backdrop. Authored boundaries are intact.
+    let raster_bounds = bounds.inflate(1., 1.);
+    let project = |path: &BezPath| {
+        let path = inverse.project_path(path, Some(raster_bounds));
+        (!path.elements().is_empty()).then(|| bez_path_to_svg_path_data(&path))
+    };
+    // Every clip is an intersection. If projection leaves any one empty, this
+    // paint cannot occlude the native leaf; omit it on every chassis.
+    Some(MaskPathPatch {
+        path: project(path)?,
+        clips: clips.iter().map(project).collect::<Option<Vec<_>>>()?,
+        opacity: Some(opacity),
+    })
+}
+
+fn camera_mask_entry(node: &ExpandedNode, ctx: &RuntimeContext) -> Option<MaskPathPatch> {
+    if !node.has_perspective_camera() {
+        return None;
+    }
+    let bounds = node.transform_and_bounds.get().bounds;
+    let rect = Rect::new(0., 0., bounds.0, bounds.1);
+    let corners = vec![
+        rect.origin(),
+        kurbo::Point::new(rect.x1, rect.y0),
+        kurbo::Point::new(rect.x1, rect.y1),
+        kurbo::Point::new(rect.x0, rect.y1),
+    ];
+    let visible = ctx
+        .presented_projection_for_node(node)
+        .map(|p| p.clip_polygon(corners.clone(), None))
+        .unwrap_or_default();
+    if visible == corners {
+        return None;
+    }
+    let mut path = rect.to_path(0.1);
+    if let Some(last) = visible.last() {
+        // Opposite winding removes the visible polygon from this opaque cover.
+        path.move_to(*last);
+        for p in visible.iter().rev().skip(1) {
+            path.line_to(*p);
+        }
+        path.close_path();
+    }
+    Some(MaskPathPatch {
+        path: bez_path_to_svg_path_data(&path),
+        clips: vec![],
+        opacity: Some(1.),
     })
 }
 
@@ -1444,9 +1676,12 @@ fn conditional_native_coverage_opacity(
 fn emit_mask(
     node: &ExpandedNode,
     size: (f64, f64),
-    entries: Vec<MaskPathPatch>,
+    mut entries: Vec<MaskPathPatch>,
     ctx: &RuntimeContext,
 ) {
+    if let Some(clip) = camera_mask_entry(node, ctx) {
+        entries.push(clip);
+    }
     let hash = if entries.is_empty() {
         0
     } else {
@@ -1588,9 +1823,13 @@ fn update_node_occlusion_recursive(
     );
     let instance_node = borrow!(node.instance_node);
     let world_clip = instance_node.resolve_effect_clip_path(node);
-    let effect_clip_path = world_clip
-        .clone()
-        .map(|clip| active_scroll_transform * clip);
+    let effect_clip_path = if node.has_perspective_camera() {
+        ctx.presented_clip_path(node)
+    } else {
+        world_clip
+            .clone()
+            .map(|clip| active_scroll_transform * clip)
+    };
     let has_effect_clip = effect_clip_path.is_some();
     let scrolls_content = instance_node.scrolls_content(node);
     let scroll_transform = if scrolls_content {
@@ -1657,10 +1896,7 @@ fn update_node_occlusion_recursive(
             .or(active_container)
     };
     let descendant_scroll_transform = active_scroll_transform * scroll_transform;
-    let presented_bounds = OcclusionBox::new_from_transform_and_bounds_with_affine(
-        node.transform_and_bounds.get(),
-        active_scroll_transform,
-    );
+    let presented_bounds = OcclusionBox::for_node(node, ctx);
     let mut descendant_clip_bounds = active_clip_bounds;
     if scrolls_content {
         descendant_clip_bounds = descendant_clip_bounds
@@ -1756,12 +1992,19 @@ fn update_node_occlusion_recursive(
     if scrolls_content {
         let content_layer_id = allow_scroller_vector_layers.then_some(descendant_layer_id as u32);
         let presentation_hash =
-            hash_presentation_bounds(Some(presented_bounds), presented_clip_bounds);
+            hash_node_presentation(node, ctx, Some(presented_bounds), presented_clip_bounds);
         let presentation_changed = node.presentation_cache_hash.get() != presentation_hash;
         if node.browser_content_layer_id.get() != content_layer_id || presentation_changed {
             ctx.enqueue_native_message(pax_message::NativeMessage::ScrollerUpdate(ScrollerPatch {
                 id: node.id.to_u32(),
                 content_layer_id,
+                presentation_projection: Some(if node.has_perspective_camera() {
+                    ctx.presented_projection_for_node(node)
+                        .map(|p| p.matrix().coeffs().to_vec())
+                        .unwrap_or_default()
+                } else {
+                    vec![]
+                }),
                 presented_bounds: Some(presented_bounds.as_array()),
                 presented_clip_bounds: presented_clip_bounds.map(|bounds| bounds.as_array()),
                 ..Default::default()
@@ -1773,7 +2016,7 @@ fn update_node_occlusion_recursive(
 
     if has_effect_clip {
         let presentation_hash =
-            hash_presentation_bounds(Some(presented_bounds), presented_clip_bounds);
+            hash_node_presentation(node, ctx, Some(presented_bounds), presented_clip_bounds);
         if node.presentation_cache_hash.get() != presentation_hash {
             ctx.enqueue_native_message(pax_message::NativeMessage::FrameUpdate(
                 pax_message::FramePatch {
@@ -1860,7 +2103,7 @@ fn update_native_masks(
                 {
                     stats.native_nodes += 1;
                 }
-                let t_and_b = node.transform_and_bounds.get();
+                let t_and_b = node.presentation_transform_and_bounds.get();
                 let size = t_and_b.bounds;
                 let presentation = if state.unsafe_layers.contains(layer_id) {
                     ctx.presentation_scroll_transform_for_node(node)
@@ -1897,6 +2140,9 @@ fn update_native_masks(
                         })
                 });
 
+                if let Some(clip) = camera_mask_entry(node, ctx) {
+                    entries.push(clip);
+                }
                 let new_hash = if entries.is_empty() {
                     0
                 } else {
@@ -1933,6 +2179,23 @@ fn hash_mask_entries(size: (f64, f64), entries: &[MaskPathPatch]) -> u64 {
     hasher.finish()
 }
 
+fn hash_node_presentation(
+    node: &ExpandedNode,
+    ctx: &RuntimeContext,
+    bounds: Option<OcclusionBox>,
+    clips: Option<OcclusionBox>,
+) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    hash_presentation_bounds(bounds, clips).hash(&mut hasher);
+    node.has_perspective_camera().hash(&mut hasher);
+    if node.has_perspective_camera() {
+        ctx.presented_projection_for_node(node)
+            .map(|p| p.matrix().coeffs().map(f64::to_bits))
+            .hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
 fn hash_presentation_bounds(
     presented_bounds: Option<OcclusionBox>,
     presented_clip_bounds: Option<OcclusionBox>,
@@ -1964,6 +2227,74 @@ mod tests {
     use kurbo::{Rect, RoundedRect};
 
     #[test]
+    fn projected_native_mask_preserves_coverage_past_control_edges() {
+        use pax_runtime_api::math::ProjectedPlane;
+        let bounds = Rect::new(0., 0., 100., 28.);
+        let paint = Rect::new(40., -20., 200., 60.).to_path(0.1);
+        let clip = Rect::new(-100., -100., 300., 300.).to_path(0.1);
+        let entry = project_mask_entry(
+            &paint,
+            &[clip],
+            ProjectedPlane::affine(Affine::IDENTITY),
+            bounds,
+            1.,
+        )
+        .unwrap();
+        let path = BezPath::from_svg(&entry.path).unwrap();
+        let clip = BezPath::from_svg(&entry.clips[0]).unwrap();
+        // Samples just outside the control stay black through texture filtering;
+        // the authored boundary at x=40 must not expand into visible content.
+        for p in [(60., -0.5), (60., 28.5), (100.5, 14.)] {
+            assert!(path.contains(p.into()) && clip.contains(p.into()));
+        }
+        assert!(!path.contains((39.5, 14.).into()));
+    }
+
+    #[test]
+    fn moving_projected_clips_preserve_native_visibility_through_empty_intersections() {
+        use pax_runtime_api::math::{PlanarProjection, ProjectedPlane};
+
+        let mapping = PlanarProjection([1., 0., 0.002, 0.1, 1., 0.001, 50., 30., 1.]);
+        let inverse =
+            ProjectedPlane::affine(Affine::IDENTITY).post_mapping(mapping.inverse().unwrap());
+        let bounds = Rect::new(0., 0., 120., 60.);
+        let paint = Rect::new(0., 0., 400., 300.).to_path(0.1);
+        let mut empty_frames = 0;
+        let mut covered_frames = 0;
+        // The paint remains over the control while an ancestor clip sweeps
+        // across it and back. Empty intersections must never become full paint.
+        for frame in (0..80).chain((0..80).rev()) {
+            let x = frame as f64 * 5. - 200.;
+            let clip = Rect::new(x, 0., x + 45., 300.);
+            let entry = project_mask_entry(&paint, &[clip.to_path(0.1)], inverse, bounds, 1.);
+            if entry.is_some() {
+                covered_frames += 1;
+            } else {
+                empty_frames += 1;
+            }
+            for local_x in [13., 37., 61., 89., 113.] {
+                for local_y in [11., 29., 47.] {
+                    let local = kurbo::Point::new(local_x, local_y);
+                    let screen = mapping.project(local).unwrap();
+                    let expected = clip.contains(screen);
+                    let actual = entry.as_ref().is_some_and(|entry| {
+                        assert!(!entry.path.is_empty());
+                        assert!(entry.clips.iter().all(|clip| !clip.is_empty()));
+                        BezPath::from_svg(&entry.path).unwrap().contains(local)
+                            && entry
+                                .clips
+                                .iter()
+                                .all(|clip| BezPath::from_svg(clip).unwrap().contains(local))
+                    });
+                    assert_eq!(actual, expected, "frame {frame}, point {local:?}");
+                }
+            }
+        }
+        assert!(empty_frames > 0 && covered_frames > 0);
+        assert!(project_mask_entry(&paint, &[BezPath::new()], inverse, bounds, 1.).is_none());
+    }
+
+    #[test]
     fn collapsed_native_surfaces_have_no_local_mask_until_they_expand() {
         let presentation = Affine::translate((0.0, -400.0));
         for scale in [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0)] {
@@ -1980,6 +2311,88 @@ mod tests {
             let point = kurbo::Point::new(20.0, 30.0);
             let restored = inverse * (presentation * world * point);
             assert!((restored - point).hypot() < 1e-4);
+        }
+    }
+
+    #[test]
+    fn collapsing_native_surface_clears_old_mask_and_expansion_restores_it() {
+        use crate::{ComponentInstance, InstanceNode, InstantiationArgs};
+        use pax_runtime_api::{LocalProperty, Platform, OS};
+
+        let mut engine = crate::test_support::empty_engine(
+            (400.0, 400.0),
+            Platform::Web,
+            OS::Mac,
+            Box::new(|| 0),
+            Default::default(),
+        );
+        let root = engine.mount_root_component(ComponentInstance::instantiate(InstantiationArgs {
+            prototypical_common_properties: crate::CommonPropertiesInit::Default,
+            prototypical_properties: crate::PropertiesInit::Factory(Box::new(|_, _| {
+                Some(Rc::new(std::cell::RefCell::new(
+                    pax_runtime_api::pax_value::PaxAny::Builtin(
+                        pax_runtime_api::PaxValue::default(),
+                    ),
+                )))
+            })),
+            handler_registry: None,
+            children: None,
+            component_template: None,
+            component_settings: None,
+            component_camera: None,
+            template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
+            transition_config: Default::default(),
+            properties_scope: crate::PropertiesScopeInit::None,
+        }));
+        let ctx = &engine.runtime_context;
+        let _graph = ctx.property_graph.enter();
+        ctx.take_native_messages();
+        for (scale, expected_entries) in [(1.0, 1), (0.0, 0), (1.0, 1)] {
+            let tab = TransformAndBounds {
+                transform: pax_runtime_api::math::Transform2::new(
+                    (Affine::translate((50.0, 50.0)) * Affine::scale(scale)).as_coeffs(),
+                ),
+                bounds: (100.0, 100.0),
+            };
+            root.presentation_transform_and_bounds
+                .replace_with(LocalProperty::new(tab));
+            let drawables = [
+                DrawableInfo::Native {
+                    node: root.clone(),
+                    layer: Layer::Native,
+                    layer_id: 0,
+                    bounds: OcclusionBox::new_from_transform_and_bounds_with_affine(
+                        tab,
+                        Affine::IDENTITY,
+                    ),
+                    presentation_transform: Affine::IDENTITY,
+                },
+                DrawableInfo::Canvas {
+                    layer_id: 0,
+                    entry: entry(rect(0.0, 0.0, 200.0, 200.0), vec![]),
+                },
+            ];
+            update_native_masks(&drawables, ctx);
+            let masks: Vec<_> = ctx
+                .take_native_messages()
+                .into_iter()
+                .filter_map(|message| match message {
+                    pax_message::NativeMessage::NativeMaskUpdate(patch) => Some(patch),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(
+                masks.len(),
+                1,
+                "each scale transition updates the existing mask"
+            );
+            assert_eq!(masks[0].entries.len(), expected_entries);
+            assert!(masks[0]
+                .entries
+                .iter()
+                .all(|entry| { !entry.path.contains("NaN") && !entry.path.contains("inf") }));
         }
     }
 

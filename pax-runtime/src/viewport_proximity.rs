@@ -185,7 +185,7 @@ impl RuntimeContext {
                 .collect();
             drop(instance);
             dependencies.extend([
-                node.transform_and_bounds.untyped(),
+                node.presentation_transform_and_bounds.untyped(),
                 node.parent_frame.untyped(),
                 node.occlusion.untyped(),
                 node.suspended.untyped(),

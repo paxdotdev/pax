@@ -13,15 +13,18 @@ struct Globals { resolution: vec2<f32>, dpr: vec2<f32>, origin: vec2<f32>, paddi
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) world: vec2<f32>,
+    @location(1) camera_clip: vec2<f32>,
 };
-@vertex fn vs_main(@location(0) point: vec2<f32>) -> VertexOutput {
+@vertex fn vs_main(@location(0) point: vec4<f32>, @location(1) paint: vec2<f32>, @location(2) camera_clip: vec2<f32>) -> VertexOutput {
     var out: VertexOutput;
-    let p = (point - globals.origin) / globals.resolution * 2.0 - 1.0;
-    out.position = vec4<f32>(p.x, -p.y, 0.0, 1.0);
-    out.world = point;
+    let p = (point.xy - globals.origin * point.w) / globals.resolution * 2.0 - vec2<f32>(point.w);
+    out.position = vec4<f32>(p.x, -p.y, point.z, point.w);
+    out.world = paint;
+    out.camera_clip = camera_clip;
     return out;
 }
 @fragment fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    if in.camera_clip.y <= 0.0 || in.camera_clip.x < 0.0 || in.camera_clip.x > in.camera_clip.y { discard; }
     var alpha = 0.0;
     for (var i = 0u; i < paint_range.y; i++) {
         alpha += sample_alpha(paints[paint_range.x + i], in.world);

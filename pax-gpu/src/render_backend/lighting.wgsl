@@ -14,6 +14,7 @@ struct SceneLight {
 struct SceneLighting {
     surface_to_world_x: vec4<f32>,
     surface_to_world_y: vec4<f32>,
+    view: vec4<f32>,
     ambient: vec4<f32>,
     flags: vec4<u32>,
     lights: array<SceneLight, 8>,
@@ -47,7 +48,8 @@ fn apply_lighting(
         return color;
     }
     let surface_position = world_position;
-    let view_dir = vec3<f32>(0.0, 0.0, 1.0);
+    let to_view = scene_lighting.view.xyz - world_position * scene_lighting.view.w;
+    let view_dir = to_view / max(length(to_view), 0.0001);
     var lighting = scene_lighting.ambient.rgb * scene_lighting.ambient.a * ambient_coeff;
 
     for (var i = 0u; i < 8u; i++) {

@@ -70,6 +70,7 @@ struct SerializedComponentMutation {
     template: Option<ComponentTemplate>,
     settings: Option<Vec<SettingsBlockElement>>,
     timelines: Vec<TimelineDefinition>,
+    camera: Option<pax_manifest::LiteralBlockDefinition>,
 }
 
 impl From<ComponentDefinition> for SerializedComponentMutation {
@@ -79,6 +80,7 @@ impl From<ComponentDefinition> for SerializedComponentMutation {
             template: component.template,
             settings: component.settings,
             timelines: component.timelines,
+            camera: component.camera,
         }
     }
 }
@@ -797,6 +799,7 @@ fn apply_serialized_component_mutation(
     target.template = mutation.template;
     target.settings = mutation.settings;
     target.timelines = mutation.timelines;
+    target.camera = mutation.camera;
 }
 
 fn apply_template_to_manifest(
@@ -810,6 +813,7 @@ fn apply_template_to_manifest(
     component.template = Some(update.new_template.clone());
     component.settings = Some(update.settings_block.clone());
     component.timelines = update.timelines.clone();
+    component.camera = update.camera.clone();
     Ok(())
 }
 
@@ -841,6 +845,7 @@ mod tests {
                 template: None,
                 settings: None,
                 timelines: vec![],
+                camera: None,
                 route_branch: None,
             },
         );
@@ -875,6 +880,7 @@ mod tests {
             new_template: ComponentTemplate::new(type_id, None),
             settings_block: vec![SettingsBlockElement::Comment(label.to_string())],
             timelines: vec![],
+            camera: None,
         }
     }
 
@@ -1467,6 +1473,7 @@ mod tests {
                 template: None,
                 settings: None,
                 timelines: vec![],
+                camera: None,
                 route_branch: None,
             },
         );
@@ -1552,6 +1559,7 @@ mod tests {
                 )),
                 settings: None,
                 timelines: vec![],
+                camera: None,
                 route_branch: None,
             },
         );

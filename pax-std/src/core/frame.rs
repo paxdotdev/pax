@@ -2,7 +2,7 @@ use pax_engine::api::LocalProperty;
 use std::iter;
 use std::rc::Rc;
 
-use crate::common::{canvas_surface_transform, native_surface_opacity, patch_if_needed};
+use crate::common::{native_surface_opacity, patch_if_needed};
 use kurbo::{Affine, BezPath, RoundedRect, Shape};
 use pax_engine::*;
 use pax_message::{AnyCreatePatch, FramePatch};
@@ -71,7 +71,7 @@ impl FrameInstance {
         expanded_node.with_properties_unwrapped(|frame: &mut Frame| {
             frame._clip_content.local().get().then(|| {
                 frame_clip_path(
-                    expanded_node.transform_and_bounds.get().bounds,
+                    expanded_node.presentation_transform_and_bounds.get().bounds,
                     frame.corner_radius.local().get(),
                     transform,
                 )
@@ -149,11 +149,8 @@ impl InstanceNode for FrameInstance {
         );
     }
 
-    fn resolve_effect_clip_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
-        Self::clip_path_in_space(
-            expanded_node,
-            Affine::from(expanded_node.transform_and_bounds.get().transform),
-        )
+    fn resolve_local_clip_path(&self, node: &ExpandedNode) -> Option<BezPath> {
+        Self::clip_path_in_space(node, Affine::IDENTITY)
     }
 
     fn handle_pre_render(
@@ -175,11 +172,18 @@ impl InstanceNode for FrameInstance {
 
         // Render clips share the leaf primitives' owning-surface coordinate space.
         // World-space paths remain available above for occlusion and hit testing.
-        let Some(transformed_bez_path) =
-            Self::clip_path_in_space(expanded_node, canvas_surface_transform(expanded_node, rtc))
-        else {
+        let Some(local_path) = Self::clip_path_in_space(expanded_node, Affine::IDENTITY) else {
             return;
         };
+        let projection =
+            if rcs.alpha_source_layer().is_some() && expanded_node.has_perspective_camera() {
+                rtc.canvas_projection_on_layer(expanded_node, layer_id)
+            } else {
+                rtc.canvas_surface_projection_for_node(expanded_node)
+            };
+        let transformed_bez_path = projection
+            .map(|p| p.project_path(&local_path, None))
+            .unwrap_or_default();
 
         // Clip stack nodes affect all descendant canvas draws on this layer. They intentionally
         // use the unbounded begin path; primitive tile culling happens at leaf draw nodes.
@@ -266,7 +270,8 @@ impl InstanceNode for FrameInstance {
             .cloned()
             .map(|v| v.get_untyped_property().clone())
             .chain([
-                expanded_node.transform_and_bounds.untyped(),
+                #[cfg(feature = "3d")]
+                expanded_node.presentation_geometry().untyped(),
                 expanded_node.computed_opacity.untyped(),
                 expanded_node.parent_frame.untyped(),
                 expanded_node.occlusion.untyped(),
@@ -288,7 +293,7 @@ impl InstanceNode for FrameInstance {
                         ..Default::default()
                     };
                     expanded_node.with_properties_unwrapped(|properties: &mut Frame| {
-                        let computed_tab = expanded_node.transform_and_bounds.get();
+                        let computed_tab = expanded_node.presentation_transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
                         let corner_radius = properties.corner_radius.local().get();
                         let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
@@ -297,7 +302,10 @@ impl InstanceNode for FrameInstance {
                             && clamped_radius > f64::EPSILON
                         {
                             let rect = RoundedRect::new(0.0, 0.0, width, height, clamped_radius);
-                            let bez_path = Affine::from(computed_tab.transform) * rect.to_path(0.1);
+                            let bez_path = cloned_context
+                                .native_presentation_projection_for_node(&expanded_node)
+                                .map(|plane| plane.project_path(&rect.to_path(0.1), None))
+                                .unwrap_or_default();
                             bez_path_to_svg_path_data(&bez_path)
                         } else {
                             String::new()
@@ -324,7 +332,7 @@ impl InstanceNode for FrameInstance {
                             patch_if_needed(
                                 &mut old_state.transform,
                                 &mut patch.transform,
-                                computed_tab.transform.coeffs().to_vec(),
+                                cloned_context.native_presentation_matrix_for_node(&expanded_node),
                             ),
                             patch_if_needed(
                                 &mut old_state.clip_path,

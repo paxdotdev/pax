@@ -316,6 +316,11 @@ Type: [`f32`; 6]
 
 Canvas-content to unscrolled world coordinates, in affine coefficient order.
 
+##### `view`
+Type: [`f32`; 4]
+
+World eye position (w=1), or direction toward the viewer (w=0).
+
 ##### `active`
 Type: `bool`
 
@@ -360,6 +365,11 @@ limit. Moving or fading retained geometry updates transform pages without
 retessellating or uploading vertex/index buffers.
 
 #### Implementations
+##### `begin_projected_shader_effect`
+<pre><code class="api-signature language-rust ignore">pub fn begin_projected_shader_effect(&amp;mut self, id: u32, z: i32, effect: &amp;<a href="../../../api/pax-runtime-api/shader_effect.md#shadereffect">ShaderEffect</a>, projection: <a href="../../../api/pax-runtime-api/math/projection.md#projectedplane">ProjectedPlane</a>, size: (f64, f64), scopes: &amp;[<a href="../../../api/pax-runtime-api/rendering.md#opacityscope">OpacityScope</a>], children: &amp;[u32]) -&gt; bool</code></pre>
+
+Starts an effect whose local sampling coordinates follow a camera projection.
+
 ##### `begin_shader_effect`
 <pre><code class="api-signature language-rust ignore">pub fn begin_shader_effect(&amp;mut self, id: u32, z: i32, effect: &amp;<a href="../../../api/pax-runtime-api/shader_effect.md#shadereffect">ShaderEffect</a>, transform: <a href="../../../api/pax-runtime-api/transform.md#transform2d">Transform2D</a>, size: (f64, f64), scopes: &amp;[<a href="../../../api/pax-runtime-api/rendering.md#opacityscope">OpacityScope</a>], children: &amp;[u32]) -&gt; bool</code></pre>
 
@@ -370,6 +380,11 @@ Available with the opt-in `shaders` Cargo feature.
 <pre><code class="api-signature language-rust ignore">pub fn end_shader_effect(&amp;mut self)</code></pre>
 
 Finish the GPU-only filter boundary. Requires the `shaders` Cargo feature.
+
+##### `draw_convex_mesh`
+<pre><code class="api-signature language-rust ignore">pub fn draw_convex_mesh(&amp;mut self, draw: &amp;<a href="../../../api/pax-runtime-api/mesh3.md#opaquemeshdraw">OpaqueMeshDraw</a>, color: <a href="../../../api/pax-runtime-api/color.md#color">Color</a>, material: <a href="../../../api/pax-runtime-api/drawing.md#material">Material</a>)</code></pre>
+
+Retains immutable topology; pose/material changes update only uniforms.
 
 ##### `begin_alpha_source`
 <pre><code class="api-signature language-rust ignore">pub fn begin_alpha_source(&amp;mut self, mapping: <a href="../../../api/pax-runtime-api/transform.md#transform2d">Transform2D</a>, feather: f32)</code></pre>
@@ -386,11 +401,6 @@ Restores the consumer and installs a reference to the source's retained alpha te
 <pre><code class="api-signature language-rust ignore">pub fn set_node_depth_plane(&amp;mut self, node_id: u32, plane: Option&lt;<a href="../../../api/pax-runtime-api/rendering.md#depthplane">DepthPlane</a>&gt;)</code></pre>
 
 Updates an orthographic plane independently of retained paint resources.
-
-##### `draw_convex_mesh`
-<pre><code class="api-signature language-rust ignore">pub fn draw_convex_mesh(&amp;mut self, draw: &amp;<a href="../../../api/pax-runtime-api/mesh3.md#opaquemeshdraw">OpaqueMeshDraw</a>, color: <a href="../../../api/pax-runtime-api/color.md#color">Color</a>, material: <a href="../../../api/pax-runtime-api/drawing.md#material">Material</a>)</code></pre>
-
-Retains immutable topology; pose/material changes update only uniforms.
 
 ##### `clip_alpha`
 <pre><code class="api-signature language-rust ignore">pub fn clip_alpha(&amp;mut self, paints: Vec&lt;<a href="../../../api/pax-runtime-api/rendering.md#alphamaskpaint">AlphaMaskPaint</a>&gt;, feather: f32)</code></pre>
@@ -439,6 +449,17 @@ Queue a filled vector path with an extra opacity multiplier.
 <pre><code class="api-signature language-rust ignore">pub fn new(render_backend: <a href="../../../api/internal/pax-gpu/render_backend.md#renderbackend">RenderBackend</a>&lt;&#39;w&gt;) -&gt; Self</code></pre>
 
 Create a retained renderer around a low-level `RenderBackend`.
+
+##### `paint_transform`
+<pre><code class="api-signature language-rust ignore">pub fn paint_transform(&amp;self) -&gt; <a href="../../../api/pax-runtime-api/transform.md#transform2d">Transform2D</a></code></pre>
+
+Paint coordinates remain local under perspective; the shader interpolates
+them with the same homogeneous w as the surface.
+
+##### `project`
+<pre><code class="api-signature language-rust ignore">pub fn project(&amp;mut self, plane: <a href="../../../api/pax-runtime-api/math/projection.md#projectedplane">ProjectedPlane</a>)</code></pre>
+
+Applies homogeneous geometry after the current affine tile/capture mapping.
 
 ##### `reset_drawing_state`
 <pre><code class="api-signature language-rust ignore">pub fn reset_drawing_state(&amp;mut self)</code></pre>

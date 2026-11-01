@@ -716,10 +716,11 @@ scroll content. Read more about [Layout](layout-responsiveness.md) and
 [Scrolling](scrolling-viewports.md).
 
 With the experimental [spatial properties](layout-responsiveness.md#rotating-flat-surfaces-in-3d),
-the default orthographic view still delivers window-space coordinates. GPU
+the orthographic view, including an active [`@camera`](layout-responsiveness.md#controlling-the-root-camera),
+still delivers window-space coordinates. GPU
 hit testing compares geometric depth at that position before coplanar paint
 order. Edge-on surfaces cannot receive a new hit. Use `ctx.local_point(...)`
-for the projected control's local coordinates, as with 2D transforms. A pose
+for the projected control's local coordinates, as with 2D transforms. A pose or camera
 change does not itself dispatch a pointer move or replace an established
 mouse/touch sequence target; the capture rules below continue to apply.
 

@@ -49,6 +49,11 @@ Type: `Option`<`Vec`<[`SettingsBlockElement`](../../../api/internal/pax-manifest
 ##### `timelines`
 Type: `Vec`<[`TimelineDefinition`](../../../api/internal/pax-manifest/index.md#timelinedefinition)>
 
+##### `camera`
+Type: `Option`<[`LiteralBlockDefinition`](../../../api/internal/pax-manifest/index.md#literalblockdefinition)>
+
+Default view configuration; active only on the mounted application root.
+
 ##### `route_branch`
 Type: `Option`<[`RouteBranchDescriptor`](../../../api/internal/pax-manifest/index.md#routebranchdescriptor)>
 

@@ -795,6 +795,7 @@ mod tests {
             template: Some(template),
             settings: None,
             timelines: vec![],
+            camera: None,
             route_branch: None,
         };
         PaxManifest {
@@ -817,6 +818,7 @@ mod tests {
             template: Some(template),
             settings: None,
             timelines: vec![],
+            camera: None,
             route_branch: None,
         };
         PaxManifest {

@@ -3,6 +3,7 @@
 <!-- tags: api, pax-runtime-api -->
 
 ## Submodules
+- [math::projection](math/projection.md)
 - [math::spatial](math/spatial.md)
 
 ## Structs

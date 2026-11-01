@@ -5,10 +5,15 @@ import FlexBuffers
 import Messages
 @testable import Rendering
 
-func makePaxTestWheel(x: Int32 = -30, y: Int32 = -20, flags: CGEventFlags = []) -> NSEvent {
-    let event = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2,
+func makePaxTestWheel(x: Int32 = -30, y: Int32 = -20, flags: CGEventFlags = [],
+                      units: CGScrollEventUnit = .pixel, phase: CGScrollPhase? = nil,
+                      location: CGPoint = .zero) -> NSEvent {
+    let event = CGEvent(scrollWheelEvent2Source: nil, units: units, wheelCount: 2,
                         wheel1: y, wheel2: x, wheel3: 0)!
     event.flags = flags
+    event.location = location
+    event.timestamp = DispatchTime.now().uptimeNanoseconds
+    event.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase?.rawValue ?? 0))
     return NSEvent(cgEvent: event)!
 }
 

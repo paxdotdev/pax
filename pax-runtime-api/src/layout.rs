@@ -233,9 +233,11 @@ pub struct CommonProperty {
 pub struct CommonProperties {
     /// Optional stable node identifier.
     pub id: LocalProperty<Option<String>>,
-    /// Horizontal position.
+    /// Horizontal layout position in the parent. Percentages also infer an
+    /// anchor unless `anchor_x` is explicit. Overrides this axis of `position`.
     pub x: LocalProperty<Option<Size>>,
-    /// Vertical position.
+    /// Vertical layout position in the parent. Percentages also infer an
+    /// anchor unless `anchor_y` is explicit. Overrides this axis of `position`.
     pub y: LocalProperty<Option<Size>>,
     /// Symmetric inner spacing applied to this node's child layout area on the x axis.
     pub padding_x: LocalProperty<Option<Size>>,
@@ -266,11 +268,11 @@ pub struct CommonProperties {
     /// Rotation around the local y axis, in addition to `rotate`. Defaults to zero.
     #[cfg(feature = "3d")]
     pub rotate_y: LocalProperty<Option<Rotation>>,
-    /// Translation along the parent's z axis in logical pixels. Positive values
+    /// Position along the parent's z axis in logical pixels. Positive values
     /// move toward the default viewer when the parent is unrotated. Percent depth
-    /// is unsupported. Defaults to zero.
-    #[cfg(feature = "3d")]
-    pub translate_z: LocalProperty<Option<Depth>>,
+    /// is unsupported. Defaults to zero; does not introduce depth-based flow
+    /// layout. Overrides this axis of the `position=[x, y, z]` shorthand.
+    pub z: LocalProperty<Option<Depth>>,
     /// Full composed 2D transform, applied in the node’s local plane.
     pub transform: LocalProperty<Option<Transform2D>>,
     /// Opacity of this node's subtree. WGPU and Vello CPU compose each canvas
@@ -347,8 +349,7 @@ impl CommonProperties {
             rotate_x,
             #[cfg(feature = "3d")]
             rotate_y,
-            #[cfg(feature = "3d")]
-            translate_z,
+            z,
             transform,
             opacity,
             layout_role,
@@ -410,10 +411,9 @@ impl CommonProperties {
                 "rotate_y".to_string(),
                 Variable::new_from_common_property(rotate_y.clone()),
             ),
-            #[cfg(feature = "3d")]
             (
-                "translate_z".to_string(),
-                Variable::new_from_common_property(translate_z.clone()),
+                "z".to_string(),
+                Variable::new_from_common_property(z.clone()),
             ),
             (
                 "anchor_x".to_string(),
@@ -523,9 +523,11 @@ mod tests {
     #[test]
     fn common_property_scope_matches_target_capability() {
         let scope = CommonProperties::default().retrieve_property_scope();
-        for name in ["rotate_x", "rotate_y", "translate_z"] {
+        for name in ["rotate_x", "rotate_y"] {
             assert_eq!(scope.contains_key(name), cfg!(feature = "3d"));
         }
+        assert!(scope.contains_key("z"));
+        assert!(!scope.contains_key("translate_z"));
         assert!(scope.contains_key("rotate"));
         println!(
             "3d={} CommonProperties={} bytes",

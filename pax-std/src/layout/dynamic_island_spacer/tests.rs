@@ -16,6 +16,7 @@ fn args(spacer: DynamicIslandSpacer) -> InstantiationArgs {
         children: None,
         component_template: None,
         component_settings: None,
+        component_camera: None,
         template_node_identifier: None,
         template_node_type_id: None,
         template_node_selector_info: None,

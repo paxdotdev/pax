@@ -27,6 +27,7 @@ fn component(type_id: TypeId, owner: &str) -> ComponentDefinition {
                 .collect(),
         ),
         timelines: vec![],
+        camera: None,
         route_branch: None,
     }
 }

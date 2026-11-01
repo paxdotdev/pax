@@ -134,6 +134,22 @@ final class NativeScrollerTests: XCTestCase {
 
     @MainActor
     func testWheelHandlersCanPreventNativeScrollingWithoutDuplicateDelivery() throws {
+        try assertWheelCancellation { point in
+            [makePaxTestWheel(x: 0, y: -3, units: .line, location: point)]
+        }
+    }
+
+    @MainActor
+    func testTrackpadHandlersCanPreventNativeScrollingWithoutDuplicateDelivery() throws {
+        try assertWheelCancellation { point in
+            [makePaxTestWheel(x: 0, y: 0, phase: .began, location: point),
+             makePaxTestWheel(x: 0, y: -80, phase: .changed, location: point),
+             makePaxTestWheel(x: 0, y: 0, phase: .ended, location: point)]
+        }
+    }
+
+    @MainActor
+    private func assertWheelCancellation(_ makeEvents: (CGPoint) -> [NSEvent]) throws {
         let dispatcher = NativeInterruptDispatcher.shared
         let previousSend = dispatcher.wheelInterrupt
         let previousConversion = dispatcher.convertWindowPointToPax
@@ -147,15 +163,28 @@ final class NativeScrollerTests: XCTestCase {
         dispatcher.convertWindowPointToPax = { point, _ in point }
         try fixture { host, _, scroll, positions in
             let before = scroll.contentView.bounds.origin
-            scroll.scrollWheel(with: makePaxTestWheel(x: 0, y: -80))
+            let window = try XCTUnwrap(scroll.window)
+            let point = window.convertPoint(toScreen: scroll.convert(
+                CGPoint(x: scroll.bounds.midX, y: scroll.bounds.midY), to: nil))
+            let screen = try XCTUnwrap(NSScreen.screens.first)
+            // CGEvent uses global, top-left screen coordinates. Do not inherit
+            // the desktop pointer position for this hidden test window.
+            let eventPoint = CGPoint(x: point.x, y: screen.frame.height - point.y)
+            let consumed = makeEvents(eventPoint)
+            consumed.forEach { scroll.scrollWheel(with: $0); flush(host) }
             flush(host)
-            XCTAssertEqual(deliveries, 1)
+            XCTAssertEqual(deliveries, consumed.count)
             XCTAssertEqual(scroll.contentView.bounds.origin, before)
             XCTAssertTrue(positions().isEmpty)
             prevented = false
-            scroll.scrollWheel(with: makePaxTestWheel(x: 0, y: -80))
-            flush(host)
-            XCTAssertEqual(deliveries, 2)
+            let unconsumed = makeEvents(eventPoint)
+            unconsumed.forEach { scroll.scrollWheel(with: $0); flush(host) }
+            // AppKit applies wheel motion asynchronously; wait for position
+            // feedback instead of assuming it arrives within one frame.
+            let deadline = Date(timeIntervalSinceNow: 3)
+            repeat { flush(host) } while
+                (scroll.contentView.bounds.origin.y <= before.y || positions().isEmpty) && Date() < deadline
+            XCTAssertEqual(deliveries, consumed.count + unconsumed.count)
             XCTAssertGreaterThan(scroll.contentView.bounds.origin.y, before.y)
             XCTAssertFalse(positions().isEmpty, "Unconsumed input still uses AppKit scrolling and position feedback")
         }

@@ -24,3 +24,9 @@ fn lighting_position(m: Transform, p: vec2<f32>, projected: vec2<f32>, row_x: ve
     return vec3<f32>(dot(row_x, vec3<f32>(projected, 1.0)), dot(row_y, vec3<f32>(projected, 1.0)), 0.0);
 }
 fn lighting_normal(m: Transform) -> vec3<f32> { return vec3<f32>(0.0, 0.0, 1.0); }
+
+fn projection_enabled(m: Transform) -> bool { return false; }
+fn projected_position(m: Transform, p: vec2<f32>, affine: vec2<f32>) -> vec4<f32> {
+    return vec4<f32>(affine, 0.0, 1.0);
+}
+fn projected_camera_clip(m: Transform, p: vec2<f32>) -> vec2<f32> { return vec2<f32>(0.5, 1.0); }

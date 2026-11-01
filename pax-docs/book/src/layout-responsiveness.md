@@ -449,7 +449,7 @@ Cuboid/CuboidFace, Ellipsoid, RouteCuboid, and lighting on transformed surfaces.
 See [optional runtime capabilities](targets-build-deploy.md#optional-runtime-capabilities)
 for build and dependency behavior.
 
-The experimental GPU spatial path adds `rotate_x`, `rotate_y`, and `translate_z`
+The experimental GPU spatial path adds `rotate_x`, `rotate_y`, and `z`
 to ordinary elements and groups. No scene wrapper is required. Unspecified
 values are zero, so existing interfaces keep their 2D layout and paint order.
 `rotate` remains rotation around Z. Rectangle and Ellipse remain flat shapes;
@@ -457,7 +457,7 @@ these properties do not extrude them into solids.
 
 ```pax
 <Group width=320px height=180px x=50% y=50%
-    rotate_x=12deg rotate_y=-30deg translate_z=40px>
+    rotate_x=12deg rotate_y=-30deg z=40px>
     <Textbox x=20px y=70px width=280px height=40px text="Edit on a tilted surface"/>
     <Rectangle width=100% height=100% fill=rgb(20, 125, 120)/>
 </Group>
@@ -466,7 +466,7 @@ these properties do not extrude them into solids.
 Layout, percentages, padding, and anchors remain local to each element.
 Rotation uses the existing anchor. Scale/skew and the local `transform` act
 in the element's plane; the pose then applies X rotation, Y rotation, and
-`rotate` (Z rotation), followed by placement in the parent. `translate_z`
+`rotate` (Z rotation), followed by placement in the parent. `z`
 moves along the **parent's** Z axis, in logical pixels. It accepts numbers or
 `px`, including expressions such as `{20px + offset}` with an absolute result;
 percent depth is not supported. Positive Z points toward the default viewer
@@ -522,8 +522,7 @@ This is a bounded first spatial implementation:
   emits a warning when spatial depth is requested; native occlusion and engine
   targeting follow that same fallback order. Use the GPU renderer for this
   example and for geometric depth.
-- Scene-camera selection, perspective presentation, spatial
-  clipping volumes are not enabled by these
+- Multiple views and spatial clipping volumes are not enabled by these
   properties. Shader containers and detached mask-source captures retain their
   existing raster composition semantics.
 - With fully opaque group scopes, the GPU compositor splits intersecting
@@ -550,7 +549,7 @@ Equal extents produce a sphere. Pose changes transform shared mesh geometry.
 ```pax
 <LightFrame width=100% height=100%>
     <Ellipsoid x=50% y=50% width=240px height=180px depth=200px
-        rotate_y=25deg translate_z=-40px
+        rotate_y=25deg z=-40px
         color=rgb(239, 167, 77) material={Material::glossy(0.35)} />
     <LightSource x=20% y=10% z=400px radius=1500px intensity=2.0 />
     <AmbientLight intensity=0.4 />
@@ -564,13 +563,22 @@ apertures; they clip the visible result, without adding solid caps at the cut.
 Controls keep their mounted identity as the occlusion changes. Tile coverage
 includes the full volume, including a pose whose local XY plane is edge-on.
 
-The mesh topology stays resident during motion. Each immutable pose also keeps
-its projected silhouette and a bounded cache of solid/plane coverage contours,
-shared by repeated queries against that pose. Paint-only changes reuse these
-contours; changing the pose replaces them. This reduces repeated clipping work
+The mesh topology stays resident during motion. Each immutable world pose keeps
+up to four camera/chart projections. Each projection keeps its silhouette and up
+to 32 solid/plane coverage contours, shared by repeated queries. Paint-only
+changes reuse these records; changing a camera, its clip planes, the canvas
+viewport, or the solid pose replaces the affected projected geometry. This reduces repeated clipping work
 for native siblings, tiles, and spatial fades, but animated geometry still has
 CPU intersection work. Use the [web scene profiler](developer-workflow.md#profile-a-web-scene)
 to distinguish that work from paint-only updates in your scene.
+
+Root [`@camera`](#controlling-the-root-camera) pan, zoom, rotation, and perspective
+also apply to solids. Camera motion changes presentation without rebuilding the
+shared mesh or moving its world-space lighting. Perspective `near` and `far`
+clip the actual surface before projection, without creating caps. If the near
+plane cuts away the front of a solid, controls remain visible and interactive
+through the opening wherever the surviving surface is behind them. Scroller-owned
+canvases preserve those camera clip planes when rebasing into their content space.
 
 This first mesh primitive accepts one opaque `color` and a normal Pax
 `material`. It does not wrap live children onto a curved surface. Zero, negative,
@@ -649,7 +657,7 @@ share a fade; the blue translucent band belongs to the outside scene.
 `width` and `height` follow normal layout; `depth` is an absolute length in
 logical pixels (100px by default). Local Z runs from `-depth / 2` to
 `+depth / 2`. Rotation uses the existing XY anchors and local Z=0, so a centered
-XY anchor rotates around the solid's center. `translate_z` moves the whole
+XY anchor rotates around the solid's center. `z` moves the whole
 solid independently of its depth. Negative or non-finite depth collapses to
 zero; depth percentages are not supported.
 
@@ -704,6 +712,122 @@ branch that computes this geometry and supplies normal enter/exit timelines:
 ```sh
 pax-cli run --path examples/fixtures/cuboid-router --target web
 ```
+
+## Controlling the root camera
+
+Enable the `3d` Cargo feature, then declare one `@camera` block beside the root component's template and settings to
+pan, zoom, or rotate the view. Orthographic projection is the default. Camera values can be literals,
+reactive expressions, or inline `@timeline` tracks:
+
+```pax
+@camera {
+    position: [50%, 50%, 0px]
+    zoom: 1.2
+    rotate_y: 15deg
+}
+```
+
+The defaults are `position: [50%, 50%, 0px]`, zero rotations, and `zoom: 1`.
+An empty block and an omitted block preserve the existing view exactly. `x`,
+`y`, and `z` override their axes in `position`; `[x, y]` supplies zero depth.
+X/Y percentages resolve against the root's local dimensions without an inferred
+element anchor. Depth accepts numbers or pixels, not percentages. `rotate`
+is Z rotation; the pose applies X, then Y, then Z rotation, followed by position.
+The view applies the inverse pose and centers it in the root viewport. Increasing
+camera X moves the scene left; increasing zoom magnifies it around the view center.
+Changing Z alone does not change orthographic size.
+
+For reactive control, declare `pan: Property<f64>` and `zoom: Property<f64>` on
+the root Rust component, initialize zoom to `1.0`, and bind:
+
+```pax
+@camera {
+    position: {[50% + (pan)px, 50%]}
+    zoom: {zoom}
+}
+```
+
+Only the **mounted application root** activates its declaration, including in a
+debug wrapper. A component may keep the same block when embedded elsewhere: it
+is dormant there, without a warning or a second projection. The engine does not
+search descendants for a camera when the root has none. Duplicate blocks, duplicate
+keys, and unknown fields are rejected. Invalid active values use the default view
+with a diagnostic and recover when corrected; zoom must be finite and positive.
+A temporarily zero-sized viewport does not produce an authored-value diagnostic.
+
+Camera changes preserve mounted controls and their state. They affect rendering,
+clipping, depth comparisons, and input mapping, while local layout, autosize,
+scroll-content measurements, and `@viewport` dimensions stay unchanged. Tile
+preparation follows the projected exposure and density; moving the view does not
+create scroll velocity. Use `ctx.local_point(...)` for normalized input coordinates.
+
+Orthographic views use the existing web and native presentation paths.
+Simultaneous cameras, rendering a component's camera into a panel, and independent
+embedded viewports are deferred. The GPU/CPU, native stacking, and lighting
+limitations described above still apply.
+
+### Experimental perspective
+
+A GPU-backed root can select a perspective lens. Give the camera a positive Z
+position to view content around Z=0; the camera looks along its local negative Z
+axis. Unlike orthographic projection, nearby surfaces appear larger:
+
+```pax
+@camera {
+    projection: CameraMode::Perspective
+    position: [50%, 50%, 600px]
+    vertical_fov: 60deg
+    near: 1px
+    far: 10000px
+    zoom: 1.0
+}
+```
+
+`projection` accepts `CameraMode::Orthographic` or `CameraMode::Perspective`.
+The lens fields accept the same reactive expressions as the pose. `vertical_fov`
+defaults to 60 degrees and must be strictly between 0 and 180 degrees. `near` and
+`far` are positive camera-space distances, defaulting to 1 and 10000 logical pixels,
+with `near < far`. Geometry is clipped at those distances before perspective
+division. Invalid lens values temporarily restore the default orthographic view
+with a diagnostic and recover when corrected.
+
+The camera does not choose a Z position automatically. Moving it backward changes
+relative sizes and parallax. Changing the field of view changes the lens;
+`zoom` multiplies its focal length without moving the camera. Increasing zoom
+therefore narrows the effective field of view. None of these operations changes
+element layout, mounted identity, or scroll-content dimensions.
+
+The [spatial workbench above](#rotating-flat-surfaces-in-3d)
+provides a projection switch, field-of-view and dolly controls, and native inputs
+for exploring these differences on GPU web and macOS. It starts in orthographic mode.
+
+Perspective integration is **experimental and incomplete**. Shared GPU vector,
+image, and clip rendering use homogeneous projection; basic web and macOS native
+controls also receive projective transforms. Within one canvas layer, nearer opaque vector
+paint masks the covered portions of native text and controls, including where two
+surfaces cross. Moving either surface updates these masks without remounting the
+controls. Paint excluded by an ancestor clip or by the depth intersection does
+not hide native content, including while those intersections change during motion.
+This does not provide general native/native depth composition.
+GPU shader captures and detached vector mask sources retain projective coordinates
+and camera clipping. Lighting uses world-space surface normals and the current
+camera position or viewing direction. Opaque `Ellipsoid` meshes share camera
+projection, near/far clipping, native-control occlusion, and pointer depth.
+The workbench's tile/near-plane lab has been exercised on GPU web and macOS:
+distant tile jumps, nested wheel scrolling, animated zoom, and near-plane
+clipping recovery preserve the editor's text and nested scroll position.
+This does not extend depth composition across independently composited scroller
+layers or qualify other native targets.
+The macOS adapter retains AppKit controls and their native editing state. Pointer
+input, focus rings, text selection, selection autoscroll, IME candidate placement,
+and accessibility text geometry follow the projected plane. Editable controls use
+live layer masks, so selection and caret updates remain visible behind moving
+occluders. Full assistive-technology workflows and separately hosted native menus
+and popovers have not been qualified under perspective.
+
+CPU renderers diagnose perspective as
+unsupported and display the default orthographic view. This includes a web session
+that falls back to CPU rendering; selecting perspective does not enable WebGPU.
 
 ### Spatial math for engine integrations
 
@@ -774,6 +898,36 @@ presentation is applied separately. See the
 [runtime spatial API](api/internal/pax-runtime/spatial.md).
 
 ## Multi-Axis Common Properties
+
+`position` sets common layout placement in `[x, y, z]` order. A two-item
+`position=[x, y]` sets depth to zero. X and Y accept the same pixels,
+percentages, and mixed-unit expressions as their longhands; percentage
+positioning still infers an anchor. Z accepts numbers or pixels, without
+percentages. A scalar or a list of any other length is invalid.
+
+```pax
+<Group width=240px height=120px position=[50%, 50%, 40px]>
+    <Rectangle width=100% height=100% fill=rgb(220, 216, 206) />
+</Group>
+```
+
+Use a reactive expression such as `position={[self.left, 50%, self.depth]}`
+or animate the shorthand with a timeline. In one settings layer, `x`, `y`,
+and `z` override their corresponding shorthand axes, regardless of source
+order. A longhand's `@base` sees that axis of `position`. An overriding
+two-item position resets any earlier depth to zero.
+
+These are placement properties: X and Y contribute to measured content
+extents. Z positions the element along its parent's depth axis, without
+introducing 3D flow layout. A separate common post-layout `translate` offset
+is not yet available.
+
+The former `translate_z` spelling remains a deprecated template alias for
+`z` and emits a warning. Within a settings layer, explicit `z` wins over
+`translate_z`; either longhand wins over `position`. Rust callers should use
+`CommonProperties::z` in place of `CommonProperties::translate_z`.
+`position` and `z` are now common settings on elements; rename custom
+component inputs with these names if they have a different meaning.
 
 The `anchor`, `scale`, and `skew` shorthands accept a scalar for both axes
 or a two-item list in `[x, y]` order:

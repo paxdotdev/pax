@@ -117,6 +117,7 @@ mod tests {
                     template: None,
                     settings: None,
                     timelines: vec![],
+                    camera: None,
                     route_branch: None,
                 },
             );

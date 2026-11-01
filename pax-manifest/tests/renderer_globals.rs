@@ -40,6 +40,7 @@ fn manifest_with_setting(name: &str, value: ValueDefinition) -> PaxManifest {
                 template: Some(template),
                 settings: None,
                 timelines: vec![],
+                camera: None,
                 route_branch: None,
             },
         )]),

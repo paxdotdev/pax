@@ -76,6 +76,7 @@ struct VertexOutput {
     @location(1) world_position: vec3<f32>,
     @location(2) path_progress: f32,
     @location(3) local_position: vec2<f32>,
+    @location(4) camera_clip: vec2<f32>,
 };
 
 @vertex
@@ -92,18 +93,15 @@ fn vs_main(
     let t_p_x = p.x * m.xx + p.y * m.yx + m.zx;
     let t_p_y = p.x * m.xy + p.y * m.yy + m.zy;
 
-    var pos = vec2<f32>(t_p_x, t_p_y);
-
-    pos = (pos - globals.origin) / globals.resolution;
-    pos *= 2.0;
-    pos -= 1.0;
-    pos.y *= -1.0;
-
+    let affine = vec2<f32>(t_p_x, t_p_y);
+    let h = projected_position(m, p, affine);
+    let xy = (h.xy - globals.origin * h.w) / globals.resolution * 2.0 - vec2<f32>(h.w);
     out.prim_id = model.prim_id;
-    out.world_position = lighting_position(m, p, vec2<f32>(t_p_x, t_p_y), scene_lighting.surface_to_world_x.xyz, scene_lighting.surface_to_world_y.xyz);
+    out.world_position = lighting_position(m, p, affine, scene_lighting.surface_to_world_x.xyz, scene_lighting.surface_to_world_y.xyz);
     out.path_progress = model.path_progress;
     out.local_position = p;
-    out.clip_position = vec4<f32>(pos, 0.0, 1.0);
+    out.camera_clip = projected_camera_clip(m, p);
+    out.clip_position = vec4<f32>(xy.x, -xy.y, 0.0, h.w);
     return out;
 }
 
@@ -134,20 +132,25 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             discard;
         }
     }
+    if in.camera_clip.y <= 0.0 || in.camera_clip.x < 0.0 || in.camera_clip.x > in.camera_clip.y { discard; }
     //color/gradient
     let fill_id_and_type = primitive.fill_id_and_type;
     //clipping rectangle
     let fill_id = fill_id_and_type & 0xFFFFu;
     let fill_type = fill_id_and_type >> 16u;
     var color: vec4<f32>;
+    var paint_position = in.clip_position.xy + globals.origin * globals.dpr;
+    if projection_enabled(scene_transform(primitive.transform_id)) {
+        paint_position = in.local_position * globals.dpr;
+    }
     if fill_type == 0u {
         color = colors.colors[fill_id];
     } else if fill_type == 1u {
-        color = gradient(fill_id, in.clip_position.xy + globals.origin * globals.dpr);
+        color = gradient(fill_id, paint_position);
     } else {
         var premultiplied = vec4<f32>(0.0);
         for (var i = 0u; i < primitive.paint_count; i++) {
-            let sample = gradient(fill_id + i, in.clip_position.xy + globals.origin * globals.dpr);
+            let sample = gradient(fill_id + i, paint_position);
             let weight = gradients.gradients[fill_id + i].weight;
             premultiplied += vec4<f32>(sample.rgb * sample.a, sample.a) * weight;
         }

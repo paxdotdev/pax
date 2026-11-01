@@ -424,6 +424,10 @@ adapter/device initialization fails, or the conservative iOS Safari policy
 selects CPU. Selection finishes before application initialization and template
 mounting. CPU rasterizes into reusable pixel buffers; Canvas2D presents the
 finished pixels. Native browser text and controls remain native on either path.
+GPU startup acquires one adapter and device for the mounted application;
+its canvas surfaces share that context. It does not acquire a separate adapter
+just to detect support. A pending browser request remains pending rather than
+triggering a timed CPU fallback.
 
 Use `?pax_renderer=cpu` to exercise software rendering, `?pax_renderer=gpu` to
 require WebGPU, or `?pax_renderer=auto` for normal selection. Explicit GPU

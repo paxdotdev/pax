@@ -190,6 +190,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::settings_else_if_branch => vec![Box::new(SettingsElseIfBranchDefaultRule)],
         Rule::settings_else_branch => vec![Box::new(SettingsElseBranchDefaultRule)],
         Rule::selector_block => vec![Box::new(SelectorBlockDefaultRule)],
+        Rule::camera_block_declaration => vec![Box::new(CameraBlockDeclarationDefaultRule)],
         Rule::timeline_block_declaration => vec![Box::new(TimelineBlockDeclarationDefaultRule)],
         Rule::timeline_block_setting => vec![Box::new(TimelineBlockSettingDefaultRule)],
         Rule::timeline_selector_block => vec![Box::new(TimelineSelectorBlockDefaultRule)],
@@ -427,6 +428,12 @@ impl FormattingRule for PaxComponentDefinitionDefaultRule {
             component.push(formatted_timelines)
         }
 
+        for camera in children
+            .iter()
+            .filter(|child| child.node_type == Rule::camera_block_declaration)
+        {
+            component.push(camera.formatted_node.clone());
+        }
         let formatted_component = component.join("\n\n");
         formatted_component
     }
@@ -806,6 +813,15 @@ impl FormattingRule for crate::formatting::rules::SettingsEventBindingDefaultRul
         children.get(0).unwrap().formatted_node.clone()
             + ": "
             + &children.get(1).unwrap().formatted_node
+    }
+}
+
+#[derive(Clone)]
+struct CameraBlockDeclarationDefaultRule;
+
+impl FormattingRule for CameraBlockDeclarationDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        format!("@camera {}", children[0].formatted_node)
     }
 }
 

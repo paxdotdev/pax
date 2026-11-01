@@ -282,6 +282,9 @@ pub struct ComponentDefinition {
     pub settings: Option<Vec<SettingsBlockElement>>,
     #[serde(default)]
     pub timelines: Vec<TimelineDefinition>,
+    /// Default view configuration; active only on the mounted application root.
+    #[serde(default)]
+    pub camera: Option<LiteralBlockDefinition>,
     #[serde(default)]
     pub route_branch: Option<RouteBranchDescriptor>,
 }

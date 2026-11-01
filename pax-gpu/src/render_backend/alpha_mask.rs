@@ -100,7 +100,7 @@ impl UploadLayout {
         let stride = 16u64.div_ceil(limits.min_uniform_buffer_offset_alignment as u64)
             * limits.min_uniform_buffer_offset_alignment as u64;
         let layout = Self {
-            vertex_bytes: vertices.checked_mul(8)?,
+            vertex_bytes: vertices.checked_mul(std::mem::size_of::<MaskVertex>() as u64)?,
             index_bytes: indices.checked_mul(4)?,
             paint_bytes: stride.checked_mul(draws.len().max(1).try_into().ok()?)?,
             term_bytes: (draws
@@ -268,9 +268,27 @@ pub(crate) struct Paint {
     pub params: [f32; 4],
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub(crate) struct MaskVertex {
+    pub position: [f32; 4],
+    pub paint: [f32; 2],
+    pub camera_clip: [f32; 2],
+}
+
+impl MaskVertex {
+    pub fn affine(point: [f32; 2]) -> Self {
+        Self {
+            position: [point[0], point[1], 0., 1.],
+            paint: point,
+            camera_clip: [0.5, 1.],
+        }
+    }
+}
+
 pub(crate) struct Draw {
     pub composition: Option<(u32, f32)>,
-    pub vertices: Vec<[f32; 2]>,
+    pub vertices: Vec<MaskVertex>,
     pub indices: Vec<u32>,
     pub paints: Vec<Paint>,
 }
@@ -429,9 +447,9 @@ fn pipeline(
         bind_group_layouts: &layouts,
         immediate_size: 0,
     });
-    let attrs = wgpu::vertex_attr_array![0 => Float32x2];
+    let attrs = wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x2, 2 => Float32x2];
     let vertex_layout = [wgpu::VertexBufferLayout {
-        array_stride: 8,
+        array_stride: std::mem::size_of::<MaskVertex>() as u64,
         step_mode: wgpu::VertexStepMode::Vertex,
         attributes: &attrs,
     }];
@@ -729,7 +747,9 @@ impl AlphaMasks {
             &sizes,
         );
         let target = &self.masks[&id];
-        let mut vertices = Vec::<[f32; 2]>::with_capacity(sizes.vertex_bytes as usize / 8);
+        let mut vertices = Vec::<MaskVertex>::with_capacity(
+            sizes.vertex_bytes as usize / std::mem::size_of::<MaskVertex>(),
+        );
         let mut indices = Vec::<u32>::with_capacity(sizes.index_bytes as usize / 4);
         let mut ranges = Vec::with_capacity(draws.len());
         let stride = sizes.stride;
@@ -1040,7 +1060,10 @@ mod tests {
     fn upload_layout_checks_ranges_and_device_limits_before_allocation() {
         let limits = wgpu::Limits::default();
         let sizes = UploadLayout::checked(&[square(0.0, 32.0, 1.0)], &limits).unwrap();
-        assert_eq!(sizes.vertex_bytes, 32);
+        assert_eq!(
+            sizes.vertex_bytes,
+            4 * std::mem::size_of::<MaskVertex>() as u64
+        );
         assert_eq!(sizes.index_bytes, 24);
         assert_eq!(sizes.paint_bytes, sizes.stride);
         assert_eq!(
@@ -1365,9 +1388,10 @@ mod tests {
         assert_eq!(globals, rig.masks.masks[&1].buffers.globals.buffer);
 
         let mut burst = square(0.0, 32.0, 1.0);
-        burst
-            .vertices
-            .resize(RETAINED_BUFFER_BYTES as usize / 8 + 1, [0.0, 0.0]);
+        burst.vertices.resize(
+            RETAINED_BUFFER_BYTES as usize / std::mem::size_of::<MaskVertex>() + 1,
+            MaskVertex::affine([0., 0.]),
+        );
         rig.draw(2, 1, &[burst], [64, 64], 0.0, None);
         let large = rig.capture(2);
         assert!(rig.masks.masks[&2].buffers.vertices.capacity > RETAINED_BUFFER_BYTES);
@@ -1503,7 +1527,9 @@ mod tests {
     fn square(x0: f32, x1: f32, alpha: f32) -> Draw {
         Draw {
             composition: None,
-            vertices: vec![[x0, 0.0], [x1, 0.0], [x1, 64.0], [x0, 64.0]],
+            vertices: [[x0, 0.0], [x1, 0.0], [x1, 64.0], [x0, 64.0]]
+                .map(MaskVertex::affine)
+                .to_vec(),
             indices: vec![0, 1, 2, 0, 2, 3],
             paints: vec![Paint {
                 params: [alpha, 1.0, 0.0, 0.0],

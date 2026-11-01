@@ -38,6 +38,7 @@ fn mesh_rows_survive_rich_binary_program_ir_and_rust_baking() {
                 template: Some(template),
                 settings: None,
                 timelines: vec![],
+                camera: None,
                 route_branch: None,
             },
         )]),

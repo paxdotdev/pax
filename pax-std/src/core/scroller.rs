@@ -207,7 +207,7 @@ fn resolve_scroller_island_layer(
     find_descendant_layer(expanded_node, own_layer, context)
 }
 
-fn scroller_clip_path(
+fn scroller_local_clip_path(
     expanded_node: &ExpandedNode,
     clip_content: bool,
     corner_radius: f64,
@@ -216,8 +216,7 @@ fn scroller_clip_path(
         return None;
     }
 
-    let t_and_b = expanded_node.transform_and_bounds.get();
-    let transform = t_and_b.transform;
+    let t_and_b = expanded_node.presentation_transform_and_bounds.get();
     let (width, height) = t_and_b.bounds;
     let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
     let radius = corner_radius.clamp(0.0, max_radius);
@@ -235,7 +234,7 @@ fn scroller_clip_path(
         bez_path
     };
 
-    Some(<Affine>::from(transform) * bez_path)
+    Some(bez_path)
 }
 
 fn clamp_offset(value: f64, content: f64, viewport: f64) -> f64 {
@@ -275,7 +274,7 @@ fn effective_presentation_scroll(
             let visual_x = visual.page_scroll_x + visual.offset_x;
             let visual_y = visual.page_scroll_y + visual.offset_y;
             if visual_x.is_finite() && visual_y.is_finite() {
-                let computed_tab = expanded_node.transform_and_bounds.get();
+                let computed_tab = expanded_node.presentation_transform_and_bounds.get();
                 let (fallback_viewport_width, fallback_viewport_height) = computed_tab.bounds;
                 let viewport_width = if visual.width.is_finite() {
                     visual.width
@@ -373,7 +372,8 @@ impl InstanceNode for ScrollerHostInstance {
             .cloned()
             .map(|v| v.get_untyped_property().clone())
             .chain([
-                expanded_node.transform_and_bounds.untyped(),
+                #[cfg(feature = "3d")]
+                expanded_node.presentation_geometry().untyped(),
                 expanded_node.computed_opacity.untyped(),
                 expanded_node.occlusion.untyped(),
             ])
@@ -393,7 +393,7 @@ impl InstanceNode for ScrollerHostInstance {
                     };
 
                     expanded_node.with_properties_unwrapped(|properties: &mut ScrollerHost| {
-                        let computed_tab = expanded_node.transform_and_bounds.get();
+                        let computed_tab = expanded_node.presentation_transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
                         let corner_radius = properties.corner_radius.local().get();
                         let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
@@ -576,7 +576,7 @@ impl InstanceNode for ScrollerHostInstance {
                             patch_if_needed(
                                 &mut old_state.transform,
                                 &mut patch.transform,
-                                computed_tab.transform.coeffs().to_vec(),
+                                context.native_presentation_matrix_for_node(&expanded_node),
                             ),
                             patch_if_needed(
                                 &mut old_state.opacity,
@@ -691,7 +691,7 @@ impl InstanceNode for ScrollerHostInstance {
         }
     }
 
-    fn resolve_effect_clip_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
+    fn resolve_local_clip_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
         let (clip_content, corner_radius) =
             expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
                 (
@@ -699,7 +699,7 @@ impl InstanceNode for ScrollerHostInstance {
                     scroller.corner_radius.local().get(),
                 )
             });
-        scroller_clip_path(expanded_node, clip_content, corner_radius)
+        scroller_local_clip_path(expanded_node, clip_content, corner_radius)
     }
 
     fn handle_pre_render(

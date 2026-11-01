@@ -195,7 +195,7 @@ impl InstanceNode for TextInstance {
 
         #[cfg(feature = "designtime")]
         if DEBUG_TEXT_GREEN_BACKGROUND {
-            let tab = _expanded_node.transform_and_bounds.get();
+            let tab = _expanded_node.presentation_transform_and_bounds.get();
             let width: f64 = tab.bounds.0;
             let height: f64 = tab.bounds.1;
             let rect = RoundedRect::new(0.0, 0.0, width, height, 0.0);
@@ -236,7 +236,8 @@ impl InstanceNode for TextInstance {
             .cloned()
             .map(|v| v.get_untyped_property().clone())
             .chain([
-                expanded_node.transform_and_bounds.untyped(),
+                #[cfg(feature = "3d")]
+                expanded_node.presentation_geometry().untyped(),
                 expanded_node.computed_opacity.untyped(),
                 expanded_node.occlusion.untyped(),
             ])
@@ -256,7 +257,7 @@ impl InstanceNode for TextInstance {
                         ..Default::default()
                     };
                     expanded_node.with_properties_unwrapped(|properties: &mut Text| {
-                        let computed_tab = expanded_node.transform_and_bounds.get();
+                        let computed_tab = expanded_node.presentation_transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
                         let cp = expanded_node.get_common_properties();
                         let cp = borrow!(cp);
@@ -316,7 +317,7 @@ impl InstanceNode for TextInstance {
                             patch_if_needed(
                                 &mut old_state.transform,
                                 &mut patch.transform,
-                                computed_tab.transform.coeffs().to_vec(),
+                                context.native_presentation_matrix_for_node(&expanded_node),
                             ),
                             patch_if_needed(
                                 &mut old_state.opacity,
@@ -337,11 +338,12 @@ impl InstanceNode for TextInstance {
                             height,
                         );
                         if let Some(measurement_key) = measurement_key {
-                            patch.measure_generation = instance.measurement_state.borrow_mut().request(
-                                id,
-                                measurement_key,
-                                expanded_node.measured_size.get().is_some(),
-                            );
+                            patch.measure_generation =
+                                instance.measurement_state.borrow_mut().request(
+                                    id,
+                                    measurement_key,
+                                    expanded_node.measured_size.get().is_some(),
+                                );
                         } else {
                             instance.clear_measurement_request(&expanded_node);
                         }
@@ -1231,8 +1233,19 @@ mod measurement_tests {
     use super::*;
 
     fn key(content: &str) -> TextMeasurementKey {
-        text_measurement_key(content.into(), false, true, false, false, true,
-            TextStyleMessage::default(), TextStyleMessage::default(), 100.0, -1.0).unwrap()
+        text_measurement_key(
+            content.into(),
+            false,
+            true,
+            false,
+            false,
+            true,
+            TextStyleMessage::default(),
+            TextStyleMessage::default(),
+            100.0,
+            -1.0,
+        )
+        .unwrap()
     }
 
     #[test]

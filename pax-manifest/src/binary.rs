@@ -18,7 +18,7 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"PAXM\x00BIN";
-// Scalar-body source metadata and receiving-property flags extend the schema.
+// Scalar-body metadata, receiving-property flags, and camera declarations extend the schema.
 const VERSION: u8 = 7;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -84,6 +84,7 @@ struct BinaryComponentDefinition {
     template: Option<BinaryComponentTemplate>,
     settings: Option<Vec<SettingsBlockElement>>,
     timelines: Vec<TimelineDefinition>,
+    camera: Option<crate::LiteralBlockDefinition>,
     route_branch: Option<RouteBranchDescriptor>,
 }
 
@@ -156,6 +157,7 @@ impl From<&ComponentDefinition> for BinaryComponentDefinition {
                 .map(BinaryComponentTemplate::from),
             settings: definition.settings.clone(),
             timelines: definition.timelines.clone(),
+            camera: definition.camera.clone(),
             route_branch: definition.route_branch.clone(),
         }
     }
@@ -175,6 +177,7 @@ impl BinaryComponentDefinition {
                 .map(BinaryComponentTemplate::into_component_template),
             settings: self.settings,
             timelines: self.timelines,
+            camera: self.camera,
             route_branch: self.route_branch,
         }
     }
@@ -1157,6 +1160,7 @@ mod tests {
                 template: Some(template),
                 settings: None,
                 timelines: vec![],
+                camera: None,
                 route_branch: None,
             },
         );

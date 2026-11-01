@@ -7,6 +7,8 @@
 An opaque ellipsoid with width × height × depth extents, centered on local Z=0.
 Requires `pax-kit/3d` and the GPU renderer. Ordinary transforms, hard clips,
 lighting, and depth-aware native-control occlusion apply to the complete volume.
+Root `@camera` pan, zoom, rotation and perspective apply to rendering, picking
+and occlusion. Near/far clipping cuts the surface without adding caps.
 
 Node and ancestor opacity fade the assembled opaque appearance through the
 bounded spatial group compositor; hidden rear surfaces stay hidden.

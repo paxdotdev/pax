@@ -41,6 +41,9 @@ pub struct ProgramComponent {
     pub settings: Option<Vec<SettingsBlockElement>>,
     #[serde(default)]
     pub timelines: Vec<TimelineDefinition>,
+    /// Default view configuration; active only on the mounted application root.
+    #[serde(default)]
+    pub camera: Option<LiteralBlockDefinition>,
     #[serde(default)]
     pub route_branch: Option<RouteBranchDescriptor>,
 }
@@ -92,6 +95,7 @@ impl From<&ComponentDefinition> for ProgramComponent {
                 .as_ref()
                 .map(sanitize_settings_block_elements),
             timelines: definition.timelines.iter().map(sanitize_timeline).collect(),
+            camera: definition.camera.as_ref().map(sanitize_literal_block),
             route_branch: definition.route_branch.clone(),
         }
     }
@@ -585,6 +589,7 @@ mod tests {
                         ),
                     ],
                 }],
+                camera: None,
                 route_branch: None,
             },
         );
@@ -867,7 +872,17 @@ mod tests {
                 "rotate_y",
                 PaxValue::Rotation(pax_runtime_api::Rotation::Degrees((-40).into())),
             ),
-            ("translate_z", PaxValue::Size(Size::Pixels(80.into()))),
+            ("z", PaxValue::Size(Size::Pixels(80.into()))),
+            (
+                "position",
+                PaxValue::Vec(vec![
+                    PaxValue::Size(Size::Percent(50.into())),
+                    PaxValue::Size(Size::Pixels(20.into())),
+                    PaxValue::Size(Size::Pixels(40.into())),
+                ]),
+            ),
+            // Older baked programs retain the alias until runtime resolution.
+            ("translate_z", PaxValue::Numeric(10.into())),
         ];
         for (name, value) in &settings {
             node.settings

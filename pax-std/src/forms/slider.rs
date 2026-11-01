@@ -106,7 +106,8 @@ impl InstanceNode for SliderInstance {
             .cloned()
             .map(|v| v.get_untyped_property().clone())
             .chain([
-                expanded_node.transform_and_bounds.untyped(),
+                #[cfg(feature = "3d")]
+                expanded_node.presentation_geometry().untyped(),
                 expanded_node.computed_opacity.untyped(),
                 expanded_node.occlusion.untyped(),
                 expanded_node.liquid_glass_scope.untyped(),
@@ -127,7 +128,7 @@ impl InstanceNode for SliderInstance {
                         ..Default::default()
                     };
                     expanded_node.with_properties_unwrapped(|properties: &mut Slider| {
-                        let computed_tab = expanded_node.transform_and_bounds.get();
+                        let computed_tab = expanded_node.presentation_transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
                         let current_value = properties.value.local().get();
                         let pending_native_value = *native_value_to_ack.borrow();
@@ -156,7 +157,7 @@ impl InstanceNode for SliderInstance {
                             patch_if_needed(
                                 &mut old_state.transform,
                                 &mut patch.transform,
-                                computed_tab.transform.coeffs().to_vec(),
+                                context.native_presentation_matrix_for_node(&expanded_node),
                             ),
                             patch_if_needed(
                                 &mut old_state.accent,

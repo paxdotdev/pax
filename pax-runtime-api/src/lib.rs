@@ -61,6 +61,7 @@ pub mod unit_value;
 pub mod variables;
 
 pub use animation::*;
+pub use camera::CameraMode;
 pub use color::*;
 pub use drawing::*;
 pub use events::*;

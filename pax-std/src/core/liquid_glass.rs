@@ -56,7 +56,7 @@ impl LiquidGlassInstance {
                     liquid_glass.variant.clone(),
                 )
             });
-        let transform_and_bounds = expanded_node.transform_and_bounds.clone();
+        let transform_and_bounds = expanded_node.presentation_transform_and_bounds.clone();
         let group_id = expanded_node.id.to_u32();
         let deps = [
             enabled.untyped(),

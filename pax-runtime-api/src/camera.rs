@@ -1,7 +1,9 @@
 //! Camera math shared by spatial presentation and picking.
 //!
-//! These are Rust geometry contracts, not template camera elements or an active
-//! renderer camera. The current renderer and native-control protocol remain 2D.
+//! These Rust geometry utilities do not activate a renderer view. Use a root
+//! `@camera` declaration to select a runtime view. Perspective uses homogeneous
+//! surface geometry and requires a GPU renderer; native host capabilities are
+//! separate from these geometry utilities.
 //! Orthographic projection preserves window x/y in logical pixels. Perspective
 //! views look along -z, with x right and y down; clip depth is 0 at the near/front
 //! plane and 1 at the far/back plane. View matrices move the world into camera
@@ -23,6 +25,60 @@
 
 use crate::math::{Generic, Plane3, Point2, Point3, Space, Transform3};
 use crate::Window;
+
+/// Projection used by a root component's `@camera` declaration.
+/// Perspective requires a GPU renderer; orthographic remains the default.
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, crate::serde::Serialize, crate::serde::Deserialize,
+)]
+#[serde(crate = "crate::serde")]
+pub enum CameraMode {
+    /// Parallel projection preserving existing pixel geometry at zoom 1.
+    #[default]
+    Orthographic,
+    /// A finite field of view looking along the camera's local -Z axis.
+    Perspective,
+}
+
+impl crate::Interpolatable for CameraMode {}
+
+impl crate::ToPaxValue for CameraMode {
+    fn to_pax_value(self) -> crate::PaxValue {
+        crate::PaxValue::Enum(Box::new((
+            "CameraMode".into(),
+            match self {
+                Self::Orthographic => "Orthographic",
+                Self::Perspective => "Perspective",
+            }
+            .into(),
+            vec![],
+        )))
+    }
+}
+
+impl crate::CoercionRules for CameraMode {
+    fn try_coerce(value: crate::PaxValue) -> Result<Self, String> {
+        match value {
+            crate::PaxValue::Enum(value) => {
+                let (name, variant, args) = *value;
+                if name != "CameraMode" || !args.is_empty() {
+                    return Err(
+                        "expected CameraMode::Orthographic or CameraMode::Perspective".into(),
+                    );
+                }
+                match variant.as_str() {
+                    "Orthographic" => Ok(Self::Orthographic),
+                    "Perspective" => Ok(Self::Perspective),
+                    _ => Err(format!("unknown CameraMode variant {variant}")),
+                }
+            }
+            crate::PaxValue::Option(value) => value
+                .ok_or("camera projection cannot be None".into())
+                .and_then(Self::try_coerce),
+            _ => Err("expected CameraMode::Orthographic or CameraMode::Perspective".into()),
+        }
+    }
+}
 
 /// Camera coordinates: x right, y down, looking toward -z.
 pub struct CameraSpace;
@@ -199,6 +255,24 @@ impl<W: Space> Camera<W> {
     /// Returns the exact matrix used by projection and picking.
     pub fn world_to_clip(&self) -> Transform3<W, ClipSpace> {
         self.world_to_clip
+    }
+
+    /// Resolves a local flat surface into pixel-homogeneous presentation geometry.
+    /// Rendering, clipped coverage and input can share this plane. Its depth is
+    /// reversed from GPU normalized depth so larger values remain nearer in Pax.
+    pub fn project_plane<L: Space>(
+        &self,
+        local_to_world: Transform3<L, W>,
+    ) -> Option<crate::math::ProjectedPlane> {
+        let m = (self.world_to_clip * local_to_world).coeffs();
+        let mut pixels = m;
+        for col in 0..4 {
+            let i = col * 4;
+            pixels[i] = (m[i] + m[i + 3]) * self.viewport.0 * 0.5;
+            pixels[i + 1] = (m[i + 3] - m[i + 1]) * self.viewport.1 * 0.5;
+            pixels[i + 2] = m[i + 3] - m[i + 2];
+        }
+        crate::math::ProjectedPlane::new(Transform3::<L, Window>::new(pixels), true)
     }
 
     /// Projects a world point to logical window pixels and normalized depth.
