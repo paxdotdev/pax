@@ -40,14 +40,8 @@ fn packaged_snapshot_preserves_example_catalog_and_inline_sources() {
         .iter()
         .any(|path| path == "fixtures/surface-scheduling"));
     assert!(paths.iter().any(|path| path == "led-oscilloscope"));
-    assert_eq!(paths.len(), 52);
-    assert_eq!(
-        paths
-            .iter()
-            .filter(|path| path.starts_with("fixtures/"))
-            .count(),
-        42
-    );
+    // The catalog grows as examples are added. Verify every entry against the
+    // compiled index and, in a checkout, the canonical sources below.
     assert!(!paths.iter().any(|path| path == "pax-website"));
     let entries = pax_docs::entries().unwrap();
     assert_eq!(

@@ -1,20 +1,22 @@
-<Cuboid width=100% height=100% x=50% y=50% anchor_x=50% anchor_y=50%
-    depth={(self._depth)px} translate_z={(-self._depth / 2)px} fill=[]
-    @in=@timeline {
-        duration: {self.duration},
-        rotate_x: {0: {self._enter_x}, InOutQuad, 100%: 0deg},
-        rotate_y: {0: {self._enter_y}, InOutQuad, 100%: 0deg},
-    }
-    @out=@timeline {
-        duration: {self.duration},
-        rotate_x: {0: 0deg, InOutQuad, 100%: {-self._enter_x}},
-        rotate_y: {0: 0deg, InOutQuad, 100%: {-self._enter_y}},
-    }
->
-    <CuboidFace side=CuboidSide::Front width=100% height=100%>
-        slot()
-    </CuboidFace>
-</Cuboid>
+<Group width={(self._layout.side)px} height={(self._layout.side)px}
+    x=50% y=50% anchor_x=50% anchor_y=50%
+    scale_x={(self._layout.scale_x)%} scale_y={(self._layout.scale_y)%}
+    z={(-self._layout.side / 2)px}>
+    <Frame
+        width={self._pose.visible ? (self._layout.side)px : 0px}
+        height={self._pose.visible ? (self._layout.side)px : 0px}
+        x={((1 + self._pose.x) * self._layout.side / 2)px}
+        y={((1 + self._pose.y) * self._layout.side / 2)px}
+        z={(self._pose.z * self._layout.side / 2)px}
+        anchor_x=50% anchor_y=50%
+        rotate_x={(self._pose.rx)deg} rotate_y={(self._pose.ry)deg} rotate={(self._pose.rz)deg}>
+        <Group width={(self._layout.width)px} height={(self._layout.height)px}
+            x=50% y=50% anchor_x=50% anchor_y=50%
+            scale_x={(self._layout.content_scale_x)%} scale_y={(self._layout.content_scale_y)%}>
+            slot()
+        </Group>
+    </Frame>
+</Group>
 
 @settings {
     @mount: on_mount

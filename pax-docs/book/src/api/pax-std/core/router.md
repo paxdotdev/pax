@@ -72,22 +72,26 @@ Reserved easing tuning for the card enter/exit transition.
 ---
 
 ### `RouteCuboid`
-Route branch that turns live content around a cuboid's edge.
+Route branch that turns live content on a shared cube.
 Requires the default-off `3d` feature (`pax-kit/3d`).
 
-Use sibling `RouteCuboid` branches with the same `direction` and `duration`
-to form adjacent faces of one quarter-turn. The shell derives depth from
-the route's layout width for horizontal turns and height for vertical turns,
-keeping both endpoints fitted to their viewport. Contents remain mounted
-through the exit transition and unmount afterward, as with [`Route`].
+Sibling shells share one normalized cube projected into their layout area.
+Each navigation samples the destination's `direction` and `duration`. Rapid
+navigation retargets that cube while participating route instances stay live;
+returning to a participating route steers back to its existing face. Hidden
+faces are reusable, and only the selected route remains after settling.
 
-This is a normal custom route shell, not a retained overlay like [`RouteCard`].
-Direction describes the outgoing face's motion. Keep it stable during a turn;
-browser Back/Forward uses the currently authored direction rather than
-inferring a reverse turn from history. Timelines use `InOutQuad` easing.
+Direction chooses the next face relative to the previous destination. If it
+is still visible, the shell chooses a hidden face farther around that axis.
+Motion takes a direct rotational path, preserving pose and angular velocity
+when retargeted and easing to rest over the sampled duration. Reactive setting
+edits affect the next navigation. Settled browser Back/Forward uses the
+authored direction; there is no persistent route cache or history inference.
 
-Requires GPU spatial composition. The orthographic view and native-layer
-restrictions of [`Cuboid`] also apply here. Clip the router's containing
+Requires GPU spatial composition and the default orthographic camera. Face
+visibility is calculated in the router's local axes; custom camera projections
+and spatially rotated ancestors are unsupported. The native-layer restrictions
+of [`Cuboid`] also apply here. Clip the router's containing
 viewport with a [`Frame`] when the rotating silhouette should stay inside it.
 
 #### Properties
@@ -104,12 +108,13 @@ Fallback branch used when no `path` branch matches.
 ##### `direction`
 Type: `Property`<[`RouteCuboidDirection`](../../../api/pax-std/core/router.md#routecuboiddirection)>
 
-Motion of the outgoing face. Defaults to Left.
+Preferred turn for a new destination face. Sampled on navigation; defaults to Left.
 
 ##### `duration`
 Type: `Property`<[`Duration`](../../../api/pax-runtime-api/animation.md#duration)>
 
-Enter/exit duration, shared by both faces of a turn. Defaults to 1200ms.
+Time to settle after navigation or interruption. Sampled on navigation;
+defaults to 1200ms. Non-positive/non-finite values settle immediately.
 
 ---
 
@@ -190,7 +195,7 @@ Edge used by [`RouteCard`] transitions.
 ---
 
 ### `RouteCuboidDirection`
-Direction of the outgoing face in a [`RouteCuboid`] quarter-turn.
+Preferred direction for a new [`RouteCuboid`] destination face.
 
 #### Variants
 ##### `Left`

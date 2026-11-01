@@ -1,5 +1,9 @@
 //! Runtime routing primitives used by declarative `Router` / `Route` control flow.
 
+mod presentation;
+use presentation::PresentationScope;
+pub use presentation::{RoutePresentation, WeakRoutePresentation};
+
 use std::collections::HashMap;
 use std::iter;
 use std::ops::Range;
@@ -152,6 +156,7 @@ pub struct RouterProperties {
     pub input_location: LocalProperty<RouteLocation>,
     /// Full application location retained for diagnostics and coordination.
     pub global_location: LocalProperty<RouteLocation>,
+    presentation: Rc<PresentationScope>,
 }
 
 impl ImplToFromPaxAny for RouterProperties {}
@@ -251,6 +256,12 @@ impl InstanceNode for RouterInstance {
         self.handle_setup(expanded_node, context, false);
     }
 
+    fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
+        expanded_node.with_properties_unwrapped(|properties: &mut RouterProperties| {
+            properties.presentation.clear();
+        });
+    }
+
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,
@@ -306,7 +317,16 @@ impl RouterInstance {
                 properties.global_location.clone()
             });
 
-        let deps = vec![input_location.untyped(), global_location.untyped()];
+        let presentation =
+            expanded_node.with_properties_unwrapped(|properties: &mut RouterProperties| {
+                properties.presentation.clone()
+            });
+        presentation.bind(expanded_node, context);
+        let deps = vec![
+            input_location.untyped(),
+            global_location.untyped(),
+            presentation.revision.untyped(),
+        ];
         let branches = self.branches.clone();
         let branch_child_ranges = self.branch_child_ranges.clone();
         let old_selection = RefCell::new(RouteSelection::default());
@@ -323,9 +343,7 @@ impl RouterInstance {
                     let global = global_location.get();
                     let selection = select_route_branch(&branches, &input, &global);
 
-                    if *borrow!(old_selection) == selection {
-                        return cloned_expanded_node.current_attached_children();
-                    }
+                    let selection_changed = *borrow!(old_selection) != selection;
                     *borrow_mut!(old_selection) = selection.clone();
 
                     let selected_branch = selection.branch_index.and_then(|branch_index| {
@@ -357,14 +375,36 @@ impl RouterInstance {
                         &env,
                         &cloned_context,
                         is_mount,
+                        &presentation,
                     );
 
-                    let mut new_active_children = selected_children;
-                    if selected_branch
+                    if selection_changed {
+                        for child in &active_children {
+                            if !selected_children
+                                .iter()
+                                .any(|selected| Rc::ptr_eq(selected, child))
+                            {
+                                if let Some(handle) = RoutePresentation::from_stack(&child.stack) {
+                                    handle.select(false);
+                                }
+                            }
+                        }
+                        for child in &selected_children {
+                            if let Some(handle) = RoutePresentation::from_stack(&child.stack) {
+                                handle.select(true);
+                            }
+                        }
+                    }
+
+                    let mut new_active_children = selected_children.clone();
+                    let modal = selected_branch
                         .map(|(_, branch)| branch.modal)
-                        .unwrap_or(false)
-                    {
-                        for child in active_children {
+                        .unwrap_or(false);
+                    for child in active_children {
+                        if modal
+                            || RoutePresentation::from_stack(&child.stack)
+                                .is_some_and(|handle| handle.retained())
+                        {
                             if !new_active_children
                                 .iter()
                                 .any(|selected| Rc::ptr_eq(selected, &child))
@@ -375,11 +415,26 @@ impl RouterInstance {
                     }
 
                     if is_mount {
-                        cloned_expanded_node.attach_children(
+                        let attached = cloned_expanded_node.attach_children(
                             new_active_children,
                             &cloned_context,
                             &cloned_expanded_node.parent_frame,
-                        )
+                        );
+                        // A normal route (or no match) ends an opt-in presentation.
+                        // New custom shells register during attach/mount above.
+                        if !modal
+                            && !selected_children.iter().any(|child| {
+                                RoutePresentation::from_stack(&child.stack)
+                                    .is_some_and(|handle| handle.participates())
+                            })
+                        {
+                            for child in &attached {
+                                if let Some(handle) = RoutePresentation::from_stack(&child.stack) {
+                                    handle.retain(false);
+                                }
+                            }
+                        }
+                        attached
                     } else {
                         new_active_children
                     }
@@ -398,6 +453,7 @@ impl RouterInstance {
         env: &Rc<RuntimePropertiesStackFrame>,
         context: &Rc<RuntimeContext>,
         is_mount: bool,
+        presentation: &Rc<PresentationScope>,
     ) -> Vec<Rc<ExpandedNode>> {
         let mut selected = Vec::new();
         for template in templates[range.clone()].iter() {
@@ -428,7 +484,7 @@ impl RouterInstance {
             let child = rescued.unwrap_or_else(|| {
                 expanded_node
                     .create_children_detached(
-                        iter::once((Rc::clone(template), Rc::clone(env))),
+                        iter::once((Rc::clone(template), presentation.branch_stack(env))),
                         context,
                         &Rc::downgrade(expanded_node),
                     )
@@ -662,7 +718,7 @@ mod tests {
     use pax_manifest::ValueDefinition;
     use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
     use pax_runtime_api::{Duration, Platform, TargetInfo, OS};
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
 
     fn route(path_segments: &[&str]) -> RouteLocation {
         RouteLocation {
@@ -770,6 +826,122 @@ mod tests {
 
     fn leaf() -> Rc<dyn InstanceNode> {
         ComponentInstance::instantiate(leaf_args())
+    }
+
+    struct PresentationLeaf {
+        base: BaseInstance,
+    }
+
+    impl InstanceNode for PresentationLeaf {
+        fn instantiate(args: InstantiationArgs) -> Rc<Self> {
+            Rc::new(Self {
+                base: BaseInstance::new(
+                    args,
+                    InstanceFlags {
+                        invisible_to_slot: false,
+                        invisible_to_raycasting: true,
+                        layer: Layer::DontCare,
+                        is_component: true,
+                        is_slot: false,
+                    },
+                ),
+            })
+        }
+        fn base(&self) -> &BaseInstance {
+            &self.base
+        }
+        fn resolve_debug(
+            &self,
+            f: &mut std::fmt::Formatter,
+            _: Option<&ExpandedNode>,
+        ) -> std::fmt::Result {
+            write!(f, "PresentationLeaf")
+        }
+        fn handle_mount(self: Rc<Self>, node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
+            let handle = node.get_node_context(context).route_presentation().unwrap();
+            handle.retain(true);
+            handle.on_select(|| {});
+        }
+    }
+
+    #[test]
+    fn presentation_retention_rescues_identity_then_runs_ordinary_exit() {
+        let input = LocalProperty::new(route(&["a"]));
+        let (_root, router, context) = mounted_router(
+            input.clone(),
+            vec![ControlFlowRouteBranchDefinition {
+                path: Some("/:page".into()),
+                ..Default::default()
+            }],
+            vec![0..1],
+            vec![PresentationLeaf::instantiate(leaf_args())],
+        );
+        let a = router.active_children.borrow()[0].clone();
+        let handle = a.get_node_context(&context).route_presentation().unwrap();
+        let selections = Rc::new(Cell::new(0));
+        let count = selections.clone();
+        handle.on_select(move || count.set(count.get() + 1));
+        assert_eq!(selections.get(), 1);
+        input.set(route(&["b"]));
+        router.recurse_update(&context);
+        assert_eq!(router.active_children.borrow().len(), 2);
+        assert!(!handle.is_selected());
+        assert_ne!(a.transition_phase.get(), TRANSITION_PHASE_EXIT);
+        input.set(route(&["a"]));
+        router.recurse_update(&context);
+        assert_eq!(router.active_children.borrow()[0].id, a.id);
+        assert_eq!(selections.get(), 2);
+        let mut query_only = route(&["a"]);
+        query_only.fragment = Some("anchor".into());
+        input.set(query_only);
+        router.recurse_update(&context);
+        assert_eq!(selections.get(), 2);
+        input.set(route(&["b"]));
+        router.recurse_update(&context);
+        handle.retain(false);
+        router.recurse_update(&context);
+        assert_eq!(router.active_children.borrow().len(), 1);
+        assert_eq!(a.transition_phase.get(), TRANSITION_PHASE_EXIT);
+        context.globals().elapsed_frames.set(11);
+        router.recurse_update(&context);
+        assert_eq!(a.attached.get(), 0);
+    }
+
+    #[test]
+    fn ordinary_route_or_no_match_releases_presentation_retention() {
+        for next in ["plain", "missing"] {
+            let input = LocalProperty::new(route(&["cube"]));
+            let (_root, router, context) = mounted_router(
+                input.clone(),
+                vec![
+                    ControlFlowRouteBranchDefinition {
+                        path: Some("/cube".into()),
+                        ..Default::default()
+                    },
+                    ControlFlowRouteBranchDefinition {
+                        path: Some("/plain".into()),
+                        ..Default::default()
+                    },
+                ],
+                vec![0..1, 1..2],
+                vec![PresentationLeaf::instantiate(leaf_args()), leaf()],
+            );
+            let cube = router.active_children.borrow()[0].clone();
+            let handle = cube
+                .get_node_context(&context)
+                .route_presentation()
+                .unwrap();
+            input.set(route(&[next]));
+            router.recurse_update(&context);
+            context.drain_node_effects();
+            router.recurse_update(&context);
+            assert!(!handle.retained_for_presentation());
+            assert!(!handle.is_selected());
+            assert_eq!(cube.transition_phase.get(), TRANSITION_PHASE_EXIT);
+            context.globals().elapsed_frames.set(11);
+            router.recurse_update(&context);
+            assert_eq!(cube.attached.get(), 0);
+        }
     }
 
     struct HitBoxInstance {
@@ -1191,6 +1363,68 @@ mod tests {
         assert_eq!(active[0].transition_phase.get(), TRANSITION_PHASE_ENTER);
         assert_eq!(exiting.len(), 1);
         assert_ne!(exiting[0].id, initial_alpha);
+    }
+
+    #[test]
+    fn rapid_reselection_reuses_live_routes_and_releases_completed_exits() {
+        let paths = ["alpha", "beta", "gamma"];
+        let input_location = LocalProperty::new(route(&[paths[0]]));
+        let (_root, router_node, context) = mounted_router(
+            input_location.clone(),
+            paths
+                .iter()
+                .map(|path| ControlFlowRouteBranchDefinition {
+                    path: Some(format!("/{path}")),
+                    default: false,
+                    modal: false,
+                    child_ids: vec![],
+                    metadata: None,
+                })
+                .collect(),
+            vec![0..1, 1..2, 2..3],
+            vec![leaf(), leaf(), leaf()],
+        );
+        let mut identities = HashMap::new();
+        identities.insert(0, borrow!(router_node.active_children)[0].id);
+
+        // Every revisit occurs before the ten-frame exit can finish. Reversals
+        // and third destinations must rescue the same instance, not accumulate
+        // copies or let an earlier cleanup generation unmount a rescued route.
+        for frame in 1..=120 {
+            context.globals().elapsed_frames.set(frame);
+            context.drain_node_effects();
+            let selected = [1, 0, 2, 1, 2, 0][(frame as usize - 1) % 6];
+            input_location.set(route(&[paths[selected]]));
+            router_node.recurse_update(&context);
+
+            let active = borrow!(router_node.active_children);
+            assert_eq!(active.len(), 1);
+            assert_eq!(active[0].transition_phase.get(), TRANSITION_PHASE_ENTER);
+            let identity = identities.entry(selected).or_insert(active[0].id);
+            assert_eq!(active[0].id, *identity);
+            assert!(borrow!(router_node.exiting_children).len() <= 2);
+            assert!(router_node.current_attached_children().len() <= 3);
+        }
+
+        let final_id = borrow!(router_node.active_children)[0].id;
+        let exiting = borrow!(router_node.exiting_children)
+            .iter()
+            .map(|node| (node.id, Rc::downgrade(node)))
+            .collect::<Vec<_>>();
+        assert_eq!(exiting.len(), 2);
+        context.globals().elapsed_frames.set(130);
+        context.drain_node_effects();
+        router_node.recurse_update(&context);
+
+        assert!(borrow!(router_node.exiting_children).is_empty());
+        assert_eq!(router_node.current_attached_children().len(), 1);
+        let active = borrow!(router_node.active_children);
+        assert_eq!(active[0].id, final_id);
+        assert_eq!(active[0].transition_phase.get(), TRANSITION_PHASE_IDLE);
+        for (id, weak) in exiting {
+            assert!(context.get_expanded_node_by_eid(id).is_none());
+            assert!(weak.upgrade().is_none(), "completed route {id:?} leaked");
+        }
     }
 
     #[test]

@@ -10,7 +10,7 @@ pax_kit::runnable! { root: crate::Example }
 pub struct Example {
     pub direction: Property<RouteCuboidDirection>,
     pub direction_label: Property<String>,
-    pub busy_until: Property<u64>,
+    pub duration_ms: Property<u64>,
     pub narrow: Property<bool>,
     pub background_depth: Property<f64>,
 }
@@ -18,6 +18,7 @@ pub struct Example {
 impl Example {
     pub fn mount(&mut self, ctx: &NodeContext) {
         self.direction_label.set("LEFT".into());
+        self.duration_ms.set(1200);
         let bounds = ctx.bounds_self.clone();
         let deps = [bounds.untyped()];
         self.narrow.replace_with(LocalProperty::computed(
@@ -34,32 +35,31 @@ impl Example {
         ));
     }
 
-    fn choose(&mut self, ctx: &NodeContext, direction: RouteCuboidDirection, label: &str) {
-        if ctx.elapsed_millis.get() < self.busy_until.get() {
-            return;
-        }
+    fn choose(&mut self, direction: RouteCuboidDirection, label: &str) {
         self.direction.set(direction);
         self.direction_label.set(label.into());
     }
 
-    pub fn left(&mut self, ctx: &NodeContext, _: Event<ButtonClick>) {
-        self.choose(ctx, RouteCuboidDirection::Left, "LEFT");
+    pub fn left(&mut self, _ctx: &NodeContext, _: Event<ButtonClick>) {
+        self.choose(RouteCuboidDirection::Left, "LEFT");
     }
-    pub fn right(&mut self, ctx: &NodeContext, _: Event<ButtonClick>) {
-        self.choose(ctx, RouteCuboidDirection::Right, "RIGHT");
+    pub fn right(&mut self, _ctx: &NodeContext, _: Event<ButtonClick>) {
+        self.choose(RouteCuboidDirection::Right, "RIGHT");
     }
-    pub fn up(&mut self, ctx: &NodeContext, _: Event<ButtonClick>) {
-        self.choose(ctx, RouteCuboidDirection::Up, "UP");
+    pub fn up(&mut self, _ctx: &NodeContext, _: Event<ButtonClick>) {
+        self.choose(RouteCuboidDirection::Up, "UP");
     }
-    pub fn down(&mut self, ctx: &NodeContext, _: Event<ButtonClick>) {
-        self.choose(ctx, RouteCuboidDirection::Down, "DOWN");
+    pub fn down(&mut self, _ctx: &NodeContext, _: Event<ButtonClick>) {
+        self.choose(RouteCuboidDirection::Down, "DOWN");
+    }
+    pub fn speed(&mut self, _ctx: &NodeContext, _: Event<ButtonClick>) {
+        self.duration_ms.set(match self.duration_ms.get() {
+            600 => 1200,
+            1200 => 2400,
+            _ => 600,
+        });
     }
     fn navigate(&mut self, ctx: &NodeContext, destination: &str) {
-        let now = ctx.elapsed_millis.get();
-        if now < self.busy_until.get() {
-            return;
-        }
-        self.busy_until.set(now + 1200);
         ctx.navigate_to(destination, NavigationTarget::Current);
     }
 

@@ -447,28 +447,53 @@ branch types:
 Here `direction` is a `Property<RouteCuboidDirection>` on the containing
 component. `Left`, `Right`, `Up`, and `Down` describe the outgoing face's
 motion; the incoming face arrives from the opposite side. The defaults are
-`Left` and `1200ms`, with `InOutQuad` easing. `path`, `default`, route bindings,
+`Left` and `1200ms`, with a smooth acceleration and deceleration. `path`, `default`, route bindings,
 and nested matching work as they do on `Route`.
 
-For a continuous cube turn, both branches must be `RouteCuboid` with the same
-layout area, direction, and duration. Share the direction binding and keep
-it stable during the transition. Browser Back/Forward uses the currently
-authored direction; it does not automatically reverse it. The shell derives
-its pivot and depth from the viewport: width for a horizontal turn, height
-for a vertical turn. The contents supply their own background paint; the
-outer `Frame` clips the intermediate silhouette to the viewport.
+Use sibling `RouteCuboid` branches with the same layout area. They share one
+rotation. Each navigation samples the **destination's** direction and duration;
+changing either property during a turn affects the next navigation. The URL
+and selected route change immediately. A non-positive or non-finite duration
+settles immediately.
 
-The outgoing route stays mounted until its exit completes, then unmounts.
-Later visits create a new instance under the ordinary route lifetime rules.
-This branch does not retain a background route as `RouteCard` and `RouteModal`
-do. GPU spatial composition is required; the current orthographic view and
-native-layer limitations still apply. See
+Rapid navigation retargets the cube from its current pose and angular velocity,
+then eases to rest over the newly sampled duration. Several route instances
+can stay mounted on its faces. Returning to one of those instances turns back
+to its existing face and preserves its state. For a new instance, direction
+chooses an adjacent face relative to the previous destination. If that face
+is still visible, the shell continues around that axis to a hidden face.
+Motion follows a direct rotational path to that destination, so interrupted
+turns need not follow the original single-axis quarter-turn.
+
+The six faces are reusable. A hidden face may release its old route when a
+new route needs it; visible content is never replaced in place. After motion
+settles, only the selected route remains. Explicit child exit timelines can
+extend final unmount under the ordinary route lifetime rules. A visit after
+release creates a fresh instance: this is not a persistent route cache.
+Browser Back/Forward after settling uses the authored direction. During
+motion, it can return to an existing face just like other navigation.
+
+The shell projects a normalized cube into the rectangular viewport. Content
+fills the viewport at rest; intermediate shapes stretch with its aspect ratio.
+Resizing updates every face together without restarting motion. The contents
+supply opaque background paint; the outer `Frame` clips the intermediate
+silhouette. Back-facing and edge-on content has a closed clipping aperture,
+keeping it mounted without exposing hidden hit targets. Visible faces retain
+live native controls and normal pointer ownership. Focus and local state last
+for the mounted instance; moving a route onto a hidden face does not itself
+blur its textbox, while releasing that instance removes its control.
+
+GPU spatial composition and the default orthographic camera are required.
+The shell determines face visibility in its local axes; custom camera projections
+and spatially rotated ancestors are not supported. Native-layer limitations
+still apply. See
 [Cuboids with live face content](layout-responsiveness.md#cuboids-with-live-face-content)
 for face geometry and the underlying attachment API.
 
 The [Cuboid Router example](https://github.com/paxproject/pax/tree/dev/examples/fixtures/cuboid-router)
-uses `RouteCuboid` with direction controls, native textboxes, and a nested
-solid. It holds direction controls during navigation initiated by the example.
+uses `RouteCuboid` with live direction and duration controls, native textboxes,
+and a nested solid on every route. Try navigating again before a turn
+finishes, including changing axes and using browser Back/Forward.
 
 ## Custom route branches
 
@@ -549,15 +574,23 @@ Use the standard [RouteModal and RouteCard implementations](https://github.com/p
 as examples of retained-route presentation.
 
 Custom branches use the same literal patterns, declaration-order matching,
-nested scope, and parameter-based identity as the standard branches. New
-matching syntax or a different retention policy would need changes to the
-router implementation. For deeper runtime behavior, Pax also exposes
+nested scope, and parameter-based identity as the standard branches. During
+mount, an advanced shell can obtain `ctx.route_presentation()` to coordinate
+temporary retention with siblings. Its `on_select` callback runs when that
+instance becomes selected; `retain(true)` keeps it mounted until the shell
+calls `retain(false)`. The shell must clip hidden content and release unused
+instances. A plain route or unmatched location ends this opt-in retention.
+The handle also provides a typed shared controller and subscriptions owned by
+that Router, so nested and sibling Routers coordinate independently. Capture
+weak handles in callbacks to avoid keeping retired instances alive.
+
+For deeper runtime behavior, Pax also exposes
 [primitive authoring](primitives.md#authoring-primitives), a
 separate extension point that custom route presentation usually does not need.
 
 [`RouteCuboid`](#cuboid-route-transitions) uses this same extension point in
-`pax-std`: its component shell supplies the face placement and lifecycle
-timelines, while the router supplies matching and branch lifetime.
+`pax-std`: its component shell supplies face placement and coordinated motion,
+while the router supplies matching, instance identity, and temporary retention.
 
 ## Web route metadata
 

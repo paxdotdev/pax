@@ -2,8 +2,6 @@
 use crate::*;
 #[allow(unused)]
 use pax_engine::api::LocalProperty;
-#[cfg(feature = "3d")]
-use pax_engine::api::Rotation;
 use pax_engine::api::{Duration, Opacity, Property};
 use pax_engine::pax;
 use pax_runtime::api::NodeContext;
@@ -298,22 +296,26 @@ impl RouteCard {
     }
 }
 
-/// Route branch that turns live content around a cuboid's edge.
+/// Route branch that turns live content on a shared cube.
 /// Requires the default-off `3d` feature (`pax-kit/3d`).
 ///
-/// Use sibling `RouteCuboid` branches with the same `direction` and `duration`
-/// to form adjacent faces of one quarter-turn. The shell derives depth from
-/// the route's layout width for horizontal turns and height for vertical turns,
-/// keeping both endpoints fitted to their viewport. Contents remain mounted
-/// through the exit transition and unmount afterward, as with [`Route`].
+/// Sibling shells share one normalized cube projected into their layout area.
+/// Each navigation samples the destination's `direction` and `duration`. Rapid
+/// navigation retargets that cube while participating route instances stay live;
+/// returning to a participating route steers back to its existing face. Hidden
+/// faces are reusable, and only the selected route remains after settling.
 ///
-/// This is a normal custom route shell, not a retained overlay like [`RouteCard`].
-/// Direction describes the outgoing face's motion. Keep it stable during a turn;
-/// browser Back/Forward uses the currently authored direction rather than
-/// inferring a reverse turn from history. Timelines use `InOutQuad` easing.
+/// Direction chooses the next face relative to the previous destination. If it
+/// is still visible, the shell chooses a hidden face farther around that axis.
+/// Motion takes a direct rotational path, preserving pose and angular velocity
+/// when retargeted and easing to rest over the sampled duration. Reactive setting
+/// edits affect the next navigation. Settled browser Back/Forward uses the
+/// authored direction; there is no persistent route cache or history inference.
 ///
-/// Requires GPU spatial composition. The orthographic view and native-layer
-/// restrictions of [`Cuboid`] also apply here. Clip the router's containing
+/// Requires GPU spatial composition and the default orthographic camera. Face
+/// visibility is calculated in the router's local axes; custom camera projections
+/// and spatially rotated ancestors are unsupported. The native-layer restrictions
+/// of [`Cuboid`] also apply here. Clip the router's containing
 /// viewport with a [`Frame`] when the rotating silhouette should stay inside it.
 #[cfg(feature = "3d")]
 #[pax]
@@ -326,17 +328,43 @@ pub struct RouteCuboid {
     pub path: Property<String>,
     /// Fallback branch used when no `path` branch matches.
     pub r#default: Property<bool>,
-    /// Motion of the outgoing face. Defaults to Left.
+    /// Preferred turn for a new destination face. Sampled on navigation; defaults to Left.
     pub direction: Property<RouteCuboidDirection>,
-    /// Enter/exit duration, shared by both faces of a turn. Defaults to 1200ms.
+    /// Time to settle after navigation or interruption. Sampled on navigation;
+    /// defaults to 1200ms. Non-positive/non-finite values settle immediately.
     pub duration: Property<Duration>,
-    // Derived from the route's bounds and shared direction; callers need no face math.
-    pub _depth: Property<f64>,
-    pub _enter_x: Property<Rotation>,
-    pub _enter_y: Property<Rotation>,
+    pub _layout: Property<RouteCuboidLayout>,
+    pub _pose: Property<RouteCuboidPose>,
 }
 
-/// Direction of the outgoing face in a [`RouteCuboid`] quarter-turn.
+// Public for generated cartridge descriptors; shell implementation values.
+#[cfg(feature = "3d")]
+#[pax]
+#[engine_import_path("pax_engine")]
+pub struct RouteCuboidPose {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub rx: f64,
+    pub ry: f64,
+    pub rz: f64,
+    pub visible: bool,
+}
+
+#[cfg(feature = "3d")]
+#[pax]
+#[engine_import_path("pax_engine")]
+pub struct RouteCuboidLayout {
+    pub width: f64,
+    pub height: f64,
+    pub side: f64,
+    pub scale_x: f64,
+    pub scale_y: f64,
+    pub content_scale_x: f64,
+    pub content_scale_y: f64,
+}
+
+/// Preferred direction for a new [`RouteCuboid`] destination face.
 #[cfg(feature = "3d")]
 #[pax]
 #[engine_import_path("pax_engine")]
@@ -356,9 +384,12 @@ impl Default for RouteCuboid {
             r#default: Property::new(false),
             direction: Property::new(RouteCuboidDirection::Left),
             duration: Property::new(Duration::Milliseconds(1200.into())),
-            _depth: Property::default(),
-            _enter_x: Property::default(),
-            _enter_y: Property::default(),
+            _layout: Property::default(),
+            _pose: Property::new(RouteCuboidPose {
+                z: 1.,
+                visible: true,
+                ..Default::default()
+            }),
         }
     }
 }
@@ -367,37 +398,30 @@ impl Default for RouteCuboid {
 impl RouteCuboid {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let bounds = ctx.bounds_self.clone();
-        let direction = self.direction.local();
-        let deps = [bounds.untyped(), direction.untyped()];
-        self._depth.replace_with(LocalProperty::computed(
-            move || match direction.get() {
-                RouteCuboidDirection::Left | RouteCuboidDirection::Right => bounds.get().0,
-                RouteCuboidDirection::Up | RouteCuboidDirection::Down => bounds.get().1,
-            },
-            &deps,
-        ));
-        let direction = self.direction.local();
-        let deps = [direction.untyped()];
-        self._enter_x.replace_with(LocalProperty::computed(
+        let deps = [bounds.untyped()];
+        self._layout.replace_with(LocalProperty::computed(
             move || {
-                Rotation::Degrees(match direction.get() {
-                    RouteCuboidDirection::Up => (-90.0).into(),
-                    RouteCuboidDirection::Down => 90.0.into(),
-                    _ => 0.0.into(),
-                })
+                let (width, height) = bounds.get();
+                let side = width.min(height).max(1.);
+                RouteCuboidLayout {
+                    width,
+                    height,
+                    side,
+                    scale_x: 100. * width / side,
+                    scale_y: 100. * height / side,
+                    content_scale_x: 100. * side / width.max(1.),
+                    content_scale_y: 100. * side / height.max(1.),
+                }
             },
             &deps,
         ));
-        let direction = self.direction.local();
-        self._enter_y.replace_with(LocalProperty::computed(
-            move || {
-                Rotation::Degrees(match direction.get() {
-                    RouteCuboidDirection::Left => 90.0.into(),
-                    RouteCuboidDirection::Right => (-90.0).into(),
-                    _ => 0.0.into(),
-                })
-            },
-            &deps,
-        ));
+        if let Some(route) = ctx.route_presentation() {
+            super::route_cuboid_motion::CuboidMotion::register(
+                &route,
+                self._pose.local(),
+                self.direction.local(),
+                self.duration.local(),
+            );
+        }
     }
 }

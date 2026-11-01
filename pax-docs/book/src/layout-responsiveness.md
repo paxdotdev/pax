@@ -473,7 +473,7 @@ percent depth is not supported. Positive Z points toward the default viewer
 when the parent is unrotated. An ancestor's tilt also tilts its descendants'
 coordinate axes.
 
-The current scene view is orthographic. Tilt changes a surface's projected
+The default scene view is orthographic. Tilt changes a surface's projected
 shape; changing Z alone does not change its size. Local layout dimensions stay
 unchanged, including when a surface is edge-on. Edge-on surfaces are not pointer
 targets. Non-finite spatial poses paint no area and keep their mounted state,
@@ -701,13 +701,15 @@ the same paint while responding differently to a light. See
 [Spatial lighting](drawing-styling.md#spatial-lighting) for lights inside
 transformed groups and the distinction between vector materials and native UI.
 
-For a rotating route transition in a viewport of width W and height H, use
-depth W for a horizontal quarter-turn or H for a vertical quarter-turn. The
-incoming face then ends at W × H without stretching its content. A fixed
-non-square cuboid cannot make all six sides the same viewport dimensions.
+For a single-axis quarter-turn in a viewport of width W and height H, depth W
+for a horizontal turn or H for a vertical turn makes the incoming face end at
+W × H. A fixed non-square cuboid cannot make all six sides the same viewport
+dimensions. `RouteCuboid` instead projects a normalized cube into the viewport,
+allowing direction changes during motion while each route fills the viewport
+at rest. Intermediate silhouettes stretch with the viewport's aspect ratio.
 See the [Cuboid Router fixture](https://github.com/paxproject/pax/tree/dev/examples/fixtures/cuboid-router)
 and [RouteCuboid](routing.md#cuboid-route-transitions) for a reusable route
-branch that computes this geometry and supplies normal enter/exit timelines:
+branch that coordinates live faces, interruption, and temporary route retention:
 
 ```sh
 pax-cli run --path examples/fixtures/cuboid-router --target web

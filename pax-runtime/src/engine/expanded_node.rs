@@ -3971,6 +3971,10 @@ impl ExpandedNode {
         }
     }
 
+    pub(crate) fn with_binding_scope<R>(&self, callback: impl FnOnce() -> R) -> R {
+        self.property_binding_scope.borrow().with_graph(callback)
+    }
+
     /// Manages unpacking an `Rc<RefCell<PaxValue>>`, downcasting into
     /// the parameterized `target_type`, and executing a provided closure `body` in the
     /// context of that unwrapped variant (including support for mutable operations),

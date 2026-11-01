@@ -276,6 +276,12 @@ The callback only describes requirements; it must not mount or run handlers.
 It is discarded when initial presentation completes and ignored outside
 yielded startup. Capture weak references rather than retaining the node.
 
+##### `route_presentation`
+<pre><code class="api-signature language-rust ignore">pub fn route_presentation(&amp;self) -&gt; Option&lt;RoutePresentation&gt;</code></pre>
+
+Presentation handle for the nearest enclosing Router branch, when any.
+Register custom route presentation during the shell's mount handler.
+
 ##### `provide_store`
 <pre><code class="api-signature language-rust ignore">pub fn provide_store&lt;T: <a href="../../../api/pax-runtime-api/store.md#store">Store</a>&gt;(&amp;self, store: T) -&gt; Result&lt;(), <a href="../../../api/pax-runtime-api/store.md#storeerror">StoreError</a>&gt;</code></pre>
 

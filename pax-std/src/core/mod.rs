@@ -8,6 +8,8 @@ pub mod liquid_glass;
 pub mod mask;
 pub mod overlay;
 pub mod router;
+#[cfg(feature = "3d")]
+mod route_cuboid_motion;
 pub mod scroller;
 pub mod text;
 

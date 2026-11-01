@@ -145,7 +145,10 @@ struct LayerCoverage {
 
 impl LayerCoverage {
     fn push(&mut self, id: u32, bounds: OcclusionBox) {
-        self.bounds = Some(self.bounds.map_or(bounds, |existing| existing.union(&bounds)));
+        self.bounds = Some(
+            self.bounds
+                .map_or(bounds, |existing| existing.union(&bounds)),
+        );
         self.entries.push((id, bounds));
     }
 }
@@ -1445,8 +1448,12 @@ fn native_mask_entry(
             occluder.occlusion.get().z_index,
             native.occlusion.get().z_index,
             path.bounding_box().intersect(
-                (native_presentation * Affine::from(tab.transform))
-                    .transform_rect_bbox(Rect::new(0.0, 0.0, tab.bounds.0, tab.bounds.1)),
+                (native_presentation * Affine::from(tab.transform)).transform_rect_bbox(Rect::new(
+                    0.0,
+                    0.0,
+                    tab.bounds.0,
+                    tab.bounds.1,
+                )),
             ),
         )?);
     }
@@ -1460,6 +1467,9 @@ fn native_mask_entry(
             .map(|clip| bez_path_to_svg_path_data(&(inverse * clip)))
             .collect(),
         opacity: Some(coverage.opacity),
+    })
+}
+
 #[cfg(feature = "3d")]
 fn solid_contours_path(
     solid: &pax_runtime_api::mesh3::ProjectedConvexMesh,
@@ -1671,7 +1681,6 @@ fn conditional_native_coverage_opacity(
         .fold(paint, |alpha, scope| alpha * scope.opacity as f64)
         .clamp(0., 1.)
 }
-
 
 fn emit_mask(
     node: &ExpandedNode,
@@ -2216,12 +2225,35 @@ mod tests {
     #[test]
     fn conditional_native_mask_cancels_shared_fade_only() {
         use pax_runtime_api::OpacityScope;
-        let shared = OpacityScope { node_id: 1, opacity: 0.37 };
-        let private = OpacityScope { node_id: 2, opacity: 0.5 };
-        assert_eq!(super::conditional_native_coverage_opacity(0.37,0.37,&[shared],&[shared]),1.);
-        assert_eq!(super::conditional_native_coverage_opacity(0.185,0.185,&[shared,private],&[shared]),0.5);
-        assert_eq!(super::conditional_native_coverage_opacity(0.0925,0.185,&[shared,private],&[shared]),0.25);
-        assert_eq!(super::conditional_native_coverage_opacity(0.,0.,&[shared],&[shared]),0.);
+        let shared = OpacityScope {
+            node_id: 1,
+            opacity: 0.37,
+        };
+        let private = OpacityScope {
+            node_id: 2,
+            opacity: 0.5,
+        };
+        assert_eq!(
+            super::conditional_native_coverage_opacity(0.37, 0.37, &[shared], &[shared]),
+            1.
+        );
+        assert_eq!(
+            super::conditional_native_coverage_opacity(0.185, 0.185, &[shared, private], &[shared]),
+            0.5
+        );
+        assert_eq!(
+            super::conditional_native_coverage_opacity(
+                0.0925,
+                0.185,
+                &[shared, private],
+                &[shared]
+            ),
+            0.25
+        );
+        assert_eq!(
+            super::conditional_native_coverage_opacity(0., 0., &[shared], &[shared]),
+            0.
+        );
     }
     use super::*;
     use kurbo::{Rect, RoundedRect};

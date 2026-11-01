@@ -30,24 +30,30 @@
     </Group>
     <Frame x=24px y=96px width={100% - 48px} height={100% - 142px}>
         <Router>
-            <RouteCuboid path="/" direction={self.direction} duration=1200ms>
+            <RouteCuboid path="/" direction={self.direction} duration={(self.duration_ms)ms}>
                 <ScenePage title="A different point of view." number="01" tone=rgb(191, 224, 213)
                     caption="Live UI on a solid's surface. Turn the route; keep the scene alive." />
             </RouteCuboid>
-            <RouteCuboid path="/notes" direction={self.direction} duration=1200ms>
+            <RouteCuboid path="/notes" direction={self.direction} duration={(self.duration_ms)ms}>
                 <ScenePage title="Room for your thoughts." number="02" tone=rgb(237, 210, 162)
-                    caption="The outgoing route remains mounted until its rotation completes." />
+                    caption="Navigate again while turning. Live faces steer toward the latest route." />
             </RouteCuboid>
-            <RouteCuboid default=true direction={self.direction} duration=1200ms>
+            <RouteCuboid default=true direction={self.direction} duration={(self.duration_ms)ms}>
                 <ScenePage title="A new face. The same space." number="03" tone=rgb(198, 204, 232)
                     caption="Each arriving face fits this viewport. No route screenshots." />
             </RouteCuboid>
         </Router>
     </Frame>
-    <Text x=24px y=100% anchor_y=100% width={100% - 48px} height=36px
-        text="ORTHOGRAPHIC / LIVE NATIVE CONTROLS / 1.2s QUARTER TURN"
+    <Button x={100% - 24px} y={100% - 4px} anchor_x=100% anchor_y=100%
+        width=132px height=30px label={"Speed: " + self.duration_ms + "ms"}
+        style={font_size: 14px, fill: rgb(255, 255, 255),
+            align_horizontal: TextAlignHorizontal::Center,
+            align_vertical: TextAlignVertical::Center,
+            align_multiline: TextAlignHorizontal::Center} @button_click=self.speed />
+    <Text x=24px y=100% anchor_y=100% width={100% - 196px} height=36px
+        text={self.narrow ? "LIVE / RETARGETABLE" : "ORTHOGRAPHIC / LIVE NATIVE CONTROLS / RETARGETABLE"}
         style={font_size: 11px, fill: rgb(145, 160, 162)} />
-    <Rectangle width=100% height=100% translate_z={(self.background_depth)px} fill=rgb(20, 27, 31) />
+    <Rectangle width=100% height=100% z={(self.background_depth)px} fill=rgb(20, 27, 31) />
 </Group>
 
 @settings {
