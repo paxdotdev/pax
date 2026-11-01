@@ -2,7 +2,7 @@
 
 This is the default `pax-cli create` starter. Its three source files contain
 the scene, controls, choreography clock, and native entry point. It starts on
-a dark background with `RadiantAperture` enabled around the canonical logo,
+a dark background with `Radiance` enabled around the canonical logo,
 including its obsidian-like letter treatment.
 
 The light follows the flag's left-to-right unfurl handoffs during the original
@@ -22,12 +22,14 @@ flag, set `radiance_enabled: Property::new(false)` in `Example::default`.
 When disabled, the shader container is not mounted and the clock stops after
 the reveal. The scene also uses plain rendering on CPU; WGPU is required for
 radiance. The reusable `AnimatedPaxLogo` itself remains a plain component.
-The background toggle still reverses the palette.
+The background toggle reverses the logo palette. Light mode uses an off-white
+background and enables CMY beam dispersion at the shared 0.15 saturation
+default. The contour rim is shelved as the separate `RimRefraction` shader.
 
 The starter enables the `shaders` Cargo feature on `pax-kit`. Both this scene
 and the separate `logo-radiance` tuning fixture use the shared standard-library
-`RadiantAperture`; the fixture retains its independent 18-second inspection
-path and brightness 5. See the [shader guide](../../pax-docs/book/src/compositing-effects.md#radiant-aperture)
+`Radiance`; the fixture retains its independent 18-second inspection
+path and starts at brightness 2.20 on dark or 5 on light. See the [shader guide](../../pax-docs/book/src/compositing-effects.md#radiance)
 for properties and limitations. Native parity and production performance are
 not established by the web checks. System reduced-motion integration remains
 deferred to PAX-1048.

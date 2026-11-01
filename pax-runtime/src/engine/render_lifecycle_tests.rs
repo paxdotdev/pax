@@ -7,6 +7,9 @@ use std::rc::Weak;
 
 #[derive(Default)]
 struct RecordingRenderer {
+    gpu_busy: bool,
+    render_turn_depth: usize,
+    completed_render_turns: usize,
     layer_count: usize,
     pending: bool,
     removals: Vec<(usize, u32)>,
@@ -38,6 +41,20 @@ struct RecordingRenderer {
 }
 
 impl RenderContext for RecordingRenderer {
+    fn begin_render_turn(&mut self, _: u64, _: u64) -> bool {
+        if self.render_turn_depth == 0 && self.gpu_busy {
+            return false;
+        }
+        self.render_turn_depth += 1;
+        true
+    }
+    fn end_render_turn(&mut self) {
+        assert!(self.render_turn_depth > 0);
+        self.render_turn_depth -= 1;
+        if self.render_turn_depth == 0 {
+            self.completed_render_turns += 1;
+        }
+    }
     #[cfg(feature = "shaders")]
     fn begin_shader_effect(
         &mut self,
@@ -2043,4 +2060,71 @@ fn overlays_and_transfer_flights_keep_the_filtered_render_path() {
     assert!(!plan
         .render_path_nodes
         .contains(&node.render_parent_node().unwrap().id));
+}
+
+#[test]
+fn gpu_backpressure_preserves_dirty_work_and_does_not_stop_ticks() {
+    let (mut engine, mut renderer, nodes) = dirty_render_probe();
+    let graph = engine.runtime_context.property_graph.clone();
+    let _graph = graph.enter();
+    let frames = engine.runtime_context.globals().elapsed_frames.get();
+    let completed = renderer.completed_render_turns;
+    renderer.gpu_busy = true;
+    for _ in 0..3 {
+        engine.tick();
+        engine.render(&mut renderer);
+        assert!(renderer.events.is_empty());
+        assert!(engine.runtime_context.has_canvas_render_work());
+    }
+    assert_eq!(
+        engine.runtime_context.globals().elapsed_frames.get(),
+        frames + 3
+    );
+    assert_eq!(renderer.completed_render_turns, completed);
+    assert_eq!(renderer.render_turn_depth, 0);
+    renderer.gpu_busy = false;
+    engine.render(&mut renderer);
+    assert!(renderer.events.iter().any(|(kind, _)| *kind == "draw"));
+    for node in nodes {
+        assert!(!engine.runtime_context.is_canvas_node_dirty(&node.id));
+    }
+    assert_eq!(renderer.completed_render_turns, completed + 1);
+    assert_eq!(renderer.render_turn_depth, 0);
+}
+
+#[test]
+fn gpu_backpressure_defers_cooperative_and_cold_surface_work_before_consumption() {
+    let (mut engine, mut renderer, _) = dirty_render_probe();
+    let mut state = surface_work::RenderWorkState::default();
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    renderer.jobs = vec![replay_job(0)];
+    renderer.gpu_busy = true;
+    let completed = renderer.completed_render_turns;
+    state.begin(1);
+    let report = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert_eq!(report.blocker, Some("gpu_backpressure"));
+    assert!(
+        !report.pending,
+        "completion waits must not spin host continuations"
+    );
+    assert!(!state.setup_complete);
+    assert_eq!(renderer.jobs.len(), 1);
+    assert!(renderer.events.is_empty());
+    let report = engine.present_settled_surfaces(&mut renderer, &mut budget, || 0.0);
+    assert_eq!(report.blocker, Some("gpu_backpressure"));
+    assert_eq!(renderer.jobs.len(), 1);
+    let (visible, remaining) =
+        engine.render_with_surface_preparation(&mut renderer, &mut budget, || 0.0, &mut |_| {});
+    assert_eq!(visible.blocker, Some("gpu_backpressure"));
+    assert_eq!(remaining.blocker, Some("gpu_backpressure"));
+    assert_eq!(renderer.completed_render_turns, completed);
+    renderer.gpu_busy = false;
+    engine.render_with_surface_preparation(&mut renderer, &mut budget, || 0.0, &mut |_| {});
+    assert_eq!(
+        renderer.completed_render_turns,
+        completed + 1,
+        "nested rendering shares one admission"
+    );
+    assert_eq!(renderer.render_turn_depth, 0);
+    assert!(!renderer.events.is_empty());
 }

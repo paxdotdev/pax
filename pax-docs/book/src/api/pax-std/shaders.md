@@ -12,4 +12,5 @@ Enable the opt-in `shaders` Cargo feature on `pax-kit` or `pax-std`.
 - [shaders::corona](shaders/corona.md)
 - [shaders::gaussian_blur](shaders/gaussian_blur.md)
 - [shaders::impressionist](shaders/impressionist.md)
-- [shaders::radiant_aperture](shaders/radiant_aperture.md)
+- [shaders::radiance](shaders/radiance.md)
+- [shaders::rim_refraction](shaders/rim_refraction.md)

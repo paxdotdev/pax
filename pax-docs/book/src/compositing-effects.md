@@ -749,7 +749,7 @@ The [Frame](api/pax-std/core/frame.md), [Mask](api/pax-std/core/mask.md), and
 
 A userland primitive can filter its rendered descendants with a sequence of
 WGSL fragment passes. `pax_std::shaders` provides `GaussianBlur`,
-`Impressionist`, `Corona`, and `RadiantAperture`, also exported by `pax_std::*` and `pax_kit::*`. They use the
+`Impressionist`, `Corona`, `Radiance`, and `RimRefraction`, also exported by `pax_std::*` and `pax_kit::*`. They use the
 same public renderer extension API available to your own primitives. The
 `shader-studio` example imports these standard-library components.
 
@@ -793,17 +793,24 @@ without applying the filter, as described below. The first target is web WebGPU,
 Metal pixel tests covering the shared renderer.
 
 Clips and opacity inside a shader container become part of its source image.
+Descendant masks affect only that captured layer; they do not clip or restore
+unrelated layers when surrounding native controls or source drawers change.
 Clips outside the container apply to the filtered output, and the container's
 own opacity applies after filtering. Nested containers run from the inside
 out. Filters may expand beyond layout bounds by their declared sampling
 support; an enclosing Frame clips that expansion. Layout and hit testing
 continue to use the original tree.
 
-WGPU reuses capture textures when their pixel dimensions stay the same, including
-when only their origin changes. A shader container also reuses its pass textures
-and bindings when its coordinate transform changes without replacing its source
-texture or shader program. This avoids allocation churn; transformed or changed
-content still needs rendering. Resizing the capture can allocate new textures.
+WGPU reuses capture textures when only their origin changes. Shader captures also
+retain spare texture capacity, so small animated changes in their pixel dimensions
+can reuse the source and pass textures. The visible capture bounds and sampling
+coordinates remain exact; unused storage neither stretches nor expands the output.
+Transformed or changed content still needs rendering. Growing past that capacity,
+substantially shrinking the capture, or changing its shader program can allocate
+new textures. Use `sample_input0`, `sample_input1`, and `input0_pixel_size` to address
+the active image; raw texture dimensions include the renderer's spare capacity.
+The runtime also [bounds unfinished GPU frames](how-pax-runs.md#from-a-property-change-to-the-screen),
+so a costly effect cannot build an unbounded queue of old animation states.
 The capture envelope includes descendant drawing bounds and sampling support,
 so a moving child that extends beyond the container can change that envelope
 although the container's layout size is fixed.
@@ -811,6 +818,9 @@ On first display or when a scrolled-away surface is recreated, the renderer
 replays the complete filtered subtree from settled scene state. This does not
 advance the application clock or require an animation or geometry change to
 produce the first frame; stationary filters work too.
+Source paint and shader-parameter changes also update already-visible tiles
+while new scroll tiles are being prepared. A palette switch does not require
+replaying an animation or changing the source geometry.
 
 Effect bounds are checked against each tile's padded sampling domain before
 setting up capture attachments. Off-tile effects do not allocate or clear those
@@ -998,55 +1008,172 @@ See the [`Corona` API reference](api/pax-std/shaders/corona.md) for its properti
 For the Rust extension contract, see [shader primitives](primitives.md#shader-primitives).
 
 
-#### Radiant aperture
+<a id="radiant-aperture"></a>
 
-`RadiantAperture` projects a two-color stencil about a caller-positioned light
+#### Radiance
+
+`Radiance` projects a two-color stencil about a caller-positioned light
 behind its plane. Moving the shared light turns the whole fan coherently. The
 full-resolution silhouette stays crisp; background-colored coverage can
-transmit light and catch an obsidian-like polished sheen.
+transmit light and catch an obsidian-like polished sheen. Its reflection band
+stays vertical as the light moves. All glass shading stays inside the original
+coverage. Contour glints are a separate [RimRefraction](#rimrefraction) effect;
+the logo examples and website hero do not apply it.
 
 ```pax
-<RadiantAperture width=920.72px height=463.95px
-    foreground=WHITE background=BLACK
+<Radiance width=920.72px height=463.95px
+    foreground=WHITE background=BLACK light_color=WHITE
     light_x=160.0 light_y=225.0 light_depth=340.0 brightness=1.70>
     <AnimatedPaxLogo width=920.72px height=463.95px
         background_mode=LogoBackgroundMode::Dark fill=BLACK letter_fill=WHITE
         progress=1.0 click_to_replay=false/>
-</RadiantAperture>
+</Radiance>
 ```
 
 Enable the `shaders` feature and match `foreground` and `background` to the
 source's distinct opaque solid colors. Arbitrary multicolor/gradient sources
-are unsupported. Transparent exteriors, antialiasing, masks, and partial
+are unsupported. `light_color` defaults to white independently of that palette,
+so a black-on-light stencil still projects white beams. Its alpha scales light
+strength, including the sheen. To reproduce a previously colored
+projection, set `light_color` to the source's `foreground` color explicitly.
+Use an off-white surrounding surface to give white beams visible contrast.
+Transparent exteriors, antialiasing, masks, and partial
 reveals are captured. The shader has no internal clock; position and intensity
 can come from a timeline or application state.
 
 | Property | Default | Range / meaning |
 | --- | --- | --- |
 | `light_x`, `light_y` | 820, 185 | Container-local logical pixels |
+| `light_color` | White | Projected beam and sheen color; alpha scales light strength |
 | `light_depth` | 340 | 120–900 local pixels behind the stencil |
-| `brightness` | 5 | 0–6; zero bypasses rays and glass shading |
-| `reach` | 320 | 0–360 local pixels of projected travel |
+| `brightness` | 2.20 | 0–6; zero bypasses rays and glass shading |
+| `reach` | 190 | 0–360 local pixels of projected travel |
 | `falloff` | 1 | 0.5–4 distance attenuation exponent |
+| `prism_dispersion` | 0 | 0–1 CMY separation of the projected field; zero disables it |
+| `prism_saturation` | 0.25 | 0–1 saturation of the separated light; zero is neutral |
 | `transmission` | 0.16 | 0–0.5 light transmission through background-colored coverage |
-| `polish` | 0.55 | 0–1 moving sheen and narrow contour highlights |
+| `polish` | 0.55 | 0–1 vertical moving sheen |
+
+For a prism-like fan on a light surface, set `prism_dispersion=1.0` and
+`prism_saturation=0.25` on `Radiance` for the restrained logo preset. Raise
+saturation toward 1 for a fully chromatic fan. Dispersion separates cyan,
+magenta, and yellow copies of the captured
+projection in directions transverse to the moving point light, capped at
+36 local pixels per side. Saturation removes the shared white component of
+the overlapping lobes while keeping their brightness separate.
+Equal lobes converge smoothly to neutral. Setting either control to zero
+restores the original light-color projection.
+
+```pax
+<Radiance width=920.72px height=463.95px
+    light_x={self.light_x} light_y={self.light_y}
+    foreground=rgb(10, 12, 16) background=rgb(248, 248, 245)
+    prism_dispersion=1.0 prism_saturation=0.25>
+    <AnimatedPaxLogo width=920.72px height=463.95px progress=1.0
+        background_mode=LogoBackgroundMode::Light
+        fill=rgb(10, 12, 16) letter_fill=rgb(248, 248, 245)/>
+</Radiance>
+```
+
+This is continuous light dispersion; there is no particle emission API or
+simulation. The full-resolution source is never displaced, and the glass
+samples the same colored field for transmission. The vertical polished sheen
+retains `light_color`. The prism resamples the existing projection in the
+composite pass; it adds no ray marches or passes. Its capture outset reserves
+416 local pixels while active (376 when neutral), so light movement and
+positive dispersion changes do not change capture capacity. This remains a
+stylized approximation rather than physically calibrated spectral transport.
+
+The `logo-radiance` fixture enables this experiment only in light mode, with
+**Ray dispersion**, **Ray saturation**, and **White light (A/B)** controls.
+The main logo example also enables dispersion in light mode. The reusable
+primitive and dark website hero keep neutral light unless dispersion is enabled.
 
 Setting transmission and polish to zero restores solid source coverage while
 retaining exterior rays. Glass transmission concerns this captured light
 field; it does not refract arbitrary scene content behind the container or
 change source alpha. The two-pass effect uses a half-resolution projection and
-a full-resolution source composite, with a fixed 376-pixel outset covering its
-tuning range. Scaling an enclosing Group scales the whole treatment.
+a full-resolution source composite, with a bounded 376-pixel outset (416 with
+prism dispersion) covering its tuning range. Scaling an enclosing Group scales the whole treatment.
+
+Projection quality remains fixed at 96 evenly spaced stencil samples per
+half-resolution pixel. Transparent samples skip attenuation calculations, and
+opaque source pixels skip exterior-light sampling in the composite; partial
+coverage still blends the projected light at the original antialiased edge.
+CMY dispersion adds composite texture reads. Cost depends on capture size and
+whether the light is moving: lowering a nonzero brightness is an artistic
+adjustment, not a quality or performance setting. Pause the caller's light
+animation when the effect is not visible.
 
 This is a stylized 2.5D scattering approximation, not a calibrated optical
 simulation. The WGPU-only capture, native-child, hit-region, and CPU fallback
 limitations above apply. Web debug and baked release builds are validated;
 native parity and production performance remain unqualified.
 
-The `logo-radiance` fixture provides direct material/light controls. The main
+The `logo-radiance` fixture provides direct material/light controls and a
+**Black on light** / **White on dark** toggle that preserves those settings
+while switching both the source and shader palette. Brightness is remembered
+separately for each mode: initially 2.20 on dark and 5 on light. The main
 `pax-logo` example enables the effect by default behind `radiance_enabled`,
 follows its unfurl with an accelerating slide left, dimming to brightness
 1.70 as it passes the original left endpoint. Its 12-second idle loop spans
 −20% to 120% of the original path. See [Animation & Motion](animation-motion.md#paths-interaction-and-motion-choices)
-for choreography ownership and the
-[`RadiantAperture` API reference](api/pax-std/shaders/radiant_aperture.md).
+for choreography ownership. The website hero uses the same treatment and
+pauses its light clock while offscreen; its `HeroSection.radiance_enabled` flag
+selects the plain logo. See the
+[`Radiance` API reference](api/pax-std/shaders/radiance.md).
+
+
+#### RimRefraction
+
+`RimRefraction` adds localized CMY contour glints to GPU-rendered shapes without
+projected beams or a glass sheen. Its default follows the alpha silhouette of
+its children, so transparent space around the shape is required. The effect
+preserves source alpha and blends color inward from the contour. It can tint
+light surfaces as well as brighten dark ones.
+
+```pax
+<RimRefraction width=320px height=220px
+    light_x=360.0 light_y=110.0 light_depth=120.0>
+    <Ellipse x=20px y=30px width=240px height=160px fill=rgb(20, 24, 30)/>
+</RimRefraction>
+```
+
+For internal contours in two-color artwork, set `surface_color=Some(BLACK)`
+and `contrast_color=WHITE`, matching its distinct opaque fills. Only the
+selected color receives the rim, including antialiased mixed pixels. Reverse
+those colors for white glass in black artwork. This palette mode does not
+support arbitrary multicolor or gradient sources; alpha mode does.
+
+| Property | Default | Range / meaning |
+| --- | --- | --- |
+| `surface_color` | `None` | Alpha silhouette; `Some(color)` selects one fill |
+| `contrast_color` | White | Other fill in palette mode |
+| `light_color` | White | Neutral highlight color; alpha scales all glints |
+| `light_x`, `light_y` | 820, 185 | Container-local logical pixels |
+| `light_depth` | 340 | 120–900 local pixels behind the surface |
+| `light_radius` | 60 | 1–160 local pixels; larger spheres broaden glints |
+| `brightness` | 5 | 0–6; zero bypasses the effect |
+| `intensity` | 0.795 | 0–1 tone-mapped contour tint strength |
+| `rim_width` | 3.4 | 0–8 local pixels inward; zero disables the effect |
+| `dispersion` | 0.98 | 0–1 angular separation, up to ±40 degrees |
+| `saturation` | 0.77 | 0–1 chromatic strength |
+
+These defaults preserve the last logo rim study independently of `Radiance`.
+The caller drives light motion. Stylized contour rays intersect a finite sphere
+in 3D, so glints travel along an edge instead of illuminating its entire length.
+Zero dispersion overlaps the CMY lobes into neutral light; zero saturation also
+removes color. Color and tone-mapped exposure remain separate to avoid washing
+out the highlights on white surfaces.
+
+This is one full-resolution pass with a fixed 9-pixel sampling outset. It does
+not distort the silhouette or refract arbitrary scene content. The shared
+WGPU-only capture and CPU plain-child fallback limitations apply.
+
+The former `Radiance.rim_*` controls and `light_radius` have moved here:
+`rim_intensity`, `rim_dispersion`, and `rim_saturation` become `intensity`,
+`dispersion`, and `saturation`; `rim_width` and `light_radius` keep their names.
+Use a separate container around the intended source and pass the same light
+coordinates if both effects should share a light. The current logo treatment
+intentionally uses only `Radiance`.
+See the [`RimRefraction` API reference](api/pax-std/shaders/rim_refraction.md).

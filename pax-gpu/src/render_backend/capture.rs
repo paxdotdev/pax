@@ -311,17 +311,41 @@ impl RenderBackend<'_> {
     ) {
         let surfaces = self.retained_surfaces.as_mut().unwrap();
         let mut scratch = surfaces.stack.pop().unwrap();
+        let size = (rect.2, rect.3);
+        #[cfg(feature = "shaders")]
+        let size = if matches!(key, CaptureKey::EffectSource(_)) {
+            // Small geometry changes must not replace the source and every dependent
+            // pass texture. Keep bounded spare capacity; logical bounds remain exact.
+            // 64 is divisible by every supported pass downsample factor.
+            let capacity = |required: u32, previous: u32| {
+                if previous >= required && required > previous / 4 {
+                    previous
+                } else {
+                    required
+                        .div_ceil(64)
+                        .saturating_mul(64)
+                        .min(self.device.limits().max_texture_dimension_2d)
+                }
+            };
+            let previous = surfaces.groups.get(&key);
+            (
+                capacity(rect.2, previous.map_or(0, |g| g.texture.width())),
+                capacity(rect.3, previous.map_or(0, |g| g.texture.height())),
+            )
+        } else {
+            size
+        };
         // Moving a capture changes its copy/composite origin, not its storage size.
         if surfaces
             .groups
             .get(&key)
-            .is_none_or(|g| g.texture.width() != rect.2 || g.texture.height() != rect.3)
+            .is_none_or(|g| g.texture.width() != size.0 || g.texture.height() != size.1)
         {
             let texture = self.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("Retained subtree"),
                 size: wgpu::Extent3d {
-                    width: rect.2,
-                    height: rect.3,
+                    width: size.0,
+                    height: size.1,
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,

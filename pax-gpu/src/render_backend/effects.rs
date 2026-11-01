@@ -16,7 +16,6 @@ pub(super) struct Effects {
 }
 
 struct PassOutput {
-    texture: Texture,
     view: TextureView,
     parameters: wgpu::Buffer,
     binding: BindGroup,
@@ -25,7 +24,7 @@ struct PassOutput {
 struct Output {
     recipe: &'static pax_runtime_api::ShaderProgram,
     source: Texture,
-    domain: [[f32; 4]; 5],
+    domain: [[f32; 4]; 6],
     domain_buffer: wgpu::Buffer,
     rect_buffer: wgpu::Buffer,
     passes: Vec<PassOutput>,
@@ -266,7 +265,29 @@ impl RenderBackend<'_> {
         let rows = |t: Transform2D| [[t.m11, t.m21, t.m31, 0.0], [t.m12, t.m22, t.m32, 0.0]];
         let a = rows(inverse);
         let b = rows(transform);
-        let domain = [rect, a[0], a[1], b[0], b[1]];
+        let pixels = [
+            (rect[2] * source_globals.dpr[0]).round() as u32,
+            (rect[3] * source_globals.dpr[1]).round() as u32,
+        ];
+        let storage = [
+            pixels[0] as f32,
+            pixels[1] as f32,
+            source.width() as f32,
+            source.height() as f32,
+        ];
+        let domain = [rect, a[0], a[1], b[0], b[1], storage];
+        let final_downsample = effect.program.passes.last().unwrap().downsample;
+        let composite_rect = [
+            rect,
+            [
+                pixels[0].div_ceil(final_downsample) as f32
+                    / source.width().div_ceil(final_downsample) as f32,
+                pixels[1].div_ceil(final_downsample) as f32
+                    / source.height().div_ceil(final_downsample) as f32,
+                0.,
+                0.,
+            ],
+        ];
         if self.effects.is_none() {
             self.effects = Some(Effects::new(self));
         }
@@ -379,7 +400,6 @@ impl RenderBackend<'_> {
                     ],
                 });
                 passes.push(PassOutput {
-                    texture,
                     view,
                     parameters,
                     binding,
@@ -389,7 +409,7 @@ impl RenderBackend<'_> {
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("Effect output rectangle"),
-                    contents: bytemuck::cast_slice(&rect),
+                    contents: bytemuck::cast_slice(&composite_rect),
                     usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
                 });
             let composite = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -437,8 +457,11 @@ impl RenderBackend<'_> {
             // source texture or recipe changes their resource dependencies.
             self.queue
                 .write_buffer(&output.domain_buffer, 0, bytemuck::cast_slice(&domain));
-            self.queue
-                .write_buffer(&output.rect_buffer, 0, bytemuck::cast_slice(&rect));
+            self.queue.write_buffer(
+                &output.rect_buffer,
+                0,
+                bytemuck::cast_slice(&composite_rect),
+            );
             output.domain = domain;
             output.signature = None;
         }
@@ -476,10 +499,12 @@ impl RenderBackend<'_> {
             });
             render.set_pipeline(&effects.pipelines[recipe]);
             render.set_bind_group(0, &pass.binding, &[]);
+            let width = pixels[0].div_ceil(recipe.downsample);
+            let height = pixels[1].div_ceil(recipe.downsample);
+            render.set_viewport(0., 0., width as f32, height as f32, 0., 1.);
             render.draw(0..3, 0..1);
             stats.effect_passes += 1;
-            stats.effect_pixels +=
-                u64::from(pass.texture.width()) * u64::from(pass.texture.height());
+            stats.effect_pixels += u64::from(width) * u64::from(height);
         }
         output.signature = Some(signature);
         self.enqueue_command_buffer(encoder.finish());

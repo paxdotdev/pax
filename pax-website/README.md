@@ -450,8 +450,12 @@ the independently animated glyphs retain their original clipping behavior.
 Headline motion stops while offscreen. The website has no pause button or
 automatic OS reduced-motion handling yet. The logo plays once on mount and
 replays when clicked or tapped at home; replay is disabled while visiting the nav.
-Its `progress=bind:logo_progress` shares one playhead with the website's
-initial 1440ms reveal; there is no competing per-frame progress writer.
+The hero owns one playhead for the 1440ms reveal and Radiance lighting, including
+click replay at home. The light returns to −20%, dims to 1.70, and idles between
+−20% and 120% every 12 seconds. `SiteLogo` uses plain artwork when docked in
+navigation; the large light volume is reserved for its hero presentation.
+Set `HeroSection.radiance_enabled=false` for the plain logo;
+CPU also renders the plain children.
 
 The manifest pins the website's Pest parser family to 2.8.7. A fresh resolution
 to Pest 2.9.3 introduced `stacker`/`psm` into the development Wasm and left an

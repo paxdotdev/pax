@@ -161,6 +161,18 @@ skipped. The GPU path retains rendering data, and the runtime can avoid a
 canvas rendering pass when there is no canvas work pending. Native elements
 receive their own updates through the chassis.
 
+The runtime's GPU renderer admits at most two unfinished application frames per shared
+device. Layers, tiles, and cooperative rendering slices of the same frame share
+one allowance, retained until its latest submission completes. If both frames
+are still running, drawing waits without blocking the host thread
+or consuming pending scene changes. Input, application ticks, and native updates
+continue. The next admitted frame reads the latest settled scene instead of
+replaying a backlog of intermediate animation states. This applies in debug and
+release GPU builds; the CPU renderer does not use this GPU limit. It bounds queued
+work, not the cost of a shader or the time needed to finish one frame, so an
+expensive effect can still reduce the displayed frame rate. Elapsed-time
+animations keep their duration even when intermediate visual states are skipped.
+
 The GPU renderer retains independent transforms and opacity values for scenes
 with more than 480 transformed drawing operations. It stores transforms and
 geometric clips in small uniform-buffer pages that grow with scene demand,
@@ -194,6 +206,16 @@ Low-level renderer integrations receive a `CommandBatch` from
 Combine batches with `CommandBatch::append`, submit through the renderer, and
 perform the existing submission cleanup. The batch carries the attachment
 leases with the commands, including when several surfaces share a submission.
+Custom runtime backends can implement `RenderContext::begin_render_turn` and
+`end_render_turn` to participate in nonblocking admission; the defaults always
+admit work. A successful begin must have a matching end, and nested rendering
+must share the outer admission. Cooperative slices pass the same application
+identity and tick epoch so they can finish all layers of an admitted frame.
+Direct `pax-gpu` integrations can check
+`GpuContext::render_queue_ready` before encoding and call `finish_render_turn`
+after submitting each slice, using the same `RenderFrame` identity for every
+slice of that application frame. Standalone low-level submissions
+do not automatically acquire a runtime frame budget.
 
 The amount of work is therefore related to the dependencies and surfaces
 affected by a change. A single property write can still have a broad effect:

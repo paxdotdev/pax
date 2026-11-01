@@ -48,6 +48,109 @@ fn with_target<T>(renderer: &mut PaxGpuRenderer, f: impl FnOnce(&mut LayerTarget
     f(target)
 }
 
+#[cfg(feature = "shaders")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shader_capture_keeps_descendant_masks_on_the_owning_layer() {
+    use pax_runtime_api::{ShaderEffect, ShaderInput, ShaderPass, ShaderProgram};
+    static PROGRAM: ShaderProgram = ShaderProgram {
+        label: "mask isolation",
+        passes: &[ShaderPass {
+            label: "identity.wgsl",
+            source: "fn effect(p: vec2<f32>) -> vec4<f32> {return sample_input0(p);}",
+            parameters: &[],
+            inputs: [ShaderInput::Subtree; 2],
+            downsample: 1,
+        }],
+    };
+    let native = [MetalLayer::new(), MetalLayer::new()];
+    let mut renderer = PaxGpuRenderer::new(|_, _| unreachable!("prebuilt targets"));
+    let mut context = None;
+    for (layer, native) in native.iter().enumerate() {
+        let surface = entry(&layer.to_string(), "g1", 0.0);
+        let (backend, shared) = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer_with_context(
+                native.0.cast(),
+                RenderConfig::new(true, 32, 32, [1.0, 1.0]),
+                context.clone(),
+            )
+        })
+        .expect("Metal backend");
+        context = Some(shared);
+        let tile = LayerRenderer::new(
+            surface.key.clone(),
+            surface.host_signature.clone(),
+            WgpuRenderer::new(backend),
+            0.0,
+            0.0,
+            32.0,
+            32.0,
+            32,
+            32,
+            [1.0, 1.0],
+        );
+        let layout = LayerSurfaceLayout {
+            surfaces: vec![surface],
+            active: true,
+        };
+        renderer
+            .backends
+            .borrow_mut()
+            .push(RenderLayerState::Ready((
+                LayerTarget::new(vec![tile], true),
+                Box::pin(move || layout.clone()),
+            )));
+    }
+
+    // An unrelated layer already has an ancestor clip when a descendant Mask
+    // broadcasts its pre/post-render hooks across the dirty layers.
+    renderer.save(1);
+    renderer.clip(1, Rect::new(0.0, 0.0, 16.0, 32.0).to_path(0.1));
+    let effect = ShaderEffect {
+        program: &PROGRAM,
+        parameters: vec![vec![]],
+        outset: 0.0,
+    };
+    assert!(renderer.begin_shader_effect(
+        0,
+        1,
+        0,
+        &effect,
+        kurbo::Affine::IDENTITY,
+        (32.0, 32.0),
+        &[],
+        &[2]
+    ));
+    for layer in 0..2 {
+        let began = renderer.begin_node(layer, 2, 1, 0);
+        assert_eq!(began, layer == 0);
+        if began {
+            renderer.save(layer);
+            renderer.clip(layer, Rect::new(0.0, 0.0, 8.0, 32.0).to_path(0.1));
+            renderer.end_node(layer, 2);
+        }
+    }
+    for layer in 0..2 {
+        renderer.restore(layer);
+    }
+    renderer.end_shader_effect(0, 1);
+
+    // The foreign restore must not pop the unrelated layer's ancestor clip,
+    // either from the live GPU context or its retained drawing program.
+    assert!(renderer.begin_node_with_bounds(1, 3, 2, Rect::new(0.0, 0.0, 32.0, 32.0), 0));
+    renderer.end_node(1, 3);
+    let drawing = renderer.drawings.get(1, 3).expect("retained drawing");
+    assert_eq!(
+        drawing
+            .commands
+            .iter()
+            .filter(|command| matches!(command.as_ref(), DrawingCommand::Clip(_)))
+            .count(),
+        1
+    );
+    renderer.restore(1);
+}
+
 fn paint(renderer: &mut PaxGpuRenderer, dirty: Rc<RefCell<Vec<bool>>>) {
     renderer.clear(0);
     let replay = renderer.replay_region_bounds(0).map(|regions| {
@@ -76,6 +179,152 @@ fn paint(renderer: &mut PaxGpuRenderer, dirty: Rc<RefCell<Vec<bool>>>) {
         }
     }
     renderer.flush(0, dirty);
+}
+
+#[cfg(feature = "shaders")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shader_palette_updates_reach_warm_tiles_during_cold_replay() {
+    use kurbo::Affine;
+    use pax_runtime_api::{Color, Paint, ShaderEffect, ShaderInput, ShaderPass, ShaderProgram};
+    static PROGRAM: ShaderProgram = ShaderProgram {
+        label: "palette update probe",
+        passes: &[ShaderPass {
+            label: "identity",
+            source: "fn effect(p: vec2<f32>) -> vec4<f32> {return sample_input0(p);}",
+            parameters: &[],
+            inputs: [ShaderInput::Subtree; 2],
+            downsample: 1,
+        }],
+    };
+    let native = [MetalLayer::new(), MetalLayer::new()];
+    let mut renderer = PaxGpuRenderer::new(|_, _| unreachable!("prebuilt targets"));
+    let mut context = None;
+    let mut tiles = Vec::new();
+    let mut surfaces = Vec::new();
+    for (index, native) in native.iter().enumerate() {
+        let x = index as f32 * 32.0;
+        let surface = entry(&index.to_string(), "g1", x);
+        let (backend, shared) = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer_with_context(
+                native.0.cast(),
+                RenderConfig::new(true, 32, 32, [1.0, 1.0]),
+                context.clone(),
+            )
+        })
+        .expect("Metal backend");
+        context = Some(shared);
+        let mut gpu = WgpuRenderer::new(backend);
+        gpu.set_surface_transform(Transform2D::translation(-x, 0.0));
+        tiles.push(LayerRenderer::new(
+            surface.key.clone(),
+            surface.host_signature.clone(),
+            gpu,
+            x,
+            0.0,
+            32.0,
+            32.0,
+            32,
+            32,
+            [1.0, 1.0],
+        ));
+        surfaces.push(surface);
+    }
+    let layout = LayerSurfaceLayout {
+        surfaces,
+        active: true,
+    };
+    renderer
+        .backends
+        .borrow_mut()
+        .push(RenderLayerState::Ready((
+            LayerTarget::new(tiles, true),
+            Box::pin(move || layout.clone()),
+        )));
+    renderer.prepare_surface_content = true;
+    with_target(&mut renderer, |target| {
+        for tile in &mut target.renderers {
+            tile.presentation_ready = true;
+        }
+    });
+    let effect = ShaderEffect {
+        program: &PROGRAM,
+        parameters: vec![vec![]],
+        outset: 0.0,
+    };
+    let dirty = Rc::new(RefCell::new(vec![true]));
+    let draw = |renderer: &mut PaxGpuRenderer, color| {
+        renderer.begin_shader_effect(0, 1, 0, &effect, Affine::IDENTITY, (64.0, 32.0), &[], &[2]);
+        // A nested boundary must inherit exactly the parent's selected surfaces.
+        renderer.begin_shader_effect(0, 2, 1, &effect, Affine::IDENTITY, (64.0, 32.0), &[], &[3]);
+        assert!(renderer.begin_node_with_bounds(0, 3, 2, Rect::new(0.0, 0.0, 64.0, 32.0), 0));
+        renderer.fill_with_opacity(
+            0,
+            Rect::new(0.0, 0.0, 64.0, 32.0).to_path(0.1),
+            &Paint::Solid(color),
+            1.0,
+        );
+        renderer.end_node(0, 3);
+        renderer.end_shader_effect(0, 2);
+        renderer.end_shader_effect(0, 1);
+    };
+    draw(&mut renderer, Color::WHITE);
+    renderer.flush(0, Rc::clone(&dirty));
+
+    // Layout adds/replaces a cold tile while the stationary source changes paint.
+    // The queued tile must not divert this application update from the warm tile.
+    with_target(&mut renderer, |target| {
+        target.renderers[1].presentation_ready = false;
+        target.renderers[0]
+            .renderer
+            .request_screenshot_capture(1053);
+    });
+    renderer.set_targeted_replay_batches(0, vec![vec![1]], HashMap::new());
+    draw(&mut renderer, Color::BLACK);
+    renderer.flush(0, Rc::clone(&dirty));
+    assert_eq!(
+        renderer
+            .flushed_surfaces
+            .borrow()
+            .iter()
+            .map(|x| (x.0, x.1))
+            .collect::<Vec<_>>(),
+        [(0, 0)]
+    );
+    with_target(&mut renderer, |target| {
+        let gpu = &mut target.renderers[0].renderer;
+        let mut frame = gpu.take_screenshot_capture(1053);
+        for _ in 0..100 {
+            if frame.is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+            // Empty follow-up submissions service the nonblocking readback;
+            // an unchanged retained scene returns before polling the device.
+            gpu.clear();
+            gpu.flush();
+            frame = gpu.take_screenshot_capture(1053);
+        }
+        let frame = frame.expect("warm tile palette update submitted");
+        assert_eq!(
+            &frame.rgba[(16 * 32 + 16) * 4..(16 * 32 + 16) * 4 + 4],
+            &[0, 0, 0, 255]
+        );
+    });
+
+    // A later cold fallback stays confined to its selected tile.
+    assert!(renderer.begin_surface_fallback(0));
+    draw(&mut renderer, Color::BLACK);
+    renderer.flush(0, dirty);
+    assert_eq!(
+        renderer
+            .flushed_surfaces
+            .borrow()
+            .iter()
+            .map(|x| (x.0, x.1))
+            .collect::<Vec<_>>(),
+        [(0, 1)]
+    );
 }
 
 #[test]

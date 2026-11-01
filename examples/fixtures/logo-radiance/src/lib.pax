@@ -5,7 +5,7 @@ if @gpu {
     <Stacker width=100% autosize=true gutter=12px>
         <Group height=24px width=100%/>
         <Text class="eyebrow" x=50% width={(self.panel_width)px} height=20px text="PAX / LIGHT STUDIES / 03"/>
-        <Text class="title" x=50% width={(self.panel_width)px} height=54px text="Radiant aperture"/>
+        <Text class="title" x=50% width={(self.panel_width)px} height=54px text="Radiance"/>
         <Text class="copy" x=50% width={(self.panel_width)px} height=36px 
             text="One light behind the mark. A slow passage from right to left."/>
         <Group width=100% height={(self.stage_height)px} @viewport_proximity_change=self.visibility>
@@ -14,12 +14,17 @@ if @gpu {
                     if self.marker {
                         <Ellipse x={(self.light_x)px} y={(self.light_y)px} anchor=50% width=14px height=14px fill=rgb(137, 213, 255)/>
                     }
-                    <RadiantAperture width=920.72px height=463.95px light_x={self.light_x} light_y={self.light_y} light_depth={self.depth} 
+                    <Radiance width=920.72px height=463.95px light_x={self.light_x} light_y={self.light_y} light_depth={self.depth} 
                         brightness={self.treated ? self.brightness : 0.0} reach={self.reach} falloff={self.falloff} 
-                        transmission={self.transmission} polish={self.polish} foreground=rgb(248, 248, 245) background=rgb(10, 12, 16)>
-                        <AnimatedPaxLogo width=920.72px height=463.95px progress={self.progress} click_to_replay=false background_mode=LogoBackgroundMode::Dark 
-                            fill=rgb(10, 12, 16) letter_fill=rgb(248, 248, 245)/>
-                    </RadiantAperture>
+                        transmission={self.transmission} polish={self.polish} light_color=WHITE 
+                        foreground={self.dark ? rgb(248, 248, 245) : rgb(10, 12, 16)} 
+                        background={self.dark ? rgb(10, 12, 16) : rgb(248, 248, 245)} 
+                        prism_dispersion={self.dark || !self.prism_enabled ? 0.0 : self.prism_dispersion} 
+                        prism_saturation={self.prism_saturation}>
+                        <AnimatedPaxLogo width=920.72px height=463.95px progress={self.progress} click_to_replay=false 
+                            background_mode={self.dark ? LogoBackgroundMode::Dark : LogoBackgroundMode::Light} fill=rgb(10, 12, 16) 
+                            letter_fill=rgb(248, 248, 245)/>
+                    </Radiance>
                 </Group>
             </Group>
         </Group>
@@ -34,6 +39,24 @@ if @gpu {
                 <Button class="button" x={self.small ? 52% : 76.5%} y={self.small ? 48px : 0px} width={self.small ? 48% : 23%} 
                     label="Reset study" @button_click=self.reset/>
             </Group>
+            <Group width=100% height=36px>
+                <Button class="button" width={self.small ? 100% : 31%} label={self.dark ? "Black on light" : "White on dark"} 
+                    @button_click=self.theme/>
+            </Group>
+            if !self.dark {
+                <Group width=100% height=36px>
+                    <Text class="eyebrow" width=48% height=36px text="LIGHT MODE / PRISM"/>
+                    <Button class="button" x=52% width=48% label={self.prism_enabled ? "White light (A/B)" : "CMY light (A/B)"} 
+                        @button_click=self.toggle_prism/>
+                </Group>
+                <Group width=100% height=56px>
+                    <Text class="copy" width=48% height=20px text={"Ray dispersion / " + self.prism_dispersion}/>
+                    <Slider class="slider" id=prism_dispersion y=28px width=48% height=24px value=bind:prism_dispersion min=0.0 max=1.0 step=0.01/>
+                    <Text class="copy" x=52% anchor_x=0% width=48% height=20px text={"Ray saturation / " + self.prism_saturation}/>
+                    <Slider class="slider" id=prism_saturation x=52% anchor_x=0% y=28px width=48% height=24px value=bind:prism_saturation min=0.0 
+                        max=1.0 step=0.01/>
+                </Group>
+            }
             <Group width=100% height=56px>
                 <Text class="eyebrow" width=100% height=20px text="LIGHT PATH / RIGHT → LEFT → RIGHT / 18 SECONDS"/>
                 <Slider class="slider" y=28px width=100% height=24px value=bind:phase min=0.0 max=1.0 step=0.001 @slider_change=self.scrub_light/>
@@ -78,7 +101,7 @@ if @gpu {
         </Stacker>
     </Stacker>
 </Scroller>
-<Rectangle width=100% height=100% fill=rgb(10, 12, 16)/>
+<Rectangle width=100% height=100% fill={self.dark ? rgb(10, 12, 16) : rgb(232, 234, 230)}/>
 
 @settings {
     @mount: mount
@@ -87,38 +110,38 @@ if @gpu {
         style: {
             font: "Georgia"
             font_size: {self.small ? 32px : 42px}
-            fill: rgb(248, 248, 245)
+            fill: {self.dark ? rgb(248, 248, 245) : rgb(10, 12, 16)}
         }
     }
     .eyebrow {
         style: {
             font: "Arial"
             font_size: 11px
-            fill: rgb(153, 158, 169)
+            fill: {self.dark ? rgb(153, 158, 169) : rgb(90, 96, 108)}
         }
     }
     .copy {
         style: {
             font: "Arial"
             font_size: 13px
-            fill: rgb(153, 158, 169)
+            fill: {self.dark ? rgb(153, 158, 169) : rgb(90, 96, 108)}
         }
     }
     .slider {
-        accent: rgb(221, 224, 229)
-        background: rgb(45, 49, 58)
+        accent: {self.dark ? rgb(221, 224, 229) : rgb(57, 63, 74)}
+        background: {self.dark ? rgb(45, 49, 58) : rgb(219, 222, 227)}
         corner_radius: 12.0
     }
     .button {
         height: 36px
         anchor_x: 0%
         anchor_y: 0%
-        color: rgb(35, 38, 46)
-        hover_color: rgb(53, 57, 66)
+        color: {self.dark ? rgb(35, 38, 46) : rgb(229, 231, 235)}
+        hover_color: {self.dark ? rgb(53, 57, 66) : rgb(211, 215, 222)}
         style: {
             font: "Arial"
             font_size: 12px
-            fill: rgb(248, 248, 245)
+            fill: {self.dark ? rgb(248, 248, 245) : rgb(10, 12, 16)}
             align_horizontal: TextAlignHorizontal::Center
             align_vertical: TextAlignVertical::Center
         }

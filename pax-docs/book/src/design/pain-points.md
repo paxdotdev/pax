@@ -16,12 +16,47 @@ Last triaged: 2026-10-05 — [PAX-972](https://linear.app/paxdev/issue/PAX-972/p
 
 ## Untriaged findings
 
+- 2026-11-02 — PAX-1053 rebase onto `e879172d8`: wrapping the transferred
+  website `SiteLogo` in Radiance made the docked nav logo disappear in Chrome
+  WebGPU, while the hero rendered and no browser error was logged. Reproduce
+  by keeping Radiance enabled while scrolling the hero into the Overlay nav.
+  The website retains its intended plain nav treatment by disabling Radiance
+  when docked; return-to-home lighting and replay pass. Moving a live captured
+  shader across this presentation boundary still needs separate engine coverage.
+
 - 2026-10-29, website acrostic outlines: positioning vector letters at the
   font's cap height clipped rounded O/C overshoot in the top Frame row. Expected
   complete contours. The website now fits each decorative letter's full control
   bounds into an inset ink box, reserving space for its heavier outline; the
   hero retains proportional font shaping. Regression coverage checks normalized
   bounds and equal gutters in `pax-website/src/acrostic.rs`.
+- 2026-11-01 — Radiance optimization measurements: an offscreen WGPU 28
+  Metal probe on M2 Max returned zero or non-monotonic end timestamps for
+  render-pass `TIMESTAMP_QUERY` pairs, despite successful rendering/readback.
+  Expected nonnegative pass durations. Reproduced with beginning/end writes
+  at indices 0/1, resolving after the render pass and waiting for readback;
+  one returned pair was `[34437368567666, 0]`. Excluded those counters and
+  instead timed paired batches of
+  32 passes through GPU completion, alternating before/after order; this
+  includes submission/completion overhead rather than isolated GPU time.
+
+- 2026-11-01, PAX-1053 Radiance profiling on M2 Max in the Codex browser:
+  expected smooth logo light motion; the live debug harness sometimes redraws
+  around 39 times/sec despite CPU work below 4 ms at p95. Reproduce with
+  `logo-radiance` at reach 190, dark brightness 2.20 and
+  `?pax_surface_trace=1&pax_scroll_perf=1`; inspect frame-summary render work.
+  The original release dark preset reached 112 redraws/sec in two samples;
+  light-mode CMY varied between 18 and 74. CPU p95 stayed below 4 ms.
+  Bypassing shader work with brightness zero reached 116–118, and bypassing
+  just projection with reach zero (CMY composite retained) reached 117.
+  These are engine redraw rates, not display presentation FPS. System GPU load
+  remained roughly 50–65% in bypass controls and often 85–95% with the effect;
+  concurrent browser GPU work prevents treating these as isolated GPU timings.
+  The fixed 96-sample projection was expensive even in transparent areas;
+  the composite also sampled exterior light behind opaque pixels. The outset
+  also reserves reach 360 even at the 190 preset; a temporary tighter-bounds
+  trial did not establish a stable improvement and was reverted. Raw frame
+  traces, system samples and Metal captures: `/tmp/pax-radiance-profile/`.
 
 - 2026-10-28, website first-scroll profiling: mounting a frozen
   `AnimatedPaxLogo progress=1` in the revealed navigation adds three Mask clip
@@ -1443,3 +1478,12 @@ Coordinating lifecycle entry with native presentation readiness remains open.
   wrapped tag lines. The resulting file passes `fmt --check` but produces
   whitespace warnings from `git diff --check`; stripping those spaces makes
   the formatter check fail. Kept canonical formatter output (PAX-1053).
+
+- 2026-10-30 — PAX-1053 website integration: expected opening/closing the hero
+  source drawer to preserve the animated Radiance logo. WebGPU instead panicked
+  in `PaxGpuRenderer::begin_node` with `source has an owning mask scope` when
+  descendant reveal masks sent clip commands to another dirty layer during a
+  shader capture. CPU did not reproduce. Reproduction: release website, open
+  the hero's View Source, then close it; browser console contains the panic.
+  Capture-layer isolation fixes the reproduced panic; the two-layer Metal
+  regression fails before the fix and passes afterward.

@@ -16,8 +16,10 @@ mod tests {
         assert!(!nav.contains("<AnimatedPaxLogo"));
         let hero = include_str!("hero_section.pax");
         assert!(hero.contains("<SiteLogo id=hero_logo"));
+        assert!(hero.contains("@click=self.activate_logo"));
         let logo = include_str!("site_logo.pax");
         assert!(logo.contains("<AnimatedPaxLogo"));
+        assert!(logo.contains("<Radiance"));
         assert!(logo.contains("click_to_replay={self.click_to_replay}"));
     }
 }

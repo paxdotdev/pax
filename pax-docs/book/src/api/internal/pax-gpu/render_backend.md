@@ -24,6 +24,20 @@ Type: `Vec`<`u8`>
 ### `GpuContext`
 GPU device, pipelines, and a weak index of resident image textures shared by sibling surfaces.
 
+#### Implementations
+##### `finish_render_turn`
+<pre><code class="api-signature language-rust ignore">pub fn finish_render_turn(&amp;self, frame: RenderFrame)</code></pre>
+
+Fence all submissions made by the admitted rendering turn on this device.
+Empty turns consume no allowance. Completion never waits on the host thread.
+
+##### `render_queue_ready`
+<pre><code class="api-signature language-rust ignore">pub fn render_queue_ready(&amp;self, frame: RenderFrame) -&gt; bool</code></pre>
+
+Whether another rendering turn can start without building a GPU backlog.
+Native devices need a nonblocking poll to deliver completion callbacks;
+WebGPU delivers them through the browser's event loop.
+
 ---
 
 ### `Image`

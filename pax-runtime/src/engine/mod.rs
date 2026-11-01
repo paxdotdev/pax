@@ -850,6 +850,17 @@ impl PaxEngine {
         budget: &mut surface_work::SurfaceWorkBudget,
         now_ms: impl Fn() -> f64,
     ) -> surface_work::SurfaceWorkReport {
+        let turn = match render_work::RenderTurn::begin(rcs, &self.runtime_context) {
+            Ok(turn) => turn,
+            Err(blocker) => {
+                return surface_work::SurfaceWorkReport {
+                    blocked: true,
+                    blocker: Some(blocker),
+                    ..Default::default()
+                }
+            }
+        };
+        let rcs = &mut *turn.context;
         self.present_surfaces(rcs, budget, now_ms, i32::MAX, &Default::default(), false)
     }
 
@@ -1121,6 +1132,16 @@ impl PaxEngine {
     ) {
         let mut visible = surface_work::SurfaceWorkReport::default();
         let mut remaining = surface_work::SurfaceWorkReport::default();
+        let turn = match render_work::RenderTurn::begin(rcs, &self.runtime_context) {
+            Ok(turn) => turn,
+            Err(blocker) => {
+                visible.blocked = true;
+                visible.blocker = Some(blocker);
+                remaining = visible.clone();
+                return (visible, remaining);
+            }
+        };
+        let rcs = &mut *turn.context;
         self.render_with_callbacks(rcs, true, observe, &mut |engine, rcs, early| {
             // Rank zero includes every visible candidate; positive ranks stay
             // behind ordinary application drawing at this opportunity.
@@ -1151,6 +1172,10 @@ impl PaxEngine {
         ) {
             return;
         }
+        let Ok(turn) = render_work::RenderTurn::begin(rcs, &self.runtime_context) else {
+            return;
+        };
+        let rcs = &mut *turn.context;
         let _graph = self.runtime_context.property_graph.enter();
         use crate::render_instrumentation::{Phase, Span};
         let _render_timing = Span::new(Phase::Render);

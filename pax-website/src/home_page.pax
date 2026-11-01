@@ -45,7 +45,7 @@
             <ExampleHost width=100% height={(Math::max(580, self.hero_height))px} title="A declarative language" sources={self.hero_sources}
                 drawer_open=bind:self.hero_source_open inline_source_viewer={!self.compact_sources}
                 selected_source=bind:self.hero_source_selected source_light_mode=bind:self.source_light>
-                <HeroSection content_height=bind:self.hero_height scroll_y=bind:self.scroll_y/>
+                <HeroSection content_height=bind:self.hero_height scroll_y=bind:self.scroll_y radiance_enabled=true/>
             </ExampleHost>
             <ExampleHost width=100% height={(Math::max(790, self.runtime_height))px} title="Native and web" sources={self.runtime_sources}
                 drawer_open=bind:self.runtime_source_open inline_source_viewer={!self.compact_sources}

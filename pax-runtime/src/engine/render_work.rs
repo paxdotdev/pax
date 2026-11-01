@@ -1,5 +1,36 @@
 use super::{surface_work::*, *};
 
+// Guard every render entry, including early returns and nested fallback paths.
+// Refusing admission happens before consuming dirty state or replay work.
+pub(super) struct RenderTurn<'a> {
+    pub(super) context: &'a mut dyn RenderContext,
+}
+impl<'a> RenderTurn<'a> {
+    pub(super) fn begin(
+        context: &'a mut dyn RenderContext,
+        runtime: &RuntimeContext,
+    ) -> Result<Self, &'static str> {
+        if matches!(
+            runtime.application.context().phase(),
+            pax_runtime_api::AppPhase::Closing | pax_runtime_api::AppPhase::Closed
+        ) {
+            return Err("app_closing");
+        }
+        let _graph = runtime.property_graph.enter();
+        let frame = runtime.globals().elapsed_frames.get() as u64;
+        if context.begin_render_turn(runtime.property_graph.id(), frame) {
+            Ok(Self { context })
+        } else {
+            Err("gpu_backpressure")
+        }
+    }
+}
+impl Drop for RenderTurn<'_> {
+    fn drop(&mut self) {
+        self.context.end_render_turn();
+    }
+}
+
 impl PaxEngine {
     pub(super) fn build_layer_render_plan(
         &self,
@@ -46,6 +77,15 @@ impl PaxEngine {
             report.blocker = Some("app_closing");
             return report;
         }
+        let turn = match RenderTurn::begin(rcs, &self.runtime_context) {
+            Ok(turn) => turn,
+            Err(blocker) => {
+                report.blocked = true;
+                report.blocker = Some(blocker);
+                return report;
+            }
+        };
+        let rcs = &mut *turn.context;
         let _graph = self.runtime_context.property_graph.enter();
         let diagnostics = self.runtime_context.occlusion_state.borrow().diagnostics;
         // Geometry may need the ordinary frame's setup, but reactive/occlusion

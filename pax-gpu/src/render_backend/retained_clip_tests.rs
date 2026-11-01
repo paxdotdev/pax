@@ -2442,6 +2442,100 @@ fn shader_effect_movement_reuses_textures_and_updates_coordinates() {
 #[cfg(feature = "shaders")]
 #[test]
 #[ignore = "requires a macOS Metal device"]
+fn shader_effect_animated_bounds_reuse_storage_without_stretching_or_leaking() {
+    use pax_runtime_api::{ShaderEffect, ShaderInput, ShaderPass, ShaderProgram};
+    static PROGRAM: ShaderProgram = ShaderProgram {
+        label: "animated capture bounds",
+        passes: &[
+            ShaderPass {
+                label: "coarse-source.wgsl",
+                source: "fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p); }",
+                parameters: &[],
+                inputs: [ShaderInput::Subtree; 2],
+                downsample: 2,
+            },
+            ShaderPass {
+                label: "active-source-and-procedural-bounds.wgsl",
+                // The blue band is procedural: spare storage must not expand it.
+                // Below it, sample both resolutions and verify local pixel size.
+                source: "fn effect(p: vec2<f32>) -> vec4<f32> { if p.y < 4.0 { return vec4<f32>(0.0,0.0,1.0,1.0); } let coarse = sample_input0(p); let full = sample_input1(p); let red = select(0.0, coarse.r, abs(input0_pixel_size().x - parameters.pixel_size) < 0.001); return vec4<f32>(red,full.g,0.0,full.a); }",
+                parameters: &[pax_runtime_api::ShaderParameter { name: "pixel_size", ty: pax_runtime_api::ShaderParameterType::Float }],
+                inputs: [ShaderInput::Pass(0), ShaderInput::Subtree],
+                downsample: 1,
+            },
+        ],
+    };
+    for dpr in [1., 2., 3.] {
+        let layer = MetalLayer::new();
+        let backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, (80. * dpr) as u32, (40. * dpr) as u32, [dpr, dpr]),
+            )
+        })
+        .unwrap();
+        let device = backend.device.clone();
+        let mut renderer = WgpuRenderer::new(backend);
+        renderer.set_viewport(80., 40., [dpr, dpr]);
+        let effect = ShaderEffect {
+            program: &PROGRAM,
+            parameters: vec![vec![], vec![pax_runtime_api::ShaderValue::Float(2. / dpr)]],
+            outset: 0.,
+        };
+        for (frame, width) in [40., 42., 38., 44., 40.].into_iter().enumerate() {
+            renderer.begin_shader_effect(
+                1,
+                1,
+                &effect,
+                Transform2D::translation(8., 8.),
+                (16., 16.),
+                &[],
+                &[2],
+            );
+            renderer.begin_node(2, 0, 0);
+            renderer.fill_path(
+                rect(8., 8., width, 16.),
+                Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+            );
+            renderer.end_node(2);
+            renderer.end_shader_effect();
+            renderer.request_screenshot_capture(frame as u32);
+            renderer.flush();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            let pixels = renderer.take_screenshot_capture(frame as u32).unwrap();
+            for (x, y, color) in [
+                (12., 10., [0, 0, 255, 255]),
+                (8. + width - 1., 10., [0, 0, 255, 255]),
+                (8. + width - 1., 20., [255, 255, 0, 255]),
+                (8. + width + 1., 10., [0, 0, 0, 0]),
+                (8. + width + 1., 20., [0, 0, 0, 0]),
+                (12., 26., [0, 0, 0, 0]),
+            ] {
+                assert_pixel(&pixels, (x * dpr) as usize, (y * dpr) as usize, color);
+            }
+            let stats = renderer.take_resource_churn_stats();
+            assert_eq!(
+                stats.effect_pipeline_compilations,
+                if frame == 0 { 2 } else { 0 }
+            );
+            assert_eq!(
+                stats.effect_texture_allocations,
+                // The 44px frame at DPR 3 grows past the initial 128px capacity.
+                if frame == 0 || (frame == 3 && dpr == 3.) {
+                    2
+                } else {
+                    0
+                }
+            );
+            assert_eq!(stats.effect_source_renders, 1);
+            assert_eq!(stats.effect_passes, 2);
+        }
+    }
+}
+
+#[cfg(feature = "shaders")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
 fn shader_effect_nested_pixels_and_relative_opacity() {
     use pax_runtime_api::{
         OpacityScope, ShaderEffect, ShaderInput, ShaderParameter, ShaderParameterType, ShaderPass,

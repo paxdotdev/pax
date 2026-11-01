@@ -1,16 +1,22 @@
+if self._logo_started && self.logo_visible && (self.playhead_ms < 1440.0 || (@gpu && self.radiance_enabled)) {
+    <Group width=0px height=0px @tick=self.advance_logo/>
+}
 <Group width=100% height=100%>
     <ImportSettings>
         <SiteTheme />
     </ImportSettings>
-    <Stacker id=hero_content x=50% y=24px width={self.compact ? (100% - 48px) : 88%} autosize=true autosize_x=false autosize_y=true
-        direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal} gutter={self.compact ? 32px : 6%}
+    <Stacker id=hero_content x=50% y=24px width={self.compact ? (100% - 48px) : 88%} autosize=true autosize_x=false autosize_y=true 
+        direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal} gutter={self.compact ? 32px : 6%} 
         sizes={self.compact ? [] : [Some(28%), None]}>
         <Group width=100% height={self.compact ? (self.logo_width * 463.95 / 920.72)px : 300px}>
             // Match the headline's visible cap height, including its centered line-box inset.
             <Group id=hero_logo_home x=0px y={self.compact ? 0px : (56 + self.font_px * 0.28)px}
                 width={(self.logo_width)px} height={(self.logo_width * 463.95 / 920.72)px}
                 anchor_x=0px anchor_y=0px layout_role=LayoutRole::Breakout @mount=self.bind_logo_transfer>
-                <SiteLogo id=hero_logo width=100% height=100% progress=bind:self.logo_progress click_to_replay={!self.logo_docked}
+                <SiteLogo id=hero_logo width=100% height=100% progress={self.logo_progress} click_to_replay=false
+                    radiance_enabled={self.radiance_enabled && !self.logo_docked} light_x={self.playhead_ms < 2100.0 ? self.intro_light_x : self.idle_light_x}
+                    light_y={self.playhead_ms < 2100.0 ? self.intro_light_y : self.idle_light_y} brightness={self.light_brightness}
+                    @viewport_proximity_change=self.logo_visibility
                     @click=self.activate_logo/>
             </Group>
         </Group>
@@ -51,7 +57,7 @@ cd my-app && pax-cli run"}</Text>
                 <Rectangle width=100% height=100% layout_role=LayoutRole::Breakout corner_radius=12 fill={
                     paint: {SiteTheme::surface()}
                     material: {Material::unlit()}
-                }
+                } 
                     stroke={
                         paint: {SiteTheme::rule()}
                         width: 1px
@@ -83,6 +89,43 @@ cd my-app && pax-cli run"}</Text>
             fill: {SiteTheme::paper()}
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
+        }
+    }
+}
+
+@timeline logo_light {
+    playhead: {self.playhead_ms},
+    duration: 2100ms,
+    loop: false,
+    self {
+        logo_progress: {
+            0ms: 0, Linear,
+            1440ms: 1,
+        }
+        intro_light_x: {
+            0ms: 70, OutQuad,
+            210ms: 137.23, Linear,
+            600ms: 354.7567, Linear,
+            810ms: 572.2833, Linear,
+            985ms: 789.81, OutQuad,
+            1440ms: 892.72, InQuad,
+            1960ms: 160, OutCubic,
+            2100ms: 28,
+        }
+        intro_light_y: {
+            0ms: 23.34, Hold,
+            210ms: 23.34, OutQuad,
+            600ms: 190, InOutQuad,
+            810ms: 210, InOutQuad,
+            985ms: 200, InOutQuad,
+            1440ms: 185, InQuad,
+            1960ms: 225, OutCubic,
+            2100ms: 233,
+        }
+        light_brightness: {
+            0ms: 5, Hold,
+            1960ms: 5, OutCubic,
+            2100ms: 1.70,
         }
     }
 }

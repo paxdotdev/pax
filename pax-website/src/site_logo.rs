@@ -4,6 +4,10 @@ use pax_kit::*;
 #[pax]
 #[file("site_logo.pax")]
 pub struct SiteLogo {
+    pub radiance_enabled: Property<bool>,
+    pub light_x: Property<f64>,
+    pub light_y: Property<f64>,
+    pub brightness: Property<f64>,
     pub progress: Property<f64>,
     pub click_to_replay: Property<bool>,
     pub logo_scale: Property<f64>,

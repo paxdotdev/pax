@@ -134,6 +134,34 @@ impl HomePage {
             "pax-std/src/drawing/pax_logo/animated_pax_logo_post.rs",
             include_str!("../../pax-std/src/drawing/pax_logo/animated_pax_logo_post.rs"),
         ));
+        for (label, language, code) in [
+            (
+                "pax-std/src/shaders/radiance.rs",
+                "rust",
+                include_str!("../../pax-std/src/shaders/radiance.rs"),
+            ),
+            (
+                "pax-std/src/shaders/radiance_common.wgsl",
+                "wgsl",
+                include_str!("../../pax-std/src/shaders/radiance_common.wgsl"),
+            ),
+            (
+                "pax-std/src/shaders/radiance_projection.wgsl",
+                "wgsl",
+                include_str!("../../pax-std/src/shaders/radiance_projection.wgsl"),
+            ),
+            (
+                "pax-std/src/shaders/radiance_composite.wgsl",
+                "wgsl",
+                include_str!("../../pax-std/src/shaders/radiance_composite.wgsl"),
+            ),
+        ] {
+            hero_sources.push(ExampleSource {
+                label: label.into(),
+                language: language.into(),
+                code: code.into(),
+            });
+        }
         self.hero_sources.set(hero_sources);
         let mut open_source_sources = section_sources(
             "src/open_source_section.pax",

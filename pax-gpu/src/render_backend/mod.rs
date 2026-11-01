@@ -44,7 +44,7 @@ pub(crate) mod capture;
 mod effects;
 use anyhow::anyhow;
 use bytemuck::Pod;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ffi::c_void;
@@ -60,8 +60,10 @@ use wgpu::{
 
 pub(crate) mod alpha_mask;
 mod attachments;
+mod frame_pacing;
 pub use attachments::CommandBatch;
 use attachments::{Attachment, AttachmentUses};
+pub use frame_pacing::RenderFrame;
 pub mod data;
 mod gpu_resources;
 pub(crate) mod mesh_paint;
@@ -135,6 +137,8 @@ pub struct GpuContext {
     alpha_mask_resources: Rc<alpha_mask::AlphaMaskResources>,
     mesh_pipeline_resources: Rc<mesh_paint::MeshPipelineResources>,
     empty_mesh_page: Rc<mesh_paint::PaintPage>,
+    frame_pacing: frame_pacing::FramePacing,
+    unfenced_submission: Cell<bool>,
 }
 
 pub type SharedGpuContext = Rc<GpuContext>;
@@ -222,6 +226,8 @@ impl GpuContext {
             alpha_mask_resources,
             mesh_pipeline_resources,
             empty_mesh_page,
+            frame_pacing: Default::default(),
+            unfenced_submission: Cell::new(false),
         }))
     }
 
@@ -297,6 +303,26 @@ impl GpuContext {
 
     pub(crate) fn submit_command_buffers(&self, command_buffers: CommandBatch) {
         command_buffers.submit(&self.queue);
+        // An empty submit can still flush queued texture/buffer uploads.
+        self.unfenced_submission.set(true);
+    }
+
+    /// Whether another rendering turn can start without building a GPU backlog.
+    /// Native devices need a nonblocking poll to deliver completion callbacks;
+    /// WebGPU delivers them through the browser's event loop.
+    pub fn render_queue_ready(&self, frame: RenderFrame) -> bool {
+        #[cfg(not(target_arch = "wasm32"))]
+        let _ = self.device.poll(wgpu::PollType::Poll);
+        self.frame_pacing.ready(frame)
+    }
+
+    /// Fence all submissions made by the admitted rendering turn on this device.
+    /// Empty turns consume no allowance. Completion never waits on the host thread.
+    pub fn finish_render_turn(&self, frame: RenderFrame) {
+        if self.unfenced_submission.replace(false) {
+            let completion = self.frame_pacing.submitted(frame);
+            self.queue.on_submitted_work_done(move || drop(completion));
+        }
     }
 }
 

@@ -636,7 +636,7 @@ For a settled drawing without animation masks or click behavior, use
 owns the surrounding scene, controls, and light choreography; no example-crate
 dependency is needed to use the logo or shader.
 
-The starter enables `RadiantAperture` by default on a dark background. Its
+The starter enables `Radiance` by default on a dark background. Its
 `radiance_enabled` property and **Disable radiance** button select the plain
 logo instead. One parent-owned clock drives the 1440 ms unfurl and its
 left-to-right light accompaniment, then an accelerating slide left. It crosses
@@ -668,12 +668,15 @@ the stencil pans right to left and back over 18 seconds; its shared position
 controls the direction of the projected fan. The original logo, including its
 dark letter silhouettes, stays crisp in front. The letters use a mostly opaque
 glass treatment with independent **Transmission** (initially 0.16) and
-**Glass sheen** (0.55) controls; setting both to zero restores solid letters.
+**Glass sheen** (0.55) controls. Its sheen band remains vertical; light mode
+adds CMY beam dispersion with saturation 0.15. The separate `RimRefraction`
+shader preserves the contour-glint study but is not applied to the logo.
+Setting transmission and sheen to zero restores solid letters.
 The glass transmits this effect's projected light, not arbitrary content behind
 the container. Path and position sliders pause the light for inspection, while
 depth changes divergence. Run
 `pax-cli run --path examples/fixtures/logo-radiance --target web` to explore it.
-The shared `RadiantAperture` effect approximates scattering through a shallow volume;
+The shared `Radiance` effect approximates scattering through a shallow volume;
 it is not a full 3D refraction or caustics simulation. It uses the same WGPU
 shader-container restrictions and CPU plain-source fallback described above.
 

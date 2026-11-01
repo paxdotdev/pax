@@ -71,6 +71,19 @@ pub trait RenderContext {
     /// Supplies retained planar depth for an orthographically projected node.
     /// `None` restores the ordinary 2D plane. Called after beginning the node.
     fn set_node_depth_plane(&mut self, _layer: usize, _node_id: u32, _plane: Option<DepthPlane>) {}
+    /// Admit a rendering turn without waiting for GPU completion. Returning false
+    /// leaves scene work dirty for a later turn; input and application ticks continue.
+    /// `application` is the property graph identity and `frame` its tick epoch;
+    /// cooperative slices of the same frame share its GPU allowance. Nested turns
+    /// reuse the outer admission. Pair each call returning true with
+    /// `end_render_turn`, including turns that discover no drawing work.
+    fn begin_render_turn(&mut self, _application: u64, _frame: u64) -> bool {
+        true
+    }
+    /// Finish an admitted turn. GPU backends fence its submissions together rather
+    /// than spending a separate frame allowance for each canvas layer or tile.
+    fn end_render_turn(&mut self) {}
+
     /// Whether this session uses Pax's GPU renderer. This identifies the backend,
     /// not individual effect support or the presence of hardware acceleration.
     fn is_gpu(&self) -> bool {

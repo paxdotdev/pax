@@ -10,6 +10,15 @@ pub struct HeroSection {
     pub font_px: Property<f64>,
     pub logo_width: Property<f64>,
     pub logo_progress: Property<f64>,
+    pub radiance_enabled: Property<bool>,
+    pub logo_visible: Property<bool>,
+    pub playhead_ms: Property<f64>,
+    pub intro_light_x: Property<f64>,
+    pub intro_light_y: Property<f64>,
+    pub light_brightness: Property<f64>,
+    pub idle_light_x: Property<f64>,
+    pub idle_light_y: Property<f64>,
+    pub _light_last_ms: Property<f64>,
     pub _vertical_padding: Property<f64>,
     pub logo_docked: Property<bool>,
     pub _transfer_ready: Property<bool>,
@@ -25,6 +34,8 @@ impl HeroSection {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
         let now = ctx.elapsed_time_millis() as f64;
         self._last_ms.set(now);
+        self._light_last_ms.set(now);
+        self.logo_visible.set(true);
         self._last_content_height.set(self.content_height.get());
         self._startup_deadline_ms.set(now + 5000.0);
         self._height_bound.set(false);
@@ -67,13 +78,32 @@ impl HeroSection {
                 return;
             }
             self._logo_started.set(true);
-            // Yield startup work before starting the shared, replayable playhead.
-            self.logo_progress.local().ease_to(
-                1.0,
-                Duration::Milliseconds(1440.into()),
-                EasingCurve::Linear,
-            );
+            self._light_last_ms.set(now);
         }
+    }
+
+    pub fn advance_logo(&mut self, ctx: &NodeContext) {
+        let now = ctx.elapsed_time_millis() as f64;
+        let elapsed = (now - self._light_last_ms.get()).max(0.0);
+        self._light_last_ms.set(now);
+        let millis = self.playhead_ms.get() + elapsed;
+        self.playhead_ms.set(millis);
+        // Match the main logo's −20–120% path, with a stationary handoff at 2100ms.
+        let phase = ((millis - 2100.0).max(0.0) / 12000.0).rem_euclid(1.0);
+        let cosine = (phase * std::f64::consts::TAU).cos();
+        self.idle_light_x.set(490.0 - 462.0 * cosine);
+        self.idle_light_y.set(205.0 + 28.0 * cosine);
+    }
+
+    pub fn logo_visibility(&mut self, ctx: &NodeContext, event: Event<ViewportProximityChange>) {
+        self.logo_visible.set(event.current.is_in_viewport());
+        self._light_last_ms.set(ctx.elapsed_time_millis() as f64);
+    }
+
+    pub fn replay_logo(&mut self, ctx: &NodeContext, _: Event<Click>) {
+        self.playhead_ms.set(0.0);
+        self._logo_started.set(true);
+        self._light_last_ms.set(ctx.elapsed_time_millis() as f64);
     }
 
     fn bind_layout(&self, ctx: &NodeContext) {
@@ -175,12 +205,14 @@ impl HeroSection {
         });
     }
 
-    pub fn activate_logo(&mut self, ctx: &NodeContext, _: Event<Click>) {
+    pub fn activate_logo(&mut self, ctx: &NodeContext, event: Event<Click>) {
         // Moves preserve declaration/event ownership, so the visiting logo
         // handles navigation through its original component.
         if self.logo_docked.get() {
             self.scroll_y.set(0.0);
             ctx.navigate_to("/", NavigationTarget::Current);
+        } else {
+            self.replay_logo(ctx, event);
         }
     }
 

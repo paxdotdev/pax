@@ -6,7 +6,7 @@ edition = "2021"
 default-run = "logo-radiance"
 
 [package.metadata.pax]
-title = "Pax / Radiant aperture"
+title = "Pax / Radiance"
 
 [dependencies]
 pax-kit = { path = "../../../pax-kit", version = "0.39.1", features = ["shaders"] }

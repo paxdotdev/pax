@@ -659,6 +659,10 @@ fn poll_initialization_once<T>(future: Pin<&mut dyn Future<Output = T>>) -> std:
 }
 /// Runtime `RenderContext` implementation backed by `pax-gpu`/wgpu.
 pub struct PaxGpuRenderer {
+    render_turn_depth: usize,
+    render_epoch: Option<(u64, u64)>,
+    render_frame: pax_gpu::render_backend::RenderFrame,
+    render_turn_contexts: Vec<SharedGpuContext>,
     backends: Rc<RefCell<Vec<RenderLayerState>>>,
     #[cfg(test)]
     flushed_surfaces: RefCell<Vec<(usize, usize, ResourceChurnStats)>>,
@@ -701,12 +705,29 @@ pub enum RenderLayerState {
 }
 
 impl PaxGpuRenderer {
-    fn is_capturing_source(&self) -> bool {
-        #[cfg(feature = "shaders")]
-        if !self.shader_effect_scopes.is_empty() {
-            return true;
+    fn gpu_contexts(&self) -> Vec<SharedGpuContext> {
+        let mut contexts = HashMap::new();
+        for state in self.backends.borrow().iter() {
+            if let RenderLayerState::Ready((target, _)) = state {
+                for renderer in &target.renderers {
+                    contexts
+                        .entry(renderer.renderer.shared_gpu_context_id())
+                        .or_insert_with(|| renderer.renderer.shared_gpu_context());
+                }
+            }
         }
-        !self.alpha_source_scopes.is_empty()
+        contexts.into_values().collect()
+    }
+
+    fn source_capture_layer(&self) -> Option<usize> {
+        let layer = self.alpha_source_scopes.last().map(|scope| scope.0);
+        #[cfg(feature = "shaders")]
+        let layer = layer.or_else(|| self.shader_effect_scopes.last().map(|scope| scope.0));
+        layer
+    }
+
+    fn is_capturing_source(&self) -> bool {
+        self.source_capture_layer().is_some()
     }
 
     /// Create a renderer that lazily asks the chassis for layer backends.
@@ -715,6 +736,10 @@ impl PaxGpuRenderer {
             + 'static,
     ) -> Self {
         Self {
+            render_turn_depth: 0,
+            render_epoch: None,
+            render_frame: Default::default(),
+            render_turn_contexts: Vec::new(),
             backends: Default::default(),
             #[cfg(test)]
             flushed_surfaces: Default::default(),
@@ -764,6 +789,7 @@ impl PaxGpuRenderer {
         if self
             .recording_layer
             .or(self.direct_surface_layer)
+            .or(self.source_capture_layer())
             .is_some_and(|owner| owner != layer)
         {
             return;
@@ -887,6 +913,7 @@ impl PaxGpuRenderer {
         if self.recording_layer.is_some()
             || self
                 .direct_surface_layer
+                .or(self.source_capture_layer())
                 .is_some_and(|owner| owner != layer)
         {
             return;
@@ -1727,6 +1754,45 @@ impl PaxGpuRenderer {
 }
 
 impl RenderContext for PaxGpuRenderer {
+    fn begin_render_turn(&mut self, application: u64, frame: u64) -> bool {
+        let epoch = (application, frame);
+        if self.render_turn_depth == 0 {
+            if self.render_epoch != Some(epoch) {
+                self.render_epoch = Some(epoch);
+                self.render_frame = Default::default();
+            }
+            let contexts = self.gpu_contexts();
+            if contexts
+                .iter()
+                .any(|ctx| !ctx.render_queue_ready(self.render_frame))
+            {
+                return false;
+            }
+            self.render_turn_contexts = contexts;
+        }
+        self.render_turn_depth += 1;
+        true
+    }
+
+    fn end_render_turn(&mut self) {
+        assert!(self.render_turn_depth > 0, "balanced rendering turns");
+        self.render_turn_depth -= 1;
+        if self.render_turn_depth == 0 {
+            for ctx in self.gpu_contexts() {
+                if !self
+                    .render_turn_contexts
+                    .iter()
+                    .any(|old| Rc::ptr_eq(old, &ctx))
+                {
+                    self.render_turn_contexts.push(ctx);
+                }
+            }
+            // Include contexts whose last tile was removed during this turn.
+            for ctx in std::mem::take(&mut self.render_turn_contexts) {
+                ctx.finish_render_turn(self.render_frame);
+            }
+        }
+    }
     fn is_gpu(&self) -> bool {
         true
     }
@@ -2462,7 +2528,15 @@ impl RenderContext for PaxGpuRenderer {
                 if target.active {
                     target.prepare_for_render();
                     selected = self.active_render_scope(layer).unwrap_or_else(|| {
-                        self.targeted_or_all_indices(layer, target.renderers.len())
+                        // Application updates must reach surviving tiles even while
+                        // another tile awaits replay. Only a cold-surface fallback
+                        // is confined to that replay target; nested effects inherit
+                        // their parent's selection above.
+                        if self.direct_surface_layer == Some(layer) {
+                            self.targeted_or_all_indices(layer, target.renderers.len())
+                        } else {
+                            (0..target.renderers.len()).collect()
+                        }
                     });
                     selected.retain(|index| {
                         !self.prepare_surface_content
@@ -2553,8 +2627,11 @@ impl RenderContext for PaxGpuRenderer {
     }
 
     fn begin_node(&mut self, layer: usize, node_id: u32, z_index: i32, light_mask: u32) -> bool {
+        // Mask hooks broadcast across dirty layers. A captured subtree owns only
+        // one layer, so its clips must never enter another layer's retained scene.
         if self
             .direct_surface_layer
+            .or(self.source_capture_layer())
             .is_some_and(|owner| owner != layer)
         {
             return false;
@@ -2658,6 +2735,7 @@ impl RenderContext for PaxGpuRenderer {
     ) -> bool {
         if self
             .direct_surface_layer
+            .or(self.source_capture_layer())
             .is_some_and(|owner| owner != layer)
         {
             return false;
