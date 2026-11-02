@@ -42,7 +42,7 @@ import {
     syncRegisteredFontsToDocument,
     waitForRegisteredFonts,
 } from "./text";
-import type {PaxChassisWeb} from "../types/pax-chassis-web";
+import type {PaxChassisWeb, InputQueryWork} from "../types/pax-chassis-web";
 import { CheckboxUpdatePatch } from "./messages/checkbox-update-patch";
 
 import { TextboxUpdatePatch } from "./messages/textbox-update-patch";
@@ -2097,6 +2097,19 @@ export class NativeElementPool {
 
     recordRenderWork(report: object, hostElapsedMs: number) {
         this.surfaceTrace?.recordRenderWork(report, hostElapsedMs);
+    }
+
+    private lastInputWork = '';
+    recordInputQueryWork(report: InputQueryWork | undefined) {
+        // An older cartridge can still be inspected by a newer dev interface.
+        if (!report) return;
+        const key = JSON.stringify(report);
+        if (key !== this.lastInputWork) {
+            this.surfaceTrace?.record('input-query-work', {...report});
+            this.lastInputWork = key;
+        }
+    }
+
     }
 
     recordNativeMessageBatch(types: import('./native-message-profile').NativeMessageTiming[]) {

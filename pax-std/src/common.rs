@@ -134,6 +134,11 @@ pub fn begin_bounded_canvas_node(
 
     #[cfg(feature = "3d")]
     {
+        rc.set_node_coverage_context(
+            layer_id,
+            node_id,
+            context.canvas_coverage_context(expanded_node, layer_id),
+        );
         rc.set_node_lighting_surface(
             layer_id,
             node_id,

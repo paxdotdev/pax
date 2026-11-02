@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::iter;
 use std::rc::Rc;
 use_RefCell!();
-use crate::api::{math::Point2, CommonProperties, RenderContext, SceneAmbientLight, SceneLight};
+use crate::api::{CommonProperties, RenderContext, SceneAmbientLight, SceneLight};
 use pax_manifest::cartridge_generation::ComponentTransitionConfig;
 use pax_manifest::{
     SettingsBlockElement, TemplateNodeSelectorInfo, TypeId, UniqueTemplateNodeIdentifier,
@@ -12,7 +12,7 @@ use pax_message::NativeInterrupt;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::{borrow, use_RefCell, Variable};
 
-use crate::api::{Layer, Scroll, Window};
+use crate::api::{Layer, Scroll};
 
 use crate::{
     bind_common_properties_from_columns, create_new_common_properties,
@@ -550,27 +550,28 @@ pub trait InstanceNode {
         false
     }
 
-    /// Override when a primitive needs a more precise local hit region.
-    fn local_hit_test(&self, expanded_node: &ExpandedNode, point: kurbo::Point) -> bool {
-        let (width, height) = expanded_node.presentation_transform_and_bounds.get().bounds;
-        point.x > 0. && point.y > 0. && point.x < width && point.y < height
+    /// Prepare immutable input geometry from the node's current reactive state.
+    ///
+    /// Exact shape tests never call back into the node. Custom primitives return local
+    /// paths or world-posed meshes, not predicates with access to live state.
+    /// Preparation must be side-effect free. Non-reactive shape changes require
+    /// `RuntimeContext::mark_node_input_dirty`; typed properties and presentation
+    /// changes are observed automatically. This replaces `local_hit_test`,
+    /// `ray_cast_test`, and the separate conservative hit-bounds hook.
+    fn prepare_hit_shape(&self, node: &ExpandedNode) -> pax_runtime_api::HitShape {
+        #[cfg(feature = "3d")]
+        if let Some(mesh) = self.resolve_convex_mesh(node) {
+            return pax_runtime_api::HitShape::Mesh(mesh);
+        }
+        let (w, h) = node.presentation_transform_and_bounds.get().bounds;
+        pax_runtime_api::HitShape::Rect(kurbo::Rect::new(0., 0., w, h))
     }
 
-    /// Tests the same camera-clipped plane used for presentation.
-    fn ray_cast_test(&self, expanded_node: &ExpandedNode, ray: Point2<Window>) -> bool {
-        if !expanded_node.has_perspective_camera() {
-            let local = expanded_node
-                .presentation_transform_and_bounds
-                .get()
-                .transform
-                .inverse()
-                * ray;
-            return self.local_hit_test(expanded_node, kurbo::Point::new(local.x, local.y));
-        }
-        expanded_node
-            .presentation_projection()
-            .and_then(|plane| plane.local_point(kurbo::Point::new(ray.x, ray.y)))
-            .is_some_and(|point| self.local_hit_test(expanded_node, point))
+    /// Whether a typed property can change input geometry or scroll behavior.
+    /// The conservative default observes every typed property; primitives using
+    /// only logical rectangular bounds can exclude their paint-only properties.
+    fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
+        true
     }
 
     /// Used by scroller-like primitives to allocate a browser-owned presentation layer.
@@ -689,8 +690,28 @@ pub trait InstanceNode {
     /// The default uses the same coverage path as masks and hit-style geometry, but primitives
     /// with render-side animation may return a conservative stable path here so animation-only
     /// properties do not force the occlusion pass to rebuild expensive geometry every frame.
+    /// Occlusion coverage is indexed separately from canvas paint bounds.
     fn resolve_local_occlusion_path(&self, node: &ExpandedNode) -> Option<kurbo::BezPath> {
         self.resolve_local_coverage_path(node)
+    }
+
+    /// Optional conservative bounds for the local occlusion path, independent of paint bounds.
+    ///
+    /// `None` preserves conservative inclusion for custom predicates. Returning bounds
+    /// opts into retained spatial selection: every path change that can exceed these
+    /// bounds must invalidate native coverage with `mark_node_occlusion_dirty`.
+    /// This hook does not replace the exact path callback or define input bounds.
+    fn resolve_local_occlusion_bounds(&self, _node: &ExpandedNode) -> Option<kurbo::Rect> {
+        None
+    }
+
+    /// Opts into retaining the local occlusion path until coverage is invalidated.
+    ///
+    /// Implementations must invalidate native coverage on every path change,
+    /// including changes inside unchanged bounds. The default keeps the exact
+    /// callback live; conservative bounds alone do not imply this guarantee.
+    fn local_occlusion_path_is_retained(&self) -> bool {
+        false
     }
 
     fn resolve_occlusion_path(&self, node: &ExpandedNode) -> Option<kurbo::BezPath> {
@@ -703,6 +724,14 @@ pub trait InstanceNode {
 
     fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
         expanded_node.computed_opacity.get()
+    }
+
+    /// Whether a property can change local or source-backed clip geometry.
+    /// Layout bounds and placement are tracked separately. The conservative
+    /// default follows occlusion dependencies; primitives can exclude paint-only
+    /// properties. Non-reactive source changes call `mark_node_clip_dirty`.
+    fn property_requires_clip_recompute(&self, name: &str) -> bool {
+        self.property_requires_occlusion_recompute(name)
     }
 
     fn resolve_local_clip_path(&self, _node: &ExpandedNode) -> Option<kurbo::BezPath> {

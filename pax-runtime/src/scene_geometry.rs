@@ -5,6 +5,60 @@ use std::rc::Rc;
 
 use kurbo::{Affine, BezPath, Rect, Shape};
 
+pub(crate) mod input;
+pub(crate) mod presentation;
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, pax_message::serde::Serialize)]
+#[serde(crate = "pax_message::serde")]
+/// Cumulative input-query work; exact predicates remain distinct from broad-phase selection.
+pub struct InputQueryStats {
+    /// Topology reconciliations, including a change of queried subtree root.
+    pub topology_rebuilds: u64,
+    /// Conservative input footprints prepared after invalidation.
+    pub bounds_prepared: u64,
+    /// Queries visiting only candidates and their necessary ancestors.
+    pub indexed_queries: u64,
+    /// Uncached preparation while reactive or compositing work was pending.
+    pub pending_queries: u64,
+    /// Uncached preparation during incremental startup.
+    pub startup_queries: u64,
+    /// Broad-phase candidates, including unknown conservative bounds.
+    pub candidates: u64,
+    /// Nodes reaching exact hit evaluation, including clipping ancestors.
+    pub exact_tests: u64,
+    /// Exact tests for shapes without a finite conservative screen bound.
+    pub unknown_tests: u64,
+}
+
+/// Conservative coverage of a geometry role. Missing knowledge is not empty paint.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum CoverageBounds {
+    Empty,
+    Finite(Rect),
+    Unbounded,
+}
+
+impl CoverageBounds {
+    pub(crate) fn conservative(bounds: Option<Rect>) -> Self {
+        match bounds {
+            Some(bounds) if finite(bounds) => Self::Finite(bounds),
+            _ => Self::Unbounded,
+        }
+    }
+
+    pub(crate) fn query_rect(self) -> Option<Rect> {
+        match self {
+            Self::Empty => None,
+            Self::Finite(bounds) => Some(bounds),
+            Self::Unbounded => Some(Rect::new(
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+                f64::INFINITY,
+                f64::INFINITY,
+            )),
+        }
+    }
+}
+
 /// Primitive-local geometry prepared before drawing or spatial queries.
 ///
 /// An absent bound is conservatively unbounded. Primitives that draw outside their
@@ -135,11 +189,22 @@ pub struct SceneGeometryStats {
 
 #[derive(Default)]
 pub(crate) struct SceneGeometry {
+    pub(crate) input: input::InputScene,
+    pub(crate) presentation_work: Rc<presentation::PreparationWork>,
+    pub(crate) mask_plans: crate::engine::occlusion::MaskPlans,
+    #[cfg(feature = "3d")]
+    pub(crate) presentations: crate::visibility::Presentations,
+    #[cfg(feature = "3d")]
+    pub(crate) relations: Rc<std::cell::RefCell<crate::visibility::Relations>>,
     records: HashMap<u32, Rc<PreparedCanvasGeometry>>,
     dirty: HashSet<u32>,
     pending: Vec<u32>,
     layers: HashMap<usize, SpatialIndex>,
     native_layers: HashMap<usize, SpatialIndex>,
+    // Occlusion shapes can deliberately exceed current paint bounds (for example
+    // stable coverage during a draw animation). They need their own broad phase.
+    occlusion_layers: HashMap<usize, SpatialIndex>,
+    occlusion_bounds: HashMap<u32, (usize, CoverageBounds)>,
     #[cfg(feature = "3d")]
     spatial_nodes: HashSet<u32>,
     pub stats: SceneGeometryStats,
@@ -248,6 +313,19 @@ impl SceneGeometry {
     }
 
     pub fn remove(&mut self, id: u32) {
+        self.input.remove(id);
+        self.mask_plans.remove(id);
+        self.set_occlusion_bounds(id, 0, CoverageBounds::Empty);
+        #[cfg(feature = "3d")]
+        self.presentations.remove(id);
+        #[cfg(feature = "3d")]
+        self.relations.borrow_mut().remove(id);
+        self.remove_geometry(id);
+    }
+
+    // A layout-only support can lose its observation/paint record while staying
+    // mounted. Retire dependent visibility only on actual mount retirement.
+    pub fn remove_geometry(&mut self, id: u32) {
         #[cfg(feature = "3d")]
         self.spatial_nodes.remove(&id);
         self.dirty.remove(&id);
@@ -274,13 +352,55 @@ impl SceneGeometry {
         (!ids.is_empty()).then_some(ids)
     }
 
+    pub(crate) fn set_occlusion_bounds(&mut self, id: u32, layer: usize, bounds: CoverageBounds) {
+        if self.occlusion_bounds.get(&id) == Some(&(layer, bounds)) {
+            return;
+        }
+        if let Some((old_layer, _)) = self.occlusion_bounds.remove(&id) {
+            if let Some(index) = self.occlusion_layers.get_mut(&old_layer) {
+                index.remove(id);
+                if index.is_empty() {
+                    self.occlusion_layers.remove(&old_layer);
+                }
+            }
+        }
+        if bounds != CoverageBounds::Empty {
+            self.occlusion_layers.entry(layer).or_default().insert(
+                id,
+                match bounds {
+                    CoverageBounds::Finite(bounds) => Some(bounds),
+                    _ => None,
+                },
+            );
+            self.occlusion_bounds.insert(id, (layer, bounds));
+        }
+    }
+
+    pub(crate) fn query_occlusion(&mut self, layer: usize, regions: &[Rect]) -> Vec<u32> {
+        Self::query_index(&self.occlusion_layers, &mut self.stats, layer, regions)
+    }
+
+    pub(crate) fn clear_occlusion_bounds(&mut self) {
+        self.occlusion_layers.clear();
+        self.occlusion_bounds.clear();
+    }
+
     pub(crate) fn query_exact(&mut self, layer: usize, regions: &[Rect], native: bool) -> Vec<u32> {
-        self.stats.queries += 1;
         let indices = if native {
             &self.native_layers
         } else {
             &self.layers
         };
+        Self::query_index(indices, &mut self.stats, layer, regions)
+    }
+
+    fn query_index(
+        indices: &HashMap<usize, SpatialIndex>,
+        stats: &mut SceneGeometryStats,
+        layer: usize,
+        regions: &[Rect],
+    ) -> Vec<u32> {
+        stats.queries += 1;
         let Some(index) = indices.get(&layer) else {
             return Vec::new();
         };
@@ -288,7 +408,7 @@ impl SceneGeometry {
         for region in regions {
             index.candidates(*region, &mut candidates);
         }
-        self.stats.candidate_tests += candidates.len() as u64;
+        stats.candidate_tests += candidates.len() as u64;
         let mut ids: Vec<_> = candidates
             .into_iter()
             .filter(|id| {
@@ -443,6 +563,34 @@ impl SpatialIndex {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn occlusion_bounds_are_independent_of_paint_and_retire_with_membership() {
+        let mut scene = SceneGeometry::default();
+        assert_eq!(
+            CoverageBounds::conservative(None),
+            CoverageBounds::Unbounded
+        );
+        assert_eq!(
+            CoverageBounds::conservative(Some(Rect::new(0., 0., f64::INFINITY, 1.))),
+            CoverageBounds::Unbounded
+        );
+        scene.insert(1, geometry(0, Some(Rect::new(0., 0., 5., 5.))));
+        scene.set_occlusion_bounds(1, 0, CoverageBounds::Finite(Rect::new(0., 0., 200., 100.)));
+        let region = Rect::new(150., 20., 170., 40.);
+        assert!(scene.query_exact(0, &[region], false).is_empty());
+        assert_eq!(scene.query_occlusion(0, &[region]), [1]);
+        scene.set_occlusion_bounds(2, 0, CoverageBounds::Unbounded);
+        scene.set_occlusion_bounds(3, 0, CoverageBounds::Empty);
+        assert_eq!(scene.query_occlusion(0, &[region]), [1, 2]);
+        scene.set_occlusion_bounds(1, 7, CoverageBounds::Finite(region));
+        assert_eq!(scene.query_occlusion(0, &[region]), [2]);
+        assert_eq!(scene.query_occlusion(7, &[region]), [1]);
+        scene.remove(1);
+        scene.set_occlusion_bounds(2, 0, CoverageBounds::Empty);
+        assert!(scene.occlusion_layers.is_empty());
+        assert!(scene.occlusion_bounds.is_empty());
+    }
 
     fn geometry(layer: usize, bounds: Option<Rect>) -> PreparedCanvasGeometry {
         PreparedCanvasGeometry {

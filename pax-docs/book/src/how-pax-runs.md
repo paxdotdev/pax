@@ -173,6 +173,69 @@ work, not the cost of a shader or the time needed to finish one frame, so an
 expensive effect can still reduce the displayed frame rate. Elapsed-time
 animations keep their duration even when intermediate visual states are skipped.
 
+The runtime retains scene geometry independently of canvas residency. Paint
+bounds and occlusion bounds have separate indexes: a primitive's stable occlusion
+shape can exceed the portion it currently paints. Native
+occlusion uses those indexes after layer and clip membership have settled;
+a structural rebuild constructs each native mask from that completed geometry,
+using the same query path as an incremental update. Ancestor scroll placement
+is a reactive value shared by descendants, including native presentation offsets
+and page-scroll delegation. Reading it after a property write observes current
+placement without waiting for a frame or traversing the ancestor chain again.
+Clip owners retain local paths separately from their placement, so moving a Frame
+or changing its opacity does not rebuild its local clip shape.
+
+With `3d` enabled, perspective picking, local-coordinate conversion and native masking also
+reuse per-instance projections, inverses and depth planes. The runtime compares
+retained world geometry, camera and scroll inputs before projecting. These records
+retain the camera's original clipping equations across coordinate changes and
+retire when the instance unmounts. Ordinary affine queries do not allocate those
+perspective records. Builds without `3d` use affine placement and omit the
+spatial projection records. Input eligibility and paint opacity remain
+separate policies.
+
+Screen-point queries use a separate input index, including layout-only nodes.
+Primitives prepare immutable rectangles, paths, or posed meshes; exact tests
+consume those values without live-node callbacks. Unbounded coverage remains a
+candidate in the same index. Settled queries visit candidates and their clipping
+ancestors, and unchanged queries reuse hit geometry. During startup or pending
+reactive work, the facade prepares shapes on demand through an uncached traversal;
+it does not drain effects or advance a frame. See
+[primitive input geometry](primitives.md#input-geometry) for the author contract.
+
+Native masks retain dependency plans before mapping paths into a control or
+serializing SVG. An unchanged plan performs neither operation; an opacity-only
+change reuses mapped geometry, although the chassis may still rerasterize the
+mask. The existing native-mask message format is unchanged. With `3d` enabled,
+2D placements inherit a certified support plane through the render-parent
+chain. A local tilt, depth offset, or camera starts a separate support. This lets
+several controls on one face share an opaque solid's front coverage without
+merging their bounds, clips, opacity, or mounted identity. Geometric relationships
+retain the camera's original clipping equations and computational viewport.
+Native plans and solid/support coverage have a combined ceiling of 4,096 entries
+and 8 MiB of charged retained data, split equally between the two caches. An
+oversized result is used without retention; eviction changes work, not coverage.
+GPU solid/plane coverage uses that same runtime-owned relation budget. Tile
+charts keep their computational viewports and original camera clipping distinct;
+dropping a tile retires its relations. The GPU retains only weak coverage
+dependencies beside its stencil resources, so unchanged geometric plans avoid
+retessellation during paint and opacity updates. Plane partitioning, stencil
+execution, and bounded fade composition remain backend responsibilities.
+On web, opacity patches update existing SVG paths and clip groups; Apple reuses
+parsed mask geometry while rerasterizing changed pixels. This resource reuse
+does not alter the native transparency approximation.
+
+Custom `InstanceNode` implementations can provide conservative local occlusion
+bounds through `resolve_local_occlusion_bounds`. The default is unknown, so
+custom shapes remain candidates and their exact occlusion hooks still run.
+An implementation that supplies bounds must invalidate coverage when its shape
+can grow beyond them. Paint bounds and hit shapes do not supply this contract.
+The independent `local_occlusion_path_is_retained` opt-in permits retaining the
+exact local path until coverage is invalidated. It requires invalidation on
+**every** path change, including changes inside unchanged bounds. Standard
+Rectangle, Ellipse, Line, and Path implement this contract; other custom hooks
+remain live by default.
+
 The GPU renderer retains independent transforms and opacity values for scenes
 with more than 480 transformed drawing operations. It stores transforms and
 geometric clips in small uniform-buffer pages that grow with scene demand,

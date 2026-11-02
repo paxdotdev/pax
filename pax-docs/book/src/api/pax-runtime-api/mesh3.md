@@ -98,6 +98,8 @@ coverage is not additionally clipped to a viewport.
 Projects the portion closer than a planar UI surface. Edge/plane crossings
 are included, so a panel passing through the volume gets the intersection
 contour, not merely a subset of the solid's existing silhouette vertices.
+This unprojected helper is uncached. Camera-aware consumers use
+[`crate::visibility::Relations`] with the actual clipped projection.
 
 ##### `depth_at`
 <pre><code class="api-signature language-rust ignore">pub fn depth_at(&amp;self, x: f64, y: f64) -&gt; Option&lt;f64&gt;</code></pre>

@@ -113,9 +113,10 @@ impl InstanceNode for LineInstance {
             ));
     }
 
-    fn local_hit_test(&self, node: &ExpandedNode, point: kurbo::Point) -> bool {
-        self.resolve_local_coverage_path(node)
-            .is_some_and(|path| path_contains_with_tolerance(&path, point))
+    fn prepare_hit_shape(&self, node: &ExpandedNode) -> pax_runtime_api::HitShape {
+        self.resolve_local_coverage_path(node).map(|path| pax_runtime_api::HitShape::Path {
+            path: Rc::new(path), tolerance: 1e-3,
+        }).unwrap_or_default()
     }
 
     fn resolve_local_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
@@ -154,6 +155,14 @@ impl InstanceNode for LineInstance {
                 * expanded_node.computed_opacity.get())
             .clamp(0.0, 1.0)
         })
+    }
+
+    fn local_occlusion_path_is_retained(&self) -> bool {
+        true
+    }
+
+    fn resolve_local_occlusion_bounds(&self, node: &ExpandedNode) -> Option<kurbo::Rect> {
+        self.resolve_local_occlusion_path(node).map(|path| path.bounding_box())
     }
 
     fn prepare_canvas_geometry(
@@ -257,20 +266,10 @@ fn line_coverage_path(
     stroked_outline_path(&centerline_path(start, end), stroke)
 }
 
+#[cfg(test)]
 fn path_contains_with_tolerance(path: &BezPath, point: kurbo::Point) -> bool {
-    if path.contains(point) {
-        return true;
-    }
-
-    const HIT_TEST_EPSILON: f64 = 1e-3;
-    [
-        (HIT_TEST_EPSILON, 0.0),
-        (-HIT_TEST_EPSILON, 0.0),
-        (0.0, HIT_TEST_EPSILON),
-        (0.0, -HIT_TEST_EPSILON),
-    ]
-    .into_iter()
-    .any(|(dx, dy)| path.contains(kurbo::Point::new(point.x + dx, point.y + dy)))
+    pax_runtime_api::HitShape::Path { path: Rc::new(path.clone()), tolerance: 1e-3 }
+        .contains_local(point)
 }
 
 #[cfg(test)]

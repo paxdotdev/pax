@@ -61,6 +61,20 @@ pub struct DepthPlane {
 }
 
 impl DepthPlane {
+    /// Equality line in a common projected chart, before any pixel-distance
+    /// normalization. Its positive side is where `self` is nearer than `other`.
+    pub fn equality_line(self, other: Self) -> [f64; 3] {
+        std::array::from_fn(|i| self.coefficients[i] - other.coefficients[i])
+    }
+
+    /// Tests coincidence over a convex region's vertices, in shared depth units.
+    /// This tolerance is independent of a consumer's pixel-distance split tolerance.
+    pub fn coincides_over(self, other: Self, vertices: impl IntoIterator<Item = [f64; 2]>) -> bool {
+        self.presentation_layer == other.presentation_layer
+            && vertices
+                .into_iter()
+                .all(|[x, y]| (self.depth_at(x, y) - other.depth_at(x, y)).abs() <= 1e-7)
+    }
     /// Evaluates camera-relative depth at a projected coordinate.
     pub fn depth_at(self, x: f64, y: f64) -> f64 {
         self.coefficients[0] * x + self.coefficients[1] * y + self.coefficients[2]
@@ -80,10 +94,87 @@ impl DepthPlane {
             },
         )
     }
+
+    /// Compares depths for point picking, from farther to nearer.
+    ///
+    /// The existing picking policy rounds to steps of `1e-7` in the view's depth
+    /// units, then uses a total order. Callers resolve equal keys with
+    /// [`Self::coplanar_order`]. Compare only depths from the same view/metric.
+    /// This quantization is distinct from the coverage-plane coincidence test;
+    /// an epsilon comparator would not provide a transitive ordering.
+    pub fn compare_point_depths(left: f64, right: f64) -> std::cmp::Ordering {
+        (left * 1e7).round().total_cmp(&(right * 1e7).round())
+    }
+
+    /// The part of `bounds` where `front` precedes `back` in a common projected coordinate chart.
+    /// Coplanar paint uses the same facing/order key as the renderer and pointer tests.
+    /// The corner depths use a `1e-7` coincidence tolerance in their shared view's
+    /// depth units; crossing planes are split at their exact equality line.
+    pub fn front_region(
+        front: Self,
+        back: Self,
+        front_order: i32,
+        back_order: i32,
+        bounds: kurbo::Rect,
+    ) -> Option<kurbo::BezPath> {
+        if front.presentation_layer != back.presentation_layer {
+            return (front.presentation_layer > back.presentation_layer).then(|| {
+                use kurbo::Shape;
+                bounds.to_path(0.1)
+            });
+        }
+        let points = [
+            kurbo::Point::new(bounds.x0, bounds.y0),
+            kurbo::Point::new(bounds.x1, bounds.y0),
+            kurbo::Point::new(bounds.x1, bounds.y1),
+            kurbo::Point::new(bounds.x0, bounds.y1),
+        ];
+        let coplanar = front.coincides_over(back, points.map(|p| [p.x, p.y]));
+        let mut result = Vec::new();
+        if coplanar {
+            let above =
+                front.coplanar_order(front_order as i64) > back.coplanar_order(back_order as i64);
+            if !above {
+                return None;
+            }
+            result.extend(points);
+        } else {
+            let delta = points.map(|p| front.depth_at(p.x, p.y) - back.depth_at(p.x, p.y));
+            for i in 0..4 {
+                let j = (i + 1) % 4;
+                if delta[i] >= 0.0 {
+                    result.push(points[i]);
+                }
+                if (delta[i] > 0.0 && delta[j] < 0.0) || (delta[i] < 0.0 && delta[j] > 0.0) {
+                    result.push(points[i].lerp(points[j], delta[i] / (delta[i] - delta[j])));
+                }
+            }
+        }
+        if result.len() < 3 {
+            return None;
+        }
+        let mut path = kurbo::BezPath::new();
+        path.move_to(result[0]);
+        for p in &result[1..] {
+            path.line_to(*p);
+        }
+        path.close_path();
+        Some(path)
+    }
 }
 
 /// The drawing contract shared by Pax runtime backends.
 pub trait RenderContext {
+    /// Supplies mounted/support identities and the runtime-owned relation cache.
+    /// Retained replay carries these values without retaining reactive nodes.
+    #[cfg(feature = "3d")]
+    fn set_node_coverage_context(
+        &mut self,
+        _layer: usize,
+        _node: u32,
+        _context: crate::visibility::CoverageContext,
+    ) {
+    }
     /// Draws one opaque convex mesh. Only the opt-in GPU 3D backend supports this.
     #[cfg(feature = "3d")]
     fn draw_convex_mesh(&mut self, _layer: usize, _draw: crate::mesh3::OpaqueMeshDraw) {}
@@ -608,4 +699,77 @@ pub enum Layer {
     Canvas,
     /// Runtime can choose the appropriate layer.
     DontCare,
+}
+
+#[cfg(test)]
+mod depth_policy_tests {
+    use super::DepthPlane;
+    use kurbo::{Point, Rect, Shape};
+    use std::cmp::Ordering;
+
+    #[test]
+    fn point_depth_quantization_preserves_boundaries_and_total_order() {
+        let values = [-1.01e-7, -0.51e-7, -0.49e-7, 0., 0.49e-7, 0.51e-7, 1.01e-7];
+        assert_eq!(
+            DepthPlane::compare_point_depths(0., 0.49e-7),
+            Ordering::Equal
+        );
+        assert_eq!(
+            DepthPlane::compare_point_depths(0., 0.51e-7),
+            Ordering::Less
+        );
+        for &a in &values {
+            for &b in &values {
+                assert_eq!(
+                    DepthPlane::compare_point_depths(a, b),
+                    DepthPlane::compare_point_depths(b, a).reverse()
+                );
+                for &c in &values {
+                    if DepthPlane::compare_point_depths(a, b).is_le()
+                        && DepthPlane::compare_point_depths(b, c).is_le()
+                    {
+                        assert!(DepthPlane::compare_point_depths(a, c).is_le());
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn crossing_coverage_matches_analytic_depth_on_both_sides() {
+        let back = DepthPlane::default();
+        let bounds = Rect::new(-100., -100., 100., 100.);
+        for coefficients in [[1., 0., 0.], [0., -2., 10.], [0.3, -0.7, 12.]] {
+            let front = DepthPlane {
+                coefficients,
+                backface: false,
+            };
+            let path = DepthPlane::front_region(front, back, 0, 0, bounds).unwrap();
+            for x in [-80., -30., 30., 80.] {
+                for y in [-80., -30., 30., 80.] {
+                    let z = front.depth_at(x, y);
+                    if z != 0. {
+                        assert_eq!(path.winding(Point::new(x, y)) != 0, z > 0.);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn coverage_coincidence_and_point_quantization_are_distinct_policies() {
+        let back = DepthPlane::default();
+        let front = DepthPlane {
+            coefficients: [0., 0., 0.75e-7],
+            backface: false,
+        };
+        let bounds = Rect::new(0., 0., 20., 20.);
+        // Characterize the existing boundary difference; consolidation does not
+        // silently change either renderer/mask coincidence or point-picking ties.
+        assert!(DepthPlane::front_region(front, back, 0, 1, bounds).is_none());
+        assert_eq!(
+            DepthPlane::compare_point_depths(front.depth_at(10., 10.), 0.),
+            Ordering::Greater
+        );
+    }
 }

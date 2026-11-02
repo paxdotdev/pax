@@ -142,6 +142,16 @@ Type: `u64`
 ##### `solid_uniform_updates`
 Type: `u64`
 
+##### `solid_clip_preparations`
+Type: `u64`
+
+Solid/plane stencil plans rebuilt after geometric dependency changes.
+
+##### `solid_clip_reuses`
+Type: `u64`
+
+Solid/plane stencils reused without contour conversion or tessellation.
+
 ##### `spatial_fade_renders`
 Type: `u64`
 
@@ -385,6 +395,11 @@ Finish the GPU-only filter boundary. Requires the `shaders` Cargo feature.
 <pre><code class="api-signature language-rust ignore">pub fn draw_convex_mesh(&amp;mut self, draw: &amp;<a href="../../../api/pax-runtime-api/mesh3.md#opaquemeshdraw">OpaqueMeshDraw</a>, color: <a href="../../../api/pax-runtime-api/color.md#color">Color</a>, material: <a href="../../../api/pax-runtime-api/drawing.md#material">Material</a>)</code></pre>
 
 Retains immutable topology; pose/material changes update only uniforms.
+
+##### `set_node_coverage_context`
+<pre><code class="api-signature language-rust ignore">pub fn set_node_coverage_context(&amp;mut self, id: u32, context: <a href="../../../api/pax-runtime-api/visibility.md#coveragecontext">CoverageContext</a>)</code></pre>
+
+Connects retained GPU paint to the same bounded coverage owner as native masks.
 
 ##### `begin_alpha_source`
 <pre><code class="api-signature language-rust ignore">pub fn begin_alpha_source(&amp;mut self, mapping: <a href="../../../api/pax-runtime-api/transform.md#transform2d">Transform2D</a>, feather: f32)</code></pre>

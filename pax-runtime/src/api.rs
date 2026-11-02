@@ -156,8 +156,10 @@ impl NodeContext {
             .filter(|loading| loading.snapshot().is_some())
     }
 
-    /// Convert a window-space point into this node's local coordinate space, including any
+    /// Convert a window-space point into normalized local coordinates, including any
     /// camera projection and presentation offsets inherited from ancestor scrollers.
+    /// `(0, 0)` is the local origin and `(1, 1)` is the opposite layout corner.
+    /// A clipped or noninvertible perspective mapping returns nonfinite coordinates.
     pub fn local_point(&self, p: Point2<Window>) -> Point2<NodeLocal> {
         if let Some(node) = self
             .expanded_node
@@ -167,8 +169,7 @@ impl NodeContext {
             let bounds = node.transform_and_bounds.get().bounds;
             return self
                 .runtime_context
-                .presented_projection_for_node(&node)
-                .and_then(|plane| plane.local_point(kurbo::Point::new(p.x, p.y)))
+                .presented_local_point(&node, kurbo::Point::new(p.x, p.y))
                 .map(|p| Point2::new(p.x / bounds.0, p.y / bounds.1))
                 .unwrap_or_else(|| Point2::new(f64::NAN, f64::NAN));
         }
@@ -345,6 +346,10 @@ impl NodeContext {
             .take_userland_source_update_responses()
     }
 
+    /// Queries the userland tree at a window-space point, in front-to-back order.
+    /// Does not dispatch hover events, capture input, advance time, or drain callbacks.
+    /// `hit_invisible` includes normally hidden/exit targets, but retains clipping
+    /// and `_raycastable` checks. Paint opacity alone does not disable a hit.
     pub fn raycast(&self, point: Point2<Window>, hit_invisible: bool) -> Vec<NodeInterface> {
         let expanded_nodes = self.runtime_context.get_elements_beneath_ray(
             self.runtime_context.get_userland_root_expanded_node(),

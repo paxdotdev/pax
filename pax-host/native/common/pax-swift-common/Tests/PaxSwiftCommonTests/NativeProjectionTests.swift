@@ -133,6 +133,82 @@ final class NativeProjectionTests: XCTestCase {
     }
 
     @MainActor
+    func testOffscreenProjectedControlHasFiniteEmptyVisibleRectAndRecovers() throws {
+        _ = NSApplication.shared
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 600, height: 400),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        let root = Host(frame: CGRect(x: 0, y: 0, width: 600, height: 400))
+        window.contentView = root
+        let host = NativeRenderingLayer.PlatformContainerView(frame: .zero)
+        root.addSubview(host)
+        let field = PaxProjectedTextField(frame: CGRect(x: 0, y: 0, width: 240, height: 42))
+        field.stringValue = "Retained while offscreen"
+        host.addSubview(field)
+        let nested = NativeRenderingLayer.PlatformContainerView(frame: .zero)
+        host.addSubview(nested)
+        nested.applyGeometry(size: CGSize(width: 20, height: 20), localTransform: .identity,
+                             projection: .identity, zIndex: 0, opacity: 1)
+
+        for y: Float in [700, 100, -200, 100] {
+            let projection = try XCTUnwrap(PaxNativeProjection(
+                [1,0,0,0.0001, 0,1,0,0, 0,0,1,0, 70,y,0,1] as [Float]))
+            host.applyGeometry(size: field.bounds.size, localTransform: .identity,
+                               projection: projection, zIndex: 0, opacity: 1)
+            let visible = host.visibleRect
+            XCTAssertTrue(visible.origin.x.isFinite && visible.origin.y.isFinite,
+                          "An offscreen visibleRect must be empty, never CGRect.null (infinite origin)")
+            XCTAssertTrue(visible.width.isFinite && visible.height.isFinite)
+            XCTAssertEqual(visible.isEmpty, y != 100)
+            XCTAssertEqual(nested.visibleRect.isEmpty, y != 100,
+                           "An empty parent viewport must stay empty through nested projection")
+            window.contentView?.layoutSubtreeIfNeeded()
+            XCTAssertEqual(field.stringValue, "Retained while offscreen")
+        }
+    }
+
+    @MainActor
+    func testProjectedControlsKeepLayoutConversionsLogical() throws {
+        _ = NSApplication.shared
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 600, height: 400),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        let root = Host(frame: CGRect(x: 0, y: 0, width: 600, height: 400))
+        window.contentView = root
+        let host = Host(frame: CGRect(x: 2000, y: 700, width: 240, height: 42))
+        root.addSubview(host)
+        host.nativeProjection = try XCTUnwrap(PaxNativeProjection(
+            [1,0,0,0.001, 0,1,0,0, 0,0,1,0, 2000,700,0,1] as [Float]))
+        // The window origin is beyond this plane's inverse horizon. AppKit's
+        // convertSize implementation probes it to subtract translation, even
+        // though the control and its logical layout are perfectly finite.
+        XCTAssertNil(host.nativeProjection?.inverse()?.project(root.convert(.zero, from: nil)))
+        let views: [NSView] = [PaxProjectedButton(), PaxProjectedSlider(), PaxProjectedPopUpButton(),
+            PaxProjectedTextField(), PaxProjectedImageView(), PaxProjectedTextView(), PaxProjectedClipView()]
+        let frame = CGRect(x: 10, y: 5, width: 140, height: 32)
+        for view in views {
+            view.frame = frame
+            host.addSubview(view)
+            let reference = view.isFlipped ? Host(frame: frame) : NSView(frame: frame)
+            host.addSubview(reference)
+            let size = NSSize(width: 80, height: 20)
+            let rect = NSRect(x: 100, y: 50, width: 80, height: 20)
+            XCTAssertEqual(view.convert(size, from: nil), reference.convert(size, from: nil), "\(type(of: view))")
+            XCTAssertEqual(view.convert(rect, from: nil), reference.convert(rect, from: nil), "\(type(of: view))")
+            let local = CGPoint(x: 30, y: 10)
+            let visual = root.convert(try XCTUnwrap(host.nativeProjection?.project(
+                CGPoint(x: local.x + frame.minX, y: local.y + frame.minY))), to: nil)
+            let actual = view.convert(visual, from: nil)
+            XCTAssertEqual(actual.x, local.x, accuracy: 1e-8)
+            XCTAssertEqual(actual.y, view.isFlipped ? local.y : frame.height - local.y, accuracy: 1e-8)
+            view.removeFromSuperview()
+            reference.removeFromSuperview()
+        }
+    }
+
+    @MainActor
     func testSceneTextboxKeepsNativeEditorAndLiveMaskAcrossProjectionChanges() throws {
         PaxNativeHostState.reset()
         defer { setResolvedNativeMask(id: 1, mask: nil); PaxNativeHostState.reset() }

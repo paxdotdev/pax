@@ -60,6 +60,10 @@ fn slider_values_equal(lhs: f64, rhs: f64) -> bool {
 }
 
 impl InstanceNode for SliderInstance {
+    fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
+        false
+    }
+
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,

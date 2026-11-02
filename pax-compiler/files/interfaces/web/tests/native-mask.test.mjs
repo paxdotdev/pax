@@ -74,3 +74,34 @@ test('an absent clip removes its definition; an empty clip remains a valid empty
     effects.updateClipPath('clip', undefined);
     assert.equal(parent.querySelector('#clip'), null);
 });
+
+test('opacity patches retain mask paths and groups; membership and clip-depth changes retire stale objects', () => {
+    const {effects, parent} = harness();
+    const rect = 'M0,0H100V40H0Z';
+    const entries = [
+        {path: rect, clips: [rect, ''], opacity: 1},
+        {path: 'M0,0H20V20H0Z', clips: [], opacity: 1},
+    ];
+    effects.updateMask(9, entries, 100, 40);
+    const mask = parent.querySelector('#pax-native-mask-9');
+    const objects = mask.descendants();
+    const clips = parent.querySelectorAll('[id^="pax-native-mask-9-clip-"]');
+    for (let frame = 0; frame < 100; frame++) {
+        effects.updateMask(9, entries.map(e => ({...e, opacity: frame / 100})), 100, 40);
+        assert.deepEqual(mask.descendants(), objects, 'opacity must allocate no mask path/group objects');
+        assert.deepEqual(parent.querySelectorAll('[id^="pax-native-mask-9-clip-"]'), clips);
+    }
+    const hole = objects.find(e => e.tag === 'path');
+    effects.updateMask(9, [{path: rect, clips: [rect], opacity: 0.4}], 120, 50);
+    assert.equal(mask.descendants().filter(e => e.tag === 'path').length, 1);
+    assert.equal(mask.descendants().find(e => e.tag === 'path'), hole);
+    assert.equal(mask.descendants().filter(e => e.tag === 'g').length, 1);
+    assert.equal(parent.querySelectorAll('[id^="pax-native-mask-9-clip-"]').length, 1);
+    assert.equal(hole.getAttribute('fill-opacity'), '0.4');
+    effects.updateMask(9, [], 100, 40);
+    assert.equal(effects.maskEntries.size, 0);
+    effects.updateMask(9, entries, 100, 40);
+    assert.notEqual(parent.querySelector('#pax-native-mask-9'), mask);
+    effects.cleanUp();
+    assert.equal(effects.maskEntries.size, 0);
+});

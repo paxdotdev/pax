@@ -1800,7 +1800,7 @@ impl PaxChassisWeb {
     }
 
     /// The same tick with opt-in, CPU-side phase timings in milliseconds.
-    /// Returns [native messages, [phase, duration] samples, compositing counters];
+    /// Returns [native messages, [phase, duration] samples, compositing counters, input counters];
     /// these are never GPU timestamps.
     pub fn tick_profiled(&mut self) -> JsValue {
         borrow!(self.engine)
@@ -1819,7 +1819,8 @@ impl PaxChassisWeb {
         observe("surface_updates");
         let messages = borrow_mut!(self.engine).tick_with_phase_observer(&mut observe);
         let compositing = borrow!(self.engine).runtime_context.occlusion_stats();
-        js_value_serde::to_value(&(messages, timings, compositing))
+        let input = borrow!(self.engine).runtime_context.input_query_stats();
+        js_value_serde::to_value(&(messages, timings, compositing, input))
     }
 
     pub fn layer_canvas_plan_generation(&self) -> u32 {

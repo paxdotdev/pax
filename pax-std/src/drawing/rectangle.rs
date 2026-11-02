@@ -42,6 +42,10 @@ pub struct RectangleInstance {
 }
 
 impl InstanceNode for RectangleInstance {
+    fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
+        false
+    }
+
     fn supports_alpha_source_render(&self) -> bool {
         true
     }
@@ -152,6 +156,14 @@ impl InstanceNode for RectangleInstance {
             ) * expanded_node.computed_opacity.get())
             .clamp(0.0, 1.0)
         })
+    }
+
+    fn local_occlusion_path_is_retained(&self) -> bool {
+        true
+    }
+
+    fn resolve_local_occlusion_bounds(&self, node: &ExpandedNode) -> Option<kurbo::Rect> {
+        self.resolve_local_occlusion_path(node).map(|path| path.bounding_box())
     }
 
     fn prepare_canvas_geometry(

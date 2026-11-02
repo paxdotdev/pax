@@ -96,6 +96,10 @@ pub struct PathInstance {
 }
 
 impl InstanceNode for PathInstance {
+    fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
+        false
+    }
+
     fn supports_alpha_source_render(&self) -> bool {
         true
     }
@@ -286,6 +290,14 @@ impl InstanceNode for PathInstance {
 
     fn property_requires_occlusion_recompute(&self, property_name: &str) -> bool {
         !matches!(property_name, "draw_start" | "draw_end" | "material")
+    }
+
+    fn local_occlusion_path_is_retained(&self) -> bool {
+        true
+    }
+
+    fn resolve_local_occlusion_bounds(&self, node: &ExpandedNode) -> Option<kurbo::Rect> {
+        self.resolve_local_occlusion_path(node).map(|path| path.bounding_box())
     }
 
     fn prepare_canvas_geometry(

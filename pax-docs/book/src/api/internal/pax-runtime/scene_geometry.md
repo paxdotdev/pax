@@ -31,6 +31,52 @@ Use the layout rectangle for a bounded primitive.
 
 ---
 
+### `InputQueryStats`
+Cumulative input-query work; exact predicates remain distinct from broad-phase selection.
+
+#### Properties
+##### `topology_rebuilds`
+Type: `u64`
+
+Topology reconciliations, including a change of queried subtree root.
+
+##### `bounds_prepared`
+Type: `u64`
+
+Conservative input footprints prepared after invalidation.
+
+##### `indexed_queries`
+Type: `u64`
+
+Queries visiting only candidates and their necessary ancestors.
+
+##### `pending_queries`
+Type: `u64`
+
+Uncached preparation while reactive or compositing work was pending.
+
+##### `startup_queries`
+Type: `u64`
+
+Uncached preparation during incremental startup.
+
+##### `candidates`
+Type: `u64`
+
+Broad-phase candidates, including unknown conservative bounds.
+
+##### `exact_tests`
+Type: `u64`
+
+Nodes reaching exact hit evaluation, including clipping ancestors.
+
+##### `unknown_tests`
+Type: `u64`
+
+Exact tests for shapes without a finite conservative screen bound.
+
+---
+
 ### `PreparedCanvasGeometry`
 Geometry shared by render selection, primitive drawing, and viewport observation.
 Native surfaces use a separate bounds lookup in the same geometry service.

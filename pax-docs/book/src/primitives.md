@@ -155,7 +155,7 @@ its local dependency with `properties.fill.untyped()`. This resolves a dirty
 binding in the current graph settlement; a raw shared `get()` only returns the
 latest published snapshot and may precede that binding's evaluation. Local
 fields use `LocalProperty` and can be read directly. Typed node-property access
-enters the owning graph, including for coverage and hit-testing hooks.
+enters the owning graph, including for coverage and hit-shape preparation.
 
 The main implementation responsibilities depend on the capability:
 
@@ -173,9 +173,9 @@ The main implementation responsibilities depend on the capability:
   `begin_bounded_canvas_node` and clearing the dirty flag only after
   `end_node` succeeds. Unbounded geometry needs suitable coverage bounds.
 - **Coverage and interaction:** keep coverage paths, coverage opacity, and
-  hit testing consistent with what the node draws. These hooks affect masks,
-  native/canvas ordering, and pointer selection. The default hit test uses
-  layout bounds; unusual shapes may need `ray_cast_test`.
+  input geometry consistent with the node's intended interaction region. These
+  hooks affect masks, native/canvas ordering, and pointer selection. Unusual
+  shapes may need [`prepare_hit_shape`](#input-geometry).
 - **Lighting resources:** return `true` from `has_scene_lighting()` when the
   primitive implements `resolve_scene_light` or `resolve_scene_ambient_light`.
   This capability stays true even when the resource's `enabled` property is
@@ -192,6 +192,57 @@ in the Pax version your project uses and test the capability on each backend
 you intend to support. Exercise repeated instances, reactive updates, resize,
 transforms, opacity, clipping, and removal—not just the first rendered frame.
 Check both debug and release builds.
+
+Clip paths supplied by `resolve_local_clip_path` or `resolve_effect_clip_path`
+are retained by the runtime. Layout and placement are tracked automatically;
+`property_requires_clip_recompute` declares the remaining property dependencies
+and defaults to `property_requires_occlusion_recompute`. Exclude paint-only
+properties only when they cannot affect the clip. If a clip reads non-reactive
+state or a detached source, call `RuntimeContext::mark_node_clip_dirty` whenever
+that source changes. This invalidates the retained path and native coverage.
+Clip preparation must be side-effect free; it may run on demand. This is a
+change from repeatedly calling clip hooks during mask-plan queries. Retained
+clips do not change the logical hit region or alpha-mask semantics.
+
+### Input geometry
+
+Override `InstanceNode::prepare_hit_shape` when the logical rectangle is not
+the intended input area. Return immutable geometry in local layout coordinates:
+
+```rust
+fn prepare_hit_shape(&self, node: &ExpandedNode) -> pax_runtime_api::HitShape {
+    let (width, height) = node.presentation_transform_and_bounds.get().bounds;
+    let path = kurbo::Shape::to_path(
+        &kurbo::Ellipse::new((width / 2., height / 2.), (width / 2., height / 2.), 0.),
+        0.1,
+    );
+    pax_runtime_api::HitShape::Path {
+        path: std::rc::Rc::new(path),
+        tolerance: 0.,
+    }
+}
+```
+
+Preparation may read reactive properties but must not write them, dispatch
+events, or query other nodes. Exact queries operate on the prepared value,
+without calling the primitive. Paths use nonzero winding; rectangles exclude
+their edges. `HitShape::Empty` has no input area. With `3d`, `HitShape::Mesh`
+accepts a world-posed convex mesh and tests its camera-clipped surface.
+The default prepares a mesh when `resolve_convex_mesh` supplies one, otherwise
+the logical rectangle. Paint opacity and shader effects do not define input
+geometry. A custom hit region may extend outside layout or painted bounds.
+
+The runtime observes typed properties and presentation changes. Use
+`RuntimeContext::mark_node_input_dirty(node.id.to_u32())` after changing
+non-reactive shape data. Override `property_requires_input_recompute` only to
+exclude properties that cannot affect input geometry or scrolling. Cache entries
+retire on unmount; prepared shapes must not own live nodes or subscriptions.
+
+**Primitive API migration:** `InstanceNode::local_hit_test` and `ray_cast_test`
+have been replaced by `prepare_hit_shape`; a separate bounds hook is no longer
+needed. Move geometric calculations into preparation and return a path or mesh.
+Move side effects into event handlers. Direct node `ray_cast_test` calls should
+use the runtime query or public `ctx.raycast`; the public raycast API is unchanged.
 
 ### Native integration and engine changes
 

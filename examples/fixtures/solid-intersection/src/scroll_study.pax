@@ -1,5 +1,6 @@
 <Scroller width=100% height=100% scroll_height=2200px scroll_pos_y=bind:self.scroll>
     <Group width=100% height=2200px anchor=0%>
+        slot()
         <Group x=32px y=44px width={100% - 64px} height=220px translate_z=900px>
             <Text class="label" width=100% height=24px text="PAX / SPATIAL EDITIONS / 01"/>
             <Text class="title" y=42px width=100% height=110px text="Make room for wonder."/>

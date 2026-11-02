@@ -1,15 +1,15 @@
-<Button class="control" anchor=0% x=24px y={tile_lab ? 18px : 148px} width=190px height=26px
-    label={tile_lab ? "Return to card workbench" : "Open tile / near-plane lab"} @button_click=toggle_lab/>
-if !tile_lab {
-    <Button class="control" anchor=0% x=226px y=148px width=160px height=26px
-        label={solid ? "Show amber card" : "Show solid volume"} @button_click=toggle_solid/>
-}
 if tile_lab {
+    <Button class="control" anchor=0% x=24px y=18px width=190px height=26px
+        label="Return to card workbench" @button_click=toggle_lab/>
     <TileLab width=100% height=100% camera_zoom=bind:camera_zoom/>
 } else {
-<Scroller width=100% height=100% scroll_height={(Math::max(@viewport.height, @viewport.width < 850 ? 1520 : 1100))px}>
-    <Group anchor=0% width=100% height={(Math::max(@viewport.height, @viewport.width < 850 ? 1520 : 1100))px}>
+<Scroller width=100% height=100% scroll_height={(Math::max(@viewport.height, @viewport.width < 850 ? 1544 : 1124))px}>
+    <Group anchor=0% width=100% height={(Math::max(@viewport.height, @viewport.width < 850 ? 1544 : 1124))px}>
         <Group anchor=0% width=100% height=100%>
+            <Button class="control" anchor=0% x=24px y=148px width=190px height=26px
+                label="Open tile / near-plane lab" @button_click=toggle_lab/>
+            <Button class="control" anchor=0% x=226px y=148px width=160px height=26px
+                label={solid ? "Show amber card" : "Show solid volume"} @button_click=toggle_solid/>
             <Text class="eyebrow" anchor=0% selectable=false position=[32px, 26px] width=500px height=20px text="PAX LAB / SPATIAL WORKBENCH / 01"/>
             <Text anchor=0% selectable=false x=32px y=54px width=600px height=52px text="A new dimension." style={
                 font: "Georgia"
@@ -21,7 +21,7 @@ if tile_lab {
             <Text class="eyebrow" anchor=0% selectable=false x=34px y={100% - 40px} width={100% - 68px} height=22px
                 text={perspective ? "PERSPECTIVE VIEW  /  ZERO-THICKNESS SURFACES  /  GPU" : "ORTHOGRAPHIC VIEW  /  ZERO-THICKNESS SURFACES  /  GPU"}/>
         </Group>
-        <Group anchor=0% x={@viewport.width < 850 ? 24px : (100% - 302px)} y={@viewport.width < 850 ? 570px : 168px}
+        <Group anchor=0% x={@viewport.width < 850 ? 24px : (100% - 302px)} y={@viewport.width < 850 ? 594px : 192px}
             width={@viewport.width < 850 ? (100% - 48px) : 270px} height=866px>
             <Text class="eyebrow" anchor=0% selectable=false x=18px y=18px width=234px height=20px text="SURFACE CONTROLS"/>
             <Button class="control" anchor=0% id=play x=18px y=52px width=110px label={playing ? "Pause motion" : "Play motion"}
@@ -78,8 +78,8 @@ if tile_lab {
                 width: 1px
             }/>
         </Group>
-        <Group anchor=0% x=24px y=168px width={@viewport.width < 850 ? (100% - 48px) : (100% - 350px)}
-            height={@viewport.width < 850 ? 370px : (100% - 252px)}>
+        <Group anchor=0% x=24px y=192px width={@viewport.width < 850 ? (100% - 48px) : (100% - 350px)}
+            height={@viewport.width < 850 ? 370px : (100% - 276px)}>
             <Frame anchor=50% x=50% y=50% width={clipping ? (@viewport.width < 600 ? 260px : 350px) : 100%}
                 height={clipping ? (@viewport.width < 600 ? 200px : 240px) : 100%} corner_radius=24 _clip_content={clipping}>
                 <Group anchor=50% position={[50%, 50%, (depth)px]} width=430px height=300px scale={@viewport.width < 600 ? 75% : 100%} rotate_x={(tilt_x)deg}

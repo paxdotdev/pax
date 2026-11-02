@@ -18,6 +18,8 @@ use std::{
 
 pub(super) enum Command {
     #[cfg(feature = "3d")]
+    Coverage(u32, pax_runtime_api::visibility::CoverageContext),
+    #[cfg(feature = "3d")]
     Solid(pax_runtime_api::mesh3::OpaqueMeshDraw),
     Begin(u32, Rc<Cell<i32>>, u32),
     End(u32),
@@ -65,6 +67,8 @@ impl Command {
         versions: &HashMap<String, u64>,
     ) {
         match self {
+            #[cfg(feature = "3d")]
+            Self::Coverage(id, context) => gpu.set_node_coverage_context(*id, context.clone()),
             #[cfg(feature = "3d")]
             Self::Solid(draw) => gpu.draw_convex_mesh(
                 draw,

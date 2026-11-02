@@ -221,7 +221,15 @@ fn component_sources_do_not_present_native_leaves_or_containers() {
     for node in [&source, &frame, &group, &text, &canvas] {
         assert!(node.is_render_source());
         assert!(context.get_expanded_node_by_eid(node.id).is_some());
-        assert!(!node.ray_cast_test(pax_runtime::api::math::Point2::new(10.0, 10.0)));
+        assert!(context
+            .get_elements_beneath_ray(
+                Some(node.clone()),
+                pax_runtime::api::math::Point2::new(10., 10.),
+                false,
+                vec![],
+                false
+            )
+            .is_empty());
     }
     let messages = context.take_native_messages();
     assert!(
@@ -945,4 +953,46 @@ fn pending_drawable_retry_restores_ancestor_mask_after_layer_bit_was_cleared() {
     assert_eq!(renderer.alpha_clips.len(), 1, "a retry must record the ancestor Mask even after the previous presentation cleared its layer bit");
     assert!(renderer.alpha_clips[0].is_empty());
     engine.unmount();
+}
+
+#[test]
+fn detached_source_changes_invalidate_retained_clip_geometry() {
+    let context = context();
+    let mut mask_args = args();
+    mask_args.children = Some(RefCell::new(vec![
+        CountingSource::instantiate(args()),
+        CountingSource::instantiate(args()),
+    ]));
+    let mut root_args = args();
+    root_args.component_template = Some(RefCell::new(vec![MaskInstance::instantiate(mask_args)]));
+    let root = ExpandedNode::initialize_root(ComponentInstance::instantiate(root_args), &context);
+    root.recurse_update(&context);
+    context.drain_node_effects();
+    let mask = root.children.get()[0].clone();
+    let source = mask.sidecar_children.borrow()[0].clone();
+    let reconcile = || pax_runtime::engine::occlusion::update_node_occlusion(&root, &context);
+    reconcile();
+    let initial = context.occlusion_stats().clip_geometry_preparations;
+    assert!(initial > 0);
+    reconcile();
+    assert_eq!(
+        context.occlusion_stats().clip_geometry_preparations,
+        initial
+    );
+    source
+        .get_common_properties()
+        .borrow()
+        .width
+        .set(Some(pax_runtime_api::Size::Pixels(80.into())));
+    context.drain_node_effects();
+    reconcile();
+    let changed = context.occlusion_stats().clip_geometry_preparations;
+    assert!(
+        changed > initial,
+        "a detached source must invalidate its owner's retained path"
+    );
+    context.mark_node_clip_dirty(mask.id.to_u32());
+    reconcile();
+    assert!(context.occlusion_stats().clip_geometry_preparations > changed);
+    root.recurse_unmount(&context);
 }

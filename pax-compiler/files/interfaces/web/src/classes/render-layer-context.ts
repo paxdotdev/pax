@@ -571,6 +571,15 @@ class Container {
 }
 
 class SvgEffectManager {
+    // Positional slots are adapter resources, not geometric identities. A membership
+    // change updates their values; stable entries (especially opacity-only patches)
+    // retain path/group objects without changing the cross-platform wire format.
+    private maskEntries = new Map<number, {path: SVGPathElement, root: SVGElement, clipCount: number}[]>();
+
+    private setAttribute(element: SVGElement, name: string, value: string) {
+        if (element.getAttribute(name) !== value) element.setAttribute(name, value);
+    }
+
     private root?: SVGSVGElement;
     private defs?: SVGDefsElement;
 
@@ -615,39 +624,59 @@ class SvgEffectManager {
 
         if (!Number.isFinite(sizeX) || !Number.isFinite(sizeY) || sizeX <= 0 || sizeY <= 0) {
             this.removeElement(nativeMaskId(id));
+            this.maskEntries.delete(id);
             this.removeUnusedMaskClips(id, new Set());
             return;
         }
 
         if (entries.length === 0) {
             this.removeElement(nativeMaskId(id));
+            this.maskEntries.delete(id);
             this.removeUnusedMaskClips(id, new Set());
             return;
         }
 
         let mask = this.getOrCreateMask(id);
-        mask.setAttribute("x", "0");
-        mask.setAttribute("y", "0");
-        mask.setAttribute("width", `${sizeX}`);
-        mask.setAttribute("height", `${sizeY}`);
+        this.setAttribute(mask, "x", "0");
+        this.setAttribute(mask, "y", "0");
+        this.setAttribute(mask, "width", `${sizeX}`);
+        this.setAttribute(mask, "height", `${sizeY}`);
         let backdrop = this.getOrCreateBackdrop(mask);
-        backdrop.setAttribute("x", "0");
-        backdrop.setAttribute("y", "0");
-        backdrop.setAttribute("width", `${sizeX}`);
-        backdrop.setAttribute("height", `${sizeY}`);
+        this.setAttribute(backdrop, "x", "0");
+        this.setAttribute(backdrop, "y", "0");
+        this.setAttribute(backdrop, "width", `${sizeX}`);
+        this.setAttribute(backdrop, "height", `${sizeY}`);
 
-        Array.from(mask.children)
-            .filter((child) => child !== backdrop)
-            .forEach((child) => child.remove());
-
+        let slots = this.maskEntries.get(id) ?? [];
         let desiredClipIds = new Set<string>();
         entries.forEach((entry, index) => {
-            let path = document.createElementNS(SVG_NS, "path");
-            path.setAttribute("d", entry.path);
-            path.setAttribute("fill", "black");
-            path.setAttribute("fill-opacity", `${entry.opacity ?? 1}`);
-            mask.appendChild(this.wrapWithClips(id, index, path, entry.clips, desiredClipIds));
+            let slot = slots[index];
+            if (!slot) {
+                const path = document.createElementNS(SVG_NS, "path");
+                path.setAttribute("fill", "black");
+                slot = {path, root: path, clipCount: -1};
+                slots.push(slot);
+            }
+            this.setAttribute(slot.path, "d", entry.path);
+            this.setAttribute(slot.path, "fill-opacity", `${entry.opacity ?? 1}`);
+            if (slot.clipCount !== entry.clips.length) {
+                slot.root.remove();
+                slot.root = this.wrapWithClips(id, index, slot.path, entry.clips, desiredClipIds);
+                slot.clipCount = entry.clips.length;
+            } else {
+                [...entry.clips].reverse().forEach((clip, clipIndex) => {
+                    const clipId = nativeMaskClipId(id, index, clipIndex);
+                    desiredClipIds.add(clipId);
+                    this.updateClipPath(clipId, clip);
+                });
+            }
+            // Reordering is needed only after membership/clip-depth changes.
+            if (mask.children[index + 1] !== slot.root) {
+                mask.appendChild(slot.root);
+            }
         });
+        for (const slot of slots.splice(entries.length)) slot.root.remove();
+        this.maskEntries.set(id, slots);
         this.removeUnusedMaskClips(id, desiredClipIds);
     }
 
@@ -655,6 +684,7 @@ class SvgEffectManager {
         this.root?.remove();
         this.root = undefined;
         this.defs = undefined;
+        this.maskEntries.clear();
     }
 
     private wrapWithClips(

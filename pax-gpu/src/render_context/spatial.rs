@@ -565,7 +565,7 @@ fn surface_paint_groups(
         while let Some((parent, polygon, was_split)) = pending.pop() {
             let split = planes[tree[parent].plane];
             let own = planes[plane];
-            let line = std::array::from_fn(|i| own.coefficients[i] - split.coefficients[i]);
+            let line = own.equality_line(split);
             let (behind, ahead) = match own.presentation_layer.cmp(&split.presentation_layer) {
                 std::cmp::Ordering::Less => (Some(polygon), None),
                 std::cmp::Ordering::Greater => (None, Some(polygon)),
@@ -720,13 +720,10 @@ fn unique_planes(planes: &[DepthPlane], viewport: &Polygon) -> (Vec<DepthPlane>,
     let membership = planes
         .iter()
         .map(|plane| {
-            if let Some(index) = unique.iter().position(|other| {
-                plane.presentation_layer == other.presentation_layer
-                    && viewport.iter().all(|p| {
-                        (plane.depth_at(p[0], p[1]) - other.depth_at(p[0], p[1])).abs()
-                            <= PLANE_EPSILON
-                    })
-            }) {
+            if let Some(index) = unique
+                .iter()
+                .position(|other| plane.presentation_layer == other.presentation_layer && plane.coincides_over(*other, viewport.iter().copied()))
+            {
                 index
             } else {
                 unique.push(*plane);
@@ -821,11 +818,7 @@ fn partition_overlaps(
             if a.presentation_layer != b.presentation_layer || !overlaps(index, other) {
                 continue;
             }
-            let mut line = [
-                a.coefficients[0] - b.coefficients[0],
-                a.coefficients[1] - b.coefficients[1],
-                a.coefficients[2] - b.coefficients[2],
-            ];
+            let mut line = a.equality_line(*b);
             if line[0] == 0.0 && line[1] == 0.0 {
                 continue;
             }

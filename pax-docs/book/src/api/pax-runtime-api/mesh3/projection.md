@@ -55,6 +55,12 @@ Type: `Rc`<[`ConvexMesh`](../../../api/pax-runtime-api/mesh3.md#convexmesh)>
 Type: [`MeshProjection`](../../../api/pax-runtime-api/mesh3/projection.md#meshprojection)
 
 #### Implementations
+##### `compute_front_contours`
+<pre><code class="api-signature language-rust ignore">pub fn compute_front_contours(&amp;self, plane: <a href="../../../api/pax-runtime-api/rendering.md#depthplane">DepthPlane</a>) -&gt; Vec&lt;Vec&lt;[f64; 2]&gt;&gt;</code></pre>
+
+Computes exact front contours without retaining a per-mesh cache entry.
+Runtime visibility uses this when it owns a shared, byte-bounded cache.
+
 ##### `coverage_bounds`
 <pre><code class="api-signature language-rust ignore">pub fn coverage_bounds(&amp;self) -&gt; Option&lt;Rect&gt;</code></pre>
 
@@ -70,6 +76,14 @@ Closest rendered triangle depth; camera-clipped caps are not invented.
 
 Positive-winding contours whose nonzero union covers rendered surfaces
 closer than a plane. Clipped solids can have holes; never convexify them.
+This pure operation does not cache; retained consumers share the bounded
+[`crate::visibility::Relations`] service instead of per-pose history.
+
+##### `projection_viewport`
+<pre><code class="api-signature language-rust ignore">pub fn projection_viewport(&amp;self) -&gt; Option&lt;Rect&gt;</code></pre>
+
+Computational clipping domain used when this surface was projected.
+Equal matrices alone do not imply equal clipped coverage.
 
 ##### `silhouette`
 <pre><code class="api-signature language-rust ignore">pub fn silhouette(&amp;self) -&gt; Vec&lt;[f64; 2]&gt;</code></pre>

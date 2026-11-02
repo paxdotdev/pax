@@ -45,6 +45,7 @@ pub mod constants;
 pub mod cursor;
 pub mod drawing;
 pub mod events;
+pub mod hit;
 pub mod layout;
 pub mod math;
 #[cfg(feature = "3d")]
@@ -59,12 +60,15 @@ pub mod store;
 pub mod transform;
 pub mod unit_value;
 pub mod variables;
+#[cfg(feature = "3d")]
+pub mod visibility;
 
 pub use animation::*;
 pub use camera::CameraMode;
 pub use color::*;
 pub use drawing::*;
 pub use events::*;
+pub use hit::HitShape;
 pub use layout::*;
 pub use pax_value::functions;
 pub use pax_value::functions::register_function;

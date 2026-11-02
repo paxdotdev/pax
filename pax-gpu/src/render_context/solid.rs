@@ -49,7 +49,58 @@ impl RetainedSolid {
     }
 }
 
+// Coverage ownership stays in the shared budget. This plan keeps only a weak
+// dependency and the existing backend stencil identity, never another polygon cache.
+pub(super) struct SolidClipPlan {
+    coverage: std::rc::Weak<kurbo::BezPath>,
+    clips: Vec<ClipDependency>,
+    viewport: Box2D,
+    tolerance: f32,
+    clip_id: u32,
+}
+
+#[derive(PartialEq)]
+enum ClipDependency {
+    Scissor(ScissorRect),
+    Stencil(u32, u64, [[f32; 2]; 3]),
+    Alpha(u32),
+}
+
+fn clip_dependencies(clips: &[ClipReference], arena: &ClipArena) -> Vec<ClipDependency> {
+    clips
+        .iter()
+        .map(|clip| match clip {
+            ClipReference::Scissor(rect) => ClipDependency::Scissor(*rect),
+            ClipReference::Alpha { owner } => ClipDependency::Alpha(*owner),
+            ClipReference::Stencil { clip_id } => ClipDependency::Stencil(
+                *clip_id,
+                arena.entries[clip_id].geometry_signature,
+                arena.slots[*clip_id as usize].transform,
+            ),
+        })
+        .collect()
+}
+
 impl WgpuRenderer<'_> {
+    /// Connects retained GPU paint to the same bounded coverage owner as native masks.
+    pub fn set_node_coverage_context(
+        &mut self,
+        id: u32,
+        context: pax_runtime_api::visibility::CoverageContext,
+    ) {
+        if self
+            .coverage_chart
+            .as_ref()
+            .is_none_or(|chart| !Rc::ptr_eq(&chart.relations, &context.relations))
+        {
+            self.coverage_chart = Some(pax_runtime_api::visibility::RelationChart::new(
+                context.relations.clone(),
+            ));
+            self.coverage_nodes.clear();
+        }
+        self.coverage_nodes.insert(id, context);
+    }
+
     /// Retains immutable topology; pose/material changes update only uniforms.
     pub fn draw_convex_mesh(&mut self, draw: &OpaqueMeshDraw, color: Color, material: Material) {
         let viewport = self.viewport_bounds();
@@ -180,6 +231,13 @@ impl WgpuRenderer<'_> {
         let mut keys = Vec::new();
         let viewport = self.viewport_bounds();
         let planar = self.visible_main_nodes();
+        // Standalone renderer users have no runtime facade. They use the same
+        // bounded service, scoped to this renderer rather than per mesh/pose.
+        if !solids.is_empty() && self.coverage_chart.is_none() {
+            self.coverage_chart = Some(pax_runtime_api::visibility::RelationChart::new(Rc::new(
+                RefCell::new(Default::default()),
+            )));
+        }
         for id in planar {
             let plane = self.depth_planes.get(&id).copied().unwrap_or_default();
             for solid_id in &solids {
@@ -189,7 +247,46 @@ impl WgpuRenderer<'_> {
                 if !boxes_intersect(&self.scene[&id].bounds(), &s.bounds) {
                     continue;
                 }
-                let contours = s.pose.front_contours(plane);
+                let chart = self.coverage_chart.as_ref().unwrap();
+                let receiver = self.coverage_nodes.get(&id);
+                let occluder = self.coverage_nodes.get(solid_id);
+                let coverage = chart.relations.borrow_mut().front_coverage(
+                    pax_runtime_api::visibility::RelationKey {
+                        occluder: occluder.map_or((*solid_id, 0), |c| c.node),
+                        support: receiver.map_or((id, 0), |c| c.support),
+                        domain: receiver.map_or(0, |c| c.domain),
+                        chart: chart.id,
+                    },
+                    &s.pose,
+                    plane,
+                );
+                // Empty relations are cached too. Reject them before allocating
+                // clip dependencies or counting backend stencil preparation.
+                if coverage.elements().is_empty() {
+                    continue;
+                }
+                let key = ClipArenaKey::SolidOcclusion(id, *solid_id);
+                let clips = clip_dependencies(&s.clip_stack, &self.clip_arena);
+                if let Some(plan) = self.solid_clip_plans.get(&key) {
+                    if plan.coverage.ptr_eq(&Rc::downgrade(&coverage))
+                        && plan.clips == clips
+                        && plan.viewport == viewport
+                        && plan.tolerance == self.tolerance
+                        && self.clip_arena.key_to_id.get(&key) == Some(&plan.clip_id)
+                    {
+                        keys.push(key);
+                        self.solid_clips
+                            .entry(id)
+                            .or_default()
+                            .push(ClipReference::Stencil {
+                                clip_id: plan.clip_id,
+                            });
+                        self.resource_churn_stats.solid_clip_reuses += 1;
+                        continue;
+                    }
+                }
+                self.resource_churn_stats.solid_clip_preparations += 1;
+                let contours = coverage_contours(&coverage);
                 if contours.is_empty() {
                     continue;
                 }
@@ -239,13 +336,22 @@ impl WgpuRenderer<'_> {
                 }
                 let path = path.build();
 
-                let key = ClipArenaKey::SolidOcclusion(id, *solid_id);
                 let geometry = tessellate_clip_geometry(&path, self.tolerance);
                 let signature = hash_clip_geometry(&geometry);
                 if let Some((key, clip_id)) =
                     self.clip_arena
                         .sync_key(key, signature, geometry, Transform2D::identity())
                 {
+                    self.solid_clip_plans.insert(
+                        key,
+                        SolidClipPlan {
+                            coverage: Rc::downgrade(&coverage),
+                            clips,
+                            viewport,
+                            tolerance: self.tolerance,
+                            clip_id,
+                        },
+                    );
                     keys.push(key);
                     self.solid_clips
                         .entry(id)
@@ -261,6 +367,7 @@ impl WgpuRenderer<'_> {
             .copied()
             .collect();
         self.clip_arena.release_keys(&stale);
+        self.solid_clip_plans.retain(|key, _| keys.contains(key));
         self.solid_clip_keys = keys;
         self.clip_arena.flush_to_gpu(&mut self.render_backend);
         if !solids.is_empty() {
@@ -372,4 +479,19 @@ fn intersect(p: &Polygon, cutter: &Polygon) -> Polygon {
         p = out;
     }
     p
+}
+
+// Shared coverage is a nonzero union of closed linear contours. Keep the
+// triangle union here: stencil tessellation and inverse holes are GPU policy.
+fn coverage_contours(path: &kurbo::BezPath) -> Vec<Polygon> {
+    let mut result = Vec::new();
+    let mut contour = Vec::new();
+    for element in path.elements() {
+        match element {
+            kurbo::PathEl::MoveTo(p) | kurbo::PathEl::LineTo(p) => contour.push([p.x, p.y]),
+            kurbo::PathEl::ClosePath => result.push(std::mem::take(&mut contour)),
+            _ => unreachable!("solid coverage contains only linear contours"),
+        }
+    }
+    result
 }

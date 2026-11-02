@@ -5,7 +5,7 @@ use crate::{
     DepthPlane,
 };
 use kurbo::Rect;
-use std::cell::{OnceCell, RefCell};
+use std::cell::OnceCell;
 use std::rc::Rc;
 
 type Point = [f64; 3];
@@ -108,11 +108,11 @@ impl MeshProjection {
 pub struct ProjectedConvexMesh {
     pub mesh: Rc<ConvexMesh>,
     pub projection: MeshProjection,
+    viewport: Option<Rect>,
     vertices: Vec<Point>,
     clipped: Option<Vec<Triangle>>,
     unbounded: bool,
     silhouette: OnceCell<Vec<[f64; 2]>>,
-    front_coverage: RefCell<Vec<([f64; 3], Vec<Vec<[f64; 2]>>)>>,
 }
 
 impl ConvexMesh {
@@ -165,11 +165,11 @@ impl ConvexMesh {
         Rc::new(ProjectedConvexMesh {
             mesh: self.clone(),
             projection,
+            viewport,
             vertices,
             clipped,
             unbounded,
             silhouette: OnceCell::new(),
-            front_coverage: RefCell::new(Vec::new()),
         })
     }
 }
@@ -195,6 +195,11 @@ impl PosedConvexMesh {
 }
 
 impl ProjectedConvexMesh {
+    /// Computational clipping domain used when this surface was projected.
+    /// Equal matrices alone do not imply equal clipped coverage.
+    pub fn projection_viewport(&self) -> Option<Rect> {
+        self.viewport
+    }
     /// Actual surviving surface triangles in destination coordinates.
     pub fn triangles(&self) -> impl Iterator<Item = Triangle> + '_ {
         let count = self
@@ -247,23 +252,15 @@ impl ProjectedConvexMesh {
 
     /// Positive-winding contours whose nonzero union covers rendered surfaces
     /// closer than a plane. Clipped solids can have holes; never convexify them.
+    /// This pure operation does not cache; retained consumers share the bounded
+    /// [`crate::visibility::Relations`] service instead of per-pose history.
     pub fn front_contours(&self, plane: DepthPlane) -> Vec<Vec<[f64; 2]>> {
-        let mut cache = self.front_coverage.borrow_mut();
-        if let Some(index) = cache.iter().position(|(key, _)| *key == plane.coefficients) {
-            let entry = cache.remove(index);
-            let result = entry.1.clone();
-            cache.push(entry);
-            return result;
-        }
-        let result = self.compute_front_contours(plane);
-        if cache.len() == 32 {
-            cache.remove(0);
-        }
-        cache.push((plane.coefficients, result.clone()));
-        result
+        self.compute_front_contours(plane)
     }
 
-    fn compute_front_contours(&self, plane: DepthPlane) -> Vec<Vec<[f64; 2]>> {
+    /// Computes exact front contours without retaining a per-mesh cache entry.
+    /// Runtime visibility uses this when it owns a shared, byte-bounded cache.
+    pub fn compute_front_contours(&self, plane: DepthPlane) -> Vec<Vec<[f64; 2]>> {
         let [a, b, c] = plane.coefficients;
         let front = [-a, -b, 1., -c - 1e-7];
         if self.clipped.is_none() {
@@ -368,7 +365,6 @@ mod tests {
                 let expected = projected.compute_front_contours(plane);
                 assert_eq!(projected.front_contours(plane), expected);
                 assert_eq!(projected.front_contours(plane), expected);
-                assert!(projected.front_coverage.borrow().len() <= 32);
             }
         }
         let weak = Rc::downgrade(&a);

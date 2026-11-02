@@ -63,6 +63,23 @@ Last triaged: 2026-10-05 — [PAX-972](https://linear.app/paxdev/issue/PAX-972/p
 
 - 2026-10-30, PAX-1054 fixture creation: `CARGO_NET_OFFLINE=true ./examples/create-example.sh overlay-transfer` invoked `pax-cli create --libdev`, but the generated fixture depended on the published `pax-kit = { version = "0.39.1" }`. Expected local monorepo dependencies. A subsequent Cargo resolution added registry copies of the Pax crates. Changed the new fixture dependency to `path = "../../../pax-kit", default-features = false` before building it. Reproduced at base `08bc206e` with the locally built CLI.
 
+- 2026-11-02, PAX-1051 release qualification: in `spatial-workbench`, pause/reset
+  motion, show the solid, switch to perspective, and lower Card opacity after
+  scrolling settles. Expected unchanged solid/support relations to be reused;
+  observed 2–3 extra relation evaluations per adjustment, with no additional
+  scroll/clip/projection preparation, path mapping, or serialization. Cache
+  residency stabilizes. The orthographic `solid-intersection` opacity loop
+  reuses all measured geometry work. Repro counters are in
+  `/tmp/pax-visibility-closeout-perspective-opacity.json`; cause unconfirmed.
+
+- 2026-11-01, PAX-1051 native validation: running `swift test --package-path
+  pax-host/native/common/pax-swift-common` created a 268 MiB `.build` directory
+  inside the native sources embedded by `pax-host/src/sdk.rs` and `sources.rs`.
+  Expected disposable test output; `include_dir` recursively includes hidden
+  directories, so subsequent Rust builds also embedded these caches. Moved the
+  test cache under root `target/`; use `--scratch-path target/pax-swift-tests`
+  for native package tests until source embedding excludes generated output.
+
 - 2026-10-31, PAX-1055 docs validation: invoking
   `target/debug/gen_api_docs --help` to inspect its options starts full API
   generation instead of showing help or rejecting the flag. Its `main` ignores
@@ -1530,3 +1547,21 @@ Coordinating lifecycle entry with native presentation readiness remains open.
 - 2026-10-30 (PAX-1058): Debug and baked release fixture loads intermittently stayed blank in the in-app browser before mounting. Temporary generated-page tracing reached `navigator.gpu.requestAdapter()` without completing during observation; later reloads initialized and ran the same Wasm successfully. No application error was reported. Reproduce with the cuboid-router web preview after a rebuild/new tab; cause remains unisolated. Temporary startup instrumentation was removed; reloading was sufficient for interaction/resource validation.
 
 - 2026-11-01 (PAX-1058): Regenerating API docs with `cargo run -p pax-docs --bin gen_api_docs` invoked the native SDK build while documenting `pax-kit/host`. Under the workspace sandbox, Xcode failed writing Swift/Clang cache files outside the checkout. Expected docs generation to complete; the initial `xcodebuild.log` reported `ModuleCache: Operation not permitted` and an unwritable SwiftPM diagnostics path. Retrying with local Xcode cache access allowed host documentation to build.
+
+- 2026-11-01 (PAX-1051): Set the first nonzero `z` in an otherwise affine scene
+  and immediately raycast before a tick. Expected geometric depth to win; observed
+  the prior painter order until queued geometry effects settle. Layout movement
+  and input flags are read immediately. Reproduced against the pre-service query
+  by `spatial::tests::raycast_observes_pending_layout_pose_and_input_changes_without_a_tick`.
+  The visibility refactor characterizes and preserves this existing boundary;
+  changing it needs an explicit semantic decision rather than an accidental index fix.
+
+- 2026-11-01 (PAX-1051): Attempted a local macOS release smoke test with
+  `pax-cli build --path examples/fixtures/spatial-workbench --target macos --release`.
+  Expected a practical host-architecture validation path; the CLI always packages
+  both arm64 and x86_64 in release mode, with no architecture selector in build help.
+  Stopped universal packaging after the initial release library build and switched
+  to the supported host-only development build. Release performance qualification
+  still requires the full release path.
+
+- 2026-11-01 (PAX-1051): Full web-interface validation with `tsc --noEmit` still reports 10 errors (native patch types, CSS property types, `replaceAll` library target, and missing startup chassis declarations). Expected a clean typecheck; an isolated copy with all three touched interface sources restored from HEAD produces the same diagnostic messages. Evidence: `/tmp/visibility-web-tsc.log` and `/tmp/visibility-web-tsc-baseline.log`. The release esbuild succeeds; this does not establish a clean full typecheck.

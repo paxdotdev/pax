@@ -34,6 +34,8 @@ mod store;
 #[cfg(test)]
 mod test_support;
 pub mod viewport_proximity;
+#[cfg(feature = "3d")]
+mod visibility;
 
 pub use crate::cartridge::*;
 pub use crate::component::*;

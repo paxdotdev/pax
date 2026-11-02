@@ -128,6 +128,22 @@ struct PaxNativeProjection: Equatable {
 #if os(macOS)
 import AppKit
 
+// AppKit derives logical sizes/rectangles via virtual point conversions (including
+// a probe at the window origin). Those probes are not pointer positions and may
+// lie beyond a plane's horizon. Keep the entire nested conversion in AppKit's
+// logical chart; only direct input-point conversions use the projected chart.
+@MainActor
+enum PaxNativeLayoutScope {
+    private static var depth = 0
+    static var isActive: Bool { depth > 0 }
+
+    static func perform<T>(_ action: () -> T) -> T {
+        depth += 1
+        defer { depth -= 1 }
+        return action()
+    }
+}
+
 protocol PaxProjectedNativeHost: NSView {
     var nativeProjection: PaxNativeProjection? { get }
     func updateProjectedFocus(_ owner: NSView?, focused: Bool)
@@ -196,8 +212,17 @@ extension NSView {
 // NSTextView's selection tracker forwards autoscroll events to its clip view.
 // Correcting only the text view leaves that tracker using an affine viewport.
 final class PaxProjectedClipView: NSClipView {
+    override func convert(_ size: NSSize, from view: NSView?) -> NSSize {
+        PaxNativeLayoutScope.perform { super.convert(size, from: view) }
+    }
+
+    override func convert(_ rect: NSRect, from view: NSView?) -> NSRect {
+        PaxNativeLayoutScope.perform { super.convert(rect, from: view) }
+    }
+
+
     override func convert(_ point: NSPoint, from view: NSView?) -> NSPoint {
-        guard view == nil, paxHasNativeProjection else { return super.convert(point, from: view) }
+        guard view == nil, !PaxNativeLayoutScope.isActive, paxHasNativeProjection else { return super.convert(point, from: view) }
         guard let logical = paxLogicalWindowPoint(point) else { return NSPoint(x: CGFloat.infinity, y: CGFloat.infinity) }
         return super.convert(logical, from: nil)
     }

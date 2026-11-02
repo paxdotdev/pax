@@ -1259,8 +1259,14 @@ public struct NativeRenderingLayer: View {
 
         override var visibleRect: NSRect {
             guard let projection = nativeProjection, let parent = superview else { return super.visibleRect }
-            guard let local = projection.inverse()?.bounds(of: parent.visibleRect) else { return bounds }
-            return bounds.intersection(local)
+            let viewport = parent.visibleRect
+            guard !viewport.isEmpty else { return .zero }
+            guard let local = projection.inverse()?.bounds(of: viewport) else { return bounds }
+            let visible = bounds.intersection(local)
+            // CGRect's disjoint intersection is .null, with an infinite origin.
+            // AppKit feeds visibleRect into control layout, where that sentinel
+            // can turn into NaN constraints. Empty visibility is a finite rect.
+            return visible.isEmpty ? .zero : visible
         }
 
         override init(frame frameRect: CGRect) {

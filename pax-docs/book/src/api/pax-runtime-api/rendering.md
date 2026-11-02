@@ -54,6 +54,23 @@ Type: [`f64`; 3]
 Type: `bool`
 
 #### Implementations
+##### `coincides_over`
+<pre><code class="api-signature language-rust ignore">pub fn coincides_over(self, other: Self, vertices: impl IntoIterator) -&gt; bool</code></pre>
+
+Tests coincidence over a convex region's vertices, in shared depth units.
+This tolerance is independent of a consumer's pixel-distance split tolerance.
+
+##### `compare_point_depths`
+<pre><code class="api-signature language-rust ignore">pub fn compare_point_depths(left: f64, right: f64) -&gt; Ordering</code></pre>
+
+Compares depths for point picking, from farther to nearer.
+
+The existing picking policy rounds to steps of `1e-7` in the view's depth
+units, then uses a total order. Callers resolve equal keys with
+[`Self::coplanar_order`]. Compare only depths from the same view/metric.
+This quantization is distinct from the coverage-plane coincidence test;
+an epsilon comparator would not provide a transitive ordering.
+
 ##### `coplanar_order`
 <pre><code class="api-signature language-rust ignore">pub fn coplanar_order(self, authored_order: i64) -&gt; (bool, i64)</code></pre>
 
@@ -66,6 +83,20 @@ authored index range. Renderers, occlusion masks, and picking share this tie.
 <pre><code class="api-signature language-rust ignore">pub fn depth_at(self, x: f64, y: f64) -&gt; f64</code></pre>
 
 Evaluates camera-relative depth at a projected coordinate.
+
+##### `equality_line`
+<pre><code class="api-signature language-rust ignore">pub fn equality_line(self, other: Self) -&gt; [f64; 3]</code></pre>
+
+Equality line in a common projected chart, before any pixel-distance
+normalization. Its positive side is where `self` is nearer than `other`.
+
+##### `front_region`
+<pre><code class="api-signature language-rust ignore">pub fn front_region(front: Self, back: Self, front_order: i32, back_order: i32, bounds: Rect) -&gt; Option&lt;BezPath&gt;</code></pre>
+
+The part of `bounds` where `front` precedes `back` in a common projected coordinate chart.
+Coplanar paint uses the same facing/order key as the renderer and pointer tests.
+The corner depths use a `1e-7` coincidence tolerance in their shared view's
+depth units; crossing planes are split at their exact equality line.
 
 ---
 

@@ -30,6 +30,8 @@ This fixture enables the default-off `pax-kit/3d` feature. Use the GPU renderer.
 - **Scroll study** opens an editorial page using scroll-driven poses, lighting,
   and fading. Edit its note and press its button, scroll to the lower cuboid,
   resize, and return to check that the native controls preserve their state.
+  The page switcher scrolls with the heading in both views; return to the top
+  to switch pages.
 
 For web CPU measurements, append `?pax_scroll_perf&pax_surface_trace` to the URL,
 open **Surface trace snapshot**, then choose **Profile 2 seconds**. The bounded
@@ -41,7 +43,8 @@ mode. Phase durations measure CPU work, not GPU time or presented frames; see
 The solid uses a shared, immutable 64 × 32 sphere mesh. Width, height, depth, and
 pose transform that mesh; motion does not upload new vertex/index data. Each
 immutable world pose retains up to four camera/chart projections, each with its
-silhouette and at most 32 recently used plane coverage contours. Paint-only updates reuse the pose; motion replaces it and
+silhouette. Native and GPU solid/plane coverage share a runtime-wide cache bounded
+by 2,048 entries and 4 MiB, including all GPU tile charts. Paint-only updates reuse the pose; motion replaces it and
 removing the solid releases its contours. Hard
 projected clips and whole-group fades are supported. Exact spatial fades use up
 to eight scene views per canvas tile (one assembly needs two); overflow reports a

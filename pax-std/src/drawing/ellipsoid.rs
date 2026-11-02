@@ -7,9 +7,9 @@ use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use pax_runtime_api::{
-    math::{Generic, Point2, Transform3},
+    math::{Generic, Transform3},
     mesh3::{ConvexMesh, OpaqueMeshDraw, PosedConvexMesh},
-    use_RefCell, Window,
+    use_RefCell,
 };
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -211,10 +211,8 @@ impl InstanceNode for EllipsoidInstance {
             0.
         }
     }
-    fn ray_cast_test(&self, node: &ExpandedNode, ray: Point2<Window>) -> bool {
-        self.resolve_convex_mesh(node)
-            .and_then(|s| node.project_convex_mesh(&s))
-            .is_some_and(|s| s.depth_at(ray.x, ray.y).is_some())
+    fn prepare_hit_shape(&self, node: &ExpandedNode) -> pax_runtime_api::HitShape {
+        self.resolve_convex_mesh(node).map(pax_runtime_api::HitShape::Mesh).unwrap_or_default()
     }
     fn render(&self, node: &ExpandedNode, ctx: &Rc<RuntimeContext>, rc: &mut dyn RenderContext) {
         if !ctx.is_canvas_node_dirty(&node.id) {

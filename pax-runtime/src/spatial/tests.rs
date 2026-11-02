@@ -502,25 +502,27 @@ fn front_region_splits_native_coverage_and_reverses_backface_order() {
         ..flat
     };
     close(
-        front_region(overlay, high_world, -100, 100, bounds)
+        DepthPlane::front_region(overlay, high_world, -100, 100, bounds)
             .unwrap()
             .area(),
         10000.,
     );
-    assert!(front_region(high_world, overlay, 100, -100, bounds).is_none());
-    let region = front_region(tilted, flat, 0, 10, bounds).unwrap();
+    assert!(DepthPlane::front_region(high_world, overlay, 100, -100, bounds).is_none());
+    let region = DepthPlane::front_region(tilted, flat, 0, 10, bounds).unwrap();
     close(region.area(), 5000.0);
     assert!(!region.contains((25.0, 50.0).into()));
     assert!(region.contains((75.0, 50.0).into()));
-    assert!(front_region(flat, flat, 0, 10, bounds).is_none());
+    assert!(DepthPlane::front_region(flat, flat, 0, 10, bounds).is_none());
     let back = DepthPlane {
         backface: true,
         ..flat
     };
-    assert!(front_region(back, flat, 20, 10, bounds).is_none());
-    assert!(front_region(flat, back, -20, -10, bounds).is_some());
+    assert!(DepthPlane::front_region(back, flat, 20, 10, bounds).is_none());
+    assert!(DepthPlane::front_region(flat, back, -20, -10, bounds).is_some());
     close(
-        front_region(back, back, 0, 10, bounds).unwrap().area(),
+        DepthPlane::front_region(back, back, 0, 10, bounds)
+            .unwrap()
+            .area(),
         10000.0,
     );
 }
@@ -584,13 +586,167 @@ fn input_uses_geometric_depth_at_the_pointer() {
 }
 
 #[test]
+fn raycast_observes_pending_layout_pose_and_input_changes_without_a_tick() {
+    use pax_runtime_api::math::Point2;
+    let (mut engine, front, back, child) = fixture();
+    common(&child)._raycastable.set(Some(false));
+    for node in [&front, &back] {
+        let cp = common(node);
+        cp.width.set(Some(Size::Pixels(80.into())));
+        cp.height.set(Some(Size::Pixels(60.into())));
+        cp.anchor_x.set(Some(Size::Pixels(0.into())));
+        cp.anchor_y.set(Some(Size::Pixels(0.into())));
+    }
+    engine.tick();
+    let ctx = &engine.runtime_context;
+    let clock = ctx.globals().elapsed_frames.get();
+    let first = || {
+        ctx.get_elements_beneath_ray(None, Point2::new(20., 20.), true, vec![], false)
+            .first()
+            .map(|node| node.id)
+    };
+    assert_eq!(first(), Some(front.id));
+    common(&front).x.set(Some(Size::Pixels(200.into())));
+    assert_eq!(first(), Some(back.id));
+    common(&front).x.set(Some(Size::Pixels(0.into())));
+    common(&back).z.set(Some(20.0.into()));
+    // Baseline limitation: first activation of spatial depth still uses the
+    // settled index's affine classification until queued effects run. Preserve
+    // that boundary here; indexing must not accidentally change the contract.
+    assert_eq!(first(), Some(front.id));
+    common(&back)._raycastable.set(Some(false));
+    assert_eq!(first(), Some(front.id));
+    common(&front).opacity.set(Some(0.0.into()));
+    assert_eq!(first(), Some(front.id), "opacity does not disable input");
+    assert_eq!(ctx.globals().elapsed_frames.get(), clock);
+}
+
+#[test]
+fn raycast_all_hits_and_topmost_agree_across_projections() {
+    use pax_runtime_api::math::Point2;
+    for camera in [
+        None,
+        Some(camera(&[
+            ("projection", "CameraMode::Perspective"),
+            ("position", "[50%, 50%, 600px]"),
+            ("near", "10px"),
+            ("far", "2000px"),
+        ])),
+    ] {
+        let (mut engine, front, back, child) = fixture_with_camera(camera);
+        engine
+            .runtime_context
+            .edit_globals(|g| g.renderer_is_gpu = true);
+        common(&child)._raycastable.set(Some(false));
+        for node in [&front, &back] {
+            let cp = common(node);
+            cp.width.set(Some(Size::Pixels(640.into())));
+            cp.height.set(Some(Size::Pixels(480.into())));
+        }
+        engine.tick();
+        let ctx = &engine.runtime_context;
+        for z in [-30., 0., 30.] {
+            common(&front).z.set(Some(z.into()));
+            let all =
+                ctx.get_elements_beneath_ray(None, Point2::new(320., 240.), false, vec![], false);
+            let first =
+                ctx.get_elements_beneath_ray(None, Point2::new(320., 240.), true, vec![], false);
+            assert_eq!(first.first().map(|n| n.id), all.first().map(|n| n.id));
+            assert!(all.iter().any(|n| n.id == front.id));
+            assert!(all.iter().any(|n| n.id == back.id));
+        }
+    }
+}
+
+#[test]
+fn presentation_consumers_share_records_and_read_current_reactive_inputs() {
+    let (engine, front, _, _) = fixture_with_camera(Some(camera(&[
+        ("projection", "CameraMode::Perspective"),
+        ("position", "[50%, 50%, 600px]"),
+        ("near", "10px"),
+        ("far", "2000px"),
+    ])));
+    let ctx = &engine.runtime_context;
+    let original = ctx.prepared_presentation(&front);
+    let prepared = ctx.presentation_stats().preparations;
+    let screen = original
+        .projection()
+        .unwrap()
+        .mapping()
+        .project(kurbo::Point::new(20., 20.))
+        .unwrap();
+    for _ in 0..10 {
+        assert_eq!(
+            ctx.presented_projection_for_node(&front),
+            original.projection()
+        );
+        assert_eq!(
+            ctx.presented_depth_plane(&front, kurbo::Affine::IDENTITY),
+            original.depth_plane()
+        );
+        let local = ctx.presented_local_point(&front, screen).unwrap();
+        close(local.x, 20.);
+        close(local.y, 20.);
+    }
+    assert_eq!(ctx.presentation_stats().preparations, prepared);
+    common(&front).opacity.set(Some(0.3.into()));
+    assert!(Rc::ptr_eq(&original, &ctx.prepared_presentation(&front)));
+    common(&front).x.set(Some(Size::Pixels(25.into())));
+    let moved = ctx.prepared_presentation(&front);
+    assert!(!Rc::ptr_eq(&original, &moved));
+    let screen = moved
+        .projection()
+        .unwrap()
+        .mapping()
+        .project(kurbo::Point::new(20., 20.))
+        .unwrap();
+    close(ctx.presented_local_point(&front, screen).unwrap().x, 20.);
+    // Camera replacement is observable without advancing the frame, just like pose.
+    engine
+        .root_expanded_node
+        .as_ref()
+        .unwrap()
+        .own_camera_view
+        .set(None);
+    let camera_changed = ctx.prepared_presentation(&front);
+    assert!(!Rc::ptr_eq(&moved, &camera_changed));
+    let weak = Rc::downgrade(&camera_changed);
+    drop(camera_changed);
+    front.recurse_unmount(ctx);
+    assert!(
+        weak.upgrade().is_none(),
+        "unmount retires the cached presentation"
+    );
+}
+
+#[test]
+fn affine_queries_do_not_allocate_perspective_presentation_records() {
+    let (engine, front, _, _) = fixture();
+    let ctx = &engine.runtime_context;
+    for _ in 0..10 {
+        assert!(ctx.presented_projection_for_node(&front).is_some());
+        assert!(ctx
+            .presented_local_point(&front, kurbo::Point::new(20., 20.))
+            .is_some());
+        ctx.get_elements_beneath_ray(
+            None,
+            pax_runtime_api::math::Point2::new(20., 20.),
+            false,
+            vec![],
+            false,
+        );
+    }
+    assert_eq!(ctx.presentation_stats().preparations, 0);
+}
+
+#[test]
 fn invalid_and_edge_on_poses_keep_layout_and_recover_without_remounting() {
     use pax_runtime_api::math::Point2;
     let (mut engine, parent, _, child) = fixture();
     let cp = common(&parent);
     cp.rotate_y.set(Some(Rotation::Degrees(90.into())));
     engine.tick();
-    assert!(!parent.ray_cast_test(Point2::new(0.0, 0.0)));
+    assert!(!engine.runtime_context.get_elements_beneath_ray(Some(parent.clone()), Point2::new(0.0, 0.0), false, vec![], false).iter().any(|n| n.id == parent.id));
     let original_bounds = child.layout_bounds.get();
     cp.z.set(Some(pax_runtime_api::Depth::from(f64::NAN)));
     engine.tick();
@@ -599,12 +755,12 @@ fn invalid_and_edge_on_poses_keep_layout_and_recover_without_remounting() {
         [0.0; 6]
     );
     assert_eq!(child.layout_bounds.get(), original_bounds);
-    assert!(!parent.ray_cast_test(Point2::new(0.0, 0.0)));
+    assert!(!engine.runtime_context.get_elements_beneath_ray(Some(parent.clone()), Point2::new(0.0, 0.0), false, vec![], false).iter().any(|n| n.id == parent.id));
     cp.z.set(Some(pax_runtime_api::Depth::from(0.0)));
     cp.rotate_y.set(Some(Rotation::Degrees(0.into())));
     engine.tick();
     assert_eq!(parent.children.get()[0].id, child.id);
-    assert!(parent.ray_cast_test(Point2::new(20.0, 20.0)));
+    assert!(engine.runtime_context.get_elements_beneath_ray(Some(parent.clone()), Point2::new(20.0, 20.0), false, vec![], false).iter().any(|n| n.id == parent.id));
 }
 
 #[test]
@@ -820,7 +976,7 @@ fn orthographic_camera_rotates_retained_depth_before_projection() {
         child.presentation_transform_and_bounds.get().transform.m[4],
         220.,
     );
-    assert!(!child.ray_cast_test(pax_runtime_api::math::Point2::new(220., 20.)));
+    assert!(!engine.runtime_context.get_elements_beneath_ray(Some(child.clone()), pax_runtime_api::math::Point2::new(220., 20.), false, vec![], false).iter().any(|n| n.id == child.id));
 }
 
 #[test]
@@ -1017,7 +1173,7 @@ fn perspective_camera_binds_lens_preserves_layout_and_matches_input() {
         .mapping()
         .project(kurbo::Point::new(25., 30.))
         .unwrap();
-    assert!(child.ray_cast_test(pax_runtime_api::math::Point2::new(screen.x, screen.y)));
+    assert!(engine.runtime_context.get_elements_beneath_ray(Some(child.clone()), pax_runtime_api::math::Point2::new(screen.x, screen.y), false, vec![], false).iter().any(|n| n.id == child.id));
     let local = child
         .get_node_context(&engine.runtime_context)
         .local_point(pax_runtime_api::math::Point2::new(screen.x, screen.y));
@@ -1236,19 +1392,25 @@ fn perspective_nested_scroll_projects_world_motion_for_native_and_canvas_planes(
 
 // Exercise native controls without canvas paint bounds and custom primitives
 // whose occlusion paths are known but whose paint bounds are unbounded.
-struct OcclusionSurface(BaseInstance);
+struct OcclusionSurface(BaseInstance, bool);
 impl OcclusionSurface {
     fn new(layer: Layer) -> Rc<Self> {
-        Rc::new(Self(BaseInstance::new(
-            args(vec![]),
-            InstanceFlags {
-                layer,
-                invisible_to_slot: false,
-                invisible_to_raycasting: false,
-                is_component: false,
-                is_slot: false,
-            },
-        )))
+        Self::with_small_paint_bounds(layer, false)
+    }
+    fn with_small_paint_bounds(layer: Layer, small: bool) -> Rc<Self> {
+        Rc::new(Self(
+            BaseInstance::new(
+                args(vec![]),
+                InstanceFlags {
+                    layer,
+                    invisible_to_slot: false,
+                    invisible_to_raycasting: false,
+                    is_component: false,
+                    is_slot: false,
+                },
+            ),
+            small,
+        ))
     }
 }
 impl InstanceNode for OcclusionSurface {
@@ -1270,6 +1432,76 @@ impl InstanceNode for OcclusionSurface {
         let (w, h) = node.spatial_geometry.get().bounds;
         (self.0.flags().layer == Layer::Canvas).then(|| kurbo::Rect::new(0., 0., w, h).to_path(0.1))
     }
+    fn prepare_canvas_geometry(&self, _: &ExpandedNode) -> CanvasGeometry {
+        if self.1 {
+            // A stable occlusion shape can exceed the currently painted portion.
+            CanvasGeometry::for_layout((1., 1.))
+        } else {
+            CanvasGeometry::default()
+        }
+    }
+
+    fn resolve_local_occlusion_bounds(&self, node: &ExpandedNode) -> Option<kurbo::Rect> {
+        use kurbo::Shape;
+        self.1.then(|| {
+            self.resolve_local_coverage_path(node)
+                .unwrap()
+                .bounding_box()
+        })
+    }
+}
+
+#[test]
+fn rebuilt_and_incremental_affine_masks_match_legacy_oracle() {
+    let mut root_args = args(vec![]);
+    root_args.component_template = Some(RefCell::new(vec![
+        OcclusionSurface::with_small_paint_bounds(Layer::Canvas, true),
+        OcclusionSurface::new(Layer::Native),
+        OcclusionSurface::new(Layer::Canvas),
+        OcclusionSurface::new(Layer::NativeNonOccluding),
+    ]));
+    let mut engine = crate::test_support::empty_engine(
+        (640., 480.),
+        Platform::Web,
+        OS::Mac,
+        Box::new(|| 0),
+        Default::default(),
+    );
+    let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+    engine.tick();
+    let nodes = root.children.get();
+    for node in &nodes {
+        let cp = common(node);
+        cp.width.set(Some(Size::Pixels(180.into())));
+        cp.height.set(Some(Size::Pixels(100.into())));
+        cp.x.set(Some(Size::Pixels(200.into())));
+        cp.y.set(Some(Size::Pixels(200.into())));
+    }
+    common(&nodes[0]).width.set(Some(Size::Pixels(360.into())));
+    for (x, rotation, opacity) in [
+        (40., 0., 1.),
+        (240., 35., 0.4),
+        (500., 110., 1.),
+        (180., 0., 0.),
+    ] {
+        let cp = common(&nodes[0]);
+        cp.x.set(Some(Size::Pixels(x.into())));
+        cp.rotate.set(Some(Rotation::Degrees(rotation.into())));
+        cp.opacity.set(Some(opacity.into()));
+        engine.tick();
+        crate::engine::occlusion::assert_affine_masks_match_legacy(&engine.runtime_context);
+        let hash = nodes[1].native_mask_hash.get();
+        engine.runtime_context.mark_occlusion_dirty();
+        let messages = engine.tick();
+        assert_eq!(nodes[1].native_mask_hash.get(), hash);
+        assert!(
+            !messages.iter().any(|message| matches!(message,
+                pax_message::NativeMessage::NativeMaskUpdate(p) if p.id == nodes[1].id.to_u32()
+            )),
+            "unchanged structural rebuild must not emit a replacement mask"
+        );
+        crate::engine::occlusion::assert_affine_masks_match_legacy(&engine.runtime_context);
+    }
 }
 
 #[test]
@@ -1278,7 +1510,7 @@ fn perspective_native_masks_split_both_crossing_surfaces_and_follow_movement() {
     let mut root_args = args(vec![]);
     root_args.component_template = Some(RefCell::new(vec![
         OcclusionSurface::new(Layer::Native),
-        OcclusionSurface::new(Layer::Canvas),
+        OcclusionSurface::with_small_paint_bounds(Layer::Canvas, true),
         OcclusionSurface::new(Layer::Native),
         OcclusionSurface::new(Layer::Canvas),
     ]));
@@ -1369,8 +1601,19 @@ fn perspective_native_masks_split_both_crossing_surfaces_and_follow_movement() {
     engine.tick();
     let incremental = nodes[0].native_mask_hash.get();
     assert_ne!(incremental, 0);
+    nodes[0].native_mask_hash.set(u64::MAX);
     engine.runtime_context.mark_occlusion_dirty();
-    engine.tick();
+    let messages = engine.tick();
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|message| matches!(message,
+                pax_message::NativeMessage::NativeMaskUpdate(p) if p.id == nodes[0].id.to_u32()
+            ))
+            .count(),
+        1,
+        "structural reconciliation emits only the final geometric mask"
+    );
     assert_eq!(nodes[0].native_mask_hash.get(), incremental);
 }
 
@@ -1425,6 +1668,34 @@ impl InstanceNode for SolidSurface {
             p.close_path();
         }
         Some(p)
+    }
+}
+
+#[test]
+fn prepared_mesh_hits_keep_cpu_painter_order_when_renderer_changes() {
+    let mut root_args = args(vec![]);
+    root_args.component_template = Some(RefCell::new(vec![
+        OcclusionSurface::new(Layer::Native),
+        SolidSurface::instantiate(args(vec![])),
+    ]));
+    let mut engine = crate::test_support::empty_engine(
+        (800., 600.), Platform::Web, OS::Mac, Box::new(|| 0), Default::default(),
+    );
+    let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+    let nodes = root.children.get();
+    for node in &nodes {
+        common(node).width.set(Some(Size::Pixels(240.into())));
+        common(node).height.set(Some(Size::Pixels(150.into())));
+    }
+    common(&nodes[1]).z.set(Some(pax_runtime_api::Depth(100.into())));
+    engine.tick();
+    let ctx = &engine.runtime_context;
+    for (gpu, expected) in [(true, vec![nodes[1].id, nodes[0].id]), (false, vec![nodes[0].id, nodes[1].id])] {
+        ctx.edit_globals(|g| g.renderer_is_gpu = gpu);
+        let hits = ctx.get_elements_beneath_ray(None, pax_runtime_api::math::Point2::new(120., 50.), false, vec![], false);
+        assert_eq!(hits.iter().map(|node| node.id).collect::<Vec<_>>(), expected);
+        let first = ctx.get_elements_beneath_ray(None, pax_runtime_api::math::Point2::new(120., 50.), true, vec![], false);
+        assert_eq!(first[0].id, expected[0]);
     }
 }
 
@@ -1610,6 +1881,142 @@ fn solid_camera_picking_native_masks_and_scroll_charts_agree() {
             native.native_mask_hash.get(),
             mask,
             "returning solid must recover its mask"
+        );
+    }
+}
+
+#[test]
+fn coplanar_native_leaves_share_solid_relations_and_retain_fade_geometry() {
+    for perspective in [false, true] {
+        let mut children: Vec<Rc<dyn InstanceNode>> = (0..6)
+            .map(|_| OcclusionSurface::new(Layer::Native) as Rc<dyn InstanceNode>)
+            .collect();
+        children.push(SolidSurface::instantiate(args(vec![])));
+        let face = Surface::instantiate(args(children));
+        let mut root_args = args(vec![]);
+        root_args.component_template = Some(RefCell::new(vec![face]));
+        if perspective {
+            root_args.component_camera = Some(camera(&[
+                ("projection", "CameraMode::Perspective"),
+                ("z", "600px"),
+            ]));
+        }
+        let mut engine = crate::test_support::empty_engine(
+            (640., 480.),
+            Platform::Web,
+            OS::Mac,
+            Box::new(|| 0),
+            Default::default(),
+        );
+        engine
+            .runtime_context
+            .edit_globals(|g| g.renderer_is_gpu = true);
+        let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+        engine.tick();
+        let face = root.children.get()[0].clone();
+        let children = face.children.get();
+        let solid = &children[6];
+        let cp = common(&face);
+        cp.width.set(Some(Size::Pixels(240.into())));
+        cp.height.set(Some(Size::Pixels(100.into())));
+        cp.x.set(Some(Size::Pixels(150.into())));
+        cp.y.set(Some(Size::Pixels(180.into())));
+        cp.rotate_y.set(Some(Rotation::Degrees(23.into())));
+        for (i, node) in children[..6].iter().enumerate() {
+            let cp = common(node);
+            cp.x.set(Some(Size::Pixels((70 + i * 8).into())));
+            cp.y.set(Some(Size::Pixels(20.into())));
+            cp.width.set(Some(Size::Pixels(60.into())));
+            cp.height.set(Some(Size::Pixels(50.into())));
+        }
+        let before = engine.runtime_context.occlusion_stats();
+        engine.tick();
+        let after = engine.runtime_context.occlusion_stats();
+        assert_eq!(
+            after.solid_relation_evaluations - before.solid_relation_evaluations,
+            1,
+            "perspective={perspective}"
+        );
+        assert!(after.solid_relation_reuses - before.solid_relation_reuses >= 5);
+        for node in &children[..6] {
+            assert_eq!(node.support_node.get(), Some(face.id.to_u32()));
+            assert_ne!(node.native_mask_hash.get(), 0);
+            engine
+                .runtime_context
+                .mark_node_occlusion_dirty(node.id.to_u32());
+        }
+        engine.tick();
+        let unchanged = engine.runtime_context.occlusion_stats();
+        assert_eq!(unchanged.mask_path_mappings, after.mask_path_mappings);
+        assert_eq!(
+            unchanged.mask_path_serializations,
+            after.mask_path_serializations
+        );
+        assert!(unchanged.mask_plan_reuses >= after.mask_plan_reuses + 6);
+        common(solid).opacity.set(Some(0.4.into()));
+        engine.tick();
+        let faded = engine.runtime_context.occlusion_stats();
+        assert_eq!(
+            faded.solid_relation_evaluations,
+            unchanged.solid_relation_evaluations
+        );
+        assert_eq!(faded.mask_path_mappings, unchanged.mask_path_mappings);
+        assert_eq!(
+            faded.mask_path_serializations,
+            unchanged.mask_path_serializations
+        );
+        common(&children[0])
+            .rotate_x
+            .set(Some(Rotation::Degrees(15.into())));
+        engine.tick();
+        let split = engine.runtime_context.occlusion_stats();
+        assert_eq!(
+            children[0].support_node.get(),
+            Some(children[0].id.to_u32())
+        );
+        assert_eq!(
+            split.solid_relation_evaluations,
+            faded.solid_relation_evaluations + 1
+        );
+        common(&children[0]).rotate_x.set(None);
+        engine.tick();
+        assert_eq!(children[0].support_node.get(), Some(face.id.to_u32()));
+        assert_eq!(
+            engine
+                .runtime_context
+                .occlusion_stats()
+                .solid_relation_evaluations,
+            split.solid_relation_evaluations
+        );
+        let before_camera = engine.runtime_context.occlusion_stats();
+        root.own_camera_view
+            .set(Some(crate::camera::resolve_for_test(
+                root.spatial_geometry.get(),
+                [310., 230., 0.],
+                [0.; 3],
+                1.1,
+            )));
+        engine.tick();
+        assert!(
+            engine
+                .runtime_context
+                .occlusion_stats()
+                .solid_relation_evaluations
+                > before_camera.solid_relation_evaluations
+        );
+        assert!(
+            engine
+                .runtime_context
+                .occlusion_stats()
+                .visibility_cache_entries
+                <= 4096
+        );
+        assert!(
+            engine
+                .runtime_context
+                .occlusion_stats()
+                .visibility_cache_bytes
+                <= 8 * 1024 * 1024
         );
     }
 }

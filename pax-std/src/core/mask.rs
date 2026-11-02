@@ -252,6 +252,7 @@ impl MaskInstance {
                         })
                         .collect();
                 }
+                context.mark_node_clip_dirty(owner.id.to_u32());
                 owner.changed_listener.invalidate();
             },
             &deps,
@@ -345,6 +346,14 @@ impl MaskInstance {
 }
 
 impl InstanceNode for MaskInstance {
+    fn property_requires_clip_recompute(&self, name: &str) -> bool {
+        name == "alpha"
+    }
+
+    fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
+        false
+    }
+
     #[cfg(feature = "3d")]
     fn permits_opaque_mesh_content(&self, node: &ExpandedNode) -> bool {
         !Self::alpha_settings(node).0

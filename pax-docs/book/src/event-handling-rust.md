@@ -724,6 +724,22 @@ for the projected control's local coordinates, as with 2D transforms. A pose or 
 change does not itself dispatch a pointer move or replace an established
 mouse/touch sequence target; the capture rules below continue to apply.
 
+`ctx.raycast(point, false)` queries the userland tree at a window-space point and
+returns matching node interfaces in front-to-back order, without dispatching
+hover events or acquiring capture. Zero opacity alone does not disable input;
+use `_raycastable=false` to exclude a node. The `hit_invisible` argument includes
+normally skipped invisible/exit nodes, but does not override `_raycastable` or
+clipping. Custom primitives provide [prepared hit shapes](primitives.md#input-geometry),
+which can differ from their paint bounds. Hit evaluation does not call back into
+the primitive or mutate the scene.
+
+A raycast does not advance a frame or drain application callbacks. Layout and
+input-property reads can reflect writes made earlier in the same handler, but
+this is not a general promise that all presentation state has settled. In the
+current implementation, introducing the first nonzero spatial depth into an
+otherwise affine scene can still use painter order until geometry effects run
+on the next tick. Subsequent input remains subject to the existing capture rules.
+
 ### Wheel input
 
 `@wheel` receives `Event<Wheel>` on web and macOS, including over content in a

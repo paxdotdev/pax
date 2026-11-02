@@ -88,6 +88,14 @@ fn frame_clip_path(bounds: (f64, f64), corner_radius: f64, transform: Affine) ->
 }
 
 impl InstanceNode for FrameInstance {
+    fn property_requires_clip_recompute(&self, name: &str) -> bool {
+        matches!(name, "_clip_content" | "corner_radius")
+    }
+
+    fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
+        false
+    }
+
     fn supports_alpha_source_render(&self) -> bool {
         true
     }

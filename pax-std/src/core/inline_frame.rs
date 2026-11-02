@@ -23,6 +23,10 @@ pub struct InlineFrameInstance {
 }
 
 impl InstanceNode for InlineFrameInstance {
+    fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
+        false
+    }
+
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,

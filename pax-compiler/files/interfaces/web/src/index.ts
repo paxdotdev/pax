@@ -829,9 +829,10 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             nativePool.sampleFrameInputs();
             const messages = withProfileMeasure("tick", () => {
                 if (!perfTraceEnabled) return chassis.tick();
-                const [messages, phases, compositing] = chassis.tick_profiled();
+                const [messages, phases, compositing, input] = chassis.tick_profiled();
                 for (const [name, duration] of phases) nativePool.recordSurfaceFramePhase(`tick.${name}`, duration);
                 nativePool.recordSurfaceCompositing(compositing, phases);
+                nativePool.recordInputQueryWork(input);
                 return messages;
             });
             withProfileMeasure("processMessages", () => {

@@ -32,6 +32,10 @@ pub struct ComponentInstance {
 // }
 
 impl InstanceNode for ComponentInstance {
+    fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
+        false
+    }
+
     fn instantiate(mut args: InstantiationArgs) -> Rc<Self> {
         let component_template = args.component_template.take();
         let template = component_template.unwrap_or_default();

@@ -62,6 +62,10 @@ pub struct DynamicIslandSpacerInstance {
 mod tests;
 
 impl InstanceNode for DynamicIslandSpacerInstance {
+    fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
+        false
+    }
+
     fn instantiate(args: InstantiationArgs) -> Rc<Self> {
         Rc::new(Self {
             base: BaseInstance::new(

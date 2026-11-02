@@ -220,8 +220,10 @@ closes. Descendants inherit the same context as `@loading` in Pax.
 ##### `local_point`
 <pre><code class="api-signature language-rust ignore">pub fn local_point(&amp;self, p: Point2&lt;<a href="../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;) -&gt; Point2&lt;<a href="../../../api/internal/pax-runtime/engine/node_interface.md#nodelocal">NodeLocal</a>&gt;</code></pre>
 
-Convert a window-space point into this node's local coordinate space, including any
+Convert a window-space point into normalized local coordinates, including any
 camera projection and presentation offsets inherited from ancestor scrollers.
+`(0, 0)` is the local origin and `(1, 1)` is the opposite layout corner.
+A clipped or noninvertible perspective mapping returns nonfinite coordinates.
 
 ##### `navigate_to`
 <pre><code class="api-signature language-rust ignore">pub fn navigate_to(&amp;self, url: &amp;str, target: <a href="../../../api/pax-runtime-api/drawing.md#navigationtarget">NavigationTarget</a>)</code></pre>

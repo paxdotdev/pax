@@ -7,7 +7,6 @@ use pax_runtime_api::{
     LocalProperty, NativeLiquidGlassScope, OpacityScope, PaxValue, Percent, SelectStart, Variable,
 };
 
-use crate::api::math::Point2;
 use crate::constants::{
     ACCEL_HANDLERS, BUTTON_CLICK_HANDLERS, CHECKBOX_CHANGE_HANDLERS, CLICK_HANDLERS,
     CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, DROP_HANDLERS, FOCUSED_HANDLERS, GYRO_HANDLERS,
@@ -355,6 +354,11 @@ pub struct ExpandedNode {
     /// Unprojected world footprint used for layout measurement.
     /// Camera-aware paint and input use `presentation_projection`.
     pub transform_and_bounds: LocalProperty<TransformAndBounds<NodeLocal, Window>>,
+    pub(crate) scroll_state: LocalProperty<crate::scene_geometry::presentation::ScrollState>,
+    pub(crate) local_clip_geometry:
+        LocalProperty<crate::scene_geometry::presentation::ClipGeometry>,
+    pub(crate) world_clip_geometry:
+        LocalProperty<crate::scene_geometry::presentation::ClipGeometry>,
     /// Camera-projected geometry used by paint, native presentation and input.
     pub presentation_transform_and_bounds: LocalProperty<TransformAndBounds<NodeLocal, Window>>,
     #[cfg(feature = "3d")]
@@ -363,6 +367,10 @@ pub struct ExpandedNode {
     pub(crate) presentation_view: LocalProperty<crate::camera::PresentationView>,
     #[cfg(feature = "3d")]
     pub(crate) own_camera_view: LocalProperty<Option<crate::camera::PresentationView>>,
+    // A local 2D placement preserves its ancestor's infinite support plane.
+    // Keep this proof in the reactive placement chain, not a rounded depth key.
+    #[cfg(feature = "3d")]
+    pub(crate) support_node: LocalProperty<Option<u32>>,
     /// Placement relative to the render parent, including padding and assigned frames.
     pub(crate) local_transform_and_bounds: LocalProperty<TransformAndBounds<NodeLocal, NodeLocal>>,
     // Dimensions have their own dependency chain so ancestor pose cannot dirty
@@ -437,6 +445,7 @@ pub struct ExpandedNode {
     /// used by native elements to trigger sending of native messages
     /// used by canvas elements to dirtify their canvas
     pub changed_listener: LocalProperty<()>,
+    input_listener: LocalProperty<()>,
     selector_classes_listener: LocalProperty<()>,
 
     /// Tracks whether this node's occlusion-affecting inputs changed.
@@ -1255,6 +1264,9 @@ impl ExpandedNode {
             sidecar_children: RefCell::new(Vec::new()),
             render_source_owner: Cell::new(render_source_owner),
             transform_and_bounds,
+            scroll_state: LocalProperty::default(),
+            local_clip_geometry: LocalProperty::default(),
+            world_clip_geometry: LocalProperty::default(),
             presentation_transform_and_bounds,
             #[cfg(feature = "3d")]
             presentation_geometry,
@@ -1262,6 +1274,8 @@ impl ExpandedNode {
             presentation_view: LocalProperty::default(),
             #[cfg(feature = "3d")]
             own_camera_view: LocalProperty::default(),
+            #[cfg(feature = "3d")]
+            support_node: LocalProperty::default(),
             local_transform_and_bounds: LocalProperty::new(TransformAndBounds::default()),
             layout_bounds: LocalProperty::new((100.0, 100.0)),
             #[cfg(feature = "3d")]
@@ -1281,6 +1295,7 @@ impl ExpandedNode {
             slot_index: LocalProperty::default(),
             suspended: LocalProperty::new(false),
             changed_listener: LocalProperty::default(),
+            input_listener: LocalProperty::default(),
             selector_classes_listener: LocalProperty::default(),
             occlusion_listener: LocalProperty::default(),
             children_listener: LocalProperty::default(),
@@ -2635,6 +2650,36 @@ impl ExpandedNode {
             ));
         #[cfg(feature = "3d")]
         {
+            let parent_support = render_parent
+                .as_ref()
+                .map(|parent| parent.support_node.clone())
+                .unwrap_or_default();
+            let own_view = self.own_camera_view.clone();
+            let rotate_x = borrow!(common_props).rotate_x.clone();
+            let rotate_y = borrow!(common_props).rotate_y.clone();
+            let z = borrow!(common_props).z.clone();
+            let id = self.id.to_u32();
+            let deps = [
+                parent_support.untyped(),
+                own_view.untyped(),
+                rotate_x.untyped(),
+                rotate_y.untyped(),
+                z.untyped(),
+            ];
+            self.support_node.replace_with(LocalProperty::computed(
+                move || {
+                    if own_view.get().is_none()
+                        && rotate_x.get().unwrap_or_default().get_as_radians() == 0.
+                        && rotate_y.get().unwrap_or_default().get_as_radians() == 0.
+                        && z.get().unwrap_or_default().to_float() == 0.
+                    {
+                        parent_support.get().or(Some(id))
+                    } else {
+                        Some(id)
+                    }
+                },
+                &deps,
+            ));
             let local = self.local_transform_and_bounds.clone();
             let rotate_x = borrow!(common_props).rotate_x.clone();
             let rotate_y = borrow!(common_props).rotate_y.clone();
@@ -2767,6 +2812,8 @@ impl ExpandedNode {
                 ));
         }
 
+        self.bind_presentation_inputs(ctx);
+
         let presentation_parent = self.presentation_parent_node();
         let parent_opacity = presentation_parent
             .as_ref()
@@ -2811,6 +2858,8 @@ impl ExpandedNode {
     }
 
     fn bind_occlusion_listener(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
+        self.bind_presentation_inputs(ctx);
+        self.bind_input_listener(ctx);
         let wheel_events = self.get_common_properties().borrow().wheel_events.clone();
         let instance_node = borrow!(self.instance_node);
         let mut deps: Vec<_> = borrow!(self.properties_scope)
@@ -2848,6 +2897,37 @@ impl ExpandedNode {
             self,
             &self.occlusion_listener,
             "occlusion listener",
+        );
+    }
+
+    fn bind_input_listener(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
+        let instance = borrow!(self.instance_node);
+        let mut deps: Vec<_> = borrow!(self.properties_scope)
+            .iter()
+            .filter(|(name, _)| instance.property_requires_input_recompute(name))
+            .map(|(_, value)| value.get_untyped_property().clone())
+            .collect();
+        deps.extend([
+            self.presentation_transform_and_bounds.untyped(),
+            #[cfg(feature = "3d")]
+            self.presentation_geometry.untyped(),
+            #[cfg(feature = "3d")]
+            self.presentation_view.untyped(),
+        ]);
+        let context = ctx.clone();
+        let id = self.id.to_u32();
+        self.input_listener
+            .replace_with(LocalProperty::computed_with_name(
+                move || {
+                    context.mark_node_input_dirty(id);
+                },
+                &deps,
+                "input geometry listener",
+            ));
+        ctx.register_expanded_node_effect_property_named(
+            self,
+            &self.input_listener,
+            "input geometry listener",
         );
     }
 
@@ -3537,6 +3617,7 @@ impl ExpandedNode {
                 .replace_with(LocalProperty::default());
             self.occlusion_listener
                 .replace_with(LocalProperty::default());
+            self.input_listener.replace_with(LocalProperty::default());
             self.subtree_layout_hull_listener
                 .replace_with(LocalProperty::default());
             self.content_measurement_listener
@@ -3556,12 +3637,18 @@ impl ExpandedNode {
                 .replace_with(LocalProperty::default());
             #[cfg(feature = "3d")]
             {
+                self.support_node.replace_with(LocalProperty::default());
                 self.presentation_geometry
                     .replace_with(LocalProperty::default());
                 self.presentation_view
                     .replace_with(LocalProperty::default());
                 self.own_camera_view.replace_with(LocalProperty::default());
             }
+            self.scroll_state.replace_with(LocalProperty::default());
+            self.local_clip_geometry
+                .replace_with(LocalProperty::default());
+            self.world_clip_geometry
+                .replace_with(LocalProperty::default());
             self.computed_opacity.replace_with(LocalProperty::new(1.0));
             self.subtree_layout_hull
                 .replace_with(LocalProperty::default());
@@ -4246,37 +4333,6 @@ impl ExpandedNode {
             parent = node.render_parent_node();
         }
         true
-    }
-
-    /// Determines whether the provided ray, orthogonal to the view plane,
-    /// intersects this `ExpandedNode`.
-    pub fn ray_cast_test(&self, ray: Point2<Window>) -> bool {
-        if self.is_render_source() {
-            return false;
-        }
-        #[cfg(feature = "3d")]
-        {
-            let geometry = self.presentation_geometry.get();
-            if !self.has_perspective_camera()
-                && borrow!(self.instance_node)
-                    .resolve_convex_mesh(self)
-                    .is_none()
-                && geometry.is_spatial()
-                && geometry
-                    .plane()
-                    .is_none_or(|plane| plane.normal().z.abs() <= 1e-12)
-            {
-                return false;
-            }
-        }
-        let cp = borrow!(self.common_properties);
-
-        // skip raycast if false
-        if !borrow!(&*cp)._raycastable.get().unwrap_or(true) {
-            return false;
-        }
-        drop(cp);
-        borrow!(self.instance_node).ray_cast_test(self, ray)
     }
 
     pub fn compute_flattened_projected_children(&self) {

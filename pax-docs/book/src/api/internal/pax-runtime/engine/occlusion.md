@@ -55,12 +55,62 @@ Dirty/new records refreshed by localized coverage reconciliation.
 ##### `masks_evaluated`
 Type: `u64`
 
-Native masks evaluated by localized reconciliation, including simple structural edits.
+Native masks evaluated after structural or incremental reconciliation.
 
 ##### `mask_candidates`
 Type: `u64`
 
 Canvas candidates examined for those masks.
+
+##### `mask_plan_reuses`
+Type: `u64`
+
+Unchanged dependency plans reused before path mapping or serialization.
+
+##### `mask_path_mappings`
+Type: `u64`
+
+Mask contributions mapped after a geometry/chart dependency changed.
+
+##### `mask_path_serializations`
+Type: `u64`
+
+SVG paths serialized, excluding wire-message cloning.
+
+##### `scroll_lineage_preparations`
+Type: `u64`
+
+Scroller lineage compositions after a dependency change.
+
+##### `clip_geometry_preparations`
+Type: `u64`
+
+Local/source clip shapes prepared after invalidation.
+
+##### `projection_preparations`
+Type: `u64`
+
+Camera projections rebuilt after pose/view/scroll inputs changed.
+
+##### `solid_relation_evaluations`
+Type: `u64`
+
+Exact solid/support front-coverage evaluations (zero without `3d`).
+
+##### `solid_relation_reuses`
+Type: `u64`
+
+Shared or unchanged solid/support coverage reused.
+
+##### `visibility_cache_entries`
+Type: `usize`
+
+Resident auxiliary relation/plan entries across all presentation domains.
+
+##### `visibility_cache_bytes`
+Type: `usize`
+
+Conservatively charged bytes of retained derived coverage and mask plans.
 
 ##### `rebuild_reason`
 Type: `Option`<&'`static` `str`>

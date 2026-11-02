@@ -1,10 +1,11 @@
-<Button x=100% y=0px width=130px height=28px label={self.study ? "Intersection" : "Scroll study"}
-    @button_click=self.switch_study/>
 if self.study {
-    <ScrollStudy width=100% height=100%/>
+    <ScrollStudy width=100% height=100%>
+        <Button x=100% y=0px width=130px height=28px label="Intersection" @button_click=self.switch_study/>
+    </ScrollStudy>
 } else {
     <Scroller width=100% height=100% scroll_height=1380px scroll_pos_y=bind:self.scroll_y>
         <Group width=100% height=1380px anchor=0%>
+            <Button x=100% y=0px width=130px height=28px label="Scroll study" @button_click=self.switch_study/>
             <Group x=32px y=28px width={100% - 64px} height=144px translate_z=1000px>
                 <Text class="label" width=100% height=22px text="PAX / SURFACE STUDIES / 03"/>
                 <Text class="title" y=38px width=100% height=66px text="Fade the assembly."/>

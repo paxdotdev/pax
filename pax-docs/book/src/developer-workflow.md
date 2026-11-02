@@ -80,6 +80,38 @@ at most 64 phase names. P95 uses the first 2,048 samples per phase;
 all recorded samples.
 Starting another profile replaces the previous one.
 
+For runtime-level occlusion measurements, `OcclusionStats::masks_evaluated`
+counts mask queries after both structural rebuilds and incremental updates;
+`mask_candidates` counts their broad-phase canvas candidates. These are work
+counts, not emitted native patches: unchanged masks can still require a query.
+`mask_plan_reuses` counts early unchanged-plan reuse; `mask_path_mappings` and
+`mask_path_serializations` isolate the geometry and SVG work. Opacity-only changes
+can change the patch while leaving both counters unchanged.
+`solid_relation_evaluations` / `solid_relation_reuses` expose shared-plane coverage
+work, and `visibility_cache_entries` / `visibility_cache_bytes` report residency
+across native and GPU domains. GPU profile logs also expose
+`solid_clip_preparations` and `solid_clip_reuses`: unchanged coverage, clip
+geometry, tile viewport, and tolerance reuse stencil preparation. Platform
+rasterization is separate work.
+`scroll_lineage_preparations`, `clip_geometry_preparations`, and
+`projection_preparations` expose the work before those plan lookups: composing a
+scroller's inherited placement, constructing clip shapes, and projecting changed
+3D presentation inputs. Repeated queries should leave all three unchanged.
+Scrolling reuses local clip geometry; standard Frame/Scroller opacity changes
+reuse it too. Source-backed masks conservatively invalidate when their source
+changes. Projection counts are zero in builds without `3d`.
+Compare equivalent scenes and distinguish topology changes from pose-only motion.
+
+`RuntimeContext::input_query_stats()` reports input work separately:
+`bounds_prepared` and `topology_rebuilds` measure preparation, while `candidates`
+and `exact_tests` measure each query. `unknown_tests` counts geometry without a
+finite screen bound; these candidates use the same indexed query path.
+`pending_queries` and `startup_queries` count uncached preparation when retained
+bounds are not safe to use. Repeating a settled query should leave preparation
+counters unchanged; adding distant bounded nodes should not add exact hit tests.
+With the web profiler enabled, the trace snapshot includes these counters as
+`input-query-work` records alongside `occlusion-work`.
+
 These are CPU timings and callback intervals, not GPU execution times or proof
 that every frame reached the display. Use the platform profiler for GPU and
 presentation analysis. The separate **Probe down/up** controls synthesize

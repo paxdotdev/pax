@@ -125,7 +125,6 @@ impl ConvexMesh {
             transform,
             vertices,
             silhouette: OnceCell::new(),
-            front_coverage: RefCell::new(Vec::new()),
             projections: RefCell::new(Vec::new()),
         }))
     }
@@ -140,7 +139,6 @@ pub struct PosedConvexMesh {
     silhouette: OnceCell<Vec<[f64; 2]>>,
     // Native siblings, physical tiles, and fade views often ask about the same
     // plane. Bound residency even when a stationary solid meets animated planes.
-    front_coverage: RefCell<Vec<([f64; 3], Vec<[f64; 2]>)>>,
     // Unscrolled, window, and canvas charts share this mounted world pose.
     projections: RefCell<Vec<Rc<ProjectedConvexMesh>>>,
 }
@@ -160,21 +158,10 @@ impl PosedConvexMesh {
     /// Projects the portion closer than a planar UI surface. Edge/plane crossings
     /// are included, so a panel passing through the volume gets the intersection
     /// contour, not merely a subset of the solid's existing silhouette vertices.
+    /// This unprojected helper is uncached. Camera-aware consumers use
+    /// [`crate::visibility::Relations`] with the actual clipped projection.
     pub fn coverage_in_front(&self, plane: DepthPlane) -> Vec<[f64; 2]> {
-        const MAX_COVERAGE_PLANES: usize = 32;
-        let mut cache = self.front_coverage.borrow_mut();
-        if let Some(index) = cache.iter().position(|(key, _)| *key == plane.coefficients) {
-            let entry = cache.remove(index);
-            let result = entry.1.clone();
-            cache.push(entry);
-            return result;
-        }
-        let result = self.compute_front_coverage(plane);
-        if cache.len() == MAX_COVERAGE_PLANES {
-            cache.remove(0);
-        }
-        cache.push((plane.coefficients, result.clone()));
-        result
+        self.compute_front_coverage(plane)
     }
 
     fn compute_front_coverage(&self, plane: DepthPlane) -> Vec<[f64; 2]> {
@@ -277,7 +264,7 @@ mod tests {
     }
 
     #[test]
-    fn coverage_cache_is_exact_bounded_and_owned_by_the_pose() {
+    fn unprojected_coverage_matches_kernel_without_retaining_the_pose() {
         let mesh = ConvexMesh::sphere(64, 32);
         let pose = mesh.posed(identity()).unwrap();
         for i in 0..96 {
@@ -288,13 +275,10 @@ mod tests {
             let expected = pose.compute_front_coverage(plane);
             assert_eq!(pose.coverage_in_front(plane), expected);
             assert_eq!(pose.coverage_in_front(plane), expected);
-            assert!(pose.front_coverage.borrow().len() <= 32);
         }
-        assert_eq!(pose.front_coverage.borrow().len(), 32);
         let mut transform = identity();
         transform[14] = 2.;
         let moved = mesh.posed(transform).unwrap();
-        assert!(moved.front_coverage.borrow().is_empty());
         let plane = DepthPlane {
             coefficients: [0., 0., 0.8],
             backface: false,
@@ -307,7 +291,7 @@ mod tests {
         drop(pose);
         assert!(
             weak.upgrade().is_none(),
-            "cached contours do not retain removed poses"
+            "coverage queries do not retain removed poses"
         );
     }
 

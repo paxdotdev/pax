@@ -1269,10 +1269,12 @@ impl PaxGpuRenderer {
                 );
                 #[cfg(feature = "3d")]
                 let line = format!(
-                    "{line} spatial_fade_renders={} spatial_fade_cache_hits={} spatial_fade_overflows={}",
+                    "{line} spatial_fade_renders={} spatial_fade_cache_hits={} spatial_fade_overflows={} solid_clip_preparations={} solid_clip_reuses={}",
                     resource_stats.spatial_fade_renders,
                     resource_stats.spatial_fade_cache_hits,
                     resource_stats.spatial_fade_overflows,
+                    resource_stats.solid_clip_preparations,
+                    resource_stats.solid_clip_reuses,
                 );
                 log::trace!("{}", line);
                 #[cfg(not(target_arch = "wasm32"))]
@@ -2685,6 +2687,16 @@ impl RenderContext for PaxGpuRenderer {
         plane: Option<pax_runtime_api::DepthPlane>,
     ) {
         self.apply_drawing_command(layer, DrawingCommand::Depth(node_id, plane));
+    }
+
+    #[cfg(feature = "3d")]
+    fn set_node_coverage_context(
+        &mut self,
+        layer: usize,
+        node: u32,
+        context: pax_runtime_api::visibility::CoverageContext,
+    ) {
+        self.apply_drawing_command(layer, DrawingCommand::Coverage(node, context));
     }
 
     #[cfg(feature = "3d")]

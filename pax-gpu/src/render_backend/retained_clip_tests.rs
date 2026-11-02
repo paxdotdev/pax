@@ -5765,6 +5765,108 @@ fn spatial_fade_reuses_opacity_but_invalidates_camera_projection_and_clip_planes
 #[cfg(feature = "3d")]
 #[test]
 #[ignore = "requires a macOS Metal device"]
+fn shared_solid_relations_reuse_stencils_and_retire_tile_dependencies() {
+    use pax_runtime_api::{
+        mesh3::{ConvexMesh, MeshProjection, OpaqueMeshDraw},
+        visibility::{CoverageContext, Relations},
+        DepthPlane,
+    };
+    use std::{cell::RefCell, rc::Rc};
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 128, 128, [1., 1.]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let relations = Rc::new(RefCell::new(Relations::default()));
+    let context = |node, support| CoverageContext {
+        node: (node, 1),
+        support: (support, 1),
+        domain: 4,
+        relations: relations.clone(),
+    };
+    let mesh = ConvexMesh::sphere(16, 8);
+    let pose = [
+        40., 0., 0., 0., 0., 40., 0., 0., 0., 0., 30., 0., 64., 64., 0., 1.,
+    ];
+    for frame in 0..3 {
+        renderer.begin_node(1, 1, 0);
+        renderer.set_node_coverage_context(1, context(1, 1));
+        renderer.save();
+        renderer.clip(rect(if frame == 2 { 64. } else { 0. }, 0., 128., 128.));
+        renderer.draw_convex_mesh(
+            &OpaqueMeshDraw {
+                mesh: mesh.clone(),
+                world: pose,
+                surface: MeshProjection::new(pose, false).unwrap(),
+                color: pax_runtime_api::Color::RED,
+                material: pax_runtime_api::ResolvedMaterial::Unlit,
+            },
+            Color::rgba(1., 0., 0., 1.),
+            crate::Material::unlit(),
+        );
+        renderer.restore();
+        renderer.end_node(1);
+        for id in 2..8 {
+            renderer.begin_node(id, id as i32, 0);
+            renderer.set_node_coverage_context(id, context(id, 100));
+            renderer.set_node_depth_plane(id, Some(DepthPlane::default()));
+            renderer.fill_path(
+                rect(0., 0., 128., 128.),
+                Fill::Solid(if frame == 0 {
+                    Color::rgba(0., 0., 1., 1.)
+                } else {
+                    Color::rgba(0., 1., 0., 1.)
+                }),
+            );
+            renderer.end_node(id);
+        }
+        renderer.request_screenshot_capture(frame);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let capture = renderer.take_screenshot_capture(frame).unwrap();
+        let pixel = |x: usize, y: usize| &capture.rgba[(y * 128 + x) * 4..(y * 128 + x) * 4 + 4];
+        assert_eq!(
+            pixel(48, 64),
+            if frame == 2 {
+                &[0, 255, 0, 255]
+            } else {
+                &[255, 0, 0, 255]
+            }
+        );
+        let stats = renderer.take_resource_churn_stats();
+        assert_eq!(
+            relations.borrow().stats.evaluations,
+            1,
+            "six coplanar leaves and paint/clip updates share one geometric relation"
+        );
+        if frame == 1 {
+            assert_eq!(stats.solid_clip_preparations, 0);
+            assert!(stats.solid_clip_reuses >= 6);
+            assert_eq!(stats.solid_geometry_upload_bytes, 0);
+        } else {
+            assert!(
+                stats.solid_clip_preparations >= 6,
+                "changed hard clip invalidates stencils"
+            );
+        }
+    }
+    assert_eq!(relations.borrow().residency().0, 1);
+    drop(renderer);
+    assert_eq!(
+        relations.borrow().residency(),
+        (0, 0),
+        "tile destruction releases its chart"
+    );
+}
+
+#[cfg(feature = "3d")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
 fn overlay_domain_stays_above_world_depth_and_reorders_retained_paint() {
     use pax_runtime_api::DepthPlane;
     let layer = MetalLayer::new();

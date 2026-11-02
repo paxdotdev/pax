@@ -121,6 +121,12 @@ pub struct ResourceChurnStats {
     pub solid_geometry_upload_bytes: u64,
     #[cfg(feature = "3d")]
     pub solid_uniform_updates: u64,
+    /// Solid/plane stencil plans rebuilt after geometric dependency changes.
+    #[cfg(feature = "3d")]
+    pub solid_clip_preparations: u64,
+    /// Solid/plane stencils reused without contour conversion or tessellation.
+    #[cfg(feature = "3d")]
+    pub solid_clip_reuses: u64,
     /// Exact presence/absence views rendered for spatial group fades.
     #[cfg(feature = "3d")]
     pub spatial_fade_renders: u64,
@@ -188,6 +194,8 @@ impl ResourceChurnStats {
         {
             self.solid_geometry_upload_bytes += other.solid_geometry_upload_bytes;
             self.solid_uniform_updates += other.solid_uniform_updates;
+            self.solid_clip_preparations += other.solid_clip_preparations;
+            self.solid_clip_reuses += other.solid_clip_reuses;
             self.spatial_fade_renders += other.spatial_fade_renders;
             self.spatial_fade_cache_hits += other.spatial_fade_cache_hits;
             self.spatial_fade_overflows += other.spatial_fade_overflows;
@@ -254,6 +262,7 @@ impl ResourceChurnStats {
         #[cfg(feature = "3d")]
         {
             stats.spatial_fade_renders = 0;
+            stats.solid_clip_reuses = 0;
             stats.spatial_fade_cache_hits = 0;
             stats.spatial_fade_overflows = 0;
         }
@@ -295,9 +304,15 @@ pub struct WgpuRenderer<'w> {
     #[cfg(feature = "3d")]
     depth_planes: HashMap<u32, pax_runtime_api::DepthPlane>,
     #[cfg(feature = "3d")]
+    coverage_nodes: HashMap<u32, pax_runtime_api::visibility::CoverageContext>,
+    #[cfg(feature = "3d")]
+    coverage_chart: Option<pax_runtime_api::visibility::RelationChart>,
+    #[cfg(feature = "3d")]
     spatial_clip_keys: Vec<ClipArenaKey>,
     #[cfg(feature = "3d")]
     solid_clips: HashMap<u32, Vec<ClipReference>>,
+    #[cfg(feature = "3d")]
+    solid_clip_plans: HashMap<ClipArenaKey, solid::SolidClipPlan>,
     #[cfg(feature = "3d")]
     solid_clip_keys: Vec<ClipArenaKey>,
     #[cfg(feature = "3d")]
@@ -804,9 +819,15 @@ impl<'w> WgpuRenderer<'w> {
             #[cfg(feature = "3d")]
             depth_planes: HashMap::new(),
             #[cfg(feature = "3d")]
+            coverage_nodes: HashMap::new(),
+            #[cfg(feature = "3d")]
+            coverage_chart: None,
+            #[cfg(feature = "3d")]
             spatial_clip_keys: Vec::new(),
             #[cfg(feature = "3d")]
             solid_clips: HashMap::new(),
+            #[cfg(feature = "3d")]
+            solid_clip_plans: HashMap::new(),
             #[cfg(feature = "3d")]
             solid_clip_keys: Vec::new(),
             #[cfg(feature = "3d")]
@@ -913,10 +934,13 @@ impl<'w> WgpuRenderer<'w> {
         #[cfg(feature = "3d")]
         {
             self.depth_planes.clear();
+            self.coverage_nodes.clear();
+            self.coverage_chart = None;
             self.spatial_clip_keys.clear();
             self.spatial_region = None;
             self.solid_clip_keys.clear();
             self.solid_clips.clear();
+            self.solid_clip_plans.clear();
             self.spatial_fades = Default::default();
             self.spatial_hidden.clear();
             self.spatial_namespace = 0;
@@ -2175,6 +2199,10 @@ impl<'w> WgpuRenderer<'w> {
         #[cfg(feature = "3d")]
         {
             self.depth_planes.remove(&node_id);
+            self.coverage_nodes.remove(&node_id);
+            if let Some(chart) = &self.coverage_chart {
+                chart.remove_node(node_id);
+            }
         }
         let mut removed = false;
         if let Some(node) = self.scene.remove(&node_id) {

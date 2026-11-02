@@ -564,11 +564,13 @@ Controls keep their mounted identity as the occlusion changes. Tile coverage
 includes the full volume, including a pose whose local XY plane is edge-on.
 
 The mesh topology stays resident during motion. Each immutable world pose keeps
-up to four camera/chart projections. Each projection keeps its silhouette and up
-to 32 solid/plane coverage contours, shared by repeated queries. Paint-only
+up to four camera/chart projections. Each projection keeps its silhouette;
+solid/plane coverage is retained in a runtime-wide cache shared by native masks
+and GPU tiles, limited to 2,048 entries and 4 MiB of charged data. Each tile's
+computational viewport remains part of its coverage identity. Paint-only
 changes reuse these records; changing a camera, its clip planes, the canvas
 viewport, or the solid pose replaces the affected projected geometry. This reduces repeated clipping work
-for native siblings, tiles, and spatial fades, but animated geometry still has
+for coplanar siblings and spatial fades, but animated geometry still has
 CPU intersection work. Use the [web scene profiler](developer-workflow.md#profile-a-web-scene)
 to distinguish that work from paint-only updates in your scene.
 
@@ -824,7 +826,9 @@ The macOS adapter retains AppKit controls and their native editing state. Pointe
 input, focus rings, text selection, selection autoscroll, IME candidate placement,
 and accessibility text geometry follow the projected plane. Editable controls use
 live layer masks, so selection and caret updates remain visible behind moving
-occluders. Full assistive-technology workflows and separately hosted native menus
+occluders. Moving a projected control outside the viewport leaves it mounted;
+its text and control state recover when it comes back into view, including after
+camera or window-size changes. Full assistive-technology workflows and separately hosted native menus
 and popovers have not been qualified under perspective.
 
 CPU renderers diagnose perspective as

@@ -82,6 +82,17 @@ Route moves to the press target until release; ordinary hover still hit-tests.
 Release capture and qualify activation only when the physical release hits the press target.
 Cancellation releases capture without qualifying a click.
 
+##### `input_query_stats`
+<pre><code class="api-signature language-rust ignore">pub fn input_query_stats(&amp;self) -&gt; <a href="../../../api/internal/pax-runtime/scene_geometry.md#inputquerystats">InputQueryStats</a></code></pre>
+
+Work counters for indexed, unbounded-shape and pending-state queries.
+
+##### `mark_node_input_dirty`
+<pre><code class="api-signature language-rust ignore">pub fn mark_node_input_dirty(&amp;self, id: u32)</code></pre>
+
+Invalidate conservative input coverage after non-reactive shape changes.
+This does not invalidate paint or run input/event callbacks.
+
 ##### `add_to_cache`
 <pre><code class="api-signature language-rust ignore">pub fn add_to_cache(&amp;self, node: &amp;Rc&lt;ExpandedNode&gt;)</code></pre>
 
@@ -94,6 +105,11 @@ Whether a presentation-only pass may inspect cached geometry without evaluating
 scene state. Pending geometry, native compositing, and effects block the pass.
 Lighting/removals are checked per layer, and content per selected node:
 never-rendered cold layers must not block unrelated cached surfaces forever.
+
+##### `canvas_coverage_context`
+<pre><code class="api-signature language-rust ignore">pub fn canvas_coverage_context(&amp;self, node: &amp;ExpandedNode, domain: usize) -&gt; <a href="../../../api/pax-runtime-api/visibility.md#coveragecontext">CoverageContext</a></code></pre>
+
+Retained mounted identities and the runtime-wide coverage budget for GPU replay.
 
 ##### `canvas_geometry_for_node`
 <pre><code class="api-signature language-rust ignore">pub fn canvas_geometry_for_node(&amp;self, node: &amp;ExpandedNode) -&gt; Rc&lt;<a href="../../../api/internal/pax-runtime/scene_geometry.md#preparedcanvasgeometry">PreparedCanvasGeometry</a>&gt;</code></pre>
@@ -393,6 +409,13 @@ structural state.
 
 Maps presented window coordinates into a canvas's scroll-content chart.
 This also applies to detached sources whose logical layer differs from the consumer.
+
+##### `mark_node_clip_dirty`
+<pre><code class="api-signature language-rust ignore">pub fn mark_node_clip_dirty(&amp;self, id: u32)</code></pre>
+
+Invalidate clip geometry stored outside the primitive's property graph,
+for example when a detached Mask source changes. Ordinary reactive clip
+properties are tracked automatically.
 
 ##### `viewport_proximity_stats`
 <pre><code class="api-signature language-rust ignore">pub fn viewport_proximity_stats(&amp;self) -&gt; <a href="../../../api/internal/pax-runtime/viewport_proximity.md#viewportproximitystats">ViewportProximityStats</a></code></pre>

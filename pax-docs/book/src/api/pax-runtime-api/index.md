@@ -18,6 +18,7 @@ provide the browsing ontology used by the generated API docs.
 - [cursor](cursor.md)
 - [drawing](drawing.md)
 - [events](events.md)
+- [hit](hit.md)
 - [layout](layout.md)
 - [math](math.md)
 - [mesh3](mesh3.md)
@@ -30,6 +31,7 @@ provide the browsing ontology used by the generated API docs.
 - [transform](transform.md)
 - [unit_value](unit_value.md)
 - [variables](variables.md)
+- [visibility](visibility.md)
 
 ## Constants
 ### `SUPPORTS_3D`

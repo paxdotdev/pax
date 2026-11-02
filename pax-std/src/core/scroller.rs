@@ -831,6 +831,17 @@ impl InstanceNode for ScrollerHostInstance {
         })
     }
 
+    fn property_requires_clip_recompute(&self, name: &str) -> bool {
+        matches!(name, "_clip_content" | "corner_radius")
+    }
+
+    fn property_requires_input_recompute(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "scroll_pos_x" | "scroll_pos_y" | "_presentation_scroll_x" | "_presentation_scroll_y"
+        )
+    }
+
     fn scrolls_content(&self, _expanded_node: &ExpandedNode) -> bool {
         true
     }

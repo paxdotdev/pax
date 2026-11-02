@@ -22,7 +22,19 @@ coplanar boundary. Coplanar resets the card's three pose values; Back face
 turns it away so its background hides its front content. Aperture clips both
 panels through a stationary 2D opening. Reset pose restores the initial pose
 without replacing typed text or the button counter. The controls move below
-the stage in narrow windows, where the page scrolls.
+the stage in narrow windows, where the page scrolls. The lab and solid/card
+buttons beneath the heading scroll away with it; they must not float over the
+stage or surface controls. Return to the top to use them again.
+
+For a visibility regression check, type in the card and increment its counter,
+then switch projection, pan, zoom, and toggle the aperture. Move the amber depth
+through the card to check partial coverage, then hide it and verify that the same
+text and counter remain interactive. Repeat with **Show solid volume** to exercise
+curved coverage. The tile lab below checks scroll-coordinate and near-plane recovery.
+The runtime's occlusion counters distinguish mask-plan reuse, path mapping/SVG
+serialization, and solid/support relation evaluations. A solid crossing several
+coplanar controls shares its front coverage; changing opacity alone preserves
+that geometry. Native mask rasterization can still be required on opacity changes.
 
 This fixture requires the GPU renderer for depth composition. It uses the
 root camera, zero-thickness surfaces, and `rotate_x`, `rotate_y`,
@@ -65,6 +77,13 @@ These two sliders affect perspective mode. The controls and the Scroller are par
 of the same world, so changing the lens also projects them; scroll inside the
 projected viewport. Reset pose restores orthographic mode and the initial lens.
 
+For the macOS offscreen-layout regression, pause motion, hide amber, set X tilt
+to 20°, Y tilt to −45°, and Z to 0. Switch to perspective, pan, and zoom out.
+Type into the live textbox, shrink the window until the panel is below the
+viewport, and enlarge it again. The textbox and button must remain mounted and
+usable. The native projection tests also check empty visibility and recovery
+through nested projected hosts.
+
 **Open tile / near-plane lab** switches to a 4096×4096 scrolling grid with a
 tilted nested viewport and a live editor. **Jump to far tiles** moves to (3072,
 3072) and brings the same editor along; return to check that its text and nested
@@ -80,3 +99,10 @@ Pan, zoom, switch projection, adjust Amber depth, and toggle the aperture to com
 its curved intersection with the live textbox, slider, and button. The camera
 moves the same retained mesh; controls keep their editing state as the volume
 passes in front of them. Near/far cuts remove surface triangles without adding caps.
+
+For input-index diagnostics, open with `?pax_scroll_perf&pax_surface_trace` and
+expand **Surface trace snapshot** after interacting. `input-query-work` records
+show candidate/exact-test counts, prepared bounds, and pending/startup queries.
+Pausing motion and repeating a hit should reuse prepared geometry; camera or
+scroll motion invalidates the affected placements. Input shapes and paint
+coverage remain separate, including for layout-only nodes.
