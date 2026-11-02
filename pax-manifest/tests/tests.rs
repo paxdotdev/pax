@@ -1907,6 +1907,7 @@ mod tests {
     #[cfg(feature = "code_serialization")]
     fn test_serialize_timeline_block() {
         let component = ComponentDefinition {
+            document: None,
             type_id: TypeId::build_singleton("Example", Some("Example")),
             is_main_component: false,
             is_primitive: false,
@@ -2041,6 +2042,7 @@ mod tests {
         });
 
         let component = ComponentDefinition {
+            document: None,
             type_id: component_type_id.clone(),
             is_main_component: false,
             is_primitive: false,
@@ -2219,6 +2221,7 @@ mod tests {
         });
 
         let component = ComponentDefinition {
+            document: None,
             type_id: component_type_id.clone(),
             is_main_component: false,
             is_primitive: false,

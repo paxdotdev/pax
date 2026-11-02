@@ -1602,3 +1602,23 @@ Coordinating lifecycle entry with native presentation readiness remains open.
   Investigate bounding the reactive backlog admitted during background mounting;
   this is a remaining limit of settling the shared graph, not dropped resize
   feedback. Absolute timings are not a controlled performance comparison.
+
+- 2026-11-02 — PAX-839 staging crawler check: after all 105 release files
+  uploaded and matched their local checksums, Google's Rich Results smartphone
+  test captured a black page with an empty native overlay. Expected the homepage
+  copy to appear after JavaScript rendering. Automatic rendering logged "No
+  available adapters"; the existing `pax_renderer=cpu` control also captured an
+  empty overlay, with no console messages. Both tests reported successful fetches.
+  Search Console's verified live inspection reproduced the empty content despite
+  reporting "URL is available to Google"; fetchability is not a content check.
+  Adapter availability alone therefore does not explain the missing content.
+  Results and rendered HTML evidence are recorded in PAX-839; static semantic
+  content and more precise startup attribution remain follow-ups.
+
+- 2026-11-02 — PAX-839 isolated staging preview: `?pax_route=/` correctly
+  relocates bundle loading to the entry directory, but the website's root-absolute
+  `/assets/fonts/Manrope.ttf` URL still targets the staging host root. Expected the
+  packaged font beside the preview to load; observed a font NetworkError and
+  fallback typography. A changed `<base>` cannot relocate root-absolute URLs.
+  Keep this subdirectory-deployment limitation separate from the Google test's
+  failure to mount any native content; do not use this preview for typography QA.

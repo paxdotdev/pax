@@ -1654,6 +1654,7 @@ mod tests {
         components.insert(
             example_type_id.clone(),
             ComponentDefinition {
+                document: None,
                 type_id: example_type_id.clone(),
                 is_main_component: true,
                 is_primitive: false,
@@ -1673,6 +1674,7 @@ mod tests {
         components.insert(
             group_type_id.clone(),
             ComponentDefinition {
+                document: None,
                 type_id: group_type_id,
                 is_main_component: false,
                 is_primitive: true,

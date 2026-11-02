@@ -37,6 +37,7 @@ use pax_runtime::{
 /// navigation instead, preserving the query and fragment. The hosting server
 /// must separately serve those paths. This web setting does not change native
 /// routing or `target=New` behavior.
+#[pax_document(link)]
 pub struct Link {
     /// Destination URL.
     pub url: Property<String>,

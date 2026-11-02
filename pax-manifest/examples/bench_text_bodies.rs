@@ -51,6 +51,7 @@ fn main() {
             std::hint::black_box(lower());
         });
         let component = ComponentDefinition {
+            document: None,
             type_id: root.clone(),
             is_main_component: true,
             is_primitive: false,

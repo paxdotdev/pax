@@ -76,7 +76,7 @@ export class PaxChassisWeb {
   startup_pending(): boolean;
   prepare_startup_presentation(): boolean;
   finish_startup_presentation(): void;
-  service_startup(budget_ms: number): [any[], {pending: boolean; units: number; mounted: number; effects: number; elapsed_ms: number; longest_unit_ms: number; longest_unit: string}];
+  service_startup(budget_ms: number): [any[], {pending: boolean; units: number; mounted: number; effects: number; peak_queued_effects: number; elapsed_ms: number; longest_unit_ms: number; longest_unit: string}];
   tick(): any;
   tick_profiled(): [any, [string, number][], {passes: number; rebuilds: number; structural_reconciliations: number; records_retained: number; orders_updated: number; records_updated: number; masks_evaluated: number; mask_candidates: number; rebuild_reason: string | null; rebuild_node: number | null; rebuild_origins: ({file: string; line: number; node: number | null; count: number} | null)[]}, InputQueryWork];
   set_surface_ready_callback(callback: (() => void) | undefined): void;

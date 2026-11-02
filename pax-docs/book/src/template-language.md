@@ -62,6 +62,65 @@ Separate `.pax` files keep the interface easy to find and edit. See
 [Components and Composition](components-composition.md) for defining and
 organizing reusable components.
 
+## Static page text on the web
+
+Web builds extract a bounded text document into the initial HTML, in debug and
+release builds. **Read page text** opens a native HTML view of that content and
+its links. It works without JavaScript and remains available while Pax mounts
+progressively and afterward. This is a source-derived reading view, not a
+server-rendered copy of the running scene or a guarantee of search indexing.
+
+Use reserved documentation comments to mark headings and omit demonstrations:
+
+```pax
+///#h1
+<Text>A place for your ideas</Text>
+<Text>Capture a thought and follow where it leads.</Text>
+<Link url="/about"><Text>About this project</Text></Link>
+///#ignore
+<Group>
+    <Text>Text inside an interactive demonstration</Text>
+</Group>
+```
+
+`///#h1` through `///#h6` make the next text component a heading in the extracted
+document. `///#ignore` omits the next node and its descendants from extraction;
+it does not change the live interface. Each directive occupies its own line
+before a node in the same template scope. Ordinary comments may intervene.
+Directives cannot cross a closing tag or an `@settings` boundary. Unknown names,
+arguments (including PAXEL), conflicting directives, and unattached directives
+are compile errors. A heading must target a text component, not a container.
+`//#h2` and `/// ordinary prose` remain ordinary comments.
+
+Extraction follows source order, declared component inputs, and projected
+children. It recognizes `Text`, `Link`, standard layout containers, and the
+content child of `Mask`. A literal `markdown=true` on Text uses Markdown for
+that text; raw HTML is omitted and unsafe link schemes are not emitted.
+This does not add a separate Markdown metadata field.
+
+Only provable source values are used: literals, passed inputs, lists and object
+fields, string concatenation, boolean logic/equality, ternaries, known conditions,
+and bounded repeats. Rust defaults, lifecycle handlers, arbitrary helper calls,
+two-way bindings, viewport/layout measurements, and dynamic imported settings
+are not evaluated. Local selectors follow type, class-list, id, and inline
+precedence; fields that imported providers could override remain unknown unless
+an inline value resolves them. Unknown content or structural branches are
+omitted with build diagnostics, rather than guessing which runtime state wins.
+Numeric slot indices require a projection without control-flow expansion.
+Traversal is bounded to 64 levels, 50,000 nodes, and 256 entries per repeat;
+individual extracted text values are limited to 1 MiB.
+
+Rebuild to refresh the extracted HTML after template edits; Pax hot reload updates
+the live scene, not this build-time snapshot.
+
+Review the built HTML and diagnostics, especially when essential copy comes
+from Rust. Pass stable copy as template inputs where appropriate, and use
+`///#ignore` for intentionally non-documentary subtrees. These declarations do
+not add reactive properties or enter release-baked programs. See
+[component document contracts](components-composition.md#document-extraction-contracts)
+for components that project children through runtime machinery, and
+[routing](routing.md) for route-specific HTML.
+
 ## Setting values
 
 An attribute such as `width=320px` assigns a property on an element. Some

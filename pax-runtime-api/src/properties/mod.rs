@@ -94,6 +94,15 @@ pub fn has_pending_effects() -> bool {
     PROPERTY_TABLE.with(|t| t.has_pending_effects())
 }
 
+/// Queued effects and cutoff propagation for the entered graph, including unowned
+/// work. Without an entered graph, counts all work. Entries already settled by a
+/// synchronous read can remain queued until drained, so this is an admission signal,
+/// not a count of evaluations that will run. Does not evaluate or scan properties.
+#[doc(hidden)]
+pub fn pending_effect_count() -> usize {
+    PROPERTY_TABLE.with(|t| t.pending_effect_count())
+}
+
 #[doc(hidden)]
 pub fn drain_effects(max_iterations: usize) -> usize {
     PROPERTY_TABLE.with(|t| t.drain_effects(max_iterations))

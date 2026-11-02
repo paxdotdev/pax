@@ -2,6 +2,7 @@
     <Stacker id=gallery_content y=80px width=100% autosize=true gutter=30px>
         <Stacker x=50% width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=18px anchor_x=50%>
             <Text class="gallery_eyebrow" width=100%>A love poem to the pixel</Text>
+            ///#h2
             <Text class="gallery_title" width=100%>Meet Pax's creative toolkit:</Text>
         </Stacker>
         <Group width=100% height={self.compact ? 546px : 522px}>

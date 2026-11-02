@@ -1915,6 +1915,7 @@ fn root_exit_opacity_binds_and_reaches_children_in_rich_and_binary_manifests() {
         ..Default::default()
     });
     let component = |type_id, template, is_main_component| ComponentDefinition {
+        document: None,
         type_id,
         template,
         is_main_component,
@@ -2023,6 +2024,7 @@ fn rich_and_binary_manifests_build_the_same_shared_node_local_plan() {
     let mut template = ComponentTemplate::new(root_type.clone(), None);
     let leaf_id = template.add_root_node_back(leaf_plan.node.clone());
     let component = |type_id, template, is_main_component| ComponentDefinition {
+        document: None,
         type_id,
         template,
         is_main_component,

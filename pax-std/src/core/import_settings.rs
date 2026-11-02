@@ -17,6 +17,7 @@ use_RefCell!();
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::core::import_settings::ImportSettingsInstance")]
+#[pax_document(settings)]
 pub struct ImportSettings {
     /// Optional motion for changes to effective imported settings. Each new
     /// target starts a full-duration transition from the currently displayed value.

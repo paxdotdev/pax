@@ -167,6 +167,7 @@ impl From<&ComponentDefinition> for BinaryComponentDefinition {
 impl BinaryComponentDefinition {
     fn into_component_definition(self) -> ComponentDefinition {
         ComponentDefinition {
+            document: None,
             type_id: self.type_id,
             is_main_component: self.is_main_component,
             is_primitive: self.is_primitive,
@@ -1152,6 +1153,7 @@ mod tests {
         components.insert(
             type_id.clone(),
             ComponentDefinition {
+                document: None,
                 type_id: type_id.clone(),
                 is_main_component: true,
                 is_primitive: false,

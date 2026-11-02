@@ -30,6 +30,7 @@ const STACKER_REFLOW_CURVE: ContainerReflowCurve = ContainerReflowCurve::OutQuad
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::layout::stacker::StackerInstance")]
 #[custom(Default)]
+#[pax_document(children)]
 pub struct Stacker {
     /// The direction the stacker should flow its cells
     pub direction: Property<StackerDirection>,

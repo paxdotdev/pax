@@ -85,7 +85,7 @@ impl RustManifestWriter {
 
     fn component_definition(&self, definition: &ComponentDefinition) -> String {
         format!(
-            "{mp}::ComponentDefinition {{ type_id: {type_id}, is_main_component: {is_main_component}, is_primitive: {is_primitive}, is_struct_only_component: {is_struct_only_component}, module_path: {module_path}, primitive_instance_import_path: {primitive_instance_import_path}, template: {template}, settings: {settings}, timelines: {timelines}, camera: {camera}, route_branch: {route_branch} }}",
+            "{mp}::ComponentDefinition {{ document: None, type_id: {type_id}, is_main_component: {is_main_component}, is_primitive: {is_primitive}, is_struct_only_component: {is_struct_only_component}, module_path: {module_path}, primitive_instance_import_path: {primitive_instance_import_path}, template: {template}, settings: {settings}, timelines: {timelines}, camera: {camera}, route_branch: {route_branch} }}",
             mp = self.manifest_path,
             type_id = self.type_id(&definition.type_id),
             is_main_component = definition.is_main_component,

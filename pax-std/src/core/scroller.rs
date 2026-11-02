@@ -41,6 +41,7 @@ use_RefCell!();
 
 )]
 #[custom(Default)]
+#[pax_document(children)]
 pub struct Scroller {
     /// Horizontal scroll offset, in pixels.
     pub scroll_pos_x: Property<f64>,

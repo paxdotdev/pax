@@ -633,6 +633,13 @@ fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
                     }
                 }
             }
+            Some(s) if s == "pax_document" => {
+                let kind = attr.parse_args::<syn::Ident>()
+                    .expect("pax_document expects a document kind");
+                kind.to_string().parse::<pax_manifest::document::DocumentKind>()
+                    .expect("unknown document kind");
+                return false;
+            }
             Some(s) if s == "route_branch" => {
                 return false;
             }

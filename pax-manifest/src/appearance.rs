@@ -234,6 +234,7 @@ mod tests {
             components: BTreeMap::from([(
                 ty.clone(),
                 ComponentDefinition {
+                    document: None,
                     type_id: ty.clone(),
                     is_main_component: true,
                     is_primitive: false,

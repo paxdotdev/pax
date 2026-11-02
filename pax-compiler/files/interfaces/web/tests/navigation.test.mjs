@@ -11,7 +11,7 @@ function harness(href = 'https://app.example/settings', prefixes = ['/blog']) {
     location.assign = url => assigned.push(url);
     const window = {location, open:(...args)=>opened.push(args), history:Object.fromEntries(
         ['pushState','replaceState'].map(method=>[method, (...args)=>history.push({method,args})]))};
-    const document = {baseURI:href, getElementById:id=>prefixes === null ? null :
+    const document = {baseURI:href, getElementById:id=>id !== "pax-web-config" || prefixes === null ? null :
         {textContent:JSON.stringify({server_owned_prefixes:prefixes})}};
     const module = {exports:{}};
     vm.runInNewContext(code, {module, exports:module.exports, URL, window, document, console,

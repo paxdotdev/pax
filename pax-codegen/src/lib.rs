@@ -54,6 +54,7 @@ pub fn add_runtime_root(manifest: &mut PaxManifest) {
     manifest.components.insert(
         wrapper.clone(),
         ComponentDefinition {
+            document: None,
             type_id: wrapper,
             is_main_component: false,
             is_primitive: false,

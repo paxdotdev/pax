@@ -490,6 +490,7 @@ mod tests {
         components.insert(
             component_type_id.clone(),
             ComponentDefinition {
+                document: None,
                 type_id: component_type_id.clone(),
                 is_main_component: true,
                 is_primitive: false,

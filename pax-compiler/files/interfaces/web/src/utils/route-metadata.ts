@@ -17,6 +17,7 @@ type RouteCatalogEntry = {
 
 type RouteCatalog = {
     version: number;
+    documents?: Record<string, string>;
     site: {
         title: string;
         site_name: string;
@@ -213,8 +214,38 @@ function applyUnmatchedRouteMetadata(catalog: RouteCatalog) {
     setMeta("name", "twitter:image:alt", null);
 }
 
+let documentUpdate = 0;
+const initializedTextViews = new WeakSet<HTMLElement>();
+
+function connectTextView(view: HTMLElement) {
+    if (initializedTextViews.has(view)) return;
+    initializedTextViews.add(view);
+    const mount = document.getElementById("mount");
+    if (!mount) return;
+    const originallyInert = mount.inert;
+    const sync = () => { mount.inert = originallyInert || view.hasAttribute("open"); };
+    view.addEventListener("toggle", sync);
+    sync();
+}
+
 export async function updateDocumentRouteMetadata(url: URL) {
+    const update = ++documentUpdate;
+    const path = normalizedPath(url.pathname);
+    const textView = document.getElementById("pax-page-text");
+    if (textView) connectTextView(textView);
+    const article = textView?.querySelector("article");
+    if (textView && article && textView.dataset.route !== path) {
+        // Never show the previous route's text while navigation metadata loads.
+        article.textContent = "Loading page text…";
+    }
     let catalog = await loadRouteCatalog();
+    if (update !== documentUpdate) return;
+    if (textView && article && textView.dataset.route !== path) {
+        const content = catalog?.documents?.[path];
+        if (content) article.innerHTML = content; // Compiler-generated, escaped HTML from our route catalog.
+        else article.textContent = "A text view is not available for this route.";
+        textView.dataset.route = path;
+    }
     if (catalog == null) {
         return;
     }

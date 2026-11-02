@@ -4,6 +4,7 @@
 
 ## Submodules
 - [appearance](appearance.md)
+- [document](document.md)
 - [program_ir](program_ir.md)
 - [selectors](selectors.md)
 - [cartridge_generation](cartridge_generation.md)
@@ -14,6 +15,11 @@ Container for an entire component definition — includes template, settings,
 event bindings, property definitions, and compiler + reflection metadata
 
 #### Properties
+##### `document`
+Type: `Option`<[`DocumentKind`](../../../api/internal/pax-manifest/document.md#documentkind)>
+
+Compiler-only document extraction contract. It is omitted from baked programs.
+
 ##### `type_id`
 Type: [`TypeId`](../../../api/internal/pax-manifest/index.md#typeid)
 

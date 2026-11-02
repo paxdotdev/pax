@@ -727,3 +727,19 @@ for the hosting configuration and its verification checklist.
   direct links, and static hosting.
 - [Router and standard route branch reference](api/pax-std/core/router.md)
   and [Link reference](api/pax-std/core/link.md) — individual component fields.
+
+### Extracted route text
+
+Web entry documents include the [static page text](template-language.md#static-page-text-on-the-web)
+selected for each concrete route, plus the root entry for applications without
+route metadata. Extraction follows the first matching explicit branch, then the
+fallback, and passes catch-all tails to nested routers. It does not enumerate
+parameter values or invent data for symbolic routes.
+
+The native **Read page text** disclosure remains available alongside the live
+scene. Client-side navigation replaces its content from the generated route
+catalog; routes without a concrete extracted document report that a text view
+is unavailable. Extracted links use normal browser navigation and work without
+Pax or WebAssembly. Deployment must serve the generated route entry documents,
+as it does for route metadata. This adds useful initial HTML; it does not promise
+that a crawler will index a route or execute the live application.

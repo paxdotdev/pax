@@ -88,6 +88,7 @@ pub struct MarqueeCell {
 #[pax]
 #[file("feature_gallery/marquee.pax")]
 #[custom(Default)]
+#[pax_document(children)]
 pub struct MarqueeCarousel {
     pub card_width_px: Property<f64>,
     pub gap_px: Property<f64>,

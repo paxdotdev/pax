@@ -1270,6 +1270,7 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
         }
 
         let new_component = ComponentDefinition {
+            document: None,
             type_id: new_component_type_id.clone(),
             is_main_component: false,
             is_primitive: false,

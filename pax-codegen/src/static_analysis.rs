@@ -347,6 +347,7 @@ fn build_definitions(
     };
     validate_asset_paths(&manifest.assets_dirs)?;
     validate_appearance_properties(&manifest)?;
+    pax_manifest::document::validate_heading_targets(&manifest).map_err(|error| eyre!(error))?;
     Ok(manifest)
 }
 
@@ -464,7 +465,7 @@ fn build_item_recursive(
         },
     );
 
-    let component_definition = match &item.kind {
+    let mut component_definition = match &item.kind {
         PaxItemKind::FullComponent {
             raw_pax,
             associated_pax_file_path,
@@ -554,6 +555,7 @@ fn build_item_recursive(
         }
     };
 
+    component_definition.document = item.document;
     ctx.component_definitions
         .insert(self_type_id, component_definition);
     Ok(())
@@ -1467,6 +1469,7 @@ fn register_struct_item(
             .engine_import_path
             .unwrap_or_else(|| DEFAULT_ENGINE_IMPORT_PATH.to_string()),
         route_branch: config.route_branch,
+        document: config.document,
         package_name: package_context.package_name.clone(),
     })
 }
@@ -1496,6 +1499,7 @@ fn register_enum_item(
             .engine_import_path
             .unwrap_or_else(|| DEFAULT_ENGINE_IMPORT_PATH.to_string()),
         route_branch: config.route_branch,
+        document: config.document,
         package_name: package_context.package_name.clone(),
     })
 }
@@ -1710,6 +1714,13 @@ fn parse_pax_config(attrs: &[Attribute], source_file_contents: &str) -> Result<P
                         config.is_primitive = true;
                         config.primitive_instance_import_path = Some(path_str.value());
                     }
+                }
+            }
+            Some(ref ident) if ident == "pax_document" => {
+                let kind = attr.parse_args::<syn::Ident>()?.to_string().parse()
+                    .map_err(|e: String| eyre!(e))?;
+                if config.document.replace(kind).is_some() {
+                    return Err(eyre!("only one pax_document contract may be declared"));
                 }
             }
             Some(ref ident) if ident == "route_branch" => {
@@ -2816,6 +2827,7 @@ struct ScannedPaxItem {
     data: DataSummary,
     engine_import_path: String,
     route_branch: Option<RouteBranchDescriptor>,
+    document: Option<pax_manifest::document::DocumentKind>,
     package_name: String,
 }
 
@@ -2883,6 +2895,7 @@ struct PaxConfig {
     primitive_instance_import_path: Option<String>,
     is_primitive: bool,
     route_branch: Option<RouteBranchDescriptor>,
+    document: Option<pax_manifest::document::DocumentKind>,
 }
 
 #[cfg(test)]
@@ -2924,6 +2937,17 @@ mod tests {
         assert!(!names
             .iter()
             .any(|name| name.contains("AppOnly") || name.contains("Main")));
+    }
+
+    #[test]
+    fn document_contract_is_a_static_rust_declaration() {
+        let source = "#[pax] #[pax_document(children)] struct Carousel {}";
+        let item: syn::ItemStruct = syn::parse_str(source).unwrap();
+        assert_eq!(parse_pax_config(&item.attrs, source).unwrap().document,
+            Some(pax_manifest::document::DocumentKind::Children));
+        let source = "#[pax] #[pax_document(unknown)] struct Carousel {}";
+        let item: syn::ItemStruct = syn::parse_str(source).unwrap();
+        assert!(parse_pax_config(&item.attrs, source).is_err());
     }
 
     #[test]
@@ -3512,9 +3536,15 @@ pub struct SvgLogo {
         let bytes = pax_manifest::binary::to_vec(&manifest).expect("manifest should serialize");
         let decoded =
             pax_manifest::binary::from_slice(&bytes).expect("manifest should deserialize");
+        // Document contracts belong to source extraction, not the runtime binary.
+        let mut runtime_manifest = manifest.clone();
+        for component in runtime_manifest.components.values_mut() {
+            component.document = None;
+        }
         assert_eq!(
             serde_json::to_value(&decoded).expect("decoded manifest should serialize to json"),
-            serde_json::to_value(&manifest).expect("source manifest should serialize to json")
+            serde_json::to_value(&runtime_manifest)
+                .expect("runtime manifest should serialize to json")
         );
 
         let ir = pax_manifest::program_ir::ProgramIR::from_manifest(&manifest);
@@ -3814,6 +3844,7 @@ pax-kit = {{ path = "{}" }}
             data: DataSummary::Struct(vec![]),
             engine_import_path: DEFAULT_ENGINE_IMPORT_PATH.to_string(),
             route_branch: None,
+            document: None,
             package_name: import_path
                 .split("::")
                 .next()

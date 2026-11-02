@@ -308,15 +308,64 @@ fn draining_one_application_does_not_run_another_applications_effects() {
     let _b = make_effect(&second, second_runs.clone());
     {
         let _entered = first.enter();
+        assert_eq!(pending_effect_count(), 1);
         drain_effects(100);
+        assert_eq!(pending_effect_count(), 0);
     }
     assert_eq!(first_runs.get(), 1);
     assert_eq!(second_runs.get(), 0);
     {
         let _entered = second.enter();
+        assert_eq!(pending_effect_count(), 1);
         drain_effects(100);
+        assert_eq!(pending_effect_count(), 0);
     }
     assert_eq!(second_runs.get(), 1);
+}
+
+#[test]
+fn pending_work_count_includes_cutoffs_and_unowned_work_without_evaluating() {
+    drain_effects(100);
+    let unowned = LocalProperty::computed(|| (), &[]);
+    register_effect_property(&unowned);
+    let first = PropertyGraph::new(|| {});
+    let second = PropertyGraph::new(|| {});
+    let _other_effect = {
+        let _entered = second.enter();
+        let effect = LocalProperty::computed(|| (), &[]);
+        register_effect_property(&effect);
+        effect
+    };
+    {
+        let _entered = first.enter();
+        let source = LocalProperty::new(1);
+        let read = source.clone();
+        let cutoff =
+            LocalProperty::computed_with_cutoff(move || read.get(), &[source.untyped()], i32::eq);
+        assert_eq!(cutoff.get(), 1);
+        source.set(2);
+        assert_eq!(
+            pending_effect_count(),
+            2,
+            "one cutoff and the unowned effect"
+        );
+        let report = drain_effects_with_report(1);
+        assert_eq!(
+            report.cutoffs_evaluated,
+            1,
+            "counting did not evaluate the cutoff"
+        );
+        assert_eq!(pending_effect_count(), 1);
+        drain_effects(100);
+        assert_eq!(pending_effect_count(), 0);
+    }
+    {
+        let _entered = second.enter();
+        assert_eq!(pending_effect_count(), 1, "other graph work is still queued");
+        drain_effects(100);
+    }
+    first.close();
+    second.close();
 }
 
 #[test]

@@ -493,3 +493,13 @@ For more detail, see the [forms API](api/pax-std/forms.md),
 [PhotoPicker API](api/pax-std/forms/photo_picker.md),
 [event payloads](api/pax-runtime-api/events.md), and
 [image sources](text-fonts-images.md#image-sources).
+
+## Reading static web content
+
+Web builds provide a native **Read page text** disclosure for statically
+extractable content. It supports keyboard navigation and ordinary HTML links
+before and after the live scene initializes, without requiring JavaScript.
+[Documentation directives](template-language.md#static-page-text-on-the-web)
+provide headings and exclude demonstrations from this view. This is a reading
+alternative for source-known text, not a complete accessibility representation
+of interactive controls or runtime state.

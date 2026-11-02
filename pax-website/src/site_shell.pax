@@ -3,6 +3,7 @@
     <DynamicIslandSpacer edge=SafeAreaEdge::Bottom inset=bind:self.safe_bottom/>
     <DynamicIslandSpacer edge=SafeAreaEdge::Left inset=bind:self.safe_left/>
     <DynamicIslandSpacer edge=SafeAreaEdge::Right inset=bind:self.safe_right/>
+    ///#ignore
     <Overlay>
         <Group id=site_nav x={(self.safe_left)px} y={(self.safe_top)px}
             width={100% - (self.safe_left + self.safe_right)px} height={self.compact ? 64px : 80px}>

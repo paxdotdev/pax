@@ -131,6 +131,7 @@ fn rich_and_baked_roundtrips_keep_only_required_body_data() {
     manifest.components.insert(
         id.clone(),
         ComponentDefinition {
+            document: None,
             type_id: id.clone(),
             is_main_component: true,
             is_primitive: false,
@@ -211,6 +212,7 @@ fn source_edits_serialize_current_values_not_stale_body_text() {
         }
         let expected = body_values(&template);
         let component = ComponentDefinition {
+            document: None,
             type_id: TypeId::build_singleton("test::Group", Some("Group")),
             is_main_component: true,
             is_primitive: false,

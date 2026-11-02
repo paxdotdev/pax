@@ -11,6 +11,11 @@ use std::{
     rc::{Rc, Weak},
 };
 
+// Soft admission threshold: one mount or feedback event can exceed it. Drain a
+// batch before admitting more background work so late viewport feedback does not
+// inherit the entire page's mount backlog. This is not a per-unit time bound.
+const BACKGROUND_EFFECT_LIMIT: usize = 2048;
+
 #[derive(Default)]
 pub(crate) struct Startup {
     active: bool,
@@ -32,6 +37,7 @@ pub(crate) struct Startup {
     ticked: HashSet<(ExpandedNodeIdentifier, u64)>,
     pre_rendered: HashSet<(ExpandedNodeIdentifier, u64)>,
     clock_advanced: bool,
+    draining_background_effects: bool,
 }
 
 fn startup_key(node: &ExpandedNode) -> (ExpandedNodeIdentifier, u64) {
@@ -80,6 +86,9 @@ pub struct StartupReport {
     /// Mount continuations attempted, including deferred or discarded stale entries.
     pub mounted: usize,
     pub effects: usize,
+    /// Largest queued effect/cutoff count observed during this service call.
+    /// Includes entries already settled by synchronous reads but not yet popped.
+    pub peak_queued_effects: usize,
     pub elapsed_ms: f64,
     pub longest_unit_ms: f64,
     pub longest_unit: &'static str,
@@ -423,6 +432,7 @@ impl PaxEngine {
         // application-store changes without keeping a graph guard across yields.
         ctx.property_graph
             .import_batch_with_observer(1024, &mut |_| {});
+        report.peak_queued_effects = properties::pending_effect_count();
         while self.startup_pending()
             && !ctx.startup.borrow().ready
             && (report.units == 0 || now_ms() - start < budget_ms.max(0.0))
@@ -436,9 +446,32 @@ impl PaxEngine {
                 .as_ref()
                 .is_some_and(|handlers| !handlers.is_empty());
             let name;
+            let drain_background = {
+                let mut state = ctx.startup.borrow_mut();
+                if state.is_prioritizing() {
+                    state.draining_background_effects = false;
+                } else if !dispatching_handlers {
+                    let pending = properties::pending_effect_count();
+                    if pending == 0 {
+                        state.draining_background_effects = false;
+                    } else if pending >= BACKGROUND_EFFECT_LIMIT {
+                        state.draining_background_effects = true;
+                    }
+                }
+                state.draining_background_effects && !dispatching_handlers
+            };
+            let drained_background = drain_background && properties::drain_effects(1) > 0;
+            if drain_background && !drained_background {
+                // A queue can contain only entries already settled by reads.
+                // Popping them must release admission before the next mount.
+                ctx.startup.borrow_mut().draining_background_effects = false;
+            }
             // Required settlement precedes each phase. A mounted node can enqueue
             // descendants; reverse each newly emitted batch to preserve DFS order.
-            if ctx.mount_one_pending() {
+            if drained_background {
+                report.effects += 1;
+                name = "effect";
+            } else if ctx.mount_one_pending() {
                 report.mounted += 1;
                 name = "mount";
             } else if !dispatching_handlers && properties::drain_effects(1) > 0 {
@@ -585,6 +618,9 @@ impl PaxEngine {
                 report.longest_unit = name;
             }
             report.units += 1;
+            report.peak_queued_effects = report
+                .peak_queued_effects
+                .max(properties::pending_effect_count());
         }
         report.pending = self.startup_pending();
         report.ready_to_present = ctx.startup.borrow().ready;
@@ -768,6 +804,106 @@ mod tests {
             }
         }
         panic!("startup did not reach a presentation checkpoint");
+    }
+
+    #[test]
+    fn background_admission_drains_in_batches_and_feedback_preserves_lifecycles() {
+        let mut engine = new_engine();
+        let ctx = Rc::clone(&engine.runtime_context);
+        let _graph = ctx.property_graph.enter();
+        engine.mount_root_component(component(vec![
+            box_at(0.0, vec![]),
+            box_at(
+                500.0,
+                (0..32)
+                    .map(|_| {
+                        component(
+                            (0..32)
+                                .map(|_| component(vec![]) as Rc<dyn InstanceNode>)
+                                .collect(),
+                        ) as Rc<dyn InstanceNode>
+                    })
+                    .collect(),
+            ),
+        ]));
+        reach_checkpoint(&mut engine);
+        engine.resume_startup_after_presentation();
+        let mut mounted = 0;
+        let mut effects = 0;
+        let mut peak = 0;
+        let mut feedback_start = None;
+        let mut feedback_units = None;
+        let mut batch_started = false;
+        let mut batch_finished = false;
+        for unit in 0..300_000 {
+            let report = engine.service_startup(0.0, || 0.0);
+            mounted += report.mounted;
+            effects += report.effects;
+            peak = peak.max(report.peak_queued_effects);
+            if feedback_start.is_none() {
+                if report.effects > 0 {
+                    batch_started = true;
+                } else if batch_started && report.mounted > 0 {
+                    // Finish the admitted batch before another background mount;
+                    // alternating single effects/mounts would amplify layout work.
+                    assert!(!ctx.startup.borrow().draining_background_effects);
+                    batch_finished = true;
+                }
+            }
+            if mounted >= 512 && feedback_start.is_none() {
+                engine.request_startup_settlement();
+                feedback_start = Some(unit);
+            }
+            if engine.accept_startup_measurements() {
+                if feedback_units.is_none() {
+                    feedback_units = feedback_start.map(|start| unit - start);
+                }
+                engine.resume_startup_after_presentation();
+            }
+            if !engine.startup_pending() {
+                eprintln!("backlog: peak={peak}, mounted={mounted}, effects={effects}, units={}, feedback_units={feedback_units:?}", unit + 1);
+                assert!(batch_started && batch_finished);
+                assert!(feedback_units.is_some());
+                CALLS.with_borrow(|calls| {
+                    for kind in ["mount", "tick", "pre_render"] {
+                        let ids: Vec<_> = calls
+                            .iter()
+                            .filter(|(k, _)| *k == kind)
+                            .map(|(_, id)| *id)
+                            .collect();
+                        assert_eq!(ids.len(), 1059);
+                        assert_eq!(ids.iter().collect::<HashSet<_>>().len(), 1059);
+                    }
+                });
+                return;
+            }
+        }
+        panic!("measurement did not finish");
+    }
+
+    #[test]
+    fn clean_queued_entries_release_background_admission() {
+        let mut engine = new_engine();
+        let ctx = Rc::clone(&engine.runtime_context);
+        let _graph = ctx.property_graph.enter();
+        let root = engine.mount_root_component(component(vec![box_at(500.0, vec![])]));
+        reach_checkpoint(&mut engine);
+        engine.resume_startup_after_presentation();
+        let _effects: Vec<_> = (0..BACKGROUND_EFFECT_LIMIT)
+            .map(|_| {
+                let effect = pax_runtime_api::LocalProperty::computed(|| (), &[]);
+                properties::register_effect_property(&effect);
+                effect.get();
+                effect
+            })
+            .collect();
+        assert!(properties::pending_effect_count() >= BACKGROUND_EFFECT_LIMIT);
+        let report = engine.service_startup(0.0, || 0.0);
+        assert_eq!(report.mounted, 1);
+        assert_eq!(report.effects, 0);
+        assert_eq!(root.children.get()[0].attached.get(), 1);
+        assert!(!ctx.startup.borrow().draining_background_effects);
+        finish(&mut engine);
     }
 
     #[test]

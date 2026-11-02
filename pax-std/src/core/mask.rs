@@ -67,6 +67,7 @@ use_RefCell!();
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::core::mask::MaskInstance")]
+#[pax_document(mask)]
 pub struct Mask {
     /// Use painted alpha instead of geometric coverage.
     pub alpha: Property<bool>,

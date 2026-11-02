@@ -11,6 +11,7 @@ use std::rc::Rc;
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::core::overlay::OverlayInstance")]
+#[pax_document(children)]
 pub struct Overlay {}
 
 pub struct OverlayInstance {

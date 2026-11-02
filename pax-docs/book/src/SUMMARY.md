@@ -165,6 +165,7 @@
   - [pax-manifest](api/internal/pax-manifest/index.md)
     - [appearance](api/internal/pax-manifest/appearance.md)
     - [cartridge_generation](api/internal/pax-manifest/cartridge_generation.md)
+    - [document](api/internal/pax-manifest/document.md)
     - [program_ir](api/internal/pax-manifest/program_ir.md)
     - [selectors](api/internal/pax-manifest/selectors.md)
   - [pax-message](api/internal/pax-message/index.md)

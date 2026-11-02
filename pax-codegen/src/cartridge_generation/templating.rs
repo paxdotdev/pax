@@ -108,6 +108,7 @@ mod tests {
             manifest.components.insert(
                 type_id.clone(),
                 ComponentDefinition {
+                    document: None,
                     type_id: type_id.clone(),
                     is_main_component: path == "crate::Example",
                     is_primitive: false,

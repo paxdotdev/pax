@@ -8,6 +8,7 @@ const PHASES: [&str; 5] = ["mount", "tick", "pre_render", "pre_unmount", "unmoun
 
 fn component(type_id: TypeId, owner: &str) -> ComponentDefinition {
     ComponentDefinition {
+        document: None,
         type_id,
         is_main_component: owner == "owner",
         is_primitive: false,

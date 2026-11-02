@@ -1,9 +1,11 @@
 <Group width=100% height=100%>
+    ///#h1
     <Text class="headline" width=100% height={(self.font_px * 1.3)px} wrap=false>A declarative language</Text>
     <Group y={(self.font_px * 1.18)px} width=100% height={(self.font_px * 1.3)px}>
         <Text class="headline" width={(self.font_px * 1.6)px} height=100% wrap=false>for</Text>
         // Keep animated descendants out of the autosized ancestor's layout hull.
         // The fixed signboard and normal headline text determine the paragraph position.
+        ///#ignore
         <Frame x={(self.font_px * 1.65)px} y={(self.font_px * -0.1)px} width={100% - (self.font_px * 1.65)px}
             height={(self.font_px * 1.5)px} layout_role=LayoutRole::Breakout>
             <Group x={(self.word_x * self.font_px)px} y={(self.font_px * (0.75 + self.word_y))px} anchor_y=50% width=100% height=100%

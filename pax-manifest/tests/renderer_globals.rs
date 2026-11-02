@@ -31,6 +31,7 @@ fn manifest_with_setting(name: &str, value: ValueDefinition) -> PaxManifest {
         components: BTreeMap::from([(
             id.clone(),
             ComponentDefinition {
+                document: None,
                 type_id: id,
                 is_main_component: true,
                 is_primitive: false,

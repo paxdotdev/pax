@@ -433,6 +433,11 @@ failures permit fallback; slow fonts can delay the first reveal. Native controls
 remain measurable behind the visibility gate.
 
 After the first reveal, all remaining branches mount eagerly in bounded slices.
+Background admission pauses when the queued effects and cutoff propagation reach
+an internal threshold. The runtime drains that batch in its existing dependency
+order before admitting more mounts, preserving coalescing within the batch. This
+keeps background mounting from accumulating the whole page's reactive backlog;
+it can perform additional evaluations compared with mounting everything first.
 Web layout and asset feedback (including viewport resize and native text
 measurement) pauses background admission for a new viewport checkpoint. The
 mounted graph settles, the same planners resolve newly required content, and
@@ -446,7 +451,9 @@ Renderer allocation acknowledgements do not pause mounting. This prioritizes
 settlement over unrelated mounts; it does not isolate a separate reactive graph
 for the visible subtree, and required autosize or mask dependencies can still
 extend outside the viewport. Reactive work admitted before the feedback also
-has to drain, so a large existing backlog can still delay a late resize.
+has to drain. The admission threshold is soft: one mount, resize, or indivisible
+handler can enqueue a large amount of work, and the initial required viewport is
+not constrained by it. A late resize can therefore still take multiple slices.
 
 Native leaves appear as their own readiness permits; the canvas keeps its last
 presentation until each feedback checkpoint settles. The whole-scene visibility

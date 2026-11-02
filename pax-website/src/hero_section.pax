@@ -1,3 +1,4 @@
+///#ignore
 if self._logo_started && (self.logo_visible || self.logo_docked) && (self.playhead_ms < 1440.0 || (@gpu && self.radiance_enabled)) {
     <Group width=0px height=0px @tick=self.advance_logo/>
 }
@@ -8,6 +9,7 @@ if self._logo_started && (self.logo_visible || self.logo_docked) && (self.playhe
     <Stacker id=hero_content x=50% y=24px width={self.compact ? (100% - 48px) : 88%} autosize=true autosize_x=false autosize_y=true 
         direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal} gutter={self.compact ? 32px : 6%} 
         sizes={self.compact ? [] : [Some(28%), None]}>
+        ///#ignore
         <Group width=100% height={self.compact ? (self.logo_width * 463.95 / 920.72)px : 300px}>
             // Match the headline's visible cap height, including its centered line-box inset.
             <Group id=hero_logo_home x=0px y={self.compact ? 0px : (56 + self.font_px * 0.28)px}

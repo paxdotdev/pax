@@ -111,7 +111,10 @@ Resize and native measurement feedback temporarily pause background mounting
 to settle and present the current viewport, then resume the remaining queue.
 This uses the same autosize and Mask requirements as the first reveal, so those
 dependencies can require work beyond the visible box. Already-admitted reactive
-work still drains through the shared graph and can delay a late resize.
+work still drains through the shared graph. Background admission pauses at an
+internal queue threshold and drains a batch before mounting more content, reducing
+the backlog inherited by late feedback. This is a soft limit: a single subtree or
+resize can still enqueue enough work to delay presentation across several slices.
 
 A configured loader always uses yielded preparation, including with
 `?pax_mount_yield=0`. To compare synchronous startup, first disable the loader in
@@ -499,3 +502,11 @@ large generated Rust manifest. That release runtime check remains open. The
 pre-traced replacement passes exact geometry/placement comparisons, an optimized
 web build, and desktop/mobile browser checks including paused selection and
 copying. The updated Apple application has not been rerun.
+
+The web build also extracts source-known copy and links into each concrete route's
+HTML. Use **Read page text** to inspect it independently of Pax startup. Website
+`///#h1`–`///#h3` comments declare heading levels; `///#ignore` excludes interactive
+demos and source overlays. The gallery's document contract visits its authored
+cards once, retaining descriptions and documentation links without initializing
+its live carousel. Check `Static document [...]` build diagnostics for unresolved
+copy before publishing. See the [template guide](../pax-docs/book/src/template-language.md#static-page-text-on-the-web).

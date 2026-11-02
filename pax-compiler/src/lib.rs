@@ -21,6 +21,7 @@ mod hot_reload;
 use pax_codegen::project_layout;
 pub mod project_metadata;
 mod route_metadata;
+mod static_document;
 pub use pax_codegen::static_analysis;
 pub use pax_codegen::svg_import;
 

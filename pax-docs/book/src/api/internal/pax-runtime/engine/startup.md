@@ -45,6 +45,12 @@ Mount continuations attempted, including deferred or discarded stale entries.
 ##### `effects`
 Type: `usize`
 
+##### `peak_queued_effects`
+Type: `usize`
+
+Largest queued effect/cutoff count observed during this service call.
+Includes entries already settled by synchronous reads but not yet popped.
+
 ##### `elapsed_ms`
 Type: `f64`
 

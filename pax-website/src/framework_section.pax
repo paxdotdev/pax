@@ -3,7 +3,9 @@
         <SiteTheme />
     </ImportSettings>
     <Stacker id=framework_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=48px>
+        ///#h2
         <Text class="editorial_kicker" width=100%>BUILT FOR CREATIVE FREEDOM</Text>
+        ///#ignore
         <LedOscilloscope width=100% height={(self.scope_height)px} message="DREAM IT. BUILD IT."/>
         <Text class="editorial_lead" width={self.compact ? 100% : 78%}>A useful interface can also be playful, tactile, expressive—even a little strange. Pax gives you the structure to build an application and the freedom to decide how it should feel.</Text>
         <Text class="editorial_body" width={self.compact ? 100% : 78%}>Components, state, and routing share a scene with paths, gradients, masks, and motion. A custom interaction doesn't need to become a separate rendering project. You can keep building on the same foundation as your idea becomes more ambitious.</Text>

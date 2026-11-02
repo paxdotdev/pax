@@ -61,6 +61,7 @@ impl SourcePalette {
 #[engine_import_path("pax_engine")]
 #[file("reference/example_host.pax")]
 #[custom(Default)]
+#[pax_document(children)]
 pub struct ExampleHost {
     /// Title shown in the source drawer.
     pub title: Property<String>,

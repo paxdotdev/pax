@@ -10,10 +10,10 @@ function route(pattern, concrete_path, title, extra = {}) {
         metadata:{title, description:title+' description', index:true, social_image:null, social_image_alt:null},
         ...extra};
 }
-function harness(routes) {
+function harness(routes, documents = {}, textView = null, mount = null) {
     const nodes = new Map();
     const requests = [];
-    const document = {baseURI:'https://docs.example/0.39.0/_pax_examples/demo/app/',title:'',
+    const document = {getElementById:id=>id === "pax-page-text" ? textView : (id === "mount" ? mount : null),baseURI:'https://docs.example/0.39.0/_pax_examples/demo/app/',title:'',
         head:{querySelector:key=>nodes.get(key), appendChild(node) {
             const key = node.tag === 'link' ? 'link[rel="canonical"]' : `meta[${node.key}="${node.value}"]`;
             nodes.set(key,node); node.remove = () => nodes.delete(key);
@@ -21,7 +21,7 @@ function harness(routes) {
         createElement:tag=>({tag,setAttribute(key,value) { this.key=key; this.value=value; }}),
     };
     const catalog = {version:1, site:{title:'Site',site_name:'Site',site_url:'https://app.example',base_path:'/',
-        social_image:'assets/site.png',social_image_alt:'Site image'},routes};
+        social_image:'assets/site.png',social_image_alt:'Site image'},routes,documents};
     const module = {exports:{}};
     vm.runInNewContext(transformSync(source,{loader:'ts',format:'cjs'}).code, {
         module, exports:module.exports, URL, document, CSS:{escape:x=>x},
@@ -84,4 +84,48 @@ test('navigation replaces social overrides and clears stale tags when unmatched'
     assert.equal(h.og('og:image'),undefined);
     assert.equal(h.meta('description'),undefined);
     assert.equal(h.canonical(),undefined);
+});
+
+
+test('reading view follows routes without leaving stale content or changing its open state', async () => {
+    const article = {innerHTML:'<p>Home</p>',
+        set textContent(value) { this.innerHTML = ''; this.text = value; }, get textContent() { return this.text; }};
+    const view = {dataset:{route:'/'},open:true,querySelector:()=>article};
+    const h = harness([route('/','/','Home'),route('/about','/about','About')],
+        {'/':'<p>Home</p>','/about':'<h1>About</h1>'},view);
+    await h.update(new URL('https://app.example/'));
+    assert.equal(article.innerHTML,'<p>Home</p>');
+    const pending = h.update(new URL('https://app.example/about'));
+    assert.equal(article.textContent,'Loading page text…');
+    await pending;
+    assert.equal(article.innerHTML,'<h1>About</h1>');
+    assert.equal(view.open,true);
+    await h.update(new URL('https://app.example/unknown'));
+    assert.equal(article.innerHTML,'');
+    assert.equal(article.textContent,'A text view is not available for this route.');
+    assert.equal(h.requests.length,1);
+});
+
+test('overlapping route updates only publish the latest text and metadata', async () => {
+    const article = {innerHTML:''};
+    const view = {dataset:{route:'/'},querySelector:()=>article};
+    const h = harness([route('/a','/a','A'),route('/b','/b','B')],{'/a':'A','/b':'B'},view);
+    await Promise.all([h.update(new URL('https://app.example/a')),h.update(new URL('https://app.example/b'))]);
+    assert.equal(article.innerHTML,'B');
+    assert.equal(h.document.title,'B');
+    assert.equal(view.dataset.route,'/b');
+});
+
+
+test('opening the reading view excludes the covered live app from keyboard focus', async () => {
+    const mount = {inert:false};
+    const article = {innerHTML:'Home'};
+    let onToggle;
+    const view = {dataset:{route:'/'},open:true,querySelector:()=>article,
+        hasAttribute:()=>view.open,addEventListener:(name,handler)=>{ assert.equal(name,'toggle'); onToggle=handler; }};
+    const h = harness([route('/','/','Home')],{'/':'Home'},view,mount);
+    await h.update(new URL('https://app.example/'));
+    assert.equal(mount.inert,true);
+    view.open=false; onToggle();
+    assert.equal(mount.inert,false);
 });

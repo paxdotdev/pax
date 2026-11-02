@@ -1,22 +1,26 @@
 <Group width=100% height=100%>
+    ///#ignore
     if self.compact_sources && self.hero_source_open {
         <MobileSourceSheet width=100% height=100% y=0px anchor_y=0px mounted_count=bind:self.source_sheets_mounted>
             <ExampleSourceViewer width=100% height=100% title="A declarative language" sources={self.hero_sources} open=bind:self.hero_source_open
                 selected_source=bind:self.hero_source_selected source_light_mode=bind:self.source_light/>
         </MobileSourceSheet>
     }
+    ///#ignore
     if self.compact_sources && self.runtime_source_open {
         <MobileSourceSheet width=100% height=100% y=0px anchor_y=0px mounted_count=bind:self.source_sheets_mounted>
             <ExampleSourceViewer width=100% height=100% title="Native and web" sources={self.runtime_sources} open=bind:self.runtime_source_open
                 selected_source=bind:self.runtime_source_selected source_light_mode=bind:self.source_light/>
         </MobileSourceSheet>
     }
+    ///#ignore
     if self.compact_sources && self.framework_source_open {
         <MobileSourceSheet width=100% height=100% y=0px anchor_y=0px mounted_count=bind:self.source_sheets_mounted>
             <ExampleSourceViewer width=100% height=100% title="Creative freedom" sources={self.framework_sources} open=bind:self.framework_source_open
                 selected_source=bind:self.framework_source_selected source_light_mode=bind:self.source_light/>
         </MobileSourceSheet>
     }
+    ///#ignore
     if self.compact_sources && self.gallery_source_open {
         <MobileSourceSheet width=100% height=100% y=0px anchor_y=0px mounted_count=bind:self.source_sheets_mounted>
             <ExampleSourceViewer width=100% height=100% title="Meet Pax's creative toolkit:" sources={self.feature_gallery_sources}
@@ -24,6 +28,7 @@
                 source_light_mode=bind:self.source_light/>
         </MobileSourceSheet>
     }
+    ///#ignore
     if self.compact_sources && self.open_source_source_open {
         <MobileSourceSheet width=100% height=100% y=0px anchor_y=0px mounted_count=bind:self.source_sheets_mounted>
             <ExampleSourceViewer width=100% height=100% title="Free and open source" sources={self.open_source_sources}
@@ -31,12 +36,14 @@
                 source_light_mode=bind:self.source_light/>
         </MobileSourceSheet>
     }
+    ///#ignore
     if self.compact_sources && self.resource_source_open {
         <MobileSourceSheet width=100% height=100% y=0px anchor_y=0px mounted_count=bind:self.source_sheets_mounted>
             <ExampleSourceViewer width=100% height=100% title="Start building" sources={self.resource_sources} open=bind:self.resource_source_open
                 selected_source=bind:self.resource_source_selected source_light_mode=bind:self.source_light/>
         </MobileSourceSheet>
     }
+    ///#ignore
     if self.source_overlay_open {
         <EventBlocker width=100% height=100%/>
     }

@@ -19,6 +19,7 @@ use std::rc::Rc;
 #[engine_import_path("pax_engine")]
 #[custom(Default)]
 #[primitive("pax_std::core::group::GroupInstance")]
+#[pax_document(children)]
 pub struct Group {
     /// Automatically sizes the group to its direct content children when possible.
     pub autosize: Property<bool>,

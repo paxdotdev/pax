@@ -50,6 +50,7 @@ pax-message = {version = "0.39.1", path="../pax-message"}
 pax-runtime-api = {path = "../pax-runtime-api", version="0.39.1" }
 pax-designtime = { path = "../pax-designtime", version = "0.39.1" }
 pax-language = {version = "0.39.1", path="../pax-language"}
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 plist = "1.8"
 rand = "0.8.4"
 regex = "1"

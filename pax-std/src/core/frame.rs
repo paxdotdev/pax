@@ -36,6 +36,7 @@ fn mark_canvas_descendants_dirty(expanded_node: &ExpandedNode, context: &Rc<Runt
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::core::frame::FrameInstance")]
 #[custom(Default)]
+#[pax_document(children)]
 pub struct Frame {
     /// Automatically sizes the frame to its direct content children when possible.
     pub autosize: Property<bool>,

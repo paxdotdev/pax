@@ -34,6 +34,7 @@ use crate::common::{native_surface_opacity, patch_if_needed};
 #[engine_import_path("pax_engine")]
 #[custom(Default)]
 #[primitive("pax_std::core::text::TextInstance")]
+#[pax_document(text)]
 pub struct Text {
     /// Whether the text can be edited by the user.
     pub editable: Property<bool>,

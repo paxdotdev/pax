@@ -12,6 +12,7 @@ use pax_runtime_api::{CoercionRules, HelperFunctions, Interpolatable, PaxValue, 
 pub mod appearance;
 pub mod binary;
 pub mod capabilities;
+pub mod document;
 #[cfg(feature = "parsing")]
 pub mod parsing;
 pub mod program_ir;
@@ -263,6 +264,9 @@ pub const SUPPORTED_NONNUMERIC_PRIMITIVES: [&str; 2] = ["String", "bool"];
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(crate = "pax_message::serde")]
 pub struct ComponentDefinition {
+    /// Compiler-only document extraction contract. It is omitted from baked programs.
+    #[serde(default)]
+    pub document: Option<document::DocumentKind>,
     pub type_id: TypeId,
     pub is_main_component: bool,
     pub is_primitive: bool,

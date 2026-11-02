@@ -15,6 +15,7 @@ fn camera_survives_source_rich_binary_program_ir_and_rust_baking() {
     let camera = parse(source).unwrap();
     let id = TypeId::build_singleton("Example", Some("crate::Example"));
     let component = ComponentDefinition {
+        document: None,
         type_id: id.clone(),
         is_main_component: true,
         is_primitive: false,

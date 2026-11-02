@@ -6,8 +6,10 @@
         <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=48px
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
             sizes={self.compact ? [] : [Some(61%), None]}>
+            ///#ignore
             <Acrostic width=100% height={(self.artwork_height)px} columns={self.compact ? 6 : 7}/>
             <Stacker width=100% autosize=true gutter=24px>
+                ///#h2
                 <Text class="editorial_title" width=100%>More room for making.</Text>
                 <Text class="editorial_lead" width=100% markdown=true
                     _style_link={

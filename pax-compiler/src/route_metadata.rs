@@ -18,6 +18,8 @@ const ROUTE_METADATA_END: &str = "<!-- pax-route-metadata:end -->";
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct WebRouteCatalog {
     pub version: u8,
+    #[serde(default)]
+    pub documents: BTreeMap<String, String>,
     pub site: WebSiteMetadata,
     pub routes: Vec<WebRouteCatalogEntry>,
 }
@@ -79,9 +81,26 @@ pub(crate) fn prepare_web_route_metadata(
     }
 
     let site = web_site_metadata(project_metadata)?;
-    let catalog = collect_web_route_catalog(manifest, site)?;
+    let mut catalog = collect_web_route_catalog(manifest, site)?;
     validate_release_metadata(&catalog, is_release)?;
 
+    let paths: Vec<_> = std::iter::once("/".to_owned())
+        .chain(
+            preferred_concrete_routes(&catalog.routes)
+                .keys()
+                .map(|path| path.to_string()),
+        )
+        .collect();
+    for path in paths {
+        if catalog.documents.contains_key(&path) {
+            continue;
+        }
+        let document = crate::static_document::extract(manifest, &path)?;
+        for diagnostic in &document.diagnostics {
+            eprintln!("Static document [{path}]: {diagnostic}");
+        }
+        catalog.documents.insert(path, document.html);
+    }
     fs::write(
         interface_path.join(ROUTE_CATALOG_FILE),
         serde_json::to_string_pretty(&catalog)?,
@@ -168,6 +187,7 @@ fn collect_web_route_catalog(
     validate_concrete_routes(&collector.routes)?;
 
     Ok(WebRouteCatalog {
+        documents: BTreeMap::new(),
         version: 1,
         site,
         routes: collector.routes,
@@ -492,6 +512,15 @@ fn emit_route_entry_documents(
     interface_path: &Path,
     catalog: &WebRouteCatalog,
 ) -> Result<(), eyre::Report> {
+    let decorate = |html: String, path: &str| {
+        let content = catalog.documents.get(path).map(String::as_str).unwrap_or("");
+        let content = if content.is_empty() && catalog.documents.values().any(|s| !s.is_empty()) {
+            "<p>A text view is not available for this route.</p>"
+        } else {
+            content
+        };
+        crate::static_document::package(&html, content, path)
+    };
     let index_path = interface_path.join("index.html");
     let base_html = fs::read_to_string(&index_path)?;
     let base_html = set_or_insert_base_href(&base_html, &catalog.site.base_path);
@@ -502,7 +531,7 @@ fn emit_route_entry_documents(
         .map(|route| render_route_document(&base_html, catalog, route))
         .transpose()?
         .unwrap_or_else(|| base_html.clone());
-    fs::write(&index_path, root_html)?;
+    fs::write(&index_path, decorate(root_html, "/"))?;
 
     for (path, route) in concrete_routes {
         if path == "/" {
@@ -514,7 +543,7 @@ fn emit_route_entry_documents(
         }
         fs::write(
             output_path,
-            render_route_document(&base_html, catalog, route)?,
+            decorate(render_route_document(&base_html, catalog, route)?, path),
         )?;
     }
     Ok(())
@@ -786,6 +815,7 @@ mod tests {
             ..Default::default()
         });
         let component = ComponentDefinition {
+            document: None,
             type_id: main.clone(),
             is_main_component: true,
             is_primitive: false,
@@ -809,6 +839,7 @@ mod tests {
 
     fn manifest_with_template(main: TypeId, template: ComponentTemplate) -> PaxManifest {
         let component = ComponentDefinition {
+            document: None,
             type_id: main.clone(),
             is_main_component: true,
             is_primitive: false,
@@ -952,6 +983,7 @@ mod tests {
     #[test]
     fn release_indexable_routes_require_a_site_url() {
         let catalog = WebRouteCatalog {
+            documents: BTreeMap::new(),
             version: 1,
             site: WebSiteMetadata {
                 site_url: None,
@@ -1175,6 +1207,7 @@ mod tests {
         )
         .unwrap();
         let catalog = WebRouteCatalog {
+            documents: BTreeMap::new(),
             version: 1,
             site: test_site(),
             routes: vec![

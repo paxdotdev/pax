@@ -29,6 +29,7 @@ fn mesh_rows_survive_rich_binary_program_ir_and_rust_baking() {
         components: BTreeMap::from([(
             id.clone(),
             ComponentDefinition {
+                document: None,
                 type_id: id,
                 is_main_component: true,
                 is_primitive: false,

@@ -696,8 +696,12 @@ impl PropertyTable {
     }
 
     pub(crate) fn has_pending_effects(&self) -> bool {
+        self.pending_effect_count() > 0
+    }
+
+    pub(crate) fn pending_effect_count(&self) -> usize {
         let owner = super::shared_graph::current_graph_id();
-        self.queued_effects.borrow().len(owner) > 0 || self.queued_cutoffs.borrow().len(owner) > 0
+        self.queued_effects.borrow().len(owner) + self.queued_cutoffs.borrow().len(owner)
     }
 
     pub(crate) fn drain_effects(&self, max_iterations: usize) -> usize {

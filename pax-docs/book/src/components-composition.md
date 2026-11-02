@@ -969,3 +969,33 @@ components fit different spaces. [Scrolling](scrolling-viewports.md) covers
 larger collections, [Routing](routing.md) organizes screens, and
 [Motion](animation-motion.md) adds transitions as content enters, leaves, or
 changes position.
+
+## Document extraction contracts
+
+The web compiler normally follows a component's template and slots when
+[extracting page text](template-language.md#static-page-text-on-the-web).
+Components that arrange projected content through Rust-owned state can declare
+that their document consists of their authored children:
+
+```rust
+#[pax]
+#[file("carousel.pax")]
+#[pax_document(children)]
+pub struct Carousel {
+    // Runtime state used to position or recycle projected children.
+}
+```
+
+This is a source-only Rust declaration, not a reactive Pax setting. It asks the
+extractor to visit each authored child once, in source order, without following
+the component's internal template. Use it only when that reading order represents
+the component's content; it would be incorrect for a component that conditionally
+selects unrelated alternatives. `Stacker`, `Scroller`, and `ExampleHost` use this
+contract. Without it, unresolved runtime projection produces a build diagnostic.
+
+The standard library also owns the `text`, `link`, `mask`, and `settings`
+contracts. `text` reads the component's declared scalar content receiver (or
+`text`) and optional `markdown` mode; `link` reads `url` and projects its children;
+`mask` visits only its first authored content child; `settings` identifies a
+non-rendering settings provider subtree. These contracts describe compiler
+extraction only. They do not change mounting, rendering, or native accessibility.

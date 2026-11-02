@@ -13,6 +13,8 @@ pub fn parse_template_from_component_definition_string(
     pax: &str,
     pax_component_definition: Pair<Rule>,
 ) {
+    crate::document::validate_directives(pax_component_definition.clone(), pax)
+        .unwrap_or_else(|error| panic!("{error}"));
     pax_component_definition
         .into_inner()
         .for_each(|pair| match pair.as_rule() {
@@ -2173,6 +2175,7 @@ pub fn assemble_component_definition(
     );
 
     let new_def = ComponentDefinition {
+        document: None,
         is_primitive: false,
         is_struct_only_component: false,
         is_main_component,
@@ -2208,6 +2211,7 @@ pub fn assemble_struct_only_component_definition(
     let modified_module_path = clean_module_path(module_path);
 
     let new_def = ComponentDefinition {
+        document: None,
         type_id: self_type_id,
         is_main_component: false,
         is_primitive: false,
@@ -2233,6 +2237,7 @@ pub fn assemble_primitive_definition(
     let modified_module_path = clean_module_path(module_path);
 
     ComponentDefinition {
+        document: None,
         is_primitive: true,
         is_struct_only_component: false,
         primitive_instance_import_path: Some(primitive_instance_import_path),
