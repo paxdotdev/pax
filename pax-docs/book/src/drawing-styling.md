@@ -697,9 +697,8 @@ LightSource now uses common `z`, with the same zero default as other elements.
 If an older light omitted its light-specific `z`, add `z=200px` to preserve
 its previous default depth. Explicit `z` continues to work, but now inherits
 ancestor depth and rotation. Rust code that accessed `LightSource::z` should
-set the node's common `z` instead. This does not yet add transformed surface
-normals or depth-aware shading: vector materials still shade a flat raster
-surface in the current lighting backend.
+set the node's common `z` instead. With the `3d` feature, materials and lights
+share unprojected world coordinates, and surface normals follow spatial transforms.
 For a continuous band of light, use `StripLight` from `pax-std`:
 
 ```pax
@@ -721,7 +720,10 @@ smoother materials tighten it. Like other lights, the emitter itself is invisibl
 This is a finite, continuous **nearest-point line-light model**: each surface
 point receives light from the closest point on the segment. It uses one direct
 light slot, not a row of point lights. Intensity is independent of strip length;
-this is not physically integrated area illumination. `height` is a layout box,
+this is not physically integrated area illumination. `StripLight` also uses common
+`z`, defaulting to zero; set it explicitly to place the emitter above a surface.
+With `3d`, ancestor depth and rotation affect the strip; flat builds forward its
+own common `z` to the emitter without inherited spatial depth. `height` is a layout box,
 not emitter thickness. A zero-length strip behaves as a point light. The same
 behavior is available through `LightSource shape=LightShape::Strip`; use
 `LightSource` when switching shapes dynamically.
@@ -772,11 +774,10 @@ If you maintain a custom Rust lighting primitive, implement
 `InstanceNode::has_scene_lighting()` as `true` alongside
 `resolve_scene_light` or `resolve_scene_ambient_light`. This capability hook
 must stay true while the primitive is disabled or returns `None`; it describes
-its role, not its current contribution. Existing `.pax` lighting templates
-need no changes.
+its role, not its current contribution.
 Rust code constructing `SceneLight` directly must supply `half_extent` (or use
 `..Default::default()`). Use zero for point/directional lights; for strips, it is
-the canvas-space vector from the center to one endpoint.
+the unprojected world-space vector from the center to one endpoint.
 For value changes, call `RuntimeContext::mark_scene_lighting_dirty()` to schedule
 lighting resolution without requesting a full canvas redraw. Structural changes
 still use the runtime's normal scene invalidation.

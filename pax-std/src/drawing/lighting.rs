@@ -1,4 +1,4 @@
-use pax_engine::api::LocalProperty;
+use pax_engine::api::{Depth, LocalProperty, NodeContext};
 use pax_engine::*;
 use pax_runtime::api::{
     Color, Layer, LightShape, Numeric, SceneAmbientLight, SceneLight, SceneLighting, Size, Vector3,
@@ -196,7 +196,12 @@ impl InstanceNode for LightSourceInstance {
             let (position, direction) =
                 light_pose(geometry, local_z, properties.direction.local().get())?;
             let half_extent = if properties.shape.local().get() == LightShape::Strip {
-                light_pose(geometry, local_z, Vector3::new(geometry.bounds.0 * 0.5, 0., 0.))?.1
+                light_pose(
+                    geometry,
+                    local_z,
+                    Vector3::new(geometry.bounds.0 * 0.5, 0., 0.),
+                )?
+                .1
             } else {
                 Vector3::default()
             };
@@ -254,6 +259,7 @@ pub struct StripLight {
     pub radius: Property<Size>,
     /// Whether this emitter contributes, without unmounting it.
     pub enabled: Property<bool>,
+    pub _emitter_depth: Property<Depth>,
 }
 
 impl Default for StripLight {
@@ -263,6 +269,25 @@ impl Default for StripLight {
             intensity: Property::new(1.0),
             radius: Property::new(Size::Pixels(Numeric::F64(240.0))),
             enabled: Property::new(true),
+            _emitter_depth: Property::new(Depth::default()),
+        }
+    }
+}
+
+impl StripLight {
+    pub fn mount(&mut self, _ctx: &NodeContext) {
+        // Spatial transforms already carry the wrapper's depth into its emitter.
+        // The flat backend has no inherited z, so forward common z explicitly there.
+        #[cfg(not(feature = "3d"))]
+        if let Some(node) = _ctx.expanded_node.upgrade() {
+            let z = node.get_common_properties().borrow().z.clone();
+            let depth = self._emitter_depth.local();
+            let deps = [z.untyped()];
+            let update = move || {
+                depth.set_if_neq(z.get().unwrap_or_default());
+            };
+            update();
+            _ctx.subscribe(&deps, update);
         }
     }
 }
@@ -459,8 +484,9 @@ mod pose_tests {
 
     #[test]
     fn strip_extent_inherits_spatial_rotation_without_translation() {
-        let transform = Transform3::<NodeLocal, Window>::translate(GeometricVector::new(500., 900., 70.))
-            * Transform3::<NodeLocal>::rotate_y(std::f64::consts::FRAC_PI_2);
+        let transform =
+            Transform3::<NodeLocal, Window>::translate(GeometricVector::new(500., 900., 70.))
+                * Transform3::<NodeLocal>::rotate_y(std::f64::consts::FRAC_PI_2);
         let geometry = SpatialGeometry::new(transform, (100., 1.));
         let (_, extent) = light_pose(geometry, 0., Vector3::new(50., 0., 0.)).unwrap();
         assert!(extent.x.abs() < 1e-9);

@@ -1,0 +1,34 @@
+<Group width=100% height=100%>
+    // The outward tip shifts the white shape's visual center to the left.
+    <Button x={(4 - 4 * self._open_progress)px} width={100% - 4px} height=100%
+        @button_click=self.toggle color=TRANSPARENT hover_color=TRANSPARENT corner_radius=0 style={
+            font: {
+                family: "Manrope"
+                url: "/assets/fonts/Manrope.ttf"
+                weight: 600
+            }
+            font_size: {self.open ? 23px : 13px}
+            fill: BLACK
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+        }>{self.open ? "×" : "VIEW SOURCE"}</Button>
+    // Morph the same vertex through the flat edge: an inward notch when
+    // closed, an outward arrow tip when open. No background-colored overlay.
+    <Path width=100% height=100% fill=WHITE elements={[
+        PathElement::Point(0px, 0%),
+        PathElement::Line,
+        PathElement::Point(100%, 0%),
+        PathElement::Line,
+        PathElement::Point(100%, 100%),
+        PathElement::Line,
+        PathElement::Point(0px, 100%),
+        PathElement::Line,
+        PathElement::Point((8 - 16 * self._open_progress)px, 50%),
+        PathElement::Close
+    ]}/>
+</Group>
+
+@settings {
+    @mount: on_mount
+    @pre_render: on_pre_render
+}

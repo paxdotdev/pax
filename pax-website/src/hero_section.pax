@@ -27,17 +27,15 @@ if self._logo_started && (self.logo_visible || self.logo_docked) && (self.playhe
                 <RotatingHeadline id=hero_heading width=100% height=100% font_px={self.font_px} playing={self.exit_progress < 100}/>
             </Group>
             <Stacker width=100% autosize=true gutter=12px>
-                <Text class="hero_copy" width=100%
-                    text="Write application logic in Rust, alongside Pax: a declarative language for making UIs powerful, expressive, and fun."/>
-                <Text class="hero_copy" width=100%
-                    text="Ship to native macOS, iOS, iPadOS, and the web. Experimentally: ship to native Android, Windows, and Linux."/>
-                <Text class="hero_copy" width=100% text="Free and open source." style={
+                <Text class="hero_copy" width=100%>{"Write application logic in Rust, alongside Pax: a declarative language for making UIs powerful, expressive, and fun."}</Text>
+                <Text class="hero_copy" width=100%>{"Ship to native macOS, iOS, iPadOS, and the web. Experimentally: ship to native Android, Windows, and Linux."}</Text>
+                <Text class="hero_copy" width=100% style={
                     font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::SemiBold)
                     font_size: {self.compact ? 16px : 18px}
                     fill: {SiteTheme::muted()}
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
-                }/>
+                }>{"Free and open source."}</Text>
             </Stacker>
             <Stacker width=100% height=56px direction=StackerDirection::Horizontal gutter=12px>
                 <GlassAction width=100% height=100% label="Get Started" url="https://docs.pax.dev/getting-started/" opal=true/>
@@ -59,11 +57,11 @@ cd my-app && pax-cli run"}</Text>
                         material: {Material::unlit()}
                     }/>
             </Group>
-            <Text width=100% text="This website was built in Pax." style={
+            <Text width=100% style={
                 font: Font::Web("sans-serif", "", FontStyle::Italic, FontWeight::Light)
                 font_size: {self.compact ? 12px : 14px}
                 fill: {SiteTheme::muted()}
-            }/>
+            }>{"This website was built in Pax."}</Text>
         </Stacker>
     </Stacker>
     <Rectangle x=50% y={100% - 1px} width={self.compact ? (100% - 48px) : 88%} height=1px anchor_x=50% fill={SiteTheme::rule()}/>

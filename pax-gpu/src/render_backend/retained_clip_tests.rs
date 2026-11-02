@@ -4698,6 +4698,7 @@ fn spatial_lighting_uses_world_depth_and_normal_without_retessellation() {
         lights: vec![SceneLight {
             shape: LightShape::Point,
             position: [1016.5, 2016.5, 100.],
+            half_extent: [0.; 3],
             direction: [0., 0., -1.],
             color: Color::rgba(1., 1., 1., 1.),
             intensity: 1.,
@@ -4763,6 +4764,7 @@ fn spatial_lighting_uses_world_depth_and_normal_without_retessellation() {
             shape: LightShape::Point,
             position: [1016.5, 2016.5, 100.],
             direction: [0., 0., -1.],
+            half_extent: [0.; 3],
             color: Color::rgba(1., 1., 1., 1.),
             intensity: 1.,
             radius: 100.,
@@ -4826,6 +4828,7 @@ fn planar_lighting_shares_a_world_frame_across_canvas_draws() {
             shape: LightShape::Point,
             position: [16.5, 16.5, 50.],
             direction: [0., 0., -1.],
+            half_extent: [0.; 3],
             color: Color::rgba(1., 1., 1., 1.),
             intensity: 1.,
             radius: 100.,

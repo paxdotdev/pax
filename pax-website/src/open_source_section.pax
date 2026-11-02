@@ -10,7 +10,7 @@
             <Acrostic width=100% height={(self.artwork_height)px} columns={self.compact ? 6 : 7}/>
             <Stacker width=100% autosize=true gutter=24px>
                 ///#h2
-                <Text class="editorial_title" width=100% text="Made for makers."/>
+                <Text class="editorial_title" width=100%>{"Made for makers."}</Text>
                 <Text class="editorial_lead" width=100% markdown=true
                     _style_link={
                         font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)

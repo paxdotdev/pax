@@ -200,7 +200,7 @@ impl HeroSection {
                 Ok(()) => {
                     docked.set(next);
                     nav.hero_docked.local().set(next);
-                },
+                }
                 Err(error) => eprintln!("website logo transfer: {error}"),
             }
         });

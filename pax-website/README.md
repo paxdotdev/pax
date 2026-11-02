@@ -6,6 +6,11 @@ example or a publishable crate. The monorepo explicitly excludes it from its
 Cargo workspace so the site's standalone profiles remain effective: development
 dependencies use optimization level 1; the website application uses level 0.
 
+Web previews enable the experimental loading screen. Install the qualified
+Wasm splitter and matching wasm-bindgen CLI described in
+[loading-context components](../pax-docs/book/src/components-composition.md#loading-context-components-experimental)
+before running; both the bootstrap and application Wasm are emitted by the same build.
+
 ## Local development
 
 From the monorepo root on this workstation:
@@ -46,28 +51,17 @@ Debug and release outputs live in `.pax/build/debug/web/` and
 `Cargo.lock`, AI-primer HTML, and staged blog previews stay untracked.
 
 The hero uses `AnimatedPaxLogo` from `pax-std` through the `pax_kit` re-export.
-View Source includes the canonical files in `pax-std/src/drawing/pax_logo/`.
-The animated hero logo remains inside the native page scroller, with its own
-playhead and click replay. `LogoHome` measures its bounds; explicit bindings
-carry its bottom edge and the observed page scroll offset into `SiteShell`.
-The entire nav—static logo, links, CTA, and background—shares one slide playhead.
-Its separate `StaticPaxLogo` uses the animation's settled geometry without mounting
-animation timelines or masks when the nav first appears. The opaque nav slides
-down from above the viewport over 500ms once the hero logo is 128px past its
-bottom edge, and slides back up over 450ms when that clearance returns to 96px.
-Its hidden offset includes the top safe-area inset. Both slides ease gently
-at their start and finish, without group opacity or translucent compositing.
-Hysteresis prevents
-small scroll reversals from repeatedly restarting the slide. The nav instance
-does not follow the hero's position or scale. The homepage scroller fills
-the safe area from the start, with no reserved nav gap or scroll-driven reflow.
-On desktop the hero logo aligns with the headline's visible cap height; on narrow
-screens it sits above the headline and leaves room for View Source. Fully hidden nav contents are unmounted, so
-invisible links cannot intercept input. Hero source inspection hides the nav;
-the standalone Paxflix route has no site shell. Other routes without a hero
-retain a nav-sized content inset and show it directly.
-This replaces the frame-sampled moving-overlay prototype, which
-showed visible jumps while following native scrolling.
+Its website-local `SiteLogo` wrapper carries the new radiance treatment and fits
+the artwork into its hero home or the navigation's smaller container. View Source
+includes the wrapper and canonical files in `pax-std/src/drawing/pax_logo/`.
+The navigation uses main's fixed `Overlay` and mounted-node transfer mechanism
+(described below), with an opaque vertical slide instead of group opacity.
+The controls and background slide down over 500ms when the logo docks and back
+up over 450ms when it returns. The hidden offset includes the top safe-area inset;
+reversals ease from the current position. The logo's destination remains mounted
+so transfers have a stable target, while fully hidden controls are unmounted.
+Source inspection hides the nav. The homepage starts without a reserved nav gap;
+other routes keep their nav-sized inset and static logo.
 
 The opening sequence uses the outer native scroller as a shared clock.
 `scroll_story.rs` maps its offset into overlapping chapter-local clocks for the
@@ -120,13 +114,10 @@ original owners still exist. The hero logo replays on click at home; in the nav,
 it acts as the shell's home link and scrolls back to the top. See [node transfers](../pax-docs/book/src/event-handling-rust.md#find-and-move-existing-nodes)
 for the runtime ownership and recovery contract.
 
-The creative-freedom headline embeds `LedOscilloscope` from
-[`examples/led-oscilloscope`](../examples/led-oscilloscope/README.md), with the
-message “DREAM IT. BUILD IT.” The standalone example and website share the cell
-buffer, bitmap font, cabinet, and reusable knobs. The section publishes the
-component's suggested responsive height; the cabinet fills that panel without
-adding outer spacing. Its source is included in View Source. Motion
-stops offscreen; system reduced-motion integration is tracked in PAX-1048.
+The creative-freedom section uses screenshot-backed links to the oscilloscope
+and Space Game. Their live components mount only on their standalone routes;
+the homepage keeps the device-frame choreography and View Source without
+running the demos. System reduced-motion integration is tracked in PAX-1048.
 
 The HTML background uses `package.metadata.pax.web.background_color` to match
 the scene's dark ink before the cartridge starts. The hero logo holds its

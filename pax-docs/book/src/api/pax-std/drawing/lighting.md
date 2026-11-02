@@ -53,13 +53,13 @@ Light intensity multiplier.
 ##### `radius`
 Type: `Property`<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
 
-Point-light attenuation radius in world pixels; ancestor scale does not resize it.
+Point/strip attenuation radius in world pixels; ancestor scale does not resize it.
 
 ##### `shape`
 Type: `Property`<[`LightShape`](../../../api/pax-runtime-api/drawing.md#lightshape)>
 
-Light shape. A strip spans the local width through the center of this node;
-rotate/scale the node to orient/resize it. Height does not set emitter thickness.
+Light shape. A strip spans the node's local width through its center;
+ancestor transforms orient/resize it. Height is not emitter thickness.
 
 ##### `direction`
 Type: `Property`<`Vector3`>
@@ -82,6 +82,7 @@ sampled row of point lights or physically integrated area illumination.
 Rougher materials soften its band; glossy materials give a tighter reflection.
 Height is only a layout box, not emitter thickness. Zero width behaves as a point.
 Like LightSource, it respects LightFrame scope; CPU/native-text lighting is unsupported.
+Position and depth use common node transforms, with zero depth by default.
 
 #### Properties
 ##### `color`
@@ -98,11 +99,6 @@ Brightness multiplier; independent of strip length.
 Type: `Property`<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
 
 Attenuation distance from the closest point on the strip, in pixels.
-
-##### `z`
-Type: `Property`<[`Depth`](../../../api/pax-runtime-api/drawing.md#depth)>
-
-Depth above the 2D scene, in pixels.
 
 ##### `enabled`
 Type: `Property`<`bool`>

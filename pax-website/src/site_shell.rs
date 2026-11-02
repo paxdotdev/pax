@@ -68,7 +68,6 @@ mod tests {
         assert!(!include_str!("glass_action.pax").contains("<StripLight"));
         assert!(!include_str!("hero_section.pax").contains("light_progress"));
     }
-
 }
 
 // The shell owns the navigation boundary and whether its route supplies a logo.

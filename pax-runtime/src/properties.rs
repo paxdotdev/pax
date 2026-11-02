@@ -3436,7 +3436,7 @@ mod light_scope_tests {
         let target = [-12., 300., 5.];
         let resolved = transform_scene_light_for_layer(light.clone(), source, target);
         for sign in [-1., 1.] {
-            let expected = Point::new(
+            let expected = kurbo::Point::new(
                 light.position.x + sign * light.half_extent.x + source[0] - target[0],
                 light.position.y + sign * light.half_extent.y + source[1] - target[1],
             );

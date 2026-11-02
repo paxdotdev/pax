@@ -68,9 +68,9 @@
         </Frame>
     }
     if self.kind == "materials" {
-        <Text class="note" x=24px y=119px width=68px height=16px text="matte"/>
-        <Text class="note" x=115px y=119px width=78px height=16px text="metallic"/>
-        <Text class="note" x=205px y=119px width=66px height=16px text="glossy"/>
+        <Text class="note" x=24px y=119px width=68px height=16px>{"matte"}</Text>
+        <Text class="note" x=115px y=119px width=78px height=16px>{"metallic"}</Text>
+        <Text class="note" x=205px y=119px width=66px height=16px>{"glossy"}</Text>
         // Authored paint illustrations keep the carousel independent of live lighting.
         <Group x=12px y=10px width=264px height=104px>
             <Ellipse x=17% y=54% width=66px height=66px anchor=50% fill={
@@ -245,7 +245,7 @@
     if self.kind == "lighting" {
         for i in 0..2 {
             <Group x={(25 + i * 126)px} y=18px width=112px height=98px>
-                <Text class="note" x=10px y=75px width=96px height=18px text={i == 0 ? "moving light" : "fixed light"}/>
+                <Text class="note" x=10px y=75px width=96px height=18px>{i == 0 ? "moving light" : "fixed light"}</Text>
                 <Group x=1px y=1px width=110px height=72px>
                     <Ellipse x={i == 0 ? ((10 + self.progress * 80)%) : 85%} y=4px width=5px height=5px
                         fill={paint: WHITE, material: {Material::unlit()}}/>

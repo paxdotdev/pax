@@ -6,8 +6,8 @@
     // the larger native hit target, and align the sun with the 24px gutter.
     <Group x={100% - 24px} y=21.5px width=69.333px height=34px anchor_x=100%>
         <Button class="viewer_switch" width=100% height=100%
-            label={self.source_light_mode ? "Solarized Light; switch to Dark" : "Solarized Dark; switch to Light"}
-            @button_click=self.toggle_theme/>
+
+            @button_click=self.toggle_theme>{self.source_light_mode ? "Solarized Light; switch to Dark" : "Solarized Dark; switch to Light"}</Button>
         <Group y=5.667px width=104px height=34px scale=66.667% anchor_x=0px anchor_y=0px>
             <Path x=0px y=9px width=16px height=16px fill=WHITE elements=[
                 PathElement::Point(65%, 5%),
@@ -62,8 +62,8 @@
             </Group>
         </Group>
     </Group>
-    <Text class="viewer_title" x=24px y=24px width={100% - 133.333px} text={self.title} selectable=false wrap=true
-        @mount=self.measure_title/>
+    <Text class="viewer_title" x=24px y=24px width={100% - 133.333px} selectable=false wrap=true
+        @mount=self.measure_title>{self.title}</Text>
     // Keep 12px below the 36px tabs, matching the web scrollbar track. Overlay
     // scrollbars must not cover tab labels or steal the bottom of their hit areas.
     <Scroller x=0px y={(Math::max(34, self._title_height) + 40)px} width=100% height=48px
@@ -79,7 +79,7 @@
     <Group x=0px y={(Math::max(34, self._title_height) + 76)px} width=100%
         height={100% - (Math::max(34, self._title_height) + 76)px}>
         <Scroller y=12px width=100% height={100% - 12px} autosize=true autosize_x=true autosize_y=true>
-            <Text class="viewer_code" x=14px y=14px text={self._active_source_markup} markdown=true wrap=false selectable=true/>
+            <Text class="viewer_code" x=14px y=14px markdown=true wrap=false selectable=true>{self._active_source_markup}</Text>
         </Scroller>
         <Rectangle fill={ExampleSourceViewer::source_background(self.source_light_mode)} corner_radius=0 width=100% height=100%/>
     </Group>

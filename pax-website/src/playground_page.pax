@@ -1,0 +1,28 @@
+<ImportSettings><SiteTheme /></ImportSettings>
+<DynamicIslandSpacer inset=bind:self.safe_top/>
+<DynamicIslandSpacer edge=SafeAreaEdge::Bottom inset=bind:self.safe_bottom/>
+<DynamicIslandSpacer edge=SafeAreaEdge::Left inset=bind:self.safe_left/>
+<DynamicIslandSpacer edge=SafeAreaEdge::Right inset=bind:self.safe_right/>
+<Group x={(self.safe_left)px} y={(self.safe_top)px}
+    width={100% - (self.safe_left + self.safe_right)px} height={100% - (self.safe_top + self.safe_bottom)px}>
+    <Link x=16px y=8px width=120px height=36px url="/" target=Target::Current>
+        <Text class="editorial_link" width=100% height=100% text="← BACK TO PAX"/>
+    </Link>
+    <Text x={100% - 16px} anchor_x=100% y=8px width={100% - 160px} height=36px
+        text={self.game ? "HOLD TO STEER / WASD + SPACE" : "OSCILLOSCOPE / LIVE"}
+        style={font: {family: "Manrope", url: "/assets/fonts/Manrope.ttf"}, font_size: 11px,
+            fill: {SiteTheme::muted()}, align_horizontal: TextAlignHorizontal::Right, align_vertical: TextAlignVertical::Center}/>
+    <ExampleHost y=52px width=100% height={100% - 52px}
+        title={self.game ? "Space Game" : "LED Oscilloscope"} sources={self.sources}>
+        <Frame width=100% height=100%>
+            if self.game {
+                <SpaceGame width=100% height=100%/>
+            } else {
+                <LedOscilloscope width=100% height=100% message="DREAM IT. BUILD IT."/>
+            }
+        </Frame>
+    </ExampleHost>
+</Group>
+<Rectangle width=100% height=100% fill={paint: {SiteTheme::ink()}, material: {Material::unlit()}}/>
+
+@settings { @mount: mount }

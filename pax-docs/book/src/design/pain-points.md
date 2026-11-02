@@ -1739,3 +1739,16 @@ ten drain-limit warnings before pointer interaction. Moving the new global
 point light with a mouse drag did not add warnings in that check. This does
 not isolate the startup cause, but distinguishes it from pointer-driven light
 updates. Logs: `/tmp/pax-strip-{clean,pointer}-log.txt`.
+
+- 2026-11-02: After rebasing the website onto `f421e7fb3`, the loader-enabled
+  debug web build succeeds but the browser remains on “Unable to load application.”
+  Expected the split application's download to hand off to the homepage. The
+  application payload is about 15 MB; temporary logging at
+  `pax-compiler/files/interfaces/web/src/utils/split-loader.js:81` exposed
+  `RangeError: WebAssembly.Instance is disallowed on the main thread, if the
+  buffer size is larger than 8MB`. The loader calls `new WebAssembly.Instance`
+  after streaming compilation. Reproduce with `pax-cli run --path pax-website
+  --target web --libdev` and open the debug build in the Codex in-app browser.
+  Needs asynchronous module installation while retaining the owner's
+  cancellation/poisoning guarantees. No browser flags or loader bypass applied;
+  temporary generated-JS logging was removed. Build log: `/tmp/pax-rebase-web2.log`.

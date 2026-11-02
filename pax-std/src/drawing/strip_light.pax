@@ -1,0 +1,6 @@
+<LightSource width=100% height=100% shape=LightShape::Strip color={self.color}
+    intensity={self.intensity} radius={self.radius} z={self._emitter_depth} enabled={self.enabled}/>
+
+@settings {
+    @mount: mount
+}

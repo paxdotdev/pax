@@ -327,9 +327,15 @@ Point, directional, or finite strip light shape.
 ##### `position`
 Type: `Vector3`
 
-Position in unprojected world pixels for point lights. Contributors supply
+Center in unprojected world pixels for point and strip lights. Contributors supply
 the unscrolled world position; collected layer lighting adjusts source
 minus target scroll displacement while retaining world axes.
+
+##### `half_extent`
+Type: `Vector3`
+
+Vector from the center to one endpoint of a strip, in unprojected world axes.
+Ignored by other shapes. A zero extent makes a strip behave as a point.
 
 ##### `direction`
 Type: `Vector3`

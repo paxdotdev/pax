@@ -1,15 +1,15 @@
 if game_state == "PLAYING" {
-    <Text x=10px y=10px width=160px text={"Score: " + score} style={
+    <Text x=10px y=10px width=160px style={
         fill: WHITE
-    } selectable=false/>
+    } selectable=false>{"Score: " + score}</Text>
     // A continuous hit surface keeps touch capture stable between moving sprites.
     <Rectangle width=100% height=100% fill=TRANSPARENT/>
 } else if game_state == "GAME_OVER" {
     <Stacker x=50% y=50% width={100% - 32px} autosize=true gutter=16px>
-        <Text width=100% text="GAME OVER" id=game_over selectable=false/>
-        <Text width=100% text={"Score: " + score} id=game_over_score selectable=false/>
+        <Text width=100% id=game_over selectable=false>{"GAME OVER"}</Text>
+        <Text width=100% id=game_over_score selectable=false>{"Score: " + score}</Text>
         <Group width=100% height=44px>
-            <Button x=50% width=180px height=44px label="Play Again"
+            <Button x=50% width=180px height=44px
                 color=rgb(245, 240, 244) hover_color=WHITE
                 style={
                     font: { family: "Times New Roman", weight: 700 }
@@ -18,7 +18,7 @@ if game_state == "PLAYING" {
                     align_vertical: TextAlignVertical::Center
                     align_horizontal: TextAlignHorizontal::Center
                     align_multiline: TextAlignHorizontal::Center
-                }/>
+                }>{"Play Again"}</Button>
         </Group>
     </Stacker>
     <Rectangle fill=rgba(255, 0, 50, 50)/>

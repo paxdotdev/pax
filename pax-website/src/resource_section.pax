@@ -7,14 +7,14 @@
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
             sizes={self.compact ? [] : [Some(45%), None]}>
             <Stacker width=100% autosize=true gutter=24px>
-                <Text class="editorial_kicker" width=100% text="PAX IS READY FOR BUILDERS"/>
+                <Text class="editorial_kicker" width=100%>{"PAX IS READY FOR BUILDERS"}</Text>
                 ///#h2
-                <Text class="editorial_title" width=100% text="Your next interface starts here."/>
-                <Text class="editorial_lead" width=100% text="Start with a running project, change something, and make it yours."/>
+                <Text class="editorial_title" width=100%>{"Your next interface starts here."}</Text>
+                <Text class="editorial_lead" width=100%>{"Start with a running project, change something, and make it yours."}</Text>
             </Stacker>
             <Stacker width=100% autosize=true gutter=24px>
                 ///#h3
-                <Text class="editorial_subtitle" width=100% text="Four commands to begin."/>
+                <Text class="editorial_subtitle" width=100%>{"Four commands to begin."}</Text>
                 <Stacker width=100% autosize=true gutter=8px>
                     <Text class="editorial_code" width=100%>cargo install pax-cli</Text>
                     <Text class="editorial_code" width=100%>pax-cli create my-app</Text>

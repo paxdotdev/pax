@@ -1,0 +1,33 @@
+<Group width=100% height={(self.content_height)px}>
+    <ImportSettings><SiteTheme/></ImportSettings>
+    <Link width=100% height=100% url={self.url} target=Target::Current>
+        <Stacker x=24px y={(self.stage_height + 8)px} width={100% - 48px} autosize=true gutter=8px>
+            <Text class="editorial_link" width=100%>{self.label}</Text>
+            <Text class="editorial_note" width=100%>{self.detail}</Text>
+        </Stacker>
+        <Group width=1072px height=716px anchor=0% scale={(self.stage_scale)%} layout_role=LayoutRole::Breakout>
+            <Group id=screen x=50% y=50% anchor=50% width=1000px height=644px rotate={self.mirrored ? 2deg : -2deg}>
+                <DeviceFrame width=100% height=100% kind={self.kind}>
+                    <NativeImage width=100% height=100% url={self.image} fit=ImageFit::Paint/>
+                </DeviceFrame>
+            </Group>
+        </Group>
+    </Link>
+</Group>
+
+@settings { @mount: mount }
+
+@timeline arrival {
+    duration: 100,
+    playhead: {self.scene_progress},
+    loop: false,
+    #screen {
+        y: { 0%: 50%, OutQuad, 40%: 50%, Linear, 76%: 50%, InQuad, 100%: 48%, }
+        rotate: {
+            0%: {self.mirrored ? 4deg : -4deg}, OutQuad,
+            40%: {@base}, Linear,
+            76%: {@base}, InQuad,
+            100%: {self.mirrored ? -1deg : 1deg},
+        }
+    }
+}

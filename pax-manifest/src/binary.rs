@@ -1130,6 +1130,7 @@ mod tests {
                     settings: None,
                     timelines: vec![],
                     route_branch: None,
+                    camera: None,
                 },
             )]),
         };

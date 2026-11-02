@@ -1,0 +1,19 @@
+<Link width=100% height=100% url={self.url} target=Target::New>
+    <Group x=50% y=50% width={self.github ? 102px : 120px} height=28px>
+        if self.github {
+            <NativeImage x=0px y=50% width=22px height=22px url="assets/branding/github-invertocat-white.svg" fit=ImageFit::Fit/>
+        }
+        <Text x={self.github ? 32px : 0px} width={self.github ? 70px : 120px} height=100% selectable=false
+            wrap=false style={
+                font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Bold)
+                font_size: 16px
+                fill: {self.opal ? SiteTheme::ink() : SiteTheme::paper()}
+                align_vertical: TextAlignVertical::Center
+                align_horizontal: TextAlignHorizontal::Center
+            }>{self.label}</Text>
+    </Group>
+    <Rectangle width=100% height=100% corner_radius=5.333 fill={
+        paint: {self.opal ? SiteTheme::opal_paint() : SiteTheme::obsidian_paint()}
+        material: {self.opal ? SiteTheme::opal() : SiteTheme::obsidian()}
+    }/>
+</Link>
