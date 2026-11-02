@@ -2650,7 +2650,8 @@ impl ExpandedNode {
             ));
         #[cfg(feature = "3d")]
         {
-            let parent_support = render_parent
+            let parent_support = self
+                .presentation_parent_node()
                 .as_ref()
                 .map(|parent| parent.support_node.clone())
                 .unwrap_or_default();
@@ -2755,24 +2756,25 @@ impl ExpandedNode {
             let z = self.get_common_properties().borrow().z.clone();
             let depth_is_light_height = borrow!(self.instance_node).has_scene_lighting();
             let deps = [parent.untyped(), local.untyped(), z.untyped()];
+            let target = LocalProperty::computed(
+                move || {
+                    // Two-axis position remains a 2D API. A reactive third axis
+                    // must not silently become an inert setting in a 2D build.
+                    assert!(
+                        depth_is_light_height || z.get().unwrap_or_default().to_float() == 0.,
+                        "{}",
+                        pax_manifest::capabilities::REQUIRES_3D
+                    );
+                    let local = local.get();
+                    TransformAndBounds {
+                        transform: parent.get().transform * local.transform,
+                        bounds: local.bounds,
+                    }
+                },
+                &deps,
+            );
             self.transform_and_bounds
-                .replace_with(LocalProperty::computed(
-                    move || {
-                        // Two-axis position remains a 2D API. A reactive third axis
-                        // must not silently become an inert setting in a 2D build.
-                        assert!(
-                            depth_is_light_height || z.get().unwrap_or_default().to_float() == 0.,
-                            "{}",
-                            pax_manifest::capabilities::REQUIRES_3D
-                        );
-                        let local = local.get();
-                        TransformAndBounds {
-                            transform: parent.get().transform * local.transform,
-                            bounds: local.bounds,
-                        }
-                    },
-                    &deps,
-                ));
+                .replace_with(crate::presentation::bind_move_geometry(self, ctx, target));
         }
 
         #[cfg(feature = "3d")]
@@ -4322,13 +4324,20 @@ impl ExpandedNode {
     pub fn permits_opaque_mesh_content(&self) -> bool {
         let mut parent = self.render_parent_node();
         while let Some(node) = parent {
+            // A detached source is resolved independently of the consuming mask
+            // and its ancestors. Masks inside that source still constrain content.
+            if self.render_source_owner.get() == Some(node.id) {
+                break;
+            }
             let instance = borrow!(node.instance_node);
             if !instance.permits_opaque_mesh_content(&node) {
                 return false;
             }
             #[cfg(feature = "shaders")]
             if instance.shader_effect(&node).is_some() {
-                return false;
+                // Shader output is a planar image. Ancestor alpha masks apply to
+                // that image; only constraints inside the capture affect its mesh.
+                break;
             }
             parent = node.render_parent_node();
         }

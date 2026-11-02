@@ -23,10 +23,15 @@ use_RefCell!();
 ///
 /// Node and ancestor opacity fade the assembled opaque appearance through the
 /// bounded spatial group compositor; hidden rear surfaces stay hidden.
-/// This primitive accepts a solid opaque color. Translucent material color,
-/// alpha masks, detached mask sources, and shader-effect captures are unsupported;
+/// This primitive accepts a solid opaque color. Translucent material color
+/// and alpha-masked solid content are unsupported;
 /// unsupported instances are omitted with a diagnostic. Zero/negative dimensions
 /// or a singular pose produce no coverage. Transparent shells are a separate contract.
+/// An ellipsoid can supply a detached alpha-mask source; its projected silhouette,
+/// hard clips and assembly opacity contribute to the mask's alpha.
+/// With `pax-kit/shaders`, shader containers resolve internal mesh depth before
+/// filtering. Their output is a flat image at the container's plane; logical
+/// input and native coverage continue to follow the original geometry.
 #[pax]
 #[custom(Default)]
 #[engine_import_path("pax_engine")]
@@ -60,9 +65,6 @@ pub struct EllipsoidInstance {
 }
 
 fn supported(node: &ExpandedNode) -> bool {
-    if node.is_render_source() {
-        return false;
-    }
     let opaque = node.with_properties_unwrapped(|p: &mut Ellipsoid| {
         p.color.local().get().to_rgba_0_1()[3] == 1.
     });
@@ -86,6 +88,9 @@ fn polygon_path(points: &[[f64; 2]]) -> kurbo::BezPath {
     p
 }
 impl InstanceNode for EllipsoidInstance {
+    fn supports_alpha_source_render(&self) -> bool {
+        true
+    }
     fn instantiate(args: InstantiationArgs) -> Rc<Self> {
         Rc::new(Self {
             base: BaseInstance::new(
@@ -215,7 +220,7 @@ impl InstanceNode for EllipsoidInstance {
         self.resolve_convex_mesh(node).map(pax_runtime_api::HitShape::Mesh).unwrap_or_default()
     }
     fn render(&self, node: &ExpandedNode, ctx: &Rc<RuntimeContext>, rc: &mut dyn RenderContext) {
-        if !ctx.is_canvas_node_dirty(&node.id) {
+        if rc.alpha_source_layer().is_none() && !ctx.is_canvas_node_dirty(&node.id) {
             return;
         }
         let Some(scope) = crate::common::begin_bounded_canvas_node(rc, node, ctx) else {
@@ -224,14 +229,20 @@ impl InstanceNode for EllipsoidInstance {
         if !rc.is_gpu() || !supported(node) {
             if node.computed_opacity.get() != 0. {
                 static WARN: std::sync::Once = std::sync::Once::new();
-                WARN.call_once(|| log::warn!("Ellipsoid requires the GPU renderer, opaque surface color, and hard clips; translucent materials, alpha masks and effect captures are not supported yet"));
+                WARN.call_once(|| log::warn!("Ellipsoid requires the GPU renderer, opaque surface color, and hard clips; translucent materials and alpha-masked solid content are not supported yet"));
             }
-        } else if let (Some(solid), Some(surface)) = (
-            &ctx.canvas_geometry_for_node(node).solid,
-            ctx.canvas_geometry_for_node(node).solid_projection,
-        ) {
+        } else if let Some(solid) = &ctx.canvas_geometry_for_node(node).solid {
+            let surface = if node.is_render_source() && node.has_perspective_camera() {
+                ctx.canvas_mesh_projection_on_layer(node, scope.layer_id, solid.transform)
+            } else {
+                ctx.canvas_geometry_for_node(node).solid_projection
+            };
+            let Some(surface) = surface else {
+                rc.end_node(scope.layer_id, scope.node_id);
+                return;
+            };
             node.with_properties_unwrapped(|p: &mut Ellipsoid| {
-                rc.set_node_depth_plane(scope.layer_id, scope.node_id, None);
+                rc.set_node_depth_plane(scope.layer_id, scope.node_id, ctx.depth_plane_in_presentation(node, None));
                 rc.draw_convex_mesh(
                     scope.layer_id,
                     OpaqueMeshDraw {

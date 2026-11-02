@@ -360,6 +360,7 @@ impl ProjectedPlane {
             .iter()
             .all(|v: &f64| v.is_finite())
             .then_some(DepthPlane {
+                presentation_layer: 0,
                 coefficients,
                 backface: determinant < 0.,
             })

@@ -149,8 +149,7 @@ pub fn begin_bounded_canvas_node(
             node_id,
             context.depth_plane_in_presentation(
                 expanded_node,
-                geometry
-                    .projection
+                projection
                     .and_then(|plane| plane.depth_plane())
                     .or_else(|| {
                         geometry.spatial_geometry.depth_plane(

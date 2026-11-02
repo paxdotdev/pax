@@ -11,7 +11,7 @@ type Polygon = Vec<[f64; 2]>;
 pub(super) struct RetainedSolid {
     pub pose: Rc<ProjectedConvexMesh>,
     world: [f64; 16],
-    projection_viewport: kurbo::Rect,
+    projection_viewport: Option<kurbo::Rect>,
     color: Color,
     pub material: Material,
     pub light_mask: u32,
@@ -30,18 +30,11 @@ impl RetainedSolid {
             .iter()
             .chain(self.pose.projection.matrix().iter())
             .chain(self.pose.projection.camera_clip_rows().iter().flatten())
-            .chain(
-                [
-                    self.projection_viewport.x0,
-                    self.projection_viewport.y0,
-                    self.projection_viewport.x1,
-                    self.projection_viewport.y1,
-                ]
-                .iter(),
-            )
         {
             value.to_bits().hash(hash);
         }
+        self.projection_viewport.map(|r| [r.x0, r.y0, r.x1, r.y1].map(f64::to_bits))
+            .hash(hash);
         self.pose.projection.clips_depth().hash(hash);
         bytemuck::bytes_of(&self.color.rgba).hash(hash);
         bytemuck::bytes_of(&to_gpu_material(self.material)).hash(hash);
@@ -112,7 +105,6 @@ impl WgpuRenderer<'_> {
             .clip_stack
             .iter()
             .any(|c| matches!(c, ClipReference::Alpha { .. }))
-            || !self.source_recordings.is_empty()
         {
             return;
         }
@@ -120,12 +112,17 @@ impl WgpuRenderer<'_> {
         let projection = draw
             .surface
             .post_mapping(kurbo::Affine::new(t.map(f64::from)).into());
-        let projection_viewport = kurbo::Rect::new(
+        let capture = !self.source_recordings.is_empty();
+        #[cfg(feature = "shaders")]
+        let capture = capture || self.effect_nodes.contains_key(&pending.id);
+        // Captures can sample outside this tile (feather/filter halos). Keep the
+        // source mesh's full clipped projection until the capture domain is known.
+        let projection_viewport = (!capture).then(|| kurbo::Rect::new(
             viewport.min.x as f64,
             viewport.min.y as f64,
             viewport.max.x as f64,
             viewport.max.y as f64,
-        );
+        ));
         // Paint-only updates reuse coverage, but camera clipping and the tile
         // viewport are part of the pose identity even if world geometry is fixed.
         let retained_pose = self.scene.get(&pending.id).and_then(|node| match node {
@@ -139,7 +136,7 @@ impl WgpuRenderer<'_> {
             _ => None,
         });
         let pose = retained_pose
-            .unwrap_or_else(|| draw.mesh.projected(projection, Some(projection_viewport)));
+            .unwrap_or_else(|| draw.mesh.projected(projection, projection_viewport));
         let bounds = bounds_of(&pose.silhouette());
         pending.kind = PendingNodeKind::Solid(RetainedSolid {
             pose,
@@ -157,10 +154,11 @@ impl WgpuRenderer<'_> {
     }
 
     pub(super) fn prepare_and_draw_solids(&mut self) {
-        self.solid_clips.clear();
+        self.spatial.solid_clips.clear();
         let solids: Vec<_> = self
             .sorted_nodes
             .iter()
+            .filter(|(_, id)| self.belongs_to_draw_domain(*id))
             .filter_map(|(_, id)| matches!(&self.scene[id], RetainedNode::Solid(_)).then_some(*id))
             .collect();
         let mut min = f64::INFINITY;
@@ -226,7 +224,7 @@ impl WgpuRenderer<'_> {
         // All states in a fade use the same world-depth mapping and uniforms.
         let solids: Vec<_> = solids
             .into_iter()
-            .filter(|id| !self.spatial_hidden.contains(id))
+            .filter(|id| !self.spatial.hidden.contains(id))
             .collect();
         let mut keys = Vec::new();
         let viewport = self.viewport_bounds();
@@ -265,9 +263,9 @@ impl WgpuRenderer<'_> {
                 if coverage.elements().is_empty() {
                     continue;
                 }
-                let key = ClipArenaKey::SolidOcclusion(id, *solid_id);
+                let key = ClipArenaKey::SolidOcclusion(self.spatial.namespace, id, *solid_id);
                 let clips = clip_dependencies(&s.clip_stack, &self.clip_arena);
-                if let Some(plan) = self.solid_clip_plans.get(&key) {
+                if let Some(plan) = self.spatial.solid_clip_plans.get(&key) {
                     if plan.coverage.ptr_eq(&Rc::downgrade(&coverage))
                         && plan.clips == clips
                         && plan.viewport == viewport
@@ -275,7 +273,7 @@ impl WgpuRenderer<'_> {
                         && self.clip_arena.key_to_id.get(&key) == Some(&plan.clip_id)
                     {
                         keys.push(key);
-                        self.solid_clips
+                        self.spatial.solid_clips
                             .entry(id)
                             .or_default()
                             .push(ClipReference::Stencil {
@@ -342,7 +340,7 @@ impl WgpuRenderer<'_> {
                     self.clip_arena
                         .sync_key(key, signature, geometry, Transform2D::identity())
                 {
-                    self.solid_clip_plans.insert(
+                    self.spatial.solid_clip_plans.insert(
                         key,
                         SolidClipPlan {
                             coverage: Rc::downgrade(&coverage),
@@ -353,7 +351,7 @@ impl WgpuRenderer<'_> {
                         },
                     );
                     keys.push(key);
-                    self.solid_clips
+                    self.spatial.solid_clips
                         .entry(id)
                         .or_default()
                         .push(ClipReference::Stencil { clip_id });
@@ -361,14 +359,14 @@ impl WgpuRenderer<'_> {
             }
         }
         let stale: Vec<_> = self
-            .solid_clip_keys
+            .spatial.solid_clip_keys
             .iter()
             .filter(|k| !keys.contains(k))
             .copied()
             .collect();
         self.clip_arena.release_keys(&stale);
-        self.solid_clip_plans.retain(|key, _| keys.contains(key));
-        self.solid_clip_keys = keys;
+        self.spatial.solid_clip_plans.retain(|key, _| keys.contains(key));
+        self.spatial.solid_clip_keys = keys;
         self.clip_arena.flush_to_gpu(&mut self.render_backend);
         if !solids.is_empty() {
             self.render_backend.clear_solid_depth();

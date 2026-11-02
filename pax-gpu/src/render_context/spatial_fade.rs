@@ -123,15 +123,13 @@ impl WgpuRenderer<'_> {
 
     pub(super) fn draw_spatial_fades(&mut self, active: &mut HashSet<CaptureKey>) -> bool {
         if self.depth_planes.is_empty()
-            && !self
-                .scene
-                .values()
-                .any(|n| matches!(n, RetainedNode::Solid(_)))
+            && !self.sorted_nodes.iter().any(|(_, id)|
+                self.belongs_to_draw_domain(*id) && matches!(&self.scene[id], RetainedNode::Solid(_)))
         {
-            self.spatial_fades = Default::default();
+            self.spatial.fades = Default::default();
             return false;
         }
-        if self.spatial_fades.scopes.is_empty() {
+        if self.spatial.fades.scopes.is_empty() {
             if !self
                 .opacity_scopes
                 .values()
@@ -140,8 +138,8 @@ impl WgpuRenderer<'_> {
             {
                 return false;
             }
-            let faded_mesh = self.scene.iter().any(|(id, node)| {
-                matches!(node, RetainedNode::Solid(_))
+            let faded_mesh = self.sorted_nodes.iter().any(|(_, id)| {
+                self.belongs_to_draw_domain(*id) && matches!(&self.scene[id], RetainedNode::Solid(_))
                     && self
                         .opacity_scopes
                         .get(id)
@@ -152,12 +150,12 @@ impl WgpuRenderer<'_> {
             }
         }
         let mut nodes = self.visible_main_nodes();
-        nodes.extend(self.sorted_nodes.iter().filter_map(|(_,id)| {
+        nodes.extend(self.sorted_nodes.iter().filter(|(_,id)| self.belongs_to_draw_domain(*id)).filter_map(|(_,id)| {
             matches!(&self.scene[id], RetainedNode::Solid(s) if boxes_intersect(&s.bounds, &self.viewport_bounds()))
                 .then_some(*id)
         }));
         nodes.sort_unstable();
-        let mut fades = std::mem::take(&mut self.spatial_fades);
+        let mut fades = std::mem::take(&mut self.spatial.fades);
         let current: HashSet<_> = nodes
             .iter()
             .flat_map(|id| self.opacity_scopes.get(id).into_iter().flatten())
@@ -174,7 +172,7 @@ impl WgpuRenderer<'_> {
         }
         if fades.scopes.is_empty() {
             fades.captures.clear();
-            self.spatial_fades = fades;
+            self.spatial.fades = fades;
             return false;
         }
         let mut scopes: HashMap<u32, Scope> = HashMap::new();
@@ -223,7 +221,7 @@ impl WgpuRenderer<'_> {
                 // become opaque in this component. Native opacity stays native.
                 self.resource_churn_stats.spatial_fade_overflows += 1;
                 if !fades.warned {
-                    log::warn!("Spatial group fade exceeds the 8 scene-view budget for this tile; overflowing GPU assemblies remain opaque (zero-opacity scopes remain hidden)");
+                    log::warn!("Spatial group fade exceeds the 8 scene-view budget for this composition domain in the tile; overflowing GPU assemblies remain opaque (zero-opacity scopes remain hidden)");
                     fades.warned = true;
                 }
                 for scope in component.iter().filter(|s| s.opacity == 0.) {
@@ -249,16 +247,16 @@ impl WgpuRenderer<'_> {
         // These scene states carry all scope opacity in their weights. Retained
         // paint alpha stays untouched, including translucent planar fills.
         let original_scopes = std::mem::take(&mut self.opacity_scopes);
-        let old_spatial = std::mem::take(&mut self.spatial_clip_keys);
-        let old_solid = std::mem::take(&mut self.solid_clip_keys);
+        let old_spatial = std::mem::take(&mut self.spatial.clip_keys);
+        let old_solid = std::mem::take(&mut self.spatial.solid_clip_keys);
         let mut used_spatial = Vec::new();
         let mut used_solid = Vec::new();
         let mut used_captures = Vec::new();
-        self.spatial_hidden = base_hidden.clone();
-        self.spatial_namespace = 0;
+        self.spatial.hidden = base_hidden.clone();
+        let base_namespace = self.spatial.namespace;
         self.draw_spatial_scene_unfaded(active);
-        used_spatial.append(&mut self.spatial_clip_keys);
-        used_solid.append(&mut self.solid_clip_keys);
+        used_spatial.append(&mut self.spatial.clip_keys);
+        used_solid.append(&mut self.spatial.solid_clip_keys);
         for (component_id, bounds, members, states) in planned {
             let viewport = self.viewport_bounds();
             let bounds = ScissorRect {
@@ -268,14 +266,14 @@ impl WgpuRenderer<'_> {
                 max_y: bounds.max.y.min(viewport.max.y),
             };
             for (index, state) in states.iter().enumerate() {
-                self.spatial_hidden = base_hidden.clone();
+                self.spatial.hidden = base_hidden.clone();
                 for id in &members {
-                    self.spatial_hidden.remove(id);
+                    self.spatial.hidden.remove(id);
                 }
-                self.spatial_hidden.extend(state.hidden.iter().copied());
+                self.spatial.hidden.extend(state.hidden.iter().copied());
                 let mut hash = DefaultHasher::new();
                 state.hidden.hash(&mut hash);
-                let key = CaptureKey::SpatialVisibility(component_id, hash.finish());
+                let key = CaptureKey::SpatialVisibility(base_namespace, component_id, hash.finish());
                 used_captures.push(key);
                 let history = fades.captures.entry(component_id).or_default();
                 history.retain(|old| *old != key);
@@ -283,14 +281,14 @@ impl WgpuRenderer<'_> {
                 if history.len() > MAX_VIEWS {
                     history.remove(0);
                 }
-                self.solid_clips.clear();
+                self.spatial.solid_clips.clear();
                 let mut hash = DefaultHasher::new();
                 bytemuck::bytes_of(&self.render_backend.globals).hash(&mut hash);
                 for value in [bounds.min_x, bounds.min_y, bounds.max_x, bounds.max_y] {
                     value.to_bits().hash(&mut hash);
                 }
                 for id in &nodes {
-                    if self.spatial_hidden.contains(id) {
+                    if self.spatial.hidden.contains(id) {
                         continue;
                     }
                     self.hash_opacity_content(*id, &mut hash);
@@ -305,13 +303,13 @@ impl WgpuRenderer<'_> {
                 if !self.render_backend.capture_is_cached(key, signature) {
                     let mut namespace = DefaultHasher::new();
                     key.hash(&mut namespace);
-                    self.spatial_namespace = namespace.finish();
+                    self.spatial.namespace = namespace.finish();
                     self.render_backend.begin_capture();
                     self.draw_spatial_scene_unfaded(active);
                     self.render_backend.end_capture(key, signature, bounds);
                     self.resource_churn_stats.spatial_fade_renders += 1;
-                    used_spatial.append(&mut self.spatial_clip_keys);
-                    used_solid.append(&mut self.solid_clip_keys);
+                    used_spatial.append(&mut self.spatial.clip_keys);
+                    used_solid.append(&mut self.spatial.solid_clip_keys);
                 } else {
                     self.resource_churn_stats.spatial_fade_cache_hits += 1;
                 }
@@ -320,8 +318,8 @@ impl WgpuRenderer<'_> {
             }
         }
         self.opacity_scopes = original_scopes;
-        self.spatial_hidden.clear();
-        self.spatial_namespace = 0;
+        self.spatial.hidden.clear();
+        self.spatial.namespace = base_namespace;
         // Never recycle clip slots between views queued in the same submission.
         let mut unique = HashSet::new();
         used_spatial.retain(|k| unique.insert(*k));
@@ -333,9 +331,9 @@ impl WgpuRenderer<'_> {
             .filter(|k| !used_spatial.contains(k) && !used_solid.contains(k))
             .collect();
         self.clip_arena.release_keys(&expired);
-        self.spatial_clip_keys = used_spatial;
-        self.solid_clip_keys = used_solid;
-        // Cache residency shares the same tile-wide budget as rendering. Keep
+        self.spatial.clip_keys = used_spatial;
+        self.spatial.solid_clip_keys = used_solid;
+        // Cache residency shares the same per-domain tile budget as rendering. Keep
         // current views first, then a few endpoint/previous-state views for reuse.
         let mut resident: HashSet<_> = used_captures.into_iter().collect();
         let mut component_ids: Vec<_> = fades.captures.keys().copied().collect();
@@ -353,7 +351,7 @@ impl WgpuRenderer<'_> {
             });
         }
         active.extend(resident);
-        self.spatial_fades = fades;
+        self.spatial.fades = fades;
         true
     }
 }

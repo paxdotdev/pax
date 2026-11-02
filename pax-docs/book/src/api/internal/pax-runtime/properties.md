@@ -116,6 +116,12 @@ Retained mounted identities and the runtime-wide coverage budget for GPU replay.
 
 Obtain the same prepared record used by spatial replay selection.
 
+##### `canvas_mesh_projection_on_layer`
+<pre><code class="api-signature language-rust ignore">pub fn canvas_mesh_projection_on_layer(&amp;self, node: &amp;ExpandedNode, layer: usize, transform: [f64; 16]) -&gt; Option&lt;<a href="../../../api/pax-runtime-api/mesh3/projection.md#meshprojection">MeshProjection</a>&gt;</code></pre>
+
+Projects a solid into a specified canvas chart. Detached alpha sources use
+their consumer's layer, which can differ from the source's logical layer.
+
 ##### `canvas_node_light_mask`
 <pre><code class="api-signature language-rust ignore">pub fn canvas_node_light_mask(&amp;self, id: <a href="../../../api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>) -&gt; u32</code></pre>
 

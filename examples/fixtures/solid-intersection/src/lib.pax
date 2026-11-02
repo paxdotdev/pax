@@ -1,4 +1,8 @@
-if self.study {
+if self.masks {
+    <MaskStudy width=100% height=100%>
+        <Button width=130px height=30px label="Intersection" @button_click=self.switch_masks/>
+    </MaskStudy>
+} else if self.study {
     <ScrollStudy width=100% height=100%>
         <Button x=100% y=0px width=130px height=28px label="Intersection" @button_click=self.switch_study/>
     </ScrollStudy>
@@ -6,6 +10,7 @@ if self.study {
     <Scroller width=100% height=100% scroll_height=1380px scroll_pos_y=bind:self.scroll_y>
         <Group width=100% height=1380px anchor=0%>
             <Button x=100% y=0px width=130px height=28px label="Scroll study" @button_click=self.switch_study/>
+            <Button x=0px y=0px width=130px height=28px label="Mask study" @button_click=self.switch_masks/>
             <Group x=32px y=28px width={100% - 64px} height=144px translate_z=1000px>
                 <Text class="label" width=100% height=22px text="PAX / SURFACE STUDIES / 03"/>
                 <Text class="title" y=38px width=100% height=66px text="Fade the assembly."/>

@@ -1,4 +1,6 @@
 use pax_kit::*;
+mod mask_study;
+use mask_study::MaskStudy;
 mod scroll_study;
 use scroll_study::ScrollStudy;
 pax_kit::runnable! { root: crate::Example }
@@ -7,6 +9,7 @@ pax_kit::runnable! { root: crate::Example }
 #[file("lib.pax")]
 pub struct Example {
     pub study: Property<bool>,
+    pub masks: Property<bool>,
     pub native: Property<bool>,
     pub solids: Property<bool>,
     pub fading: Property<bool>,
@@ -53,6 +56,11 @@ impl Example {
         self.playing.set(false);
         self.fading.set(false);
         self.study.set(!self.study.get());
+    }
+    pub fn switch_masks(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
+        self.playing.set(false);
+        self.fading.set(false);
+        self.masks.set(!self.masks.get());
     }
     pub fn toggle_native(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
         self.native.set(!self.native.get());

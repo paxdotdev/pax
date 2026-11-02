@@ -46,6 +46,7 @@ function harness(ios = false, delegated = false) {
         objectManager: {getFromPool: element},
         chassis: {interrupt: m => feedback.push(JSON.parse(JSON.stringify(m.ScrollerPosition)))},
         layers: {
+            removeElementMask() {},
             addElement: leaf => root.appendChild(leaf), registerParentFrameHost() {},
             registerScrollerIslandHosts: () => false, unregisterScrollerIslandHosts: () => false,
             unregisterParentFrameHost() {}, claimLayerForScrollerIsland: () => false,

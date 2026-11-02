@@ -9,11 +9,13 @@ use wgpu::Buffer;
 pub(crate) enum CaptureKey {
     Opacity(u32, u32),
     #[cfg(feature = "3d")]
-    SpatialGroup(u32),
+    Presentation(u64, u32),
     #[cfg(feature = "3d")]
-    SpatialVisibility(u64, u64),
+    SpatialGroup(u64, u32),
     #[cfg(feature = "3d")]
-    SpatialOpacity(u32, u32, usize),
+    SpatialVisibility(u64, u64, u64),
+    #[cfg(feature = "3d")]
+    SpatialOpacity(u64, u32, u32, usize),
     Alpha(u32),
     #[cfg(feature = "shaders")]
     EffectSource(u32),
@@ -27,7 +29,7 @@ impl CaptureKey {
             Self::EffectSource(_) => true,
             Self::Opacity(..) => false,
             #[cfg(feature = "3d")]
-            Self::SpatialGroup(..) | Self::SpatialOpacity(..) | Self::SpatialVisibility(..) => false,
+            Self::Presentation(..) | Self::SpatialGroup(..) | Self::SpatialOpacity(..) | Self::SpatialVisibility(..) => false,
         }
     }
 }

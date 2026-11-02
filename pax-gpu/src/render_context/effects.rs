@@ -77,6 +77,18 @@ impl WgpuRenderer<'_> {
             "shader effects cannot be used as detached mask sources"
         );
         let projection = projection.post_affine(kurbo_affine(self.current_transform()));
+        #[cfg(feature = "3d")]
+        {
+            // The filter resolves its children into an image. Outside geometry
+            // intersects that image's container plane, not the source fragments.
+            // This projection already includes the tile's base transform.
+            if let Some(mut plane) = projection.depth_plane() {
+                plane.presentation_layer = self.depth_planes.get(&id).map_or(0, |p| p.presentation_layer);
+                self.depth_planes.insert(id, plane);
+            } else {
+                self.depth_planes.remove(&id);
+            }
+        }
         let local = kurbo::Rect::new(0., 0., size.0, size.1);
         let layout = projected_box(
             Box2D::new(point(0., 0.), point(size.0 as f32, size.1 as f32)),
@@ -353,7 +365,7 @@ impl WgpuRenderer<'_> {
             v.to_bits().hash(&mut hash);
         }
         for child in &nodes {
-            self.hash_opacity_content(*child, &mut hash);
+            self.hash_capture_content(*child, &mut hash);
             if let Some(scopes) = self.opacity_scopes.get(child) {
                 for scope in scopes {
                     scope.node_id.hash(&mut hash);
@@ -364,8 +376,6 @@ impl WgpuRenderer<'_> {
         let source_signature = hash.finish();
         let key = CaptureKey::EffectSource(id);
         active.insert(key);
-        let plan = self.opacity_plan_in_domain(&nodes, 0, &globals);
-        collect_opacity_group_keys(&plan, active);
         if !self.render_backend.capture_is_cached(key, source_signature) {
             if !domain.active {
                 assert!(self.render_backend.begin_source_domain(domain.margin));
@@ -373,7 +383,7 @@ impl WgpuRenderer<'_> {
                 self.ensure_vector_resources_for_immediate_scene();
             }
             self.render_backend.begin_capture();
-            self.draw_opacity_plan(&plan);
+            self.draw_capture_scene(key, &nodes, active);
             let origin = self.render_backend.globals.origin;
             let x = ((bounds.min_x - origin[0]) * dpr[0]).round().max(0.0) as u32;
             let y = ((bounds.min_y - origin[1]) * dpr[1]).round().max(0.0) as u32;
@@ -383,6 +393,7 @@ impl WgpuRenderer<'_> {
                 .end_capture_rect(key, source_signature, (x, y, width, height));
             self.resource_churn_stats.effect_source_renders += 1;
         } else {
+            self.retain_capture_scene(key, &nodes, active);
             self.resource_churn_stats.effect_source_cache_hits += 1;
         }
         effect.program.hash(&mut hash);

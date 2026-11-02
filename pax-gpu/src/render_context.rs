@@ -1,3 +1,4 @@
+mod capture_scene;
 #[cfg(feature = "shaders")]
 mod effects;
 #[cfg(feature = "shaders")]
@@ -308,21 +309,9 @@ pub struct WgpuRenderer<'w> {
     #[cfg(feature = "3d")]
     coverage_chart: Option<pax_runtime_api::visibility::RelationChart>,
     #[cfg(feature = "3d")]
-    spatial_clip_keys: Vec<ClipArenaKey>,
+    spatial: capture_scene::SpatialComposition,
     #[cfg(feature = "3d")]
-    solid_clips: HashMap<u32, Vec<ClipReference>>,
-    #[cfg(feature = "3d")]
-    solid_clip_plans: HashMap<ClipArenaKey, solid::SolidClipPlan>,
-    #[cfg(feature = "3d")]
-    solid_clip_keys: Vec<ClipArenaKey>,
-    #[cfg(feature = "3d")]
-    spatial_region: Option<(usize, u64, u32)>,
-    #[cfg(feature = "3d")]
-    spatial_fades: spatial_fade::SpatialFades,
-    #[cfg(feature = "3d")]
-    spatial_hidden: HashSet<u32>,
-    #[cfg(feature = "3d")]
-    spatial_namespace: u64,
+    capture_scenes: HashMap<crate::render_backend::capture::CaptureKey, capture_scene::SpatialComposition>,
     source_nodes: HashMap<u32, u32>,
     source_captures: HashMap<u32, SourceCapture>,
     source_recordings: Vec<SourceRecording>,
@@ -606,7 +595,7 @@ enum ClipArenaKey {
     #[cfg(feature = "3d")]
     SpatialRegion(u64, usize),
     #[cfg(feature = "3d")]
-    SolidOcclusion(u32, u32),
+    SolidOcclusion(u64, u32, u32),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -823,21 +812,9 @@ impl<'w> WgpuRenderer<'w> {
             #[cfg(feature = "3d")]
             coverage_chart: None,
             #[cfg(feature = "3d")]
-            spatial_clip_keys: Vec::new(),
+            spatial: Default::default(),
             #[cfg(feature = "3d")]
-            solid_clips: HashMap::new(),
-            #[cfg(feature = "3d")]
-            solid_clip_plans: HashMap::new(),
-            #[cfg(feature = "3d")]
-            solid_clip_keys: Vec::new(),
-            #[cfg(feature = "3d")]
-            spatial_fades: Default::default(),
-            #[cfg(feature = "3d")]
-            spatial_hidden: HashSet::new(),
-            #[cfg(feature = "3d")]
-            spatial_namespace: 0,
-            #[cfg(feature = "3d")]
-            spatial_region: None,
+            capture_scenes: HashMap::new(),
             source_nodes: HashMap::new(),
             source_captures: HashMap::new(),
             source_recordings: Vec::new(),
@@ -936,14 +913,8 @@ impl<'w> WgpuRenderer<'w> {
             self.depth_planes.clear();
             self.coverage_nodes.clear();
             self.coverage_chart = None;
-            self.spatial_clip_keys.clear();
-            self.spatial_region = None;
-            self.solid_clip_keys.clear();
-            self.solid_clips.clear();
-            self.solid_clip_plans.clear();
-            self.spatial_fades = Default::default();
-            self.spatial_hidden.clear();
-            self.spatial_namespace = 0;
+            self.spatial = Default::default();
+            self.capture_scenes.clear();
         }
         self.source_nodes.clear();
         self.source_captures.clear();
@@ -1368,6 +1339,8 @@ impl<'w> WgpuRenderer<'w> {
             })
         });
         if self.should_use_vector_scene_batch() {
+            #[cfg(feature = "3d")]
+            self.retire_capture_scenes(&HashSet::new());
             self.render_backend.retain_captures(&HashSet::new());
             self.resource_churn_stats.vector_batch_flushes += 1;
             self.flush_vector_scene_batch(defer_submit);
@@ -1399,12 +1372,14 @@ impl<'w> WgpuRenderer<'w> {
             opacity::collect_opacity_group_keys(&plan, &mut active);
             self.draw_opacity_plan(&plan);
         }
+        #[cfg(feature = "3d")]
+        self.retire_capture_scenes(&active);
         self.render_backend.retain_captures(&active);
         #[cfg_attr(not(feature = "3d"), allow(unused_mut))]
         let (mut active_clip_signatures, mut active_clip_ids) =
             collect_active_clip_resources(&self.scene, &self.clip_arena);
         #[cfg(feature = "3d")]
-        for key in self.spatial_clip_keys.iter().chain(&self.solid_clip_keys) {
+        for key in self.composition_clip_keys() {
             if let Some(id) = self.clip_arena.key_to_id.get(key) {
                 active_clip_ids.insert(*id);
                 active_clip_signatures.insert(self.clip_arena.entries[id].geometry_signature);
@@ -1438,9 +1413,9 @@ impl<'w> WgpuRenderer<'w> {
             #[cfg_attr(not(feature = "3d"), allow(unused_mut))]
             let mut effective_clips = node.clip_stack().to_vec();
             #[cfg(feature = "3d")]
-            effective_clips.extend(self.solid_clips.get(node_id).into_iter().flatten().copied());
+            effective_clips.extend(self.spatial.solid_clips.get(node_id).into_iter().flatten().copied());
             #[cfg(feature = "3d")]
-            if let Some((_, _, clip_id)) = self.spatial_region {
+            if let Some((_, _, clip_id)) = self.spatial.region {
                 effective_clips.push(ClipReference::Stencil { clip_id });
             }
             if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
@@ -2474,7 +2449,7 @@ impl<'w> WgpuRenderer<'w> {
         let (mut active_clip_signatures, mut active_clip_ids) =
             collect_active_clip_resources(&self.scene, &self.clip_arena);
         #[cfg(feature = "3d")]
-        for key in self.spatial_clip_keys.iter().chain(&self.solid_clip_keys) {
+        for key in self.composition_clip_keys() {
             if let Some(id) = self.clip_arena.key_to_id.get(key) {
                 active_clip_ids.insert(*id);
                 active_clip_signatures.insert(self.clip_arena.entries[id].geometry_signature);
@@ -2600,6 +2575,8 @@ enum RetainedNode {
 impl RetainedNode {
     fn set_z_index(&mut self, z: i32) {
         match self {
+            #[cfg(feature = "3d")]
+            Self::Solid(node) => node.z_index = z,
             Self::Vector(node) => node.z_index = z,
             Self::Image(node) => node.z_index = z,
             #[cfg(feature = "shaders")]

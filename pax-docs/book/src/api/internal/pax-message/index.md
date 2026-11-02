@@ -1677,6 +1677,47 @@ Type: `Vec`<[`ModifierKeyMessage`](../../../api/internal/pax-message/index.md#mo
 
 ---
 
+### `WheelRegion`
+Geometry for one raycastable node within a cancellable wheel scope.
+
+#### Properties
+##### `id`
+Type: `u32`
+
+##### `parent_frame`
+Type: `Option`<`u32`>
+
+##### `z_index`
+Type: `i32`
+
+##### `transform`
+Type: [`f64`; 6]
+
+##### `size_x`
+Type: `f64`
+
+##### `size_y`
+Type: `f64`
+
+##### `native`
+Type: `bool`
+
+Existing native leaves receive a listener rather than an input overlay.
+
+---
+
+### `WheelRegionsPatch`
+Retained web input projections. They do not paint or allocate render surfaces.
+
+#### Properties
+##### `upsert`
+Type: `Vec`<[`WheelRegion`](../../../api/internal/pax-message/index.md#wheelregion)>
+
+##### `remove`
+Type: `Vec`<`u32`>
+
+---
+
 ### `YoutubeVideoPatch`
 Create/update patch for an embedded YouTube video.
 
@@ -1874,6 +1915,7 @@ Messages emitted by the runtime to create, update, delete, or configure native/c
 ##### `ShrinkLayersTo`(`u32`)
 ##### `NativeMaskUpdate`([`NativeMaskPatch`](../../../api/internal/pax-message/index.md#nativemaskpatch))
 ##### `NativeCullUpdate`([`NativeCullPatch`](../../../api/internal/pax-message/index.md#nativecullpatch))
+##### `WheelRegionsUpdate`([`WheelRegionsPatch`](../../../api/internal/pax-message/index.md#wheelregionspatch))
 ##### `Navigate`([`NavigationPatch`](../../../api/internal/pax-message/index.md#navigationpatch))
 ##### `SetCursor`([`SetCursorPatch`](../../../api/internal/pax-message/index.md#setcursorpatch))
 ##### `Screenshot`([`ScreenshotPatch`](../../../api/internal/pax-message/index.md#screenshotpatch))

@@ -1,4 +1,4 @@
-//! Orthographic flat-surface composition. A projected intersection can change paint order
+//! Projected flat-surface composition. A projected intersection can change paint order
 //! within one primitive, so sorting whole nodes (or writing opaque depth) is insufficient.
 //! Split surfaces at depth-equality lines, then paint fragments in source-over order.
 //! Uninterrupted translucent groups share one capture. Interleaved fades use the
@@ -86,6 +86,23 @@ impl WgpuRenderer<'_> {
     }
 
     pub(super) fn draw_spatial_scene(&mut self, active: &mut HashSet<CaptureKey>) {
+        // Fixed overlays and transfer flights are ordered presentation layers.
+        // Resolve geometric depth independently inside each one, including solids.
+        let mut domains = std::collections::BTreeMap::<u32, Vec<u32>>::new();
+        for (_, id) in &self.sorted_nodes {
+            if self.belongs_to_draw_domain(*id) {
+                let layer = self.depth_planes.get(id).map_or(0, |p| p.presentation_layer);
+                domains.entry(layer).or_default().push(*id);
+            }
+        }
+        if domains.len() > 1 {
+            for (layer, nodes) in domains {
+                let key = CaptureKey::Presentation(self.spatial.namespace, layer);
+                active.insert(key);
+                self.draw_capture_scene(key, &nodes, active);
+            }
+            return;
+        }
         if !self.draw_spatial_fades(active) {
             self.draw_spatial_scene_unfaded(active);
         }
@@ -95,7 +112,7 @@ impl WgpuRenderer<'_> {
         self.prepare_and_draw_solids();
         if self.depth_planes.is_empty() {
             self.clip_arena
-                .release_keys(&std::mem::take(&mut self.spatial_clip_keys));
+                .release_keys(&std::mem::take(&mut self.spatial.clip_keys));
             let plan = self.opacity_plan();
             collect_opacity_group_keys(&plan, active);
             self.draw_opacity_plan(&plan);
@@ -255,7 +272,7 @@ impl WgpuRenderer<'_> {
             let (key, id) = self
                 .clip_arena
                 .sync_key(
-                    ClipArenaKey::SpatialRegion(self.spatial_namespace, index),
+                    ClipArenaKey::SpatialRegion(self.spatial.namespace, index),
                     signature,
                     geometry,
                     Transform2D::identity(),
@@ -264,13 +281,13 @@ impl WgpuRenderer<'_> {
             clips.push(Some((key, signature, id)));
         }
         let expired: Vec<_> = self
-            .spatial_clip_keys
+            .spatial.clip_keys
             .iter()
             .copied()
             .filter(|key| !clips.iter().flatten().any(|(new, _, _)| new == key))
             .collect();
         self.clip_arena.release_keys(&expired);
-        self.spatial_clip_keys = clips.iter().flatten().map(|(key, _, _)| *key).collect();
+        self.spatial.clip_keys = clips.iter().flatten().map(|(key, _, _)| *key).collect();
         self.clip_arena.flush_to_gpu(&mut self.render_backend);
         if surface_painter {
             if nodes.iter().all(|id| {
@@ -296,13 +313,13 @@ impl WgpuRenderer<'_> {
             }
         } else {
             for (index, group) in groups.iter().enumerate() {
-                self.spatial_region = clips[index].map(|(_, signature, id)| (index, signature, id));
+                self.spatial.region = clips[index].map(|(_, signature, id)| (index, signature, id));
                 let plan = self.opacity_plan_at_depth(&group.nodes, 0);
                 collect_opacity_group_keys(&plan, active);
                 self.draw_opacity_plan(&plan);
             }
         }
-        self.spatial_region = None;
+        self.spatial.region = None;
     }
 
     pub(super) fn draw_surface_fragments<'a>(
@@ -337,7 +354,7 @@ impl WgpuRenderer<'_> {
                     RetainedNode::Effect(node) => RetainedDraw::Effect(node.id),
                 };
                 let mut clips = node.clip_stack().to_vec();
-                clips.extend(self.solid_clips.get(id).into_iter().flatten().copied());
+                clips.extend(self.spatial.solid_clips.get(id).into_iter().flatten().copied());
                 if let Some(clip_id) = spatial_clip {
                     clips.push(ClipReference::Stencil { clip_id });
                 }

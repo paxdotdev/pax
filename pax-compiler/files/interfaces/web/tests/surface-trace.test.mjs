@@ -302,7 +302,9 @@ test('profile aggregates survive ring overflow and have bounded residency', () =
     assert.equal(result.max, 9);
     assert.equal(result.p95, 3);
     assert.equal(result.percentileSamples, 2048);
-    assert.equal(h.mount.paxSurfaceTrace.length, 2);
+    assert.equal(h.trace.events.snapshot().length, 2);
+    h.trace.snapshot(); // Flush aggregated phases into the sampled frame ring.
+    assert.equal(h.trace.samples.snapshot().length, 1);
     for (let i=0; i<100; i++) h.trace.recordPhase('phase'+i, 1);
     assert.equal(h.trace.profilePhases.size, 64);
     h.trace.dispose();

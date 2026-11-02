@@ -50,6 +50,9 @@ elements, and source-side Scrollers are not captured; use vector leaves and
 same-surface containers. Alpha masks modulate canvas draw alpha,
 not an isolated offscreen group, and do not change hit testing. Keep interactive
 hit targets separate from purely visual alpha reveals.
+With `pax-kit/3d` on WGPU, opaque `Ellipsoid` sources contribute their projected
+silhouette, hard clips and group opacity. Spatial sources resolve internal
+depth in an isolated capture. Alpha-masked solid content remains unsupported.
 
 #### Properties
 ##### `alpha`

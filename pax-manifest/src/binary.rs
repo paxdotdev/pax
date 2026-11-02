@@ -18,8 +18,9 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"PAXM\x00BIN";
-// Scalar-body metadata, receiving-property flags, and camera declarations extend the schema.
-const VERSION: u8 = 7;
+// Version 8 combines scalar-body metadata and receiving-property flags with
+// camera declarations; the two branches previously used incompatible v7 schemas.
+const VERSION: u8 = 8;
 
 pub type Result<T> = std::result::Result<T, Error>;
 

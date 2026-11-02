@@ -1,8 +1,6 @@
 use crate::api::math::Point2;
 use crate::api::Window;
 use crate::constants::{ACCEL_HANDLERS, GYRO_HANDLERS, PRE_RENDER_HANDLERS, TICK_HANDLERS};
-#[cfg(feature = "3d")]
-use kurbo::Shape;
 use pax_language::interpreter::property_resolution::IdentifierResolver;
 use pax_manifest::cartridge_generation::{TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT};
 use pax_manifest::UniqueTemplateNodeIdentifier;
@@ -1060,7 +1058,10 @@ impl RuntimeContext {
         presented: Affine,
     ) -> Option<pax_runtime_api::DepthPlane> {
         if node.has_perspective_camera() {
-            return self.prepared_presentation(node).depth_plane();
+            return self.depth_plane_in_presentation(
+                node,
+                self.prepared_presentation(node).depth_plane(),
+            );
         }
         let offset = self.presentation_depth_offset(node);
         let plane =
@@ -2290,6 +2291,19 @@ impl RuntimeContext {
         node.presentation_view.get().mesh(world.coeffs())
     }
 
+    /// Projects a solid into a specified canvas chart. Detached alpha sources use
+    /// their consumer's layer, which can differ from the source's logical layer.
+    #[cfg(feature = "3d")]
+    pub fn canvas_mesh_projection_on_layer(
+        &self,
+        node: &ExpandedNode,
+        layer: usize,
+        transform: [f64; 16],
+    ) -> Option<pax_runtime_api::mesh3::MeshProjection> {
+        Some(self.presented_mesh_projection_for_node(node, transform)?
+            .post_mapping(self.window_to_canvas_mapping(layer)?))
+    }
+
     fn prepare_canvas_geometry(
         &self,
         node: &ExpandedNode,
@@ -2321,7 +2335,9 @@ impl RuntimeContext {
             if let Some(solid) = &prepared.solid {
                 let projection = self.presented_mesh_projection_for_node(node, solid.transform);
                 prepared.projected_solid = projection.map(|projection| solid.projected(projection));
-                let mapping = if node.has_perspective_camera() {
+                let mapping = if node.is_render_source() {
+                    Some(pax_runtime_api::math::PlanarProjection::default())
+                } else if node.has_perspective_camera() {
                     self.window_to_canvas_mapping(prepared.layer)
                 } else {
                     Some(

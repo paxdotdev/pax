@@ -741,6 +741,7 @@ mod depth_policy_tests {
         let bounds = Rect::new(-100., -100., 100., 100.);
         for coefficients in [[1., 0., 0.], [0., -2., 10.], [0.3, -0.7, 12.]] {
             let front = DepthPlane {
+                presentation_layer: 0,
                 coefficients,
                 backface: false,
             };
@@ -760,6 +761,7 @@ mod depth_policy_tests {
     fn coverage_coincidence_and_point_quantization_are_distinct_policies() {
         let back = DepthPlane::default();
         let front = DepthPlane {
+            presentation_layer: 0,
             coefficients: [0., 0., 0.75e-7],
             backface: false,
         };

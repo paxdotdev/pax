@@ -377,6 +377,26 @@ the default geometry mask; for a soft visual reveal, use supported vector
 source paint and keep interactive hit targets separate. Alpha coverage does
 not change hit testing.
 
+With `pax-kit/3d` on WGPU, an opaque `Ellipsoid` can also supply the source.
+Its projected silhouette, source-side hard clips, and node/group opacity
+contribute to the mask. Rotate a shallow ellipsoid to animate the aperture:
+
+```pax
+<Mask width=400px height=280px alpha=true feather=8.0>
+    <Rectangle width=100% height=100% fill=rgb(75, 212, 184)/>
+    <Ellipsoid x=50% y=50% width=300px height=220px depth=80px
+        rotate_y=40deg color=WHITE/>
+</Mask>
+```
+
+Spatial sources use the same depth and bounded group-fade compositor as the
+main canvas. Source geometry is isolated from visible scene ordering; it
+cannot occlude outside content. The [Surface / Solid fixture](https://github.com/paxproject/pax/tree/dev/examples/fixtures/solid-intersection)
+includes a **Mask study** with rotation, feather, opacity, and unmount controls.
+This enables solids as sources, not alpha-masked solid content: placing an
+Ellipsoid in the mask's first child remains unsupported. CPU rendering omits
+Ellipsoids. Shader containers inside detached sources remain unsupported.
+
 On WGPU, paint, layer opacity, and stroke-reveal changes reuse retained geometry. A
 changing reveal redraws the source texture with GPU draw-range parameters; it
 does not trim and tessellate a new outline on the CPU. Unchanged captures reuse
@@ -791,13 +811,41 @@ effect textures and pipelines are still allocated only when needed.
 </Frame>
 ```
 
-This experimental slice captures vectors and renderer-backed `Image` nodes.
+This experimental slice captures vectors, renderer-backed `Image` nodes, and
+opaque `Ellipsoid` meshes when `3d` is also enabled.
 Native `Text`, `NativeImage`, controls, native materials, descendant Scrollers,
 and `unclippable` descendants cannot be captured; unsupported content produces
 a diagnostic. A shader container may live **inside** a Scroller. Effects inside
 detached mask sources are also unsupported. WGPU executes the shader; Vello CPU preserves the ordinary child content
 without applying the filter, as described below. The first target is web WebGPU, with
 Metal pixel tests covering the shared renderer.
+
+<a id="spatial-filter-composition"></a>
+
+With `3d` and `shaders` enabled, a shader container resolves the internal depth
+of its subtree before filtering. Its result is a flat image on the container's
+plane. Outside surfaces and solids intersect that plane, including when it is
+tilted; they do not interleave with the filtered descendants' original depths.
+This applies to nested shader containers too: the inner result is a plane in
+the outer capture. Node/group fades inside the capture use the same bounded
+spatial compositor as the main canvas.
+
+```pax
+<GaussianBlur width=320px height=240px rotate_y=18deg radius=5.0>
+    <Ellipsoid x=50% y=50% width=180px height=180px depth=120px
+        color=rgb(75, 212, 184)/>
+    <Rectangle x=50% y=50% width=240px height=100px rotate_y=-30deg
+        fill=rgb(65, 111, 191)/>
+</GaussianBlur>
+```
+
+Logical hit testing still uses the descendants' original geometry. Native
+occlusion retains the pre-effect geometry/coverage approximation described
+below; it does not adopt the filtered pixels or output plane. Keep native text
+and controls outside the capture. Ordinary `Mask` continues to act as a
+projected aperture without flattening its consuming content. An alpha mask
+may mask a shader's planar output, but cannot directly mask a solid inside
+the capture. Shader effects inside detached mask sources remain unsupported.
 
 Clips and opacity inside a shader container become part of its source image.
 Descendant masks affect only that captured layer; they do not clip or restore

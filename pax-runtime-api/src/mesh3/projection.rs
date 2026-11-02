@@ -359,6 +359,7 @@ mod tests {
         for projected in [&a, &b] {
             for i in 0..64 {
                 let plane = DepthPlane {
+                    presentation_layer: 0,
                     coefficients: [0.2, -0.1, i as f64 / 30. - 1.],
                     backface: false,
                 };

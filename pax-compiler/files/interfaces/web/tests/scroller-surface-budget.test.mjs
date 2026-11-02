@@ -93,6 +93,8 @@ for (const ios of [false, true]) {
 
 test('excess density is replanned before an overloaded plan reaches the DOM', () => {
     const h = harness(false);
+    // Main exposes admission attributes only while diagnostics are enabled.
+    h.pool.surfaceTrace = {record() {}, recordPhase() {}, observeDemand() {}, recordAdmission() {}};
     const host = h.candidates.get(1);
     h.candidates.clear();
     h.candidates.set(1, host);

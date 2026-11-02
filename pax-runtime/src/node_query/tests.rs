@@ -17,6 +17,7 @@ fn args(children: Vec<Rc<dyn InstanceNode>>) -> InstantiationArgs {
         children: Some(RefCell::new(children)),
         component_template: None,
         component_settings: None,
+        component_camera: None,
         template_node_identifier: None,
         template_node_type_id: None,
         template_node_selector_info: None,
@@ -529,6 +530,7 @@ fn overlay_contributions_escape_owner_geometry_but_keep_owner_lifetime() {
     cp.x.set(Some(Size::Pixels(200.into())));
     cp.width.set(Some(Size::Pixels(100.into())));
     cp.rotate.set(Some(Rotation::Degrees(25.into())));
+    #[cfg(feature = "3d")]
     cp.rotate_y.set(Some(Rotation::Degrees(40.into())));
     cp.opacity.set(Some(Opacity::Alpha(0.2.into())));
     engine.tick();

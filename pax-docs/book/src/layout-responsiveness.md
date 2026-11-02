@@ -585,10 +585,17 @@ canvases preserve those camera clip planes when rebasing into their content spac
 This first mesh primitive accepts one opaque `color` and a normal Pax
 `material`. It does not wrap live children onto a curved surface. Zero, negative,
 or non-finite extents and singular poses have no coverage. Node/group opacity
-uses the spatial fade contract below. Translucent surface color, alpha masks,
-shader-effect captures, and detached mask sources are unsupported: affected
+uses the spatial fade contract below. An ellipsoid can supply a detached
+[painted alpha-mask source](compositing-effects.md#painted-alpha-masks), including
+its projected silhouette, hard clips, and group opacity. Translucent surface
+color and alpha-masked solid content remain unsupported: affected
 ellipsoids are omitted with a bounded diagnostic. CPU rendering also omits them. Transparent shells and arbitrary concave meshes are
 not implemented. The logical-layer and native-control limits above still apply.
+
+With the additional `pax-kit/shaders` feature, GPU shader containers can filter
+an assembly containing solids. They resolve its internal depth and flatten the
+result onto the container's plane. See [spatial filter composition](compositing-effects.md#spatial-filter-composition)
+for the distinction between visual output, logical input, and native coverage.
 
 Try the [Surface / Solid fixture](https://github.com/paxproject/pax/tree/dev/examples/fixtures/solid-intersection)
 for a clipped editable panel, reproducible depth presets, rotation, and a
@@ -629,10 +636,11 @@ content at its actual depth; their premultiplied colors and alpha are combined
 once. Opacity-only updates reuse the views. Geometry, clipping, lighting, image,
 or backdrop changes invalidate affected captures.
 
-This experimental path has a budget of **eight scene views per physical canvas
+This experimental path has a budget of **eight scene views per composition domain in a physical canvas
 tile**, in addition to its ordinary backdrop draw, and retains at most eight
 view textures. One fading assembly needs two views; three independent overlapping
-fades can need eight. Nested absent scopes prune their descendants, and disjoint
+fades can need eight. The main scene and each alpha/filter source are separate
+domains; their work adds rather than multiplying through nested captures. Nested absent scopes prune their descendants, and disjoint
 projected capture regions add their costs instead of multiplying them. The budget
 is a work/residency bound, not a frame-rate guarantee.
 

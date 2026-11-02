@@ -12,10 +12,15 @@ and occlusion. Near/far clipping cuts the surface without adding caps.
 
 Node and ancestor opacity fade the assembled opaque appearance through the
 bounded spatial group compositor; hidden rear surfaces stay hidden.
-This primitive accepts a solid opaque color. Translucent material color,
-alpha masks, detached mask sources, and shader-effect captures are unsupported;
+This primitive accepts a solid opaque color. Translucent material color
+and alpha-masked solid content are unsupported;
 unsupported instances are omitted with a diagnostic. Zero/negative dimensions
 or a singular pose produce no coverage. Transparent shells are a separate contract.
+An ellipsoid can supply a detached alpha-mask source; its projected silhouette,
+hard clips and assembly opacity contribute to the mask's alpha.
+With `pax-kit/shaders`, shader containers resolve internal mesh depth before
+filtering. Their output is a flat image at the container's plane; logical
+input and native coverage continue to follow the original geometry.
 
 #### Properties
 ##### `depth`

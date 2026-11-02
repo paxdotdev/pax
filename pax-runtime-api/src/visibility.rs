@@ -104,6 +104,7 @@ mod tests {
         let weak = Rc::downgrade(&a);
         drop(a);
         let changed = DepthPlane {
+            presentation_layer: 0,
             coefficients: [0.1, 0., 0.2],
             backface: false,
         };

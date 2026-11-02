@@ -139,6 +139,7 @@ fn rich_and_baked_roundtrips_keep_only_required_body_data() {
             primitive_instance_import_path: None,
             template: Some(template),
             settings: None,
+            camera: None,
             timelines: vec![],
             route_branch: None,
         },
@@ -218,6 +219,7 @@ fn source_edits_serialize_current_values_not_stale_body_text() {
             primitive_instance_import_path: None,
             template: Some(template),
             settings: None,
+            camera: None,
             timelines: vec![],
             route_branch: None,
         };

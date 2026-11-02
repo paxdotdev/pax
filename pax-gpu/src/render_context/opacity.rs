@@ -36,14 +36,10 @@ impl WgpuRenderer<'_> {
             .iter()
             .filter(|(_, id)| {
                 #[cfg(feature = "3d")]
-                if self.spatial_hidden.contains(id) {
+                if self.spatial.hidden.contains(id) {
                     return false;
                 }
-                #[cfg(feature = "shaders")]
-                if self.effect_nodes.contains_key(id) {
-                    return false;
-                }
-                !self.source_nodes.contains_key(id)
+                self.belongs_to_draw_domain(*id)
             })
             .filter_map(|(_, id)| {
                 self.scene
@@ -111,6 +107,13 @@ impl WgpuRenderer<'_> {
         spatial_clips: Option<&[Option<(u64, u32)>]>,
         globals: &crate::render_backend::data::GpuGlobals,
     ) -> Vec<OpacityPlan> {
+        let viewport = Box2D::new(
+            point(globals.origin[0], globals.origin[1]),
+            point(
+                globals.origin[0] + globals.resolution[0],
+                globals.origin[1] + globals.resolution[1],
+            ),
+        );
         debug_assert!(spatial_clips.is_none_or(|clips| clips.len() == nodes.len()));
         let mut plan = Vec::new();
         let mut start = 0;
@@ -140,7 +143,7 @@ impl WgpuRenderer<'_> {
                 // own alpha intentionally does not: it is applied only when sampling the cache.
                 bytemuck::bytes_of(globals).hash(&mut hash);
                 #[cfg(feature = "3d")]
-                self.spatial_region
+                self.spatial.region
                     .map(|(_, signature, _)| signature)
                     .hash(&mut hash);
                 // A fragment's clip can move while its retained node stays unchanged.
@@ -181,12 +184,12 @@ impl WgpuRenderer<'_> {
                     key: if run_clips.is_some() && scope.opacity != 1.0 {
                         // This scope is proven contiguous. Its first BSP fragment can
                         // change on every pose without changing the capture's identity.
-                        CaptureKey::SpatialGroup(scope.node_id)
+                        CaptureKey::SpatialGroup(self.spatial.namespace, scope.node_id)
                     } else {
-                        self.spatial_region.map_or(
+                        self.spatial.region.map_or(
                             CaptureKey::Opacity(scope.node_id, run[0]),
                             |(region, _, _)| {
-                                CaptureKey::SpatialOpacity(scope.node_id, run[0], region)
+                                CaptureKey::SpatialOpacity(self.spatial.namespace, scope.node_id, run[0], region)
                             },
                         )
                     },
@@ -253,7 +256,7 @@ impl WgpuRenderer<'_> {
             }
         }
         #[cfg(feature = "3d")]
-        let clips = node.clip_stack().iter().chain(self.solid_clips.get(&id).into_iter().flatten());
+        let clips = node.clip_stack().iter().chain(self.spatial.solid_clips.get(&id).into_iter().flatten());
         #[cfg(not(feature = "3d"))]
         let clips = node.clip_stack().iter();
         for clip in clips {

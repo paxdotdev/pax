@@ -94,6 +94,8 @@ struct RecordingRenderer {
     capture_stack: Vec<usize>,
     captures: Vec<(usize, Affine, usize)>,
     fills: usize,
+    #[cfg(feature = "3d")]
+    solids: usize,
 }
 
 #[test]
@@ -338,6 +340,12 @@ fn projected_conditional_source_keeps_its_role_and_balances_lifetimes() {
 }
 
 impl RenderContext for RecordingRenderer {
+    fn is_gpu(&self) -> bool { self.capture_enabled }
+    #[cfg(feature = "3d")]
+    fn draw_convex_mesh(&mut self, layer: usize, _: pax_runtime_api::mesh3::OpaqueMeshDraw) {
+        assert_eq!(self.alpha_source_layer(), Some(layer));
+        self.solids += 1;
+    }
     fn supports_alpha_source_capture(&self) -> bool {
         self.capture_enabled
     }
@@ -994,5 +1002,62 @@ fn detached_source_changes_invalidate_retained_clip_geometry() {
     context.mark_node_clip_dirty(mask.id.to_u32());
     reconcile();
     assert!(context.occlusion_stats().clip_geometry_preparations > changed);
+    root.recurse_unmount(&context);
+}
+
+#[cfg(feature = "3d")]
+#[test]
+fn opaque_solid_sources_are_independent_of_consumer_alpha_masks() {
+    use crate::drawing::ellipsoid::{Ellipsoid, EllipsoidInstance};
+    use pax_runtime::api::Size;
+    let context = context();
+    let mut solid_args = args();
+    solid_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+        Some(Rc::new(RefCell::new(Ellipsoid::default().to_pax_any())))
+    }));
+    solid_args.prototypical_common_properties = CommonPropertiesInit::Factory(Box::new(|_, _| {
+        Some(Rc::new(RefCell::new(CommonProperties {
+            width: LocalProperty::new(Some(Size::Pixels(80.into()))),
+            height: LocalProperty::new(Some(Size::Pixels(60.into()))),
+            ..Default::default()
+        })))
+    }));
+    let solid = EllipsoidInstance::instantiate(solid_args);
+    let mut mask_args = args();
+    mask_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+        Some(Rc::new(RefCell::new(
+            Mask {
+                alpha: Property::new(true),
+                feather: Property::new(0.),
+            }
+            .to_pax_any(),
+        )))
+    }));
+    mask_args.children = Some(RefCell::new(vec![solid.clone(), solid.clone()]));
+    let mut root_args = args();
+    root_args.component_template = Some(RefCell::new(vec![MaskInstance::instantiate(mask_args)]));
+    let root = ExpandedNode::initialize_root(ComponentInstance::instantiate(root_args), &context);
+    root.recurse_update(&context);
+    let mask = root.children.get()[0].clone();
+    let content = mask.children.get()[0].clone();
+    let source = borrow!(mask.sidecar_children)[0].clone();
+    assert!(source.is_render_source());
+    assert!(solid.resolve_convex_mesh(&source).is_some());
+    assert!(context.canvas_geometry_for_node(&source).solid.is_some());
+    assert!(
+        solid.resolve_convex_mesh(&content).is_none(),
+        "soft-masked solid content remains unsupported"
+    );
+    context.clear_canvas_node_dirty(&source.id);
+    let mut renderer = RecordingRenderer {
+        capture_enabled: true,
+        ..Default::default()
+    };
+    borrow!(mask.instance_node).handle_pre_render(&mask, &context, &mut renderer);
+    borrow!(mask.instance_node).handle_post_render(&mask, &context, &mut renderer);
+    assert_eq!(
+        renderer.solids, 1,
+        "source replay is independent of visible-node dirtiness"
+    );
     root.recurse_unmount(&context);
 }

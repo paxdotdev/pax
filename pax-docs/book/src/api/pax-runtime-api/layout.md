@@ -119,6 +119,11 @@ Type: `LocalProperty`<`Option`<[`LayoutRole`](../../api/pax-runtime-api/layout.m
 
 Controls whether this node participates in parent layout measurement and flow.
 
+##### `wheel_events`
+Type: `LocalProperty`<`Option`<[`WheelEvents`](../../api/pax-runtime-api/layout.md#wheelevents)>>
+
+Wheel cancellation capability for this node's event subtree.
+
 ##### `unclippable`
 Type: `LocalProperty`<`Option`<`bool`>>
 
@@ -194,3 +199,20 @@ Returns a `Pixel` value as a simple f64; calculates `Percent` with respect to `b
 <pre><code class="api-signature language-rust ignore">pub fn get_pixels(&amp;self, parent: f64) -&gt; f64</code></pre>
 
 Resolves this size against a parent extent in pixels.
+
+---
+
+### `WheelEvents`
+Declares whether wheel handlers in a subtree may cancel native scrolling.
+
+On web, `Cancellable` installs blocking listeners only on the subtree's hit
+surfaces. A handler must still call `Event::prevent_default()` to consume an
+event. This does not capture touch input or stop Pax event propagation.
+
+#### Variants
+##### `Passive`
+Do not introduce a cancellable region. An enclosing cancellable scope
+or mount-wide web policy may still allow default prevention.
+
+##### `Cancellable`
+Allow wheel handlers to prevent the native default in this subtree.

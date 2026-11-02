@@ -269,6 +269,7 @@ mod tests {
         let pose = mesh.posed(identity()).unwrap();
         for i in 0..96 {
             let plane = DepthPlane {
+                presentation_layer: 0,
                 coefficients: [0.2, -0.1, i as f64 / 40. - 1.2],
                 backface: false,
             };
@@ -280,6 +281,7 @@ mod tests {
         transform[14] = 2.;
         let moved = mesh.posed(transform).unwrap();
         let plane = DepthPlane {
+            presentation_layer: 0,
             coefficients: [0., 0., 0.8],
             backface: false,
         };
@@ -306,10 +308,12 @@ mod tests {
         for plane in [
             DepthPlane::default(),
             DepthPlane {
+                presentation_layer: 0,
                 coefficients: [0.4, -0.2, 0.7],
                 backface: false,
             },
             DepthPlane {
+                presentation_layer: 0,
                 coefficients: [0., 0., 3.],
                 backface: false,
             },

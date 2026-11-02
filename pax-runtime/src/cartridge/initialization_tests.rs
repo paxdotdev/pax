@@ -1923,6 +1923,7 @@ fn root_exit_opacity_binds_and_reaches_children_in_rich_and_binary_manifests() {
         module_path: "test".into(),
         primitive_instance_import_path: None,
         settings: None,
+        camera: None,
         timelines: vec![],
         route_branch: None,
     };

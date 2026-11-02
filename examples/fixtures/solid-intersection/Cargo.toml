@@ -9,7 +9,7 @@ default-run = "solid-intersection"
 title = "Surface / Solid"
 
 [dependencies]
-pax-kit = { version = "0.39.1", path = "../../../pax-kit", features = ["3d"] }
+pax-kit = { version = "0.39.1", path = "../../../pax-kit", features = ["3d", "shaders"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

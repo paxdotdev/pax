@@ -39,6 +39,7 @@ struct RecordingRenderer {
     fail_recording: bool,
     recording_sessions: usize,
     capture_ids: Vec<u32>,
+    #[cfg(feature = "3d")]
     depth_updates: Vec<(u32, Option<pax_runtime_api::DepthPlane>)>,
 }
 
@@ -74,6 +75,7 @@ impl RenderContext for RecordingRenderer {
     ) -> bool {
         true
     }
+    #[cfg(feature = "3d")]
     fn set_node_depth_plane(
         &mut self,
         _: usize,
@@ -357,6 +359,7 @@ fn render_probe_args() -> crate::InstantiationArgs {
         children: None,
         component_template: None,
         component_settings: None,
+        component_camera: None,
         template_node_identifier: None,
         template_node_type_id: None,
         template_node_selector_info: None,
@@ -1390,6 +1393,7 @@ fn unfiltered_capture_waits_until_unrelated_dirty_work_has_finished() {
             children: None,
             component_template: Some(RefCell::new(Vec::new())),
             component_settings: None,
+        component_camera: None,
             template_node_identifier: None,
             template_node_type_id: None,
             template_node_selector_info: None,
@@ -2146,7 +2150,7 @@ fn gpu_backpressure_defers_cooperative_and_cold_surface_work_before_consumption(
     assert!(!renderer.events.is_empty());
 }
 
-#[cfg(feature = "shaders")]
+#[cfg(all(feature = "shaders", feature = "3d"))]
 #[test]
 fn shader_composite_keeps_presentation_domain_through_overlay_flight_and_return() {
     use crate::InstanceNode;

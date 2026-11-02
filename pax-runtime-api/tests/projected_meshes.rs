@@ -83,6 +83,7 @@ fn camera_clipped_mesh_depth_and_occlusion_match_local_triangle_rays() {
         let projection = MeshProjection::new((view(near, far) * pose).coeffs(), true).unwrap();
         let projected = mesh.projected(projection, Some(Rect::new(0., 0., 128., 128.)));
         let plane = DepthPlane {
+            presentation_layer: 0,
             coefficients: [0.0002, 0., 0.45],
             backface: false,
         };
@@ -126,6 +127,7 @@ fn clipping_does_not_invent_an_occluding_cap() {
     let projected = mesh.projected(projection, None);
     let mut path = BezPath::new();
     for p in projected.front_contours(DepthPlane {
+        presentation_layer: 0,
         coefficients: [0., 0., 0.9],
         backface: false,
     }) {

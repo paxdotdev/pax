@@ -4414,6 +4414,7 @@ fn check_nested_rotating_cuboids(grouped: bool) {
         renderer.set_node_depth_plane(
             1,
             Some(DepthPlane {
+                presentation_layer: 0,
                 // Keep even near-edge-on bounding-plane extrapolations ahead of
                 // this backdrop: this case specifically checks the contiguous path.
                 coefficients: [0., 0., -1.0e6],
@@ -5190,7 +5191,7 @@ fn camera_clipped_solids_match_depth_and_keep_shared_topology() {
     }
 }
 
-#[cfg(feature = "shaders")]
+#[cfg(all(feature = "shaders", feature = "3d"))]
 #[test]
 #[ignore = "requires a macOS Metal device"]
 fn shader_composite_respects_overlay_domain_above_background() {
@@ -5864,6 +5865,393 @@ fn shared_solid_relations_reuse_stencils_and_retire_tile_dependencies() {
     );
 }
 
+#[cfg(all(feature = "3d", feature = "shaders"))]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn spatial_captures_match_main_scene_depth_fades_and_retire() {
+    use pax_runtime_api::{
+        mesh3::{ConvexMesh, OpaqueMeshDraw},
+        DepthPlane, OpacityScope, ShaderEffect, ShaderInput, ShaderPass, ShaderProgram,
+    };
+    static IDENTITY: ShaderProgram = ShaderProgram {
+        label: "spatial capture identity",
+        passes: &[ShaderPass {
+            label: "identity",
+            source: "fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p); }",
+            parameters: &[],
+            inputs: [ShaderInput::Subtree; 2],
+            downsample: 1,
+        }],
+    };
+    let mesh = ConvexMesh::sphere(64, 32);
+    let mut references = Vec::new();
+    for mode in 0..3 {
+        let layer = MetalLayer::new();
+        let backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, 128, 96, [1., 1.]),
+            )
+        })
+        .unwrap();
+        let device = backend.device.clone();
+        let mut renderer = WgpuRenderer::new(backend);
+        for frame in 0..4 {
+            if mode == 1 {
+                renderer.begin_node(1, 0, 0);
+                renderer.save();
+                renderer.begin_alpha_source(Transform2D::identity(), 0.);
+            } else if mode == 2 {
+                renderer.begin_shader_effect(
+                    1,
+                    0,
+                    &ShaderEffect {
+                        program: &IDENTITY,
+                        parameters: vec![vec![]],
+                        outset: 0.,
+                    },
+                    Transform2D::identity(),
+                    (128., 96.),
+                    &[],
+                    &[11, 12, 13],
+                );
+            }
+            // Retain the paint across the depth-only change on frame 1 and the
+            // unchanged frame 2. The capture signature must include plane depth.
+            if frame == 0 || frame == 3 || mode == 1 {
+                let world = [
+                    30.,
+                    0.,
+                    0.,
+                    0.,
+                    0.,
+                    30.,
+                    0.,
+                    0.,
+                    0.,
+                    0.,
+                    30.,
+                    0.,
+                    if frame == 3 { 80. } else { 54. },
+                    48.,
+                    0.,
+                    1.,
+                ];
+                renderer.begin_node(11, 0, 0);
+                renderer.draw_convex_mesh(
+                    &OpaqueMeshDraw {
+                        mesh: mesh.clone(),
+                        world,
+                        surface: pax_runtime_api::mesh3::MeshProjection::new(world, false).unwrap(),
+                        color: pax_runtime_api::Color::RED,
+                        material: pax_runtime_api::ResolvedMaterial::Unlit,
+                    },
+                    Color::rgba(1., 0., 0., 1.),
+                    crate::Material::unlit(),
+                );
+                renderer.end_node(11);
+                renderer.begin_node(12, 1, 0);
+                renderer.fill_path(
+                    rect(16., 20., 80., 50.),
+                    Fill::Solid(Color::rgba(0., 1., 0., 1.)),
+                );
+                renderer.end_node(12);
+                renderer.begin_node(13, 2, 0);
+                renderer.fill_path(
+                    rect(44., 8., 20., 80.),
+                    Fill::Solid(Color::rgba(0., 0., 1., 1.)),
+                );
+                renderer.end_node(13);
+            }
+            renderer.set_node_depth_plane(
+                12,
+                Some(DepthPlane {
+                    presentation_layer: 0,
+                    coefficients: [0.8, 0., if frame == 0 { -45. } else { -20. }],
+                    backface: false,
+                }),
+            );
+            renderer.set_node_depth_plane(
+                13,
+                Some(DepthPlane {
+                    presentation_layer: 0,
+                    coefficients: [0., 0., 10.],
+                    backface: false,
+                }),
+            );
+            for id in [11, 12] {
+                renderer.set_node_opacity_scopes(
+                    id,
+                    &[OpacityScope {
+                        node_id: 10,
+                        opacity: 0.5,
+                    }],
+                );
+            }
+            if mode == 1 {
+                renderer.end_alpha_source();
+                renderer.fill_path(
+                    rect(0., 0., 128., 96.),
+                    Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+                );
+                renderer.restore();
+                renderer.end_node(1);
+            } else if mode == 2 {
+                renderer.end_shader_effect();
+            }
+            renderer.request_screenshot_capture(frame);
+            renderer.flush();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            let pixels = renderer.take_screenshot_capture(frame).unwrap();
+            let stats = renderer.take_resource_churn_stats();
+            if mode == 0 {
+                references.push(pixels);
+            } else {
+                let expected = &references[frame as usize];
+                // Interior samples avoid the extra texture sampling at silhouettes.
+                for y in (24..68).step_by(7) {
+                    for x in (22..92).step_by(7) {
+                        let offset = (y * 128 + x) * 4;
+                        for channel in if mode == 1 { 3..4 } else { 0..4 } {
+                            let actual = pixels.rgba[offset + channel];
+                            let wanted = expected.rgba[offset + channel];
+                            assert!(actual.abs_diff(wanted) <= 2,
+                                "mode {mode}, frame {frame}, ({x},{y}) channel {channel}: {actual} != {wanted}");
+                        }
+                    }
+                }
+                assert_eq!(
+                    stats.alpha_source_renders + stats.effect_source_renders,
+                    u64::from(frame != 2),
+                    "capture redraw mode {mode} frame {frame}"
+                );
+                assert!(renderer.spatial_fade_capture_count() <= 4);
+            }
+        }
+        for id in [1, 11, 12, 13] {
+            renderer.remove_node(id);
+        }
+        renderer.flush();
+        assert_eq!(renderer.alpha_source_resource_counts(), (0, 0, 0));
+        assert_eq!(renderer.spatial_fade_capture_count(), 0);
+        assert_eq!(renderer.spatial_capture_resource_counts(), (0, 0));
+    }
+}
+
+#[cfg(all(feature = "3d", feature = "shaders"))]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn filtered_solid_uses_container_depth_against_outside_surfaces() {
+    use pax_runtime_api::{
+        math::{Generic, ProjectedPlane, Transform3},
+        mesh3::{ConvexMesh, OpaqueMeshDraw},
+        ShaderEffect, ShaderInput, ShaderPass, ShaderProgram,
+    };
+    static IDENTITY: ShaderProgram = ShaderProgram {
+        label: "output plane",
+        passes: &[ShaderPass {
+            label: "identity",
+            source: "fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p); }",
+            parameters: &[],
+            inputs: [ShaderInput::Subtree; 2],
+            downsample: 1,
+        }],
+    };
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 96, 64, [1., 1.]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let mesh = ConvexMesh::sphere(64, 32);
+    for frame in 0..3 {
+        // A shear leaves sampling XY unchanged while tilting the output depth.
+        let projection = ProjectedPlane::new(
+            Transform3::<Generic>::new([
+                1.,
+                0.,
+                if frame == 2 { 1. } else { 0. },
+                0.,
+                0.,
+                1.,
+                0.,
+                0.,
+                0.,
+                0.,
+                1.,
+                0.,
+                0.,
+                0.,
+                if frame == 0 {
+                    -10.
+                } else if frame == 1 {
+                    10.
+                } else {
+                    -48.
+                },
+                1.,
+            ]),
+            false,
+        )
+        .unwrap();
+        renderer.begin_projected_shader_effect(
+            1,
+            1,
+            &ShaderEffect {
+                program: &IDENTITY,
+                parameters: vec![vec![]],
+                outset: 0.,
+            },
+            projection,
+            (96., 64.),
+            &[],
+            &[2],
+        );
+        let world = [
+            36., 0., 0., 0., 0., 24., 0., 0., 0., 0., 24., 0., 48., 32., 100., 1.,
+        ];
+        renderer.begin_node(2, 2, 0);
+        renderer.draw_convex_mesh(
+            &OpaqueMeshDraw {
+                mesh: mesh.clone(),
+                world,
+                surface: pax_runtime_api::mesh3::MeshProjection::new(world, false).unwrap(),
+                color: pax_runtime_api::Color::RED,
+                material: pax_runtime_api::ResolvedMaterial::Unlit,
+            },
+            Color::rgba(1., 0., 0., 1.),
+            crate::Material::unlit(),
+        );
+        renderer.end_node(2);
+        renderer.end_shader_effect();
+        renderer.begin_node(3, 3, 0);
+        renderer.fill_path(
+            rect(0., 0., 96., 64.),
+            Fill::Solid(Color::rgba(0., 1., 0., 1.)),
+        );
+        renderer.end_node(3);
+        renderer.request_screenshot_capture(frame);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let pixels = renderer.take_screenshot_capture(frame).unwrap();
+        for x in [32, 64] {
+            let front = frame == 1 || (frame == 2 && x > 48);
+            assert_pixel(
+                &pixels,
+                x,
+                32,
+                if front {
+                    [255, 0, 0, 255]
+                } else {
+                    [0, 255, 0, 255]
+                },
+            );
+        }
+    }
+}
+
+#[cfg(feature = "3d")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn spatial_alpha_source_feather_matches_across_tiles_and_camera_clipping() {
+    use pax_runtime_api::{
+        camera::{Camera, CameraProjection, CameraSpace},
+        math::{Generic, Transform3, Vector3},
+        mesh3::{ConvexMesh, MeshProjection, OpaqueMeshDraw},
+        OpacityScope,
+    };
+    type M = Transform3<Generic>;
+    let mesh = ConvexMesh::sphere(32, 16);
+    let camera = Camera::new(
+        Transform3::<Generic, CameraSpace>::identity(),
+        CameraProjection::perspective((96., 64.), 1.2, 1., 20.).unwrap(),
+    )
+    .unwrap();
+    let view = camera.project_plane(M::identity()).unwrap().matrix();
+    for z in [-4., -1.3] {
+        for dpr in [1., 2.] {
+            let mut frames = Vec::new();
+            for (width, origin) in [(96., 0.), (48., 0.), (48., 48.)] {
+                let layer = MetalLayer::new();
+                let backend = pollster::block_on(unsafe {
+                    RenderBackend::to_core_animation_layer(
+                        layer.0.cast(),
+                        RenderConfig::new(
+                            true,
+                            (width * dpr) as u32,
+                            (64. * dpr) as u32,
+                            [dpr, dpr],
+                        ),
+                    )
+                })
+                .unwrap();
+                let device = backend.device.clone();
+                let mut renderer = WgpuRenderer::new(backend);
+                renderer.set_viewport(width, 64., [dpr, dpr]);
+                renderer.transform(Transform2D::translation(-origin, 0.));
+                renderer.begin_node(1, 0, 0);
+                renderer.save();
+                renderer.begin_alpha_source(Transform2D::identity(), 4.);
+                renderer.begin_node(2, 0, 0);
+                renderer.set_node_opacity_scopes(
+                    2,
+                    &[OpacityScope {
+                        node_id: 10,
+                        opacity: 0.6,
+                    }],
+                );
+                let world =
+                    M::translate(Vector3::new(0., 0., z)) * M::scale(Vector3::new(1.4, 0.9, 1.));
+                renderer.draw_convex_mesh(
+                    &OpaqueMeshDraw {
+                        mesh: mesh.clone(),
+                        world: world.coeffs(),
+                        surface: MeshProjection::new((view * world).coeffs(), true).unwrap(),
+                        color: pax_runtime_api::Color::WHITE,
+                        material: pax_runtime_api::ResolvedMaterial::Unlit,
+                    },
+                    Color::rgba(1., 1., 1., 1.),
+                    crate::Material::unlit(),
+                );
+                renderer.end_node(2);
+                renderer.end_alpha_source();
+                renderer.fill_path(
+                    rect(0., 0., 96., 64.),
+                    Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+                );
+                renderer.restore();
+                renderer.end_node(1);
+                renderer.request_screenshot_capture(0);
+                renderer.flush();
+                device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+                frames.push(renderer.take_screenshot_capture(0).unwrap());
+            }
+            let full = &frames[0];
+            assert!(
+                full.rgba.chunks_exact(4).any(|p| p[3] > 100),
+                "source must be visible"
+            );
+            for (index, tile) in frames[1..].iter().enumerate() {
+                for y in 0..tile.height as usize {
+                    for x in 0..tile.width as usize {
+                        let expected = full.rgba
+                            [(y * full.width as usize + x + index * tile.width as usize) * 4 + 3];
+                        let actual = tile.rgba[(y * tile.width as usize + x) * 4 + 3];
+                        assert!(
+                            actual.abs_diff(expected) <= 2,
+                            "z {z} dpr {dpr} tile {index} ({x},{y}) {actual} != {expected}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(feature = "3d")]
 #[test]
 #[ignore = "requires a macOS Metal device"]
@@ -5972,4 +6360,50 @@ fn overlay_domain_stays_above_world_depth_and_reorders_retained_paint() {
         );
         assert_pixel(&pixels, 56, 16, [255, 255, 0, 255]);
     }
+}
+
+#[cfg(feature = "3d")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn overlay_domains_isolate_solid_depth_and_retire_composition_state() {
+    use pax_runtime_api::{mesh3::{ConvexMesh, MeshProjection, OpaqueMeshDraw}, DepthPlane};
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(layer.0.cast(), RenderConfig::new(true, 64, 64, [1.; 2]))
+    }).unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let mesh = ConvexMesh::sphere(32, 16);
+    for (id, z, color) in [(1, 100., Color::rgba(1., 0., 0., 1.)), (2, -100., Color::rgba(0., 0., 1., 1.))] {
+        let pose = [24.,0.,0.,0., 0.,24.,0.,0., 0.,0.,24.,0., 32.,32.,z,1.];
+        renderer.begin_node(id, id as i32, 0);
+        renderer.draw_convex_mesh(&OpaqueMeshDraw {
+            mesh: mesh.clone(), world: pose,
+            surface: MeshProjection::new(pose, false).unwrap(),
+            color: pax_runtime_api::Color::WHITE,
+            material: pax_runtime_api::ResolvedMaterial::Unlit,
+        }, color, crate::Material::unlit());
+        renderer.end_node(id);
+    }
+    for (frame, domain) in [1, 0, 1].into_iter().enumerate() {
+        renderer.set_node_depth_plane(2, Some(DepthPlane { presentation_layer: domain, ..Default::default() }));
+        renderer.request_screenshot_capture(frame as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let pixels = renderer.take_screenshot_capture(frame as u32).unwrap();
+        assert_pixel(&pixels, 32, 32, if domain == 1 { [0, 0, 255, 255] } else { [255, 0, 0, 255] });
+    }
+    renderer.begin_node(3, -100, 0);
+    renderer.fill_path(rect(0., 0., 64., 64.), Fill::Solid(Color::rgba(0., 1., 0., 1.)));
+    renderer.end_node(3);
+    renderer.set_node_depth_plane(3, Some(DepthPlane { presentation_layer: 2, ..Default::default() }));
+    renderer.request_screenshot_capture(3);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    assert_pixel(&renderer.take_screenshot_capture(3).unwrap(), 32, 32, [0, 255, 0, 255]);
+    renderer.remove_node(2);
+    renderer.remove_node(3);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    assert_eq!(renderer.spatial_capture_resource_counts(), (0, 0));
 }

@@ -1,7 +1,7 @@
 use super::*;
 use crate::drawing::rectangle::{Rectangle, RectangleInstance};
 use pax_runtime::api::pax_value::ToFromPaxAny;
-use pax_runtime::api::{CommonProperties, Platform, Variable, OS};
+use pax_runtime::api::{CommonProperties, Platform, Size, Variable, OS};
 use pax_runtime::{CommonPropertiesInit, ComponentInstance, PropertiesInit, PropertiesScopeInit};
 
 fn args<T: ToFromPaxAny + Clone + 'static>(props: T) -> InstantiationArgs {
@@ -17,6 +17,7 @@ fn args<T: ToFromPaxAny + Clone + 'static>(props: T) -> InstantiationArgs {
         children: None,
         component_template: None,
         component_settings: None,
+        component_camera: None,
         template_node_identifier: None,
         template_node_type_id: None,
         template_node_selector_info: None,
@@ -177,16 +178,14 @@ fn frame_clip_changes_still_invalidate_descendant_content() {
 #[test]
 fn frame_geometry_changes_still_invalidate_descendant_content() {
     let fixture = Fixture::mount();
-    fixture.frame.transform_and_bounds.update(|tab| {
-        tab.transform =
-            pax_runtime::api::math::Transform2::new(Affine::translate((10.0, 20.0)).as_coeffs());
-    });
+    let properties = fixture.frame.get_common_properties().borrow().clone();
+    properties.x.set(Some(Size::Pixels(10.into())));
+    properties.y.set(Some(Size::Pixels(20.into())));
     assert!(fixture.patches().iter().any(|p| p.transform.is_some()));
     fixture.assert_content_dirty();
     fixture.clear();
-    fixture.frame.transform_and_bounds.update(|tab| {
-        tab.bounds = (180.0, 90.0);
-    });
+    properties.width.set(Some(Size::Pixels(180.into())));
+    properties.height.set(Some(Size::Pixels(90.into())));
     assert!(fixture
         .patches()
         .iter()

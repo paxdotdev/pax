@@ -36,6 +36,7 @@ fn args(children: Vec<Rc<dyn InstanceNode>>) -> InstantiationArgs {
         component_template: None,
         handler_registry: None,
         component_settings: None,
+        component_camera: None,
         template_node_identifier: None,
         template_node_type_id: None,
         template_node_selector_info: None,
@@ -405,8 +406,8 @@ fn occluder_only_clips_and_relative_geometry_still_update_cutouts() {
     let exact = inverse
         * ctx.occlusion_state.borrow().records[&clip.id.to_u32()]
             .clip
-            .clone()
-            .unwrap();
+            .as_ref()
+            .unwrap().as_ref().clone();
     assert_eq!(mask.entries[0].clips[0], bez_path_to_svg_path_data(&exact));
     let initial = native.native_mask_hash.get();
     clip.get_common_properties()

@@ -1,0 +1,68 @@
+<Scroller width=100% height=100% scroll_height=1040px>
+    <Group width=100% height=1040px anchor=0%>
+        <Group x=32px y=24px width={100% - 64px} height=32px>slot()</Group>
+        <Button x={100% - 32px} y=24px width=140px height=30px label={filtered ? "Show mask" : "Show filter"} @button_click=toggle_filter/>
+        <Text class="label" x=32px y=80px width={100% - 64px} height=24px text="PAX / SURFACE STUDIES / 04"/>
+        <Text class="title" x=32px y=114px width={100% - 64px} height=66px text={filtered ? "Depth, resolved." : "A volume. An aperture."}/>
+        <Text class="copy" x=32px y=190px width={100% - 64px} height=52px
+            text={filtered ? "A spatial assembly becomes one filtered surface. The gold band belongs to the outside scene." : "Two rotating solids reveal a field of color. Their shared opacity is applied once."}/>
+        <Frame x=24px y=260px width={100% - 48px} height=390px>
+            <Text class="light_label" x=24px y=18px width={100% - 48px} height=24px text={filtered ? "INTERNAL DEPTH / PLANAR OUTPUT" : "THE SOURCE IS INVISIBLE. ITS SILHOUETTE IS ALIVE."}/>
+            if filtered {
+                <GaussianBlur x=50% y=55% width={@viewport.width < 600 ? 260px : 430px} height=260px
+                    rotate_y=14deg radius={feather} opacity={fade}>
+                    if mounted {
+                        <Ellipsoid x=50% y=50% width=250px height=200px depth=100px rotate_y={(angle)deg}
+                            rotate_x=24deg color=rgb(75, 212, 184) material={Material::unlit()}/>
+                        <Rectangle x=50% y=50% width=280px height=130px rotate_y=-32deg fill=rgb(65, 111, 191)/>
+                    }
+                </GaussianBlur>
+                <Rectangle x=50% y=55% width=85% height=20px rotate=-8deg fill=rgb(250, 209, 134)/>
+            } else {
+            <Mask x=0px y=54px width=100% height=310px alpha=true feather={feather}>
+                <Group width=100% height=100%>
+                    for stripe in 0..14 {
+                        <Rectangle x={(stripe * 8)%} y=0px width=3px height=100% rotate=20deg fill=rgb(250, 209, 134)/>
+                    }
+                    <Rectangle width=100% height=100% fill=@gradient {
+                        linear: { start: [0%, 0%] end: [100%, 100%] }
+                        0%: rgb(75, 212, 184)
+                        100%: rgb(65, 111, 191)
+                    }/>
+                </Group>
+                <Group width=100% height=100% opacity={fade}>
+                    if mounted {
+                        <Ellipsoid x=42% y=50% width={@viewport.width < 600 ? 200px : 330px} height=210px depth=100px
+                            rotate_y={(angle)deg} rotate_x=24deg color=WHITE/>
+                        <Ellipsoid x=62% y=50% width={@viewport.width < 600 ? 160px : 260px} height=170px depth=160px
+                            rotate_y={(-angle * 0.7)deg} rotate_z=-28deg color=WHITE/>
+                    }
+                </Group>
+            </Mask>
+            }
+            <Rectangle width=100% height=100% translate_z=-1000px fill=rgb(19, 36, 49)/>
+        </Frame>
+        <Group x=32px y=692px width={100% - 64px} height=280px>
+            <Button class="control" id=mask_play width=140px label={playing ? "Pause motion" : "Play motion"} @button_click=play/>
+            <Button class="control" id=mask_mount x=100% width=140px label={mounted ? "Remove source" : "Mount source"} @button_click=toggle_source/>
+            <Text class="label" y=62px width=120px height=24px text="ROTATION"/>
+            <Slider id=mask_rotation x=124px y=60px width={100% - 124px} height=28px value=bind:angle min=0.0 max=360.0 step=1.0 @slider_change=pause/>
+            <Text class="label" y=110px width=120px height=24px text={filtered ? "BLUR RADIUS" : "SOFT EDGE"}/>
+            <Slider id=mask_feather x=124px y=108px width={100% - 124px} height=28px value=bind:feather min=0.0 max=24.0 step=1.0/>
+            <Text class="label" y=158px width=120px height=24px text={filtered ? "OUTPUT OPACITY" : "SOURCE OPACITY"}/>
+            <Slider id=mask_fade x=124px y=156px width={100% - 124px} height=28px value=bind:fade min=0.0 max=1.0 step=0.05/>
+            <Text class="copy" y=218px width=100% height=68px text="Scroll to test tile edges. Remove and remount the source to test its lifetime. Controls live outside the visual reveal."/>
+        </Group>
+        <Rectangle width=100% height=100% translate_z=-2000px fill=rgb(241, 237, 225)/>
+    </Group>
+</Scroller>
+
+@settings {
+    @mount: mount
+    @pre_render: tick
+    .label { style: {font_size: 11px, fill: rgb(43, 51, 60)} }
+    .light_label { style: {font_size: 11px, fill: rgb(233, 229, 214)} }
+    .title { style: {font: "Georgia", font_size: {@viewport.width < 650 ? 30px : 48px}, fill: rgb(43, 51, 60)} }
+    .copy { style: {font_size: 14px, fill: rgb(43, 51, 60)} }
+    .control { height: 34px }
+}

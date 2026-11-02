@@ -86,13 +86,11 @@ impl ExpandedNode {
         for child in self.children.get().iter() {
             collect(child, layer, &mut children);
         }
-        let projection = context
-            .canvas_surface_projection_for_node(self)
-            .unwrap_or_else(|| {
-                pax_runtime_api::math::ProjectedPlane::affine(
-                    context.canvas_surface_transform_for_node(self),
-                )
-            });
+        let projected = context.canvas_surface_projection_for_node(self);
+        let geometry = context.canvas_geometry_for_node(self);
+        let projection = projected.unwrap_or_else(|| {
+            pax_runtime_api::math::ProjectedPlane::affine(geometry.surface_transform)
+        });
         let replay = renderer.begin_projected_shader_effect(
             layer,
             self.id.to_u32(),
@@ -109,7 +107,16 @@ impl ExpandedNode {
         renderer.set_node_depth_plane(
             layer,
             self.id.to_u32(),
-            context.depth_plane_in_presentation(self, projection.depth_plane()),
+            context.depth_plane_in_presentation(
+                self,
+                geometry.projection.and_then(|plane| plane.depth_plane()).or_else(|| {
+                    geometry.spatial_geometry.depth_plane(
+                        pax_runtime_api::math::Transform2::new(
+                            geometry.surface_transform.as_coeffs(),
+                        ),
+                    )
+                }),
+            ),
         );
         if replay {
             fn collect_replay(node: &Rc<ExpandedNode>, ids: &mut Vec<u32>) {

@@ -13,7 +13,9 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"PAXP\x00IR\x00";
-const VERSION: u8 = 6;
+// Camera declarations and scalar-body fields shared v6 on separate branches.
+// The combined runtime schema must reject either older binary layout.
+const VERSION: u8 = 7;
 
 /// Runtime-facing semantic program model derived from a rich `PaxManifest`.
 ///

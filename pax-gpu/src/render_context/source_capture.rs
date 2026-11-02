@@ -1,4 +1,4 @@
-//! Detached vector draws share the ordinary retained renderer and capture surfaces. Their ownership
+//! Detached vector and opaque mesh draws share the ordinary retained renderer and capture surfaces. Their ownership
 //! is separate from visible ordering; only alpha-mask references keep a source alive.
 use super::*;
 use crate::render_backend::capture::CaptureKey;
@@ -259,12 +259,10 @@ impl WgpuRenderer<'_> {
             .collect();
         nodes.sort_unstable();
         let nodes: Vec<_> = nodes.into_iter().map(|(_, id)| id).collect();
-        let plan = self.opacity_plan_at_depth(&nodes, 0);
-        collect_opacity_group_keys(&plan, active);
         let mut hash = DefaultHasher::new();
         bytemuck::bytes_of(&self.render_backend.globals).hash(&mut hash);
         for id in &nodes {
-            self.hash_opacity_content(*id, &mut hash);
+            self.hash_capture_content(*id, &mut hash);
             for scope in self.opacity_scopes.get(id).into_iter().flatten() {
                 scope.node_id.hash(&mut hash);
                 scope.opacity.to_bits().hash(&mut hash);
@@ -278,7 +276,7 @@ impl WgpuRenderer<'_> {
             .capture_is_cached(key, content_signature)
         {
             self.render_backend.begin_capture();
-            self.draw_opacity_plan(&plan);
+            self.draw_capture_scene(key, &nodes, active);
             let domain = self.viewport_bounds();
             let bounds = source_bounds[&owner];
             let bounds = ScissorRect {
@@ -291,6 +289,7 @@ impl WgpuRenderer<'_> {
                 .end_capture(key, content_signature, bounds);
             self.resource_churn_stats.alpha_source_renders += 1;
         } else {
+            self.retain_capture_scene(key, &nodes, active);
             self.resource_churn_stats.alpha_source_cache_hits += 1;
         }
         feather.to_bits().hash(&mut hash);

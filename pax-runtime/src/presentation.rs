@@ -16,11 +16,16 @@ pub(crate) struct MoveOrigin {
 }
 impl Interpolatable for MoveOrigin {}
 
+#[cfg(feature = "3d")]
+type MoveGeometry = crate::SpatialGeometry;
+#[cfg(not(feature = "3d"))]
+type MoveGeometry = crate::TransformAndBounds<NodeLocal, Window>;
+
 pub(crate) fn bind_move_geometry(
     node: &Rc<ExpandedNode>,
     context: &Rc<RuntimeContext>,
-    target: LocalProperty<crate::SpatialGeometry>,
-) -> LocalProperty<crate::SpatialGeometry> {
+    target: LocalProperty<MoveGeometry>,
+) -> LocalProperty<MoveGeometry> {
     let origin = node.move_origin.clone();
     let progress = node.move_progress.clone();
     let bounds = node.layout_bounds.clone();
@@ -42,10 +47,14 @@ pub(crate) fn bind_move_geometry(
             if progress == 1.0 && !node_is_flying(&weak_node) {
                 return target;
             }
+            #[cfg(feature = "3d")]
+            let projected = target.orthographic_projection();
+            #[cfg(not(feature = "3d"))]
+            let projected = Some(target);
             let (Some(node), Some(context), Some(projected)) = (
                 weak_node.upgrade(),
                 weak_context.upgrade(),
-                target.orthographic_projection(),
+                projected,
             ) else {
                 return target;
             };
@@ -62,7 +71,7 @@ pub(crate) fn bind_move_geometry(
                 * projected.transform
                 * Transform2::scale_sep(Vector2::new(projected.bounds.0, projected.bounds.1));
             let interpolated = origin.transform.interpolate(&destination, progress);
-            crate::SpatialGeometry::from(crate::TransformAndBounds {
+            MoveGeometry::from(crate::TransformAndBounds {
                 transform: (if node.move_in_flight.get() {
                     Transform2::identity()
                 } else {

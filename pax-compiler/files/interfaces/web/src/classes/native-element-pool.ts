@@ -2110,8 +2110,6 @@ export class NativeElementPool {
         }
     }
 
-    }
-
     recordNativeMessageBatch(types: import('./native-message-profile').NativeMessageTiming[]) {
         this.surfaceTrace?.recordNativeMessageBatch(types);
     }

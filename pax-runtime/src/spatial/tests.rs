@@ -498,6 +498,7 @@ fn front_region_splits_native_coverage_and_reverses_backface_order() {
         ..flat
     };
     let high_world = DepthPlane {
+        presentation_layer: 0,
         coefficients: [100., 100., 1e9],
         ..flat
     };
@@ -1069,6 +1070,7 @@ fn camera_only_reveal_updates_tile_visibility_without_scroll_velocity() {
         let hosts = BTreeMap::from([(
             host.id.to_u32(),
             PreparationHost {
+                content_origin: [0.; 2],
                 geometry: HostObservation {
                     id: host.id.to_u32(),
                     parent: None,
@@ -1601,6 +1603,15 @@ fn perspective_native_masks_split_both_crossing_surfaces_and_follow_movement() {
     engine.tick();
     let incremental = nodes[0].native_mask_hash.get();
     assert_ne!(incremental, 0);
+    engine.runtime_context.mark_occlusion_dirty();
+    let unchanged = engine.tick();
+    assert!(!unchanged.iter().any(|message| matches!(message,
+        pax_message::NativeMessage::NativeMaskUpdate(p) if p.id == nodes[0].id.to_u32()
+    )));
+    assert_eq!(nodes[0].native_mask_hash.get(), incremental);
+    // A topology notification can now reconcile without rebuilding. Clear the
+    // retained records to exercise the full reconstruction path explicitly.
+    *engine.runtime_context.occlusion_state.borrow_mut() = Default::default();
     nodes[0].native_mask_hash.set(u64::MAX);
     engine.runtime_context.mark_occlusion_dirty();
     let messages = engine.tick();
