@@ -711,10 +711,22 @@ pub(crate) fn flight_fixture() -> (
     NodeRef,
     Rc<ExpandedNode>,
 ) {
+    flight_fixture_with_content(TreeNode::native())
+}
+
+pub(crate) fn flight_fixture_with_content(
+    content: Rc<dyn InstanceNode>,
+) -> (
+    PaxEngine,
+    Rc<ExpandedNode>,
+    NodeRef,
+    NodeRef,
+    Rc<ExpandedNode>,
+) {
     use crate::api::Size;
     let higher = TreeNode::overlay(vec![]);
     let nav = TreeNode::overlay(vec![TreeNode::new(vec![], false, None)]);
-    let home = TreeNode::scroller(vec![TreeNode::new(vec![TreeNode::native()], false, None)]);
+    let home = TreeNode::scroller(vec![TreeNode::new(vec![content], false, None)]);
     let mut root_args = args(vec![]);
     root_args.component_template = Some(RefCell::new(vec![higher, nav, home]));
     let mut engine = crate::test_support::empty_engine(

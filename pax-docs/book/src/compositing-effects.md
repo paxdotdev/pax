@@ -801,6 +801,11 @@ out. Filters may expand beyond layout bounds by their declared sampling
 support; an enclosing Frame clips that expansion. Layout and hit testing
 continue to use the original tree.
 
+The filtered output carries the container's presentation order. Moving a subtree
+with a shader into an `Overlay` preserves the effect above ordinary page content,
+including during an animated transfer and after it docks. The caller still owns
+the effect's animation clock; keep advancing it while the moved content is visible.
+
 WGPU reuses capture textures when only their origin changes. Shader captures also
 retain spare texture capacity, so small animated changes in their pixel dimensions
 can reuse the source and pass textures. The visible capture bounds and sampling

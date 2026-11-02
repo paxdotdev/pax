@@ -452,8 +452,9 @@ automatic OS reduced-motion handling yet. The logo plays once on mount and
 replays when clicked or tapped at home; replay is disabled while visiting the nav.
 The hero owns one playhead for the 1440ms reveal and Radiance lighting, including
 click replay at home. The light returns to −20%, dims to 1.70, and idles between
-−20% and 120% every 12 seconds. `SiteLogo` uses plain artwork when docked in
-navigation; the large light volume is reserved for its hero presentation.
+−20% and 120% every 12 seconds. The same Radiance effect and light playhead
+continue through the move into navigation and while docked, with the light
+volume scaling down alongside the logo.
 Set `HeroSection.radiance_enabled=false` for the plain logo;
 CPU also renders the plain children.
 

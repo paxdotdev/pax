@@ -1,4 +1,4 @@
-if self._logo_started && self.logo_visible && (self.playhead_ms < 1440.0 || (@gpu && self.radiance_enabled)) {
+if self._logo_started && (self.logo_visible || self.logo_docked) && (self.playhead_ms < 1440.0 || (@gpu && self.radiance_enabled)) {
     <Group width=0px height=0px @tick=self.advance_logo/>
 }
 <Group width=100% height=100%>
@@ -14,7 +14,7 @@ if self._logo_started && self.logo_visible && (self.playhead_ms < 1440.0 || (@gp
                 width={(self.logo_width)px} height={(self.logo_width * 463.95 / 920.72)px}
                 anchor_x=0px anchor_y=0px layout_role=LayoutRole::Breakout @mount=self.bind_logo_transfer>
                 <SiteLogo id=hero_logo width=100% height=100% progress={self.logo_progress} click_to_replay=false
-                    radiance_enabled={self.radiance_enabled && !self.logo_docked} light_x={self.playhead_ms < 2100.0 ? self.intro_light_x : self.idle_light_x}
+                    radiance_enabled={self.radiance_enabled} light_x={self.playhead_ms < 2100.0 ? self.intro_light_x : self.idle_light_x}
                     light_y={self.playhead_ms < 2100.0 ? self.intro_light_y : self.idle_light_y} brightness={self.light_brightness}
                     @viewport_proximity_change=self.logo_visibility
                     @click=self.activate_logo/>

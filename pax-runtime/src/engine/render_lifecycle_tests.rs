@@ -7,6 +7,7 @@ use std::rc::Weak;
 
 #[derive(Default)]
 struct RecordingRenderer {
+    gpu: bool,
     gpu_busy: bool,
     render_turn_depth: usize,
     completed_render_turns: usize,
@@ -38,9 +39,13 @@ struct RecordingRenderer {
     fail_recording: bool,
     recording_sessions: usize,
     capture_ids: Vec<u32>,
+    depth_updates: Vec<(u32, Option<pax_runtime_api::DepthPlane>)>,
 }
 
 impl RenderContext for RecordingRenderer {
+    fn is_gpu(&self) -> bool {
+        self.gpu
+    }
     fn begin_render_turn(&mut self, _: u64, _: u64) -> bool {
         if self.render_turn_depth == 0 && self.gpu_busy {
             return false;
@@ -68,6 +73,14 @@ impl RenderContext for RecordingRenderer {
         _: &[u32],
     ) -> bool {
         true
+    }
+    fn set_node_depth_plane(
+        &mut self,
+        _: usize,
+        id: u32,
+        plane: Option<pax_runtime_api::DepthPlane>,
+    ) {
+        self.depth_updates.push((id, plane));
     }
     fn prepares_surface_content(&self) -> bool {
         self.cold_preparation
@@ -423,57 +436,58 @@ fn batched_cold_capture_shares_ancestor_traversal_and_preserves_pending_nodes() 
 }
 
 #[cfg(feature = "shaders")]
+struct ShaderProbe(crate::BaseInstance);
+#[cfg(feature = "shaders")]
+impl crate::InstanceNode for ShaderProbe {
+    fn instantiate(args: crate::InstantiationArgs) -> Rc<Self> {
+        Rc::new(Self(crate::BaseInstance::new(
+            args,
+            crate::InstanceFlags {
+                layer: crate::api::Layer::Canvas,
+                invisible_to_slot: false,
+                invisible_to_raycasting: false,
+                is_component: false,
+                is_slot: false,
+            },
+        )))
+    }
+    fn base(&self) -> &crate::BaseInstance {
+        &self.0
+    }
+    fn resolve_debug(
+        &self,
+        f: &mut std::fmt::Formatter,
+        _: Option<&ExpandedNode>,
+    ) -> std::fmt::Result {
+        f.write_str("ShaderProbe")
+    }
+    fn shader_effect(&self, _: &ExpandedNode) -> Option<pax_runtime_api::ShaderEffect> {
+        use pax_runtime_api::{ShaderEffect, ShaderInput, ShaderPass, ShaderProgram};
+        static PROGRAM: ShaderProgram = ShaderProgram {
+            label: "identity capture probe",
+            passes: &[ShaderPass {
+                label: "identity",
+                source: "fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p); }",
+                parameters: &[],
+                inputs: [ShaderInput::Subtree; 2],
+                downsample: 1,
+            }],
+        };
+        Some(ShaderEffect {
+            program: &PROGRAM,
+            parameters: vec![vec![]],
+            outset: 0.0,
+        })
+    }
+}
+
+#[cfg(feature = "shaders")]
 #[test]
 fn cold_shader_capture_preserves_settlement_and_submits_after_surface_completion() {
     use crate::conditional::{ConditionalInstance, ConditionalProperties};
     use crate::repeat::{RepeatInstance, RepeatProperties};
     use crate::InstanceNode;
-    use pax_runtime_api::{
-        pax_value::ToFromPaxAny, ShaderEffect, ShaderInput, ShaderPass, ShaderProgram, ToPaxValue,
-    };
-
-    struct ShaderProbe(crate::BaseInstance);
-    impl InstanceNode for ShaderProbe {
-        fn instantiate(args: crate::InstantiationArgs) -> Rc<Self> {
-            Rc::new(Self(crate::BaseInstance::new(
-                args,
-                crate::InstanceFlags {
-                    layer: crate::api::Layer::Canvas,
-                    invisible_to_slot: false,
-                    invisible_to_raycasting: false,
-                    is_component: false,
-                    is_slot: false,
-                },
-            )))
-        }
-        fn base(&self) -> &crate::BaseInstance {
-            &self.0
-        }
-        fn resolve_debug(
-            &self,
-            f: &mut std::fmt::Formatter,
-            _: Option<&ExpandedNode>,
-        ) -> std::fmt::Result {
-            f.write_str("ShaderProbe")
-        }
-        fn shader_effect(&self, _: &ExpandedNode) -> Option<ShaderEffect> {
-            static PROGRAM: ShaderProgram = ShaderProgram {
-                label: "identity capture probe",
-                passes: &[ShaderPass {
-                    label: "identity",
-                    source: "fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p); }",
-                    parameters: &[],
-                    inputs: [ShaderInput::Subtree; 2],
-                    downsample: 1,
-                }],
-            };
-            Some(ShaderEffect {
-                program: &PROGRAM,
-                parameters: vec![vec![]],
-                outset: 0.0,
-            })
-        }
-    }
+    use pax_runtime_api::{pax_value::ToFromPaxAny, ToPaxValue};
 
     for nested in [false, true] {
         let mut engine = engine();
@@ -531,7 +545,10 @@ fn cold_shader_capture_preserves_settlement_and_submits_after_surface_completion
         );
         engine.root_expanded_node = Some(root);
         engine.tick();
-        let mut renderer = RecordingRenderer::default();
+        let mut renderer = RecordingRenderer {
+            gpu: true,
+            ..Default::default()
+        };
         engine.render(&mut renderer);
         engine.runtime_context.prepare_scene_geometry();
         engine.runtime_context.drain_node_effects();
@@ -2127,4 +2144,68 @@ fn gpu_backpressure_defers_cooperative_and_cold_surface_work_before_consumption(
     );
     assert_eq!(renderer.render_turn_depth, 0);
     assert!(!renderer.events.is_empty());
+}
+
+#[cfg(feature = "shaders")]
+#[test]
+fn shader_composite_keeps_presentation_domain_through_overlay_flight_and_return() {
+    use crate::InstanceNode;
+    use pax_runtime_api::{Duration, EasingCurve};
+    let mut clip = render_probe_args();
+    clip.children = Some(RefCell::new(vec![RenderProbe::instantiate(
+        render_probe_args(),
+    )]));
+    let mut args = render_probe_args();
+    args.children = Some(RefCell::new(vec![RenderProbe::instantiate(clip)]));
+    let (mut engine, _, source, target, overlay) =
+        crate::node_query::tests::flight_fixture_with_content(ShaderProbe::instantiate(args));
+    let node = source.resolve().unwrap().0;
+    let effect = node.children.get()[0].clone();
+    let mut renderer = RecordingRenderer {
+        gpu: true,
+        ..Default::default()
+    };
+    let check = |engine: &mut PaxEngine, renderer: &mut RecordingRenderer, expected: u32| {
+        renderer.depth_updates.clear();
+        engine.runtime_context.mark_canvas_node_dirty(effect.id);
+        engine.render(renderer);
+        let (_, plane) = renderer
+            .depth_updates
+            .iter()
+            .find(|(id, _)| *id == effect.id.to_u32())
+            .expect("the effect composite must publish its own depth metadata");
+        assert_eq!(plane.map_or(0, |p| p.presentation_layer), expected);
+        if expected == 0 {
+            assert!(
+                plane.is_none(),
+                "returning home must clear stale Overlay metadata"
+            );
+        }
+    };
+    check(&mut engine, &mut renderer, 0);
+    source
+        .animated(Duration::Frames(4.into()), EasingCurve::Linear)
+        .move_to_append_child(&target)
+        .unwrap();
+    engine.tick();
+    assert!(node.move_in_flight.get());
+    assert!(node.presentation_layer.get() > overlay.presentation_layer.get());
+    check(&mut engine, &mut renderer, node.presentation_layer.get());
+    for _ in 0..5 {
+        engine.tick();
+    }
+    assert!(!node.move_in_flight.get());
+    assert!(overlay.presentation_layer.get() > 0);
+    check(&mut engine, &mut renderer, overlay.presentation_layer.get());
+    source
+        .animated(Duration::Frames(4.into()), EasingCurve::Linear)
+        .move_to_home()
+        .unwrap();
+    engine.tick();
+    check(&mut engine, &mut renderer, node.presentation_layer.get());
+    for _ in 0..5 {
+        engine.tick();
+    }
+    assert!(!node.move_in_flight.get());
+    check(&mut engine, &mut renderer, 0);
 }

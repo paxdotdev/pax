@@ -3644,3 +3644,96 @@ fn overlay_domain_stays_above_world_depth_and_reorders_retained_paint() {
         assert_pixel(&pixels, 56, 16, [255, 255, 0, 255]);
     }
 }
+
+#[cfg(feature = "shaders")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shader_composite_respects_overlay_domain_above_background() {
+    use pax_runtime_api::{DepthPlane, ShaderEffect, ShaderInput, ShaderPass, ShaderProgram};
+    static PROGRAM: ShaderProgram = ShaderProgram {
+        label: "overlay composite",
+        passes: &[ShaderPass {
+            label: "identity",
+            source: "fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p); }",
+            parameters: &[],
+            inputs: [ShaderInput::Subtree; 2],
+            downsample: 1,
+        }],
+    };
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 32, [1., 1.]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.set_viewport(64., 32., [1., 1.]);
+    renderer.begin_node(1, 1, 0);
+    renderer.fill_path(
+        rect(0., 0., 64., 32.),
+        Fill::Solid(Color::rgba(1., 0., 0., 1.)),
+    );
+    renderer.end_node(1);
+    renderer.set_node_depth_plane(
+        1,
+        Some(DepthPlane {
+            presentation_layer: 1,
+            ..Default::default()
+        }),
+    );
+    let effect = ShaderEffect {
+        program: &PROGRAM,
+        parameters: vec![vec![]],
+        outset: 0.,
+    };
+    for (frame, domain) in [0, 2, 1, 0].into_iter().enumerate() {
+        renderer.begin_shader_effect(
+            2,
+            2,
+            &effect,
+            Transform2D::identity(),
+            (64., 32.),
+            &[],
+            &[3],
+        );
+        renderer.set_node_depth_plane(
+            2,
+            (domain > 0).then_some(DepthPlane {
+                presentation_layer: domain,
+                ..Default::default()
+            }),
+        );
+        renderer.begin_node(3, 3, 0);
+        renderer.fill_path(
+            rect(8., 8., 48., 16.),
+            Fill::Solid(Color::rgba(0., 0., 1., 1.)),
+        );
+        renderer.end_node(3);
+        renderer.set_node_depth_plane(
+            3,
+            Some(DepthPlane {
+                presentation_layer: 2,
+                ..Default::default()
+            }),
+        );
+        renderer.end_shader_effect();
+        renderer.request_screenshot_capture(frame as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let pixels = renderer.take_screenshot_capture(frame as u32).unwrap();
+        assert_pixel(
+            &pixels,
+            32,
+            16,
+            if domain == 0 {
+                [255, 0, 0, 255]
+            } else {
+                [0, 0, 255, 255]
+            },
+        );
+        assert_pixel(&pixels, 2, 16, [255, 0, 0, 255]);
+    }
+}

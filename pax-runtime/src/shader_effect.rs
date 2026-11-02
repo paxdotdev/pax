@@ -14,6 +14,8 @@ pub fn bind_shader_effect(node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>)
         .map(|v| v.get_untyped_property().clone())
         .chain([
             node.transform_and_bounds.untyped(),
+            node.spatial_geometry.untyped(),
+            node.presentation_layer.untyped(),
             node.computed_opacity_scopes.untyped(),
             node.occlusion.untyped(),
             node.children.untyped(),
@@ -83,15 +85,30 @@ impl ExpandedNode {
         for child in self.children.get().iter() {
             collect(child, layer, &mut children);
         }
+        let transform = context.canvas_surface_transform_for_node(self);
         let replay = renderer.begin_shader_effect(
             layer,
             self.id.to_u32(),
             self.occlusion.get().z_index,
             &effect,
-            context.canvas_surface_transform_for_node(self),
+            transform,
             self.transform_and_bounds.get().bounds,
             &self.computed_opacity_scopes.get(),
             &children,
+        );
+        // The captured children no longer participate in outer scene ordering.
+        // Their composite must carry the effect's plane and Overlay/flight domain.
+        renderer.set_node_depth_plane(
+            layer,
+            self.id.to_u32(),
+            context.depth_plane_in_presentation(
+                self,
+                self.spatial_geometry
+                    .get()
+                    .depth_plane(pax_runtime_api::math::Transform2::new(
+                        transform.as_coeffs(),
+                    )),
+            ),
         );
         if replay {
             fn collect_replay(node: &Rc<ExpandedNode>, ids: &mut Vec<u32>) {

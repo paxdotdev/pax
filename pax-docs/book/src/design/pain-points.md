@@ -16,14 +16,6 @@ Last triaged: 2026-10-05 — [PAX-972](https://linear.app/paxdev/issue/PAX-972/p
 
 ## Untriaged findings
 
-- 2026-11-02 — PAX-1053 rebase onto `e879172d8`: wrapping the transferred
-  website `SiteLogo` in Radiance made the docked nav logo disappear in Chrome
-  WebGPU, while the hero rendered and no browser error was logged. Reproduce
-  by keeping Radiance enabled while scrolling the hero into the Overlay nav.
-  The website retains its intended plain nav treatment by disabling Radiance
-  when docked; return-to-home lighting and replay pass. Moving a live captured
-  shader across this presentation boundary still needs separate engine coverage.
-
 - 2026-10-29, website acrostic outlines: positioning vector letters at the
   font's cap height clipped rounded O/C overshoot in the top Frame row. Expected
   complete contours. The website now fits each decorative letter's full control
