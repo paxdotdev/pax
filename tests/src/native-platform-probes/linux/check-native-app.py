@@ -13,6 +13,7 @@ import struct
 import zlib
 import subprocess
 import time
+from native_process import NativeProcess, add_launch_arguments
 
 
 
@@ -73,9 +74,23 @@ def visible_text_pixels(pixels, bounds):
                for i in range(max(0, round(x)+3), min(width, round(x+w)-3)))
 
 
+def image_color_samples(pixels):
+    """Sample interior fixture texels, away from filtering and native masks."""
+    width, _, channels, rows = pixels
+    # smoke.png has encoded RGB (30,120,220) and (240,170,30,128).
+    # The latter is ordinary source-over against the white scene background.
+    expected = [("opaque image preserves encoded RGB", width-58, 26, (30, 120, 220)),
+                ("half-alpha image blends encoded RGB over white", width-70, 26, (247, 212, 142))]
+    return [{"check": name, "xy": [x, y], "expected": list(rgb),
+             "actual": list(rows[y][x*channels:x*channels+3]),
+             "passed": all(abs(rows[y][x*channels+c]-rgb[c]) <= 2 for c in range(3))}
+            for name, x, y, rgb in expected]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("app", type=Path)
+    add_launch_arguments(parser)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--seconds", type=float, default=60)
     parser.add_argument("--hold-ms", type=int, default=0, choices=range(0, 5001), metavar="0..5000")
@@ -90,7 +105,7 @@ def main():
         environment["PAX_NATIVE_TEST_RETAIN_MS"] = str(args.hold_ms)
     checks, samples, observations = [], [], []
     log = (output / "app.log").open("w")
-    app = subprocess.Popen([str(args.app.resolve())], env=environment, stdout=log, stderr=log)
+    app = NativeProcess(args, environment, log, output)
 
     def check(condition, name):
         checks.append({"check": name, "passed": bool(condition)})
@@ -145,12 +160,16 @@ def main():
     try:
         value = wait(lambda s: node(s, "Text", "Initialized by user-owned main"), "startup initializer")
         check(True, "user-owned main startup data reached actual Pax Text")
-        window = xdo("search", "--pid", app.pid, "--name", "Pax native desktop acceptance").splitlines()[-1]
+        window = app.x11_window()
         xdo("windowfocus", "--sync", window)
-        check(node(value, "Text", "Bundled Manrope: WWW iii 012345").get("resolvedFont") == "Manrope",
+        check(node(value, "Text", "Bundled Manrope: @@@@@@@@").get("resolvedFont") == "Manrope",
               "native Pango layout resolves the packaged Manrope font")
         initial = capture("initial-unscrolled")
         pixels = png_pixels(initial)
+        color_samples = image_color_samples(pixels)
+        (output / "image-colors.json").write_text(json.dumps(color_samples, indent=2)+"\n")
+        for sample in color_samples:
+            check(sample["passed"], sample["check"])
         outer_label = node(value, "Text", "Outer native scroller")
         nested_editor = max((n for n in value["nodes"] if n["kind"] == "Textbox"),
                             key=lambda n: n["bounds"][1])
@@ -169,6 +188,13 @@ def main():
         xdo("key", "ctrl+a")
         value = wait(lambda s: node(s, "Text", "Rust received: Linux native input retained"), "textbox Rust echo")
         check(True, "native editable text reaches Rust and two-way binding")
+        xdo("key", "ctrl+x")
+        wait(lambda s: node(s, "Text", "Rust received: "), "native clipboard cut")
+        xdo("key", "ctrl+v")
+        value = wait(lambda s: node(s, "Text", "Rust received: Linux native input retained"),
+                     "native clipboard paste")
+        check(True, "native clipboard cut/paste reaches Rust without replacing the control")
+        xdo("key", "ctrl+a")
         start_frame = value["frames"]
         value = wait(lambda s: s.get("frames", 0) >= start_frame + 75, "retained selection during animation")
         editor = next(n for n in value["nodes"] if n["id"] == editor_id)
@@ -226,7 +252,8 @@ def main():
                   "Vulkan live and retiring allocations stay within global budget")
             check(value["glLiveImages"] <= 48 and value["glLiveBytes"] <= 256*1024*1024,
                   "immutable GL live and copy-pending publications stay within budget")
-            samples.append({k: value[k] for k in ["frames", "backpressure", "glLiveImages", "glLiveBytes"]} | {"gpu": gpu})
+            samples.append({k: value[k] for k in ["frames", "backpressure", "glLiveImages", "glLiveBytes"]}
+                           | {"gpu": gpu, "timings": value.get("timings")})
             time.sleep(1)
         check(samples[-1]["gpu"].get("reused", 0) > 50, "continuous frames reuse Vulkan exports with completion evidence")
         if args.hold_ms:

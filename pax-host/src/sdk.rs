@@ -51,7 +51,11 @@ pub fn build(out: &Path, architecture: &str, debug: bool) -> Result<PathBuf> {
     ).replace("targets: [\"PaxCartridge\", \"PaxCartridgeAssets\"]", "targets: [\"PaxCartridge\"]").as_bytes())?;
     let headers = cartridge.join("Sources/PaxCartridge");
     fs::create_dir_all(&headers)?;
-    write_if_changed(&headers.join("PaxCartridge.h"), &fs::read(cartridge.join("PaxCartridge.xcframework/macos-arm64_x86_64/PaxCartridge.framework/Headers/PaxCartridge.h"))?)?;
+    for name in ["PaxCartridge.h", "PaxProgramExports.h"] {
+        write_if_changed(&headers.join(name), &fs::read(cartridge.join(
+            "PaxCartridge.xcframework/macos-arm64_x86_64/PaxCartridge.framework/Headers"
+        ).join(name))?)?;
+    }
     write_if_changed(
         &headers.join("module.modulemap"),
         b"module PaxCartridge { header \"PaxCartridge.h\" export * }\n",

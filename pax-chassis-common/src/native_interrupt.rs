@@ -30,14 +30,24 @@ struct SyntheticScrollGesture {
 /// previous mount's scroll positions or active gesture, even on the same thread.
 #[derive(Default)]
 pub struct NativeInterruptDispatcher {
+    synthetic_wheel_scroll: bool,
     synthetic_scroll_gesture: Cell<Option<SyntheticScrollGesture>>,
     scroller_positions: RefCell<HashMap<u32, (f64, f64)>>,
 }
 
 impl NativeInterruptDispatcher {
+    /// Retains Apple's synthetic `Scroll` stream for wheel input outside native scrollers.
+    /// Desktop adapters leave this disabled and report actual native movement separately.
+    pub fn with_synthetic_wheel_scroll() -> Self {
+        Self {
+            synthetic_wheel_scroll: true,
+            ..Self::default()
+        }
+    }
+
     /// Routes a decoded event to this session's engine.
     ///
-    /// `Some(true)` means a keyboard handler prevented the native default;
+    /// `Some(true)` means a keyboard or wheel handler prevented the native default;
     /// `Some(false)` means the event was handled without preventing it.
     /// `None` leaves platform-specific work to the adapter, including images,
     /// screenshots and presentation-surface updates. Pointer coordinates are
@@ -91,6 +101,13 @@ impl NativeInterruptDispatcher {
                 }
             }
             NativeInterrupt::TextMeasurementResponse(args) => {
+                if let Some(node) =
+                    engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+                {
+                    borrow!(node.instance_node).handle_native_interrupt(&node, interrupt);
+                }
+            }
+            NativeInterrupt::TextMeasurementInvalidated(args) => {
                 if let Some(node) =
                     engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                 {
@@ -516,7 +533,7 @@ impl NativeInterruptDispatcher {
                     );
                     // Native scrollers report their actual movement separately. Match web's
                     // synthetic Scroll stream only for content outside those scrollers.
-                    if !node_is_in_scroller_subtree(&node) {
+                    if self.synthetic_wheel_scroll && !node_is_in_scroller_subtree(&node) {
                         prevent_default |= node.dispatch_scroll(
                             Event::new(Scroll {
                                 delta_x: args.delta_x,

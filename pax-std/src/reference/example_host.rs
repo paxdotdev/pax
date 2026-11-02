@@ -848,7 +848,7 @@ mod tests {
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "/assets/fonts/Manrope.ttf",
+                "assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: 11px

@@ -1,0 +1,62 @@
+<Text class="label" x=24px y=16px width=952px height=36px text="Native controls · live bindings, keyboard, clipping"/>
+<Text class="status" x=24px y=60px width=952px height=48px text={state}/>
+<Button class="label" x=24px y=116px width=140px height=40px label="Reset" @button_click=self.reset/>
+<Button class="label" x=176px y=116px width=160px height=40px label="Replace options" @button_click=self.replace_options/>
+<Button class="label" x=348px y=116px width=150px height=40px label="Empty options" @button_click=self.clear_options/>
+<Button class="label" x=510px y=116px width=140px height=40px label="Move range" @button_click=self.change_range/>
+<Button class="label" x=662px y=116px width=140px height=40px label="Toggle controls" @button_click=self.toggle_controls/>
+<Button class="label" x=814px y=116px width=162px height=40px label="Cycle radius" @button_click=self.cycle_radius/>
+
+if visible {
+    <Slider id=primary_slider x=24px y=180px width=430px height=40px
+        min={minimum} max={maximum} step={step} value=bind:value @slider_change=self.slider_changed/>
+    <Dropdown id=primary_dropdown class="label" x=24px y=244px width=300px height=44px
+        options={options} selected_id=bind:selected/>
+    <RadioList id=primary_radio class="label" x=24px y=310px width=200px height=120px
+        options={options} selected_id=bind:radio/>
+    <RadioList id=other_radio class="label" x=250px y=310px width=220px height=120px
+        options=["One", "Two", "Three"] selected_id=bind:other_radio/>
+
+    <Group x=560px y=206px width=370px height=220px rotate=6deg>
+        <Dropdown id=transformed_dropdown class="label" x=16px y=16px width=320px height=44px
+            options={options} selected_id=bind:selected/>
+        <Slider id=transformed_slider x=16px y=88px width=320px height=40px
+            min={minimum} max={maximum} step={step} value=bind:value @slider_change=self.slider_changed/>
+        <Text class="label" x=16px y=146px width=320px height=44px text="Shared values · transformed controls"/>
+        <Rectangle width=100% height=100% fill={rgb(228, 237, 247)}/>
+    </Group>
+    for i in 0..2 {
+        <Slider id=repeated_slider x=520px y={(660 + i * 50)px} width=420px height=40px
+            min={minimum} max={maximum} step={step} value=bind:value @slider_change=self.slider_changed/>
+    }
+}
+
+<Button class="label" x=520px y=610px width=160px height=40px label="Off-grid value" @button_click=self.off_grid/>
+<Button class="label" x=692px y=610px width=170px height=40px label="Toggle viewport" @button_click=self.toggle_viewport/>
+<Text class="label" x=520px y=476px width=450px height=120px
+    text="The cyan viewport has its own rounded Scroller clip, with no Frame ancestor. Corners reveal magenta. The native corner button must not receive input outside the rounded viewport."/>
+<Scroller id=rounded_scroller x=24px y=470px width=440px height={(viewport_height)px}
+    corner_radius={radius} scroll_height=900px scroll_pos_y=bind:scroll_y>
+    <Button id=corner_button class="label" x=0px y=0px width=90px height=54px
+        label="Corner" @button_click=self.corner_clicked/>
+    <Text class="label" x=110px y=24px width=290px height=36px text="Standalone rounded Scroller"/>
+    <Dropdown id=scrolled_dropdown class="label" x=30px y=110px width=300px height=44px
+        options={options} selected_id=bind:selected/>
+    <Slider id=scrolled_slider x=30px y=180px width=350px height=40px
+        min={minimum} max={maximum} step={step} value=bind:value @slider_change=self.slider_changed/>
+    <Text class="label" x=30px y=760px width=340px height=50px text="Scroll destination"/>
+    <Rectangle width=100% height=900px fill={rgb(40, 210, 225)}/>
+</Scroller>
+<Rectangle x=24px y=470px width=440px height=250px fill={rgb(220, 30, 180)}/>
+<Rectangle width=100% height=100% fill=WHITE/>
+
+@settings {
+    @mount: on_mount
+    @pre_render: pre_render
+    .label {
+        style: { font: { family: "Manrope" url: "assets/fonts/Manrope.ttf" } font_size: 16px fill: BLACK }
+    }
+    .status {
+        style: { font: { family: "Manrope" url: "assets/fonts/Manrope.ttf" } font_size: 14px fill: BLACK }
+    }
+}

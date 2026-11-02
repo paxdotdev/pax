@@ -436,6 +436,22 @@ impl OcclusionState {
     }
 }
 
+impl RuntimeContext {
+    /// Whether a layer's content shares its scroller owner's clip domain.
+    ///
+    /// Surface admission must retain the ordinary plan for layers containing
+    /// escaped descendants or mixed presentation domains. Pending structural or
+    /// node changes are likewise insufficient evidence for removing surfaces.
+    /// Call after property effects have settled, as in the engine tick path.
+    pub fn layer_allows_scroller_surface_culling(&self, layer: usize) -> bool {
+        let state = self.occlusion_state.borrow();
+        !state.structural
+            && state.dirty.is_empty()
+            && !state.records.is_empty()
+            && !state.unsafe_layers.contains(&layer)
+    }
+}
+
 /// Reconcile structural changes, otherwise update only dirty geometry and overlapping masks.
 pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
     update_node_occlusion_observed(root_node, ctx, &mut |_| {});

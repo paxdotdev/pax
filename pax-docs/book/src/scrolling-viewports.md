@@ -6,7 +6,7 @@
 A list of notes, a horizontal shelf, and an illustrated story all need a way
 to show content that extends beyond the available space. `Scroller` gives
 that content a viewport, clips it at the edges, and connects it to the
-platform's scrolling behavior on web, macOS, iOS, and iPadOS.
+platform's scrolling behavior on web, Apple platforms, Windows, and Linux.
 
 A root [`@camera`](layout-responsiveness.md#controlling-the-root-camera) changes
 the presented view while preserving local scroll extents and offsets. Tile
@@ -70,7 +70,10 @@ transformed native overlays do not add empty travel beyond that extent.
 Scroller does not paint a background. Place painted content inside it, or a
 background sibling behind it, depending on which should move. Earlier Pax
 siblings appear in front; that is why each note's Text precedes its Rectangle.
-`corner_radius` is a numeric pixel radius for the viewport clip.
+`corner_radius` is a numeric pixel radius for the viewport clip. Pointer and
+wheel targeting use the same rounded boundary: a point in a cut-off corner
+does not target that Scroller or its clipped descendants. An eligible element
+behind it can receive the event instead.
 
 The website's cyclic feature rail uses an internal web-host coordinate rebase:
 its finite browser scroll range recenters without moving the content-space
@@ -193,6 +196,13 @@ the offsets together with the content extent when zooming. Keep requested
 offsets inside the available range; active native gestures and platform
 bounce still control their normal interaction behavior.
 
+On Linux, an authored position is applied after GTK allocates the viewport and
+content for that update. This also covers an initial nonzero offset or a zoom
+that changes content size and position together. GTK then reports the actual
+clamped offset back to the binding; it does not reset the binding against an
+unallocated or previous content range. Multiple writes before allocation keep
+the latest request on each axis.
+
 On Apple hosts, content-size changes preserve the requested position while
 clamping the visible viewport to the available content. If the content grows
 again, that requested position becomes visible again unless native scrolling
@@ -284,6 +294,40 @@ They are not a cancellable, cross-platform “before scrolling” hook. Likewise
 On web and macOS, a descendant's `@wheel` handler can prevent the native wheel
 default with `event.prevent_default()`, for example when adjusting a dial.
 Unconsumed wheel input continues to use native scrolling.
+
+Linux forwards raw wheel input to the hit-tested node before GTK handles the
+event. Handlers bubble through template parents, and `prevent_default()`
+suppresses GTK's default handling of that event. It does not stop momentum
+already underway. Native position changes still arrive separately through
+the bound offsets and `@scroll`.
+
+The experimental Windows `ScrollViewer` adapter also forwards each original
+mouse-wheel event into Pax before its native default action. A handler can call
+`prevent_default()` to cancel that event; movement still arrives separately
+through bound offsets and `@scroll`. The adapter retains the original native
+event when a nested viewport has no travel on that axis, allowing its ancestor
+to handle it without synthesizing another event or changing offsets manually.
+Integrated NativeScene checks on Windows Server 2022 with an NVIDIA T4 cover
+this route. Native child-control and scrollbar checks cover ordinary defaults
+and cancellation, including visible and captured controls, both Viewer axes, and
+empty viewports. On October 26, ordinary Debug and default baked Release
+Rust-callback fixtures each passed 121 assertions across 14 cases, with 30 native
+observations: exactly-once bubbling, both axes, root cancellation, rounded
+ownership, and fixed vector overlays outside native text bounds, with
+native/bound offset agreement and normal retirement. Both used the ordinary CLI
+and automatic SDK without an override, including the DX12 cache-budget and
+startup-subtiming changes. Physical precision-touchpad behavior remains
+unqualified. The older October 25 custom-profile/pinned-SDK receipt and full
+website acceptance are recorded separately
+in the [Windows probe guide](https://github.com/paxdotdev/pax/blob/main/tests/src/native-platform-probes/windows/README.md#observed-qualification-boundary).
+
+At a nonempty Windows viewport's start or end, the legacy native control
+currently consumes further wheel input on that same axis. It does not hand that
+input to the ancestor; reversing direction moves the inner viewport again.
+This differs from an axis with no travel. Touchscreens, precision touchpads,
+and wheel handling inside an open native popup remain unqualified. Use position bindings for portable movement-dependent behavior. For scrolling
+under translucent overlaps, also check the
+[native-mask coverage limits](compositing-effects.md#coverage-has-limits).
 See [Event Handling](event-handling-rust.md) for event binding and propagation.
 
 ### A resizable two-dimensional graph
@@ -370,6 +414,36 @@ Snap percentages resolve against the viewport on the corresponding axis.
 for ordinary continuous scrolling. Web uses native CSS scroll snapping;
 Apple targets choose native scroll endpoints from the supplied positions.
 Gesture momentum and settling can differ between platforms.
+The Windows `ScrollViewer` adapter supplies positions through the public
+`IScrollSnapPointsInfo` content interface with native mandatory snapping and
+near-edge alignment. Anchor replacement, removal, restoration, and viewport
+resizing update the existing scroller after native layout. Repeated off-anchor
+requests report the actual native offset even when no movement is needed.
+Native snap and integrated NativeScene checks cover these operations on Windows
+Server 2022 with an NVIDIA T4, including overlapping authored requests and
+collapsed/regrown viewports. Fresh `native-scroll-snap` packages also passed
+36 checks each in ordinary Debug and workspace-default baked Release on
+October 26, 2026, using the CLI's automatic SDK without an override. Final-core
+reruns include the DX12 cache-budget and engine-subtiming changes. Those checks
+cover both axes, dynamic anchors, resizing, repeated off-anchor writes, and
+native/shared offset agreement at 96 DPI. Touch/trackpad momentum and Windows
+10/11 remain unqualified.
+Linux preserves GTK's native scrolling and momentum, then chooses a snap point
+after approximately 150 ms without adjustment movement. A held pointer, touch,
+or scroll key postpones settling; new input interrupts the snap. Ordinary
+pointer movement does not postpone it. The snap uses a short 180 ms easing
+animation, or applies immediately after settling when GTK animations are
+disabled. Point changes, range changes and viewport resizing update the
+existing scroller. The bound offset follows the actual native position.
+This settling delay is the Linux alpha interaction policy because GTK does
+not expose a public kinetic-scrolling-finished callback. Physical touchpad
+momentum still needs qualification on the intended desktop.
+
+On web, a programmatic request acknowledges the browser's actual settled
+offset, including when snapping or range clamping keeps the viewport at its
+existing position without a movement event. The bound offset can therefore
+differ from the requested value. Repeating an off-anchor request does not
+leave the binding at an unreachable position.
 
 ### Carousel pages
 
@@ -1014,7 +1088,9 @@ opt-in are in the shared Rust runtime.
 If an addition fails, survivors remain usable; another attempt waits for a layout
 change. New tiles still incur surface allocation and first-draw costs. Sibling
 tiles using the same GPU context share immutable image textures by image identity,
-version, and pixel dimensions. A tile can reuse an image already held by a sibling
+version, and pixel dimensions. On adapters without alternate texture views, this
+sharing also requires the same [image sampling encoding](text-fonts-images.md#image-sources).
+A tile can reuse an image already held by a sibling
 without uploading its pixels again; transforms, clipping, opacity, and draw bindings
 remain tile-local. WebGPU canvases within one mounted app share a device and its
 pipeline/immutable-image caches across logical layers, including when rows go cold
@@ -1453,6 +1529,31 @@ Run one at a time. `rounded-scroller-tiles` focuses on rounded viewports and
 mixed content; `scroll-matrix` exercises nesting, transforms, and controls;
 `scroll-garden` explores scroll-driven scenes. Their source lives under
 `examples/` and remains the place to follow the complete applications.
+
+For a Scroller-specific rounded-corner check, use
+[`native-controls`](https://github.com/paxdotdev/pax/blob/main/examples/fixtures/native-controls/README.md).
+The rounded Frames around the viewports in `rounded-scroller-tiles` can conceal
+a missing Scroller clip. Check both final pixels and pointer/wheel ownership
+outside a rounded corner.
+
+[`native-scroll-snap`](https://github.com/paxdotdev/pax/blob/main/examples/fixtures/native-scroll-snap/README.md)
+isolates horizontal and vertical snap points, dynamic replacement/removal,
+viewport resizing, and authored offsets between anchors. Compare the settled
+offsets and real input behavior on each supported native target.
+
+`scroll-cull-stress` separately exercises a long, dense vector scene.
+`neon-opacity` exercises animated masks and native/vector opacity, rather than
+scrolling. Its animation currently advances by frame count, so equal elapsed
+time does not guarantee equal animation phase on two machines.
+`scroll-matrix`, `rounded-scroller-tiles`, `scroll-cull-stress`, and `neon-opacity`
+bundle their original font families and licenses, avoiding font downloads
+during a run.
+
+When measuring, keep host callback work, callback cadence, GPU publication,
+and actual presentation timing separate. Remote-desktop streaming rate is
+another measurement; none of these alone establishes input-to-display latency.
+Measure an optimized Release build without simultaneous compilation, and
+record viewport size, scale, driver, and backend alongside the workload.
 
 ### A cinematic catalog
 

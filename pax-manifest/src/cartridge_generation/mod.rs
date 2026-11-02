@@ -545,6 +545,9 @@ impl PaxManifest {
                 let SettingElement::Setting(key, value) = setting else {
                     continue;
                 };
+                if !matches!(key.token_value.as_str(), "in" | "out") {
+                    continue;
+                }
                 let binding = match value {
                     ValueDefinition::Identifier(identifier)
                     | ValueDefinition::EventBindingTarget(identifier) => {
@@ -579,22 +582,26 @@ impl PaxManifest {
         timeline_definition: &TimelineDefinition,
         track: &crate::TimelineTrackDefinition,
     ) -> u64 {
-        // Completion follows the track's clock. A millisecond transition must
-        // not also wait for a nominal 60fps frame count on a slower renderer.
-        if matches!(
-            Self::timeline_duration_clock_unit(timeline_definition, track),
-            TimelineClockUnit::Millis
-        ) {
+        // Non-looping playback clamps to an authored duration. Completion must
+        // use that same clock, rather than also waiting for nominally converted
+        // ticks or for a marker beyond the reachable playhead.
+        if let Some(duration) = Self::timeline_track_literal_duration(timeline_definition, track) {
+            return Some(duration)
+                .filter(|duration| duration.is_frame_based())
+                .map(|duration| duration.as_frames_f64().max(0.0).ceil() as u64)
+                .unwrap_or_default();
+        }
+        // Dynamic durations still use the existing marker gates. Removing them
+        // also removes the fallback when an expression cannot be evaluated;
+        // separating those cases requires per-track runtime fallback metadata.
+        let dynamic = Self::timeline_track_duration_value(timeline_definition, track).is_some();
+        if !dynamic
+            && Self::timeline_duration_clock_unit(timeline_definition, track)
+                == TimelineClockUnit::Millis
+        {
             return 0;
         }
         let mut max_frame = 0;
-        let has_literal_duration =
-            Self::timeline_track_literal_duration(timeline_definition, track);
-        let has_dynamic_duration = has_literal_duration.is_none()
-            && Self::timeline_track_duration_value(timeline_definition, track).is_some();
-        if let Some(duration) = has_literal_duration {
-            max_frame = max_frame.max(duration.as_frames_f64().max(0.0).ceil() as u64);
-        }
         let mut uses_percent_markers = false;
         for keyframe in track.keyframes() {
             match keyframe.marker {
@@ -605,15 +612,8 @@ impl PaxManifest {
                 crate::TimelineMarker::Percent(_) => uses_percent_markers = true,
             }
         }
-        if uses_percent_markers {
-            let fallback = if has_literal_duration.is_some() {
-                max_frame
-            } else if has_dynamic_duration {
-                0
-            } else {
-                100
-            };
-            max_frame.max(fallback)
+        if uses_percent_markers && !dynamic {
+            max_frame.max(100)
         } else {
             max_frame
         }
@@ -703,38 +703,53 @@ impl PaxManifest {
         timeline_definition: &TimelineDefinition,
         track: &crate::TimelineTrackDefinition,
     ) -> TimelineClockUnit {
-        track
-            .duration
-            .as_deref()
-            .or(timeline_definition.duration.as_ref())
-            .and_then(Self::duration_value_definition_clock_unit)
-            .unwrap_or(TimelineClockUnit::Frames)
+        if let Some(duration) = Self::timeline_track_duration_value(timeline_definition, track) {
+            return Self::duration_value_definition_clock_unit(duration)
+                .unwrap_or(TimelineClockUnit::Frames);
+        }
+        // Match runtime timeline_scale when no duration is authored. Dynamic
+        // durations are resolved by the runtime and retain their existing path.
+        if track.keyframes().any(|keyframe| {
+            matches!(
+                keyframe.marker,
+                crate::TimelineMarker::Duration(duration) if !duration.is_frame_based()
+            )
+        }) {
+            TimelineClockUnit::Millis
+        } else {
+            TimelineClockUnit::Frames
+        }
     }
 
     fn timeline_track_millis_count(
         timeline_definition: &TimelineDefinition,
         track: &crate::TimelineTrackDefinition,
     ) -> Option<u64> {
-        if matches!(
-            Self::timeline_duration_clock_unit(timeline_definition, track),
-            TimelineClockUnit::Frames
-        ) {
+        if let Some(duration) = Self::timeline_track_literal_duration(timeline_definition, track) {
+            return Some(duration)
+                .filter(|duration| !duration.is_frame_based())
+                .map(|duration| duration.as_milliseconds_f64().max(0.0).ceil() as u64);
+        }
+        let dynamic = Self::timeline_track_duration_value(timeline_definition, track).is_some();
+        if !dynamic
+            && Self::timeline_duration_clock_unit(timeline_definition, track)
+                == TimelineClockUnit::Frames
+        {
             return None;
         }
-        let mut max_millis = Self::timeline_track_literal_duration(timeline_definition, track)
-            .filter(|duration| !duration.is_frame_based())
-            .map(|duration| duration.as_milliseconds_f64());
+        let mut max_millis: Option<f64> = None;
 
         for keyframe in track.keyframes() {
-            let millis = match keyframe.marker {
-                crate::TimelineMarker::Frame(frame) => Some(
-                    pax_runtime_api::Duration::Frames((frame as f64).into()).as_milliseconds_f64(),
-                ),
-                crate::TimelineMarker::Duration(duration) => Some(duration.as_milliseconds_f64()),
-                crate::TimelineMarker::Percent(_) => None,
-            };
-            if let Some(millis) = millis {
-                max_millis = Some(max_millis.unwrap_or_default().max(millis));
+            if let crate::TimelineMarker::Duration(duration) = keyframe.marker {
+                if !duration.is_frame_based() {
+                    max_millis = Some(
+                        max_millis
+                            .unwrap_or_default()
+                            .max(duration.as_milliseconds_f64()),
+                    );
+                }
+            } else if !dynamic && matches!(keyframe.marker, crate::TimelineMarker::Percent(_)) {
+                max_millis = Some(max_millis.unwrap_or_default().max(100.0));
             }
         }
 
@@ -742,17 +757,14 @@ impl PaxManifest {
     }
 
     fn timeline_millis_count(timeline_definition: &TimelineDefinition) -> Option<u64> {
-        let mut max_millis = timeline_definition
-            .duration
-            .as_ref()
-            .and_then(Self::literal_duration_value)
-            .filter(|duration| !duration.is_frame_based())
-            .map(|duration| duration.as_milliseconds_f64().max(0.0).ceil() as u64);
+        let mut max_millis: Option<u64> = None;
+        let mut has_tracks = false;
 
         for element in &timeline_definition.elements {
             if let TimelineBlockElement::SelectorBlock(_, block) = element {
                 for selector_element in &block.elements {
                     if let TimelineSelectorElement::Track(_, track) = selector_element {
+                        has_tracks = true;
                         if let Some(track_millis) =
                             Self::timeline_track_millis_count(timeline_definition, track)
                         {
@@ -763,28 +775,46 @@ impl PaxManifest {
             }
         }
 
-        max_millis
+        if has_tracks {
+            max_millis
+        } else {
+            // A trackless transition can still declare a duration. Otherwise
+            // the block duration is only a default: overridden tracks must not
+            // inherit an additional completion gate in the other clock.
+            timeline_definition
+                .duration
+                .as_ref()
+                .and_then(Self::literal_duration_value)
+                .filter(|duration| !duration.is_frame_based())
+                .map(|duration| duration.as_milliseconds_f64().max(0.0).ceil() as u64)
+        }
     }
 
     fn timeline_frame_count(timeline_definition: &TimelineDefinition) -> u64 {
-        let mut max_frame = timeline_definition
-            .duration
-            .as_ref()
-            .and_then(Self::literal_duration_value)
-            .filter(|duration| duration.is_frame_based())
-            .map(|duration| duration.as_frames_f64().max(0.0).ceil() as u64)
-            .unwrap_or_default();
+        let mut max_frame = 0;
+        let mut has_tracks = false;
         for element in &timeline_definition.elements {
             if let TimelineBlockElement::SelectorBlock(_, block) = element {
                 for selector_element in &block.elements {
                     if let TimelineSelectorElement::Track(_, track) = selector_element {
+                        has_tracks = true;
                         max_frame = max_frame
                             .max(Self::timeline_track_frame_count(timeline_definition, track));
                     }
                 }
             }
         }
-        max_frame
+        if has_tracks {
+            max_frame
+        } else {
+            timeline_definition
+                .duration
+                .as_ref()
+                .and_then(Self::literal_duration_value)
+                .filter(|duration| duration.is_frame_based())
+                .map(|duration| duration.as_frames_f64().max(0.0).ceil() as u64)
+                .unwrap_or_default()
+        }
     }
 
     fn timeline_dynamic_durations(
@@ -1521,7 +1551,7 @@ impl PaxManifest {
         tnd: &TemplateNodeDefinition,
         settings_block: &Option<Vec<SettingsBlockElement>>,
     ) -> Option<Vec<SettingElement>> {
-        Self::merge_inline_settings_with_settings_layers(tnd, &[settings_block.clone()])
+        Self::merge_inline_settings_with_settings_layers(tnd, std::slice::from_ref(settings_block))
     }
 }
 

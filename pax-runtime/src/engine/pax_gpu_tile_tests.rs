@@ -891,6 +891,9 @@ fn exercise_tile_lifecycle(incremental: bool, prepared: bool) {
     let weak_context = with_target(&mut renderer, |target| {
         Rc::downgrade(&target.renderers[0].renderer.shared_gpu_context())
     });
+    // Desktop residency makes an offscreen layer inactive and removes every
+    // backing. Reentry must repaint even when no application node changed.
+    layout.borrow_mut().active = false;
     layout.borrow_mut().surfaces.clear();
     renderer.refresh_layers(&[0]);
     with_target(&mut renderer, |target| assert!(target.renderers.is_empty()));
@@ -899,8 +902,42 @@ fn exercise_tile_lifecycle(incremental: bool, prepared: bool) {
         "empty layer retained its GPU context"
     );
     assert!(renderer.targeted_replay_scope(0).is_none());
+    renderer.take_replay_canvas_layer_updates();
+    dirty.borrow_mut()[0] = false;
+    layout.borrow_mut().active = true;
     layout.borrow_mut().surfaces = vec![b];
     renderer.refresh_layers(&[0]);
     assert!(renderer.take_ready_canvas_layers().is_empty());
     assert_eq!(&*creations.borrow(), &["a", "b", "c", "c", "c", "c", "b"]);
+    let updates = renderer.take_replay_canvas_layer_updates();
+    assert_eq!(updates.len(), 1, "reactivated layer must request replay");
+    assert_eq!(updates[0].layer, 0);
+    assert_eq!(
+        updates[0].regions, None,
+        "reactivation requires full replay"
+    );
+    with_target(&mut renderer, |target| {
+        assert!(target.active);
+        target.renderers[0].renderer.request_screenshot_capture(100);
+    });
+    paint(&mut renderer, Rc::clone(&dirty));
+    with_target(&mut renderer, |target| {
+        let tile = &mut target.renderers[0].renderer;
+        let mut frame = tile.take_screenshot_capture(100);
+        for _ in 0..100 {
+            if frame.is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+            tile.clear();
+            tile.flush();
+            frame = tile.take_screenshot_capture(100);
+        }
+        let frame = frame.expect("reentered tile painted");
+        assert_eq!(
+            &frame.rgba[(16 * 32 + 16) * 4..(16 * 32 + 16) * 4 + 4],
+            &[255, 0, 0, 255],
+            "a clean application must recover its tile pixels after reentry",
+        );
+    });
 }

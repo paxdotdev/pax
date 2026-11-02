@@ -82,7 +82,7 @@ use pax_manifest::cartridge_generation::{
     TRANSITION_PLAYHEAD_SYMBOL, TRANSITION_TAKEOVER_SYMBOL,
 };
 use pax_manifest::{
-    ExpressionInfo, LocationInfo, SelectorExpr, TypeId, UniqueTemplateNodeIdentifier,
+    ExpressionInfo, LocationInfo, PaxType, SelectorExpr, TypeId, UniqueTemplateNodeIdentifier,
     ValueDefinition,
 };
 
@@ -3879,13 +3879,12 @@ impl ExpandedNode {
     }
 
     pub fn is_import_settings_node(&self) -> bool {
-        borrow!(self.instance_node)
-            .base()
-            .template_node_type_id
-            .as_ref()
-            .and_then(|type_id| type_id.get_pascal_identifier())
-            .as_deref()
-            == Some("ImportSettings")
+        is_import_settings_type_id(
+            borrow!(self.instance_node)
+                .base()
+                .template_node_type_id
+                .as_ref(),
+        )
     }
 
     pub fn is_in_import_settings_subtree(&self) -> bool {
@@ -4921,6 +4920,95 @@ impl ExpandedNode {
             },
             &deps,
         )
+    }
+}
+
+fn is_import_settings_type_id(type_id: Option<&TypeId>) -> bool {
+    // Discovery visits ordinary nodes too. Borrow the name rather than allocating
+    // a Pascal identifier for every visit; keep the existing name-based identity.
+    matches!(
+        type_id.map(TypeId::get_pax_type),
+        Some(
+            PaxType::Primitive { pascal_identifier }
+                | PaxType::Singleton { pascal_identifier }
+                | PaxType::BlankComponent { pascal_identifier }
+        ) if pascal_identifier == "ImportSettings"
+    )
+}
+
+#[cfg(test)]
+mod import_settings_identity_tests {
+    use super::is_import_settings_type_id;
+    use pax_manifest::{binary, PaxManifest, TypeId};
+
+    #[test]
+    fn borrowed_import_settings_identity_matches_owned_identity_and_binary_roundtrip() {
+        let mut cases = vec![
+            (TypeId::default(), false),
+            (TypeId::build_if(), false),
+            (TypeId::build_router(), false),
+            (TypeId::build_slot(), false),
+            (TypeId::build_repeat(), false),
+            (TypeId::build_comment(), false),
+            (TypeId::build_range("ImportSettings"), false),
+            (TypeId::build_option("ImportSettings"), false),
+            (TypeId::build_vector("ImportSettings"), false),
+            (TypeId::build_map("ImportSettings", "ImportSettings"), false),
+            (
+                TypeId::build_singleton("pax_std::ImportSettings", None),
+                true,
+            ),
+            // The authored Pascal name, rather than the Rust import path, is the contract.
+            (
+                TypeId::build_singleton("test::Other", Some("ImportSettings")),
+                true,
+            ),
+            (
+                TypeId::build_singleton("test::ImportSettings", Some("Other")),
+                false,
+            ),
+        ];
+        for name in [
+            "ImportSettings",
+            "importsettings",
+            "ImportSettings ",
+            "",
+            "Theme",
+            "ÍmportSettings",
+        ] {
+            let expected = name == "ImportSettings";
+            cases.extend([
+                (TypeId::build_primitive(name), expected),
+                (
+                    TypeId::build_singleton("test::Component", Some(name)),
+                    expected,
+                ),
+                (TypeId::build_blank_component(name), expected),
+            ]);
+        }
+        assert!(!is_import_settings_type_id(None));
+        for (type_id, expected) in cases {
+            let manifest = PaxManifest {
+                main_component_type_id: type_id.clone(),
+                components: Default::default(),
+                type_table: Default::default(),
+                assets_dirs: vec![],
+                engine_import_path: "pax_engine".into(),
+            };
+            let decoded = binary::from_slice(&binary::to_vec(&manifest).unwrap()).unwrap();
+            for candidate in [&type_id, &decoded.main_component_type_id] {
+                assert_eq!(
+                    candidate.get_pascal_identifier().as_deref() == Some("ImportSettings"),
+                    expected,
+                    "owned identity: {candidate:?}"
+                );
+                assert_eq!(
+                    is_import_settings_type_id(Some(candidate)),
+                    expected,
+                    "{candidate:?}"
+                );
+            }
+        }
     }
 }
 

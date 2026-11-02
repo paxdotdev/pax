@@ -275,6 +275,117 @@ fn mount_on(
     (engine, root)
 }
 
+// Model a native/layout effect that mounts another scroll island only after its
+// parent receives a compositing assignment. Each child needs a later reconcile.
+fn mount_after_compositing(
+    node: &Rc<ExpandedNode>,
+    ctx: &Rc<RuntimeContext>,
+    remaining: usize,
+    mounted: Rc<Cell<usize>>,
+) {
+    let weak = Rc::downgrade(node);
+    let context = ctx.clone();
+    let once = Cell::new(false);
+    let listener = LocalProperty::computed_with_name(
+        move || {
+            let Some(node) = weak.upgrade() else { return };
+            if node.occlusion.get().render_layer_id == 0 || once.get() {
+                return;
+            }
+            once.set(true);
+            let child = Probe::new(Kind::Scroll, rect(0.0), &[], vec![]);
+            let children = node.generate_children(
+                vec![(child as Rc<dyn InstanceNode>, node.stack.clone())],
+                &context,
+                &LocalProperty::new(Some(node.id)),
+                true,
+            );
+            if remaining > 1 {
+                mount_after_compositing(&children[0], &context, remaining - 1, mounted.clone());
+            }
+            node.children.set(children);
+            mounted.set(mounted.get() + 1);
+        },
+        &[node.occlusion.untyped()],
+        "post-compositing child mount",
+    );
+    ctx.register_expanded_node_effect_property_named(
+        node,
+        &listener,
+        "post-compositing child mount",
+    );
+    node.subscriptions.borrow_mut().push(listener);
+}
+
+fn post_compositing_mount_fixture(
+    remaining: usize,
+) -> (PaxEngine, Rc<ExpandedNode>, Rc<Cell<usize>>) {
+    let (engine, root) = mount_on(
+        vec![Probe::new(
+            Kind::Scroll,
+            rect(0.0),
+            TRIO,
+            vec![Probe::new(Kind::Scroll, rect(0.0), &[], vec![])],
+        )],
+        Platform::Native,
+    );
+    let mounted = Rc::new(Cell::new(0));
+    let node = root.children.get()[0].children.get()[0].clone();
+    mount_after_compositing(&node, &engine.runtime_context, remaining, mounted.clone());
+    (engine, node, mounted)
+}
+
+#[test]
+fn tick_settles_post_compositing_mounts_before_publishing_scene() {
+    // The last child needs the sixteenth reconciliation; accepting exactly the
+    // limit must not accidentally require a seventeenth reconciliation.
+    let (mut engine, mut node, mounted) = post_compositing_mount_fixture(15);
+    let before = engine.runtime_context.globals().elapsed_frames.get();
+    engine.tick();
+    assert_eq!(mounted.get(), 15);
+    assert_eq!(
+        engine.runtime_context.globals().elapsed_frames.get(),
+        before + 1
+    );
+    assert_eq!(kinds(&events()), ["enter", "change"]);
+    for _ in 0..=15 {
+        let layer = node.occlusion.get().render_layer_id;
+        assert!(layer > 0);
+        assert!(engine
+            .runtime_context
+            .layer_allows_scroller_surface_culling(layer));
+        let children = node.children.get();
+        if children.is_empty() {
+            break;
+        }
+        node = children[0].clone();
+    }
+    assert!(!engine.runtime_context.take_occlusion_dirty());
+}
+
+#[test]
+fn tick_rejects_unsettled_compositing_with_a_bounded_number_of_passes() {
+    let (mut engine, _, mounted) = post_compositing_mount_fixture(usize::MAX);
+    let before = engine.runtime_context.globals().elapsed_frames.get();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| engine.tick()));
+    let error = result.expect_err("a continuously expanding scene must not publish a plan");
+    let message = error
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| error.downcast_ref::<&str>().copied())
+        .unwrap_or("");
+    assert!(
+        message.contains("did not settle after 16 compositing passes"),
+        "{message}"
+    );
+    assert_eq!(mounted.get(), 16);
+    assert_eq!(
+        engine.runtime_context.globals().elapsed_frames.get(),
+        before + 1
+    );
+    assert_eq!(kinds(&events()), ["enter", "change"]);
+}
+
 #[test]
 fn native_culling_reuses_index_and_restores_on_scroll_geometry_and_topology_changes() {
     use std::collections::HashSet;
@@ -387,6 +498,156 @@ fn scroll(ctx: &RuntimeContext, node: &ExpandedNode, x: f64, y: f64) {
             ..Default::default()
         },
     );
+}
+
+#[test]
+fn desktop_surface_admission_tracks_nested_presentation_scroll_and_reentry() {
+    let inner = Probe::new(Kind::Scroll, rect(2000.0), &[], vec![]);
+    let outer = Probe::new(
+        Kind::Scroll,
+        Rect::new(0.0, 0.0, 320.0, 240.0),
+        &[],
+        vec![inner],
+    );
+    let (mut engine, root) = mount_on(vec![outer], Platform::Native);
+    engine.tick();
+    let outer = root.children.get()[0].clone();
+    let inner = outer.children.get()[0].clone();
+    let ctx = &engine.runtime_context;
+    let resident = || {
+        ctx.scroller_surface_visibility(inner.id, 384.0)
+            .is_some_and(|v| v.contains_tile(Rect::new(400.0, 0.0, 500.0, 100.0)))
+    };
+    scroll(ctx, &inner, 400.0, 0.0);
+    assert!(!resident());
+    // No tick or dirty-vector update is required for presentation-only scrolling.
+    scroll(ctx, &outer, 0.0, 2000.0);
+    assert!(resident());
+    let mut state = ctx.get_scroller_surface_state(outer.id.to_u32()).unwrap();
+    state.scroll_y = 2000.0;
+    state.presentation_scroll_y = 0.0;
+    ctx.set_scroller_surface_state(outer.id.to_u32(), state);
+    assert!(!resident());
+    scroll(ctx, &outer, 0.0, 2000.0);
+    assert!(resident());
+    assert_eq!(outer.children.get()[0].id, inner.id);
+}
+
+#[test]
+fn desktop_surface_admission_honors_disjoint_clips_and_unclippable_escape() {
+    let inner = Probe::new(Kind::Scroll, rect(150.0), &[], vec![]);
+    let outer = Probe::new(Kind::Clip, rect(0.0), &[], vec![inner]);
+    let (mut engine, root) = mount_on(vec![outer], Platform::Native);
+    engine.tick();
+    let inner = root.children.get()[0].children.get()[0].clone();
+    assert!(engine
+        .runtime_context
+        .scroller_surface_visibility(inner.id, 0.0)
+        .is_none());
+    inner
+        .get_common_properties()
+        .borrow()
+        .unclippable
+        .set(Some(true));
+    engine.tick();
+    assert!(engine
+        .runtime_context
+        .scroller_surface_visibility(inner.id, 0.0)
+        .unwrap()
+        .contains_tile(rect(0.0)));
+}
+
+#[test]
+fn desktop_surface_admission_recovers_after_collapsed_and_reflected_geometry() {
+    let (mut engine, root) = mount_on(
+        vec![Probe::new(Kind::Scroll, rect(0.0), &[], vec![])],
+        Platform::Native,
+    );
+    engine.tick();
+    let owner = root.children.get()[0].clone();
+    for scale in [100.0, 0.0, -100.0, 100.0] {
+        owner
+            .get_common_properties()
+            .borrow()
+            .scale_x
+            .set(Some(Size::Percent(scale.into())));
+        engine.tick();
+        let admission = engine
+            .runtime_context
+            .scroller_surface_visibility(owner.id, 384.0);
+        if scale == 0.0 {
+            assert!(admission.is_none());
+        } else {
+            let admission = admission.unwrap();
+            assert!(admission.contains_tile(rect(0.0)));
+            assert!(!admission.contains_tile(Rect::new(0.0, 0.0, f64::NAN, 10.0)));
+            assert!(!admission.contains_tile(Rect::ZERO));
+        }
+    }
+}
+
+#[test]
+fn desktop_surface_admission_retains_layers_with_escaped_descendants() {
+    let paint = Probe::new(Kind::Paint, rect(-2000.0), &[], vec![]);
+    let owner = Probe::new(Kind::Scroll, rect(2000.0), &[], vec![paint]);
+    let (mut engine, root) = mount_on(vec![owner], Platform::Native);
+    engine.tick();
+    let owner = root.children.get()[0].clone();
+    let paint = owner.children.get()[0].clone();
+    let layer = paint.occlusion.get().render_layer_id;
+    let ctx = engine.runtime_context.clone();
+    assert_eq!(ctx.get_layer_scroller_owner(layer), Some(owner.id));
+    assert!(ctx.layer_allows_scroller_surface_culling(layer));
+    assert!(ctx.scroller_surface_visibility(owner.id, 384.0).is_none());
+    paint
+        .get_common_properties()
+        .borrow()
+        .unclippable
+        .set(Some(true));
+    ctx.mark_occlusion_dirty();
+    assert!(!ctx.layer_allows_scroller_surface_culling(layer));
+    engine.tick();
+    assert!(!ctx.layer_allows_scroller_surface_culling(layer));
+    paint
+        .get_common_properties()
+        .borrow()
+        .unclippable
+        .set(Some(false));
+    ctx.mark_occlusion_dirty();
+    engine.tick();
+    assert!(ctx.layer_allows_scroller_surface_culling(layer));
+}
+
+#[test]
+fn desktop_surface_admission_reclassifies_ordinary_unclippable_changes() {
+    let paint = Probe::new(Kind::Paint, rect(-2000.0), &[], vec![]);
+    let owner = Probe::new(Kind::Scroll, rect(2000.0), &[], vec![paint]);
+    let (mut engine, root) = mount_on(vec![owner], Platform::Native);
+    engine.tick();
+    let owner = root.children.get()[0].clone();
+    let paint = owner.children.get()[0].clone();
+    let layer = paint.occlusion.get().render_layer_id;
+    let ctx = engine.runtime_context.clone();
+    assert!(ctx.layer_allows_scroller_surface_culling(layer));
+
+    for unclippable in [true, false, true] {
+        paint
+            .get_common_properties()
+            .borrow()
+            .unclippable
+            .set(Some(unclippable));
+        // Exercise the ordinary property listener, without forcing a structural
+        // rebuild. Until reconciliation it cannot prove the old domain is safe.
+        ctx.drain_node_effects();
+        assert!(!ctx.layer_allows_scroller_surface_culling(layer));
+        engine.tick();
+        assert_eq!(paint.occlusion.get().render_layer_id, layer);
+        assert_eq!(ctx.get_layer_scroller_owner(layer), Some(owner.id));
+        assert_eq!(
+            ctx.layer_allows_scroller_surface_culling(layer),
+            !unclippable
+        );
+    }
 }
 
 #[test]

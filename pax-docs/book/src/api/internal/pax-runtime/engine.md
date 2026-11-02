@@ -5,6 +5,7 @@
 ## Submodules
 - [engine::layer_surface](engine/layer_surface.md)
 - [engine::layer_tiling](engine/layer_tiling.md)
+- [engine::surface_visibility](engine/surface_visibility.md)
 - [engine::node_interface](engine/node_interface.md)
 - [engine::occlusion](engine/occlusion.md)
 - [engine::startup](engine/startup.md)

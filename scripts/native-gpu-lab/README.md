@@ -78,6 +78,31 @@ ingress is closed by default. SSM provides command access and can forward TCP
 8443 for DCV. An optional single-client `/32` enables direct DCV TCP and QUIC;
 record whether a run used the tunnel or direct connection when evaluating streaming.
 
+For an SSM-forwarded desktop, point the native DCV client at the listener's
+explicit IPv4 address, for example `127.0.0.1:18443` when local port 18443 forwards
+guest port 8443, and use TCP. A Session Manager listener can bind IPv4 loopback
+only; `localhost` can resolve to IPv6 and fail before the
+credential screen with a misleading authentication/connection error. Check the
+local listener before changing credentials or guest access controls. SSM port
+forwarding does not carry DCV's UDP/QUIC transport.
+
+If the native client remains on its credential screen or clears the password
+without an error, inspect the current client's log before retrying. A credential
+prompt can outlive its authentication connection: the 2025 macOS client logged
+`Missing username or password`, followed by a server-closed WebSocket, then kept
+submitting against that closed connection. Quit and reopen the client to start a
+fresh handshake, using the same verified server identity and existing credential.
+That client's log is `~/.local/share/NICE/dcvviewer/log/viewer.log`; other client
+versions may use a different location. A stale log from another version is not
+evidence about the current connection.
+
+Windows native input qualification requires a currently connected DCV desktop.
+The existing idle timeout can disconnect it during long build waits; a subsequent
+input preflight can then observe `SetCursorPos`/`GetCursorPos` returning `(0,0)`.
+Preserve that failed precondition and reconnect before rerunning the checker.
+Do not weaken the idle timeout, desktop-access checks, or security settings to
+make an unattended input run pass.
+
 Packer uses SSH on Linux and TLS/NTLM WinRM on Windows, through a separate builder
 security group restricted to the operator's `/32`. The Windows builder uses a
 temporary self-signed certificate, so Packer disables certificate verification
@@ -148,6 +173,14 @@ address and physical GPU UUID may change after stop/start. Rerun the hardware
 preflight and select the newly verified device; do not reuse an old UUID from a
 previous session. The old absolute deadline intentionally prevents an
 unreviewed restart from granting another session.
+
+EC2 reports no current public IPv4 association while an instance is stopped.
+The instance resource ignores changes to `associate_public_ip_address` after
+creation, preserving its explicit launch setting without replacing a retained
+disk during a deadline refresh. The reviewed resume plan must still show zero
+additions/destructions; never apply a replacement merely to refresh an expiry.
+Keep the foundation's original approval provenance tag when only resuming, and
+record the new session authorization/budget with the run evidence.
 
 When retiring the environment, set `machine = null` and review/apply that plan
 to terminate the instance and delete its root disk while retaining the foundation.

@@ -3,7 +3,10 @@ param(
     [Parameter(Mandatory=$true)][string]$NativeUiaExecutable,
     [Parameter(Mandatory=$true)][string]$OutputDirectory,
     [string]$FontMetricsExecutable,
-    [string]$StagedFontFile
+    [string]$StagedFontFile,
+    [string]$WorkingDirectory,
+    [ValidateRange(0,600)][int]$SoakSeconds=0,
+    [switch]$SoakWithoutResize
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -41,6 +44,8 @@ public static class NativeAppWindow {
 '@
 $Executable = (Resolve-Path -LiteralPath $Executable).Path
 $NativeUiaExecutable = (Resolve-Path -LiteralPath $NativeUiaExecutable).Path
+if ([string]::IsNullOrWhiteSpace($WorkingDirectory)) { $WorkingDirectory=Split-Path $Executable }
+$WorkingDirectory=(Resolve-Path -LiteralPath $WorkingDirectory).Path
 $run = Join-Path ([IO.Path]::GetFullPath($OutputDirectory)) ([Guid]::NewGuid().ToString())
 [void](New-Item -ItemType Directory -Path $run -Force)
 $logPath = Join-Path $run 'native-host.log'
@@ -50,7 +55,7 @@ $previousDpi = [NativeAppWindow]::SetThreadDpiAwarenessContext([IntPtr]::new(-4)
 $process = $null
 $report = [ordered]@{
     result='running; qualification incomplete'; startedAtUtc=[DateTime]::UtcNow.ToString('o');
-    executable=$Executable; executableSha256=(Get-FileHash $Executable -Algorithm SHA256).Hash;
+    executable=$Executable; workingDirectory=$WorkingDirectory; executableSha256=(Get-FileHash $Executable -Algorithm SHA256).Hash;
     nativeUiaExecutable=$NativeUiaExecutable; nativeUiaSha256=(Get-FileHash $NativeUiaExecutable -Algorithm SHA256).Hash;
     checks=@(); nativeCalls=@(); screenshots=@(); process=$null;
     presentationReadback='screenshots are acceptance diagnostics; production presentation stays on GPU';
@@ -195,7 +200,7 @@ function Check-BundledFont {
         $font=$candidates[0].FullName
     } else { $font=(Resolve-Path -LiteralPath $StagedFontFile).Path }
     Check 'Font diagnostic uses executable-relative staged asset' ($font.StartsWith($exeRoot.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)) $font
-    $label=Wait-Name 'Bundled Manrope: WWW iii 012345'
+    $label=Wait-Name 'Bundled Manrope: @@@@@@@@'
     $id=$label.Current.AutomationId
     Check 'Bundled font label is visible and has a runtime ID' ( -not $label.Current.IsOffscreen -and $id -match '^pax-node-\d+$') $id
     $stdout=Join-Path $run 'font-metrics.jsonl';$stderr=Join-Path $run 'font-metrics.stderr.log'
@@ -212,7 +217,7 @@ function Check-BundledFont {
     $metrics=$complete[0]
     $report.fontMetrics=$metrics;$report.stagedFontSha256=(Get-FileHash -LiteralPath $font -Algorithm SHA256).Hash
     $correct=$metrics.pid -eq $process.Id -and $metrics.hwnd -eq $process.MainWindowHandle.ToInt64() -and $metrics.automationId -ceq $id -and 
-        $metrics.fontFile -ceq $font -and $metrics.text -ceq 'Bundled Manrope: WWW iii 012345' -and $metrics.qualified -eq $true -and $metrics.negativeControlsDistinct -eq $true
+        $metrics.fontFile -ceq $font -and $metrics.text -ceq 'Bundled Manrope: @@@@@@@@' -and $metrics.qualified -eq $true -and $metrics.negativeControlsDistinct -eq $true
     Check 'Native glyph metrics match bundled Manrope and exclude system fallbacks' $correct $metrics
     $report.bundledFont='qualified: native text-range metrics match exact staged Manrope font with distinct Arial and Segoe UI negative controls'
 }
@@ -223,7 +228,7 @@ try {
     $name=[IO.Path]::GetFileNameWithoutExtension($Executable)
     $existing=@(Get-Process -Name $name -ErrorAction SilentlyContinue)
     Check 'No competing application process' ($existing.Count -eq 0) @($existing|ForEach-Object{$_.Id})
-    $process=Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) -PassThru -RedirectStandardOutput (Join-Path $run 'app.stdout.log') -RedirectStandardError (Join-Path $run 'app.stderr.log')
+    $process=Start-Process -FilePath $Executable -WorkingDirectory $WorkingDirectory -PassThru -RedirectStandardOutput (Join-Path $run 'app.stdout.log') -RedirectStandardError (Join-Path $run 'app.stderr.log')
     $retainedAppHandle=$process.Handle;$report.process=$process.Id
     $deadline=[DateTime]::UtcNow.AddSeconds(60)
     do {
@@ -300,6 +305,36 @@ try {
             Check "Final composed $($sample.name) pixel" $match @{position=@($x,$y);actual=$actual;expected=$sample.rgb;tolerance=5}
         }
     }finally{$shot.bitmap.Dispose()}
+    if ($SoakSeconds -gt 0) {
+        $workload=if($SoakWithoutResize){'retarget native/vector affine animation every 500ms; fixed window size'}else{'retarget native/vector affine animation every 500ms; resize every 10s'}
+        $report.soak=[ordered]@{seconds=$SoakSeconds;measurement='host publication cadence and process resources; not display/DCV FPS';workload=$workload;samples=@()}
+        $started=[DateTime]::UtcNow;$until=$started.AddSeconds($SoakSeconds);$iteration=0
+        do {
+            $process.Refresh()
+            if($process.HasExited){throw 'Application exited during bounded resize soak'}
+            if(-not $SoakWithoutResize -and $iteration % 20 -eq 0){
+                $wide=($iteration % 40 -eq 0)
+                Move-App $(if($wide){1000}else{940}) $(if($wide){840}else{780}) 30
+            }
+            $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+            if($iteration % 4 -eq 0){
+                $report.soak.samples+=@{seconds=([DateTime]::UtcNow-$started).TotalSeconds;workingSetBytes=$process.WorkingSet64;privateBytes=$process.PrivateMemorySize64;cpuSeconds=$process.TotalProcessorTime.TotalSeconds;handles=$process.HandleCount}
+                Checkpoint 'bounded resize soak'
+            }
+            Start-Sleep -Milliseconds 500;$iteration++
+        }while([DateTime]::UtcNow -lt $until)
+        Check 'Native editor identity and binding survive bounded resize soak' ($value.Current.Value -ceq $fixtureText -and $second.Current.Value -ceq $fixtureText) $editor.Current.AutomationId
+        $states=@([regex]::Matches((Log-Text),'(?m)^\d+ gpu=(.+)\r?$') | ForEach-Object { $_.Groups[1].Value | ConvertFrom-Json })
+        $outside=@($states | Where-Object { $_.pendingFrames -gt 3 -or $_.allocatedImages -gt $_.imageCapacity -or $_.allocatedBytes -gt $_.exportByteBudget -or $_.cpuPresentationReadback })
+        Check 'Observed GPU export resources stay inside declared bounds' ($states.Count -gt 0 -and $outside.Count -eq 0) @{observations=$states.Count;violations=$outside}
+        $publications=@([regex]::Matches((Log-Text),'(?m)^(\d+) frame=(\d+) pending=(\d+) submitted=(\d+) retired=(\d+) peak=(\d+) backpressure=(\d+)'))
+        if($publications.Count -ge 2){
+            $first=$publications[0];$last=$publications[-1]
+            $seconds=([double]$last.Groups[1].Value-[double]$first.Groups[1].Value)/1000.0
+            $report.soak.publicationCadence=@{seconds=$seconds;frames=([long]$last.Groups[2].Value-[long]$first.Groups[2].Value);framesPerSecond=([double]$last.Groups[2].Value-[double]$first.Groups[2].Value)/$seconds;peakInFlight=[int]$last.Groups[6].Value;backpressure=[long]$last.Groups[7].Value}
+        }
+        $shot=Capture 'soak-final.png';$shot.bitmap.Dispose()
+    }
     Check 'No host error before close' ( -not ((Log-Text) -match '(?m)^\d+ error ')) 'Native host log'
     $report.result='interactive checks passed; close pending'
 } catch {

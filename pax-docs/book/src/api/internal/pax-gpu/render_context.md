@@ -384,6 +384,57 @@ Type: [`StrokeJoin`](../../../api/pax-runtime-api/drawing.md#strokejoin)
 
 ---
 
+### `VectorCacheMemorySnapshot`
+Point-in-time cache accounting for explicit renderer diagnostics.
+
+Bytes use each cache's existing budget charge, not process RSS or driver residency.
+Resource ownership describes Rust `Rc` owners outside the cache; it does not count
+references retained internally by wgpu or in-flight GPU work. Sibling surface tiles
+share these caches, so snapshots with the same cache identity must not be summed.
+
+#### Properties
+##### `geometry_cache_id`
+Type: `usize`
+
+Opaque identities valid only during this process and these caches' lifetimes.
+
+##### `resource_cache_id`
+Type: `usize`
+
+##### `geometry_entries`
+Type: `usize`
+
+##### `geometry_bytes`
+Type: `usize`
+
+##### `geometry_max_bytes`
+Type: `usize`
+
+##### `resource_entries`
+Type: `usize`
+
+##### `resource_bytes`
+Type: `usize`
+
+##### `resource_max_bytes`
+Type: `usize`
+
+Eviction can exceed this target while entries have external Rust owners.
+
+##### `resource_cache_only_entries`
+Type: `usize`
+
+##### `resource_cache_only_bytes`
+Type: `usize`
+
+##### `resource_externally_held_entries`
+Type: `usize`
+
+##### `resource_externally_held_bytes`
+Type: `usize`
+
+---
+
 ### `WgpuRenderer`
 Retained scene renderer that records Pax vector/image commands and flushes them through wgpu.
 

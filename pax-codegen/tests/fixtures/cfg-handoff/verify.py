@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Run the compiler-handoff acceptance fixture without an application build.rs."""
 import argparse
-import ctypes
 import sys
 import json
 import os
@@ -21,6 +20,13 @@ def positive_jobs(value):
 parser = argparse.ArgumentParser()
 parser.add_argument("--target-dir", required=True, type=Path)
 parser.add_argument("--logs", type=Path)
+parser.add_argument("--macos-host-sdk", type=Path,
+                    help="also exercise an already-built macOS host SDK without mounting UI")
+export_modes = parser.add_mutually_exclusive_group()
+export_modes.add_argument("--native-exports-only", action="store_true",
+                    help="only build and probe native debug, designtime, and release cartridges")
+export_modes.add_argument("--legacy-exports-only", action="store_true",
+                    help="only probe a modern debug cartridge and legacy dependency debug/release builds")
 parser.add_argument("--jobs", type=positive_jobs, default=2,
                     help="maximum concurrent Cargo jobs (default: 2)")
 args = parser.parse_args()
@@ -97,6 +103,69 @@ def run(name, command, app_fancy, widget_fancy, web=False, debug=True,
     print(f"PASS {name}", flush=True)
 
 
+def probe_native_exports(name, release=False):
+    filename = ("libcfg_app.dylib" if sys.platform == "darwin" else
+                "cfg_app.dll" if sys.platform == "win32" else "libcfg_app.so")
+    # Separate processes prevent a previously loaded library or its statics
+    # from hiding a wrong export selection in the next build/profile.
+    result = subprocess.run(
+        [sys.executable, str(root / "probe-native-exports.py"),
+         str(args.target_dir / ("release" if release else "debug") / filename),
+         *([str(args.macos_host_sdk)] if args.macos_host_sdk else [])],
+        text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    (logs / f"{name}.log").write_text(result.stdout)
+    assert result.returncode == 0, result.stdout[-6000:]
+    print(f"PASS {name}", flush=True)
+    reports = [json.loads(line) for line in result.stdout.splitlines()
+               if line.startswith('{"result":')]
+    assert len(reports) == 1, result.stdout
+    return reports[0]
+
+
+def probe_legacy_dependency(expected_exports):
+    # The website and its embedded examples use the compatibility declaration.
+    # Exercise its real macro path, then restore the authored fixture exactly.
+    source = root / "widgets/src/lib.rs"
+    original = source.read_text()
+    declaration = "pax_kit::runnable! { root: crate::Wrapper, init: crate::initialize_wrapper }"
+    assert declaration in original
+    legacy = original.replace(declaration, "").replace(
+        "#[inlined(<Widget/>)]\npub struct Wrapper",
+        "#[main]\n#[init(crate::initialize_wrapper)]\n#[inlined(<Widget/>)]\npub struct Wrapper")
+    try:
+        source.write_text(legacy)
+        for release in [False, True]:
+            name = "release-legacy-dependency" if release else "native-legacy-dependency"
+            run(name, ["build", "--lib", *(["--release"] if release else [])], False, False, debug=not release)
+            observed = probe_native_exports(f"{name}-probe", release)
+            assert observed["nativeExports"] == expected_exports
+    finally:
+        source.write_text(original)
+
+
+if args.legacy_exports_only:
+    run("native-modern-dependency", ["build", "--lib"], False, False)
+    baseline = probe_native_exports("native-modern-dependency-probe")
+    probe_legacy_dependency(baseline["nativeExports"])
+    sys.exit(0)
+
+
+if args.native_exports_only:
+    expected_exports = None
+    for name, flags, release in [
+        ("native-baked-exports", [], False),
+        ("native-designtime-exports", ["--features", "pax-kit/designtime"], False),
+        ("release-baked-exports", ["--release"], True),
+    ]:
+        run(name, ["build", "--lib", *flags], False, False, debug=not release)
+        observed = probe_native_exports(f"{name}-probe", release)
+        if expected_exports is None:
+            expected_exports = observed["nativeExports"]
+        assert observed["nativeExports"] == expected_exports, "Export identity must not depend on the profile or baked/designtime representation"
+    probe_legacy_dependency(expected_exports)
+    sys.exit(0)
+
+
 run("native-app-feature", ["check", "--features", "fancy", "--all-targets"], True, False, test_units=(False, True))
 run("native-rich-baked", ["test", "--features", "fancy", "--lib"], True, False, test_units=(True,))
 run("native-designtime", ["test", "--features", "fancy,pax-kit/designtime", "--lib"], True, False, test_units=(True,))
@@ -104,30 +173,10 @@ run("native-dependency-feature", ["test", "--features", "widget-fancy", "--lib"]
 run("wasm-dependency-feature", ["check", "--features", "widget-fancy", "--target", "wasm32-unknown-unknown", "--lib"], False, True, web=True)
 run("release-dependency-feature", ["test", "--release", "--features", "widget-fancy", "--lib"], False, True, debug=False, test_units=(True,))
 run("custom-rustc-cfg", ["rustc", "--features", "fancy", "--lib", "--", "--cfg", "proof_flag"], True, False, explicit_flag=True)
-if sys.platform == "darwin":
-    library = ctypes.CDLL(str(args.target_dir / "debug/libcfg_app.dylib"))
-    library.pax_init_entry.argtypes = [ctypes.c_float, ctypes.c_float, ctypes.c_char_p,
-                                      ctypes.c_size_t, ctypes.c_void_p, ctypes.c_size_t]
-    library.pax_init_entry.restype = ctypes.c_void_p
-    library.pax_dealloc_engine.argtypes = [ctypes.c_void_p]
-    library.pax_dealloc_engine.restype = None
-    library.cfg_initializer_count.argtypes = [ctypes.c_bool]
-    library.cfg_initializer_count.restype = ctypes.c_size_t
-    def counts():
-        return (library.cfg_initializer_count(False), library.cfg_initializer_count(True))
-    def initialize(entry):
-        return library.pax_init_entry(600, 400, entry, len(entry), None, 0)
-    assert counts() == (0, 0), "Loading a cartridge must not initialize its roots"
-    assert not initialize(b""), "Several roots require explicit selection"
-    assert not initialize(b"crate::Missing")
-    assert counts() == (0, 0), "Rejected selection must not run an initializer"
-    app = initialize(b"crate::App")
-    shell = initialize(b"crate::Shell")
-    assert app and shell and app != shell, "Engines must be separate instances"
-    assert counts() == (1, 1), "Nested App definitions must not invoke App's initializer"
-    library.pax_dealloc_engine(app)
-    library.pax_dealloc_engine(shell)
-    print("PASS native-catalog-instance-boundary", flush=True)
+native_catalog = probe_native_exports("native-catalog-instance-boundary")
+run("release-native-library", ["build", "--release", "--features", "widget-fancy", "--lib"], False, True, debug=False)
+probe_native_exports("release-native-catalog-instance-boundary", release=True)
+probe_legacy_dependency(native_catalog["nativeExports"])
 
 source = root / "widgets/src/plain.rs"
 original = source.read_text()

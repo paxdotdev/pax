@@ -189,12 +189,36 @@ transformation.
 Supplying `family` without `url` keeps the URL empty. On Apple native targets,
 this resolves the installed family and its requested style and weight without
 starting a font download, in both debug and release builds. Omitting the entire font
-uses Pax's current default: Roboto with a Google Fonts URL. Set a family or
-source explicitly when offline behavior and repeatable typography matter.
+uses Pax's current default: Roboto. Web and Apple obtain that default through
+Google Fonts; Windows and Linux use the standard library's packaged Roboto
+normal and italic faces, including their weight variants. Set a family or
+source explicitly when you need a particular font version across every target.
 `Font::Web(family, url, style, weight)` remains the explicit longhand; the
 string and named-object forms describe the same public font type.
 
-### Fonts on experimental desktop hosts
+The standard library's `ExampleHost` source drawer packages its Space Grotesk
+and JetBrains Mono faces through the ordinary shared asset inventory. These
+fonts no longer require a Google Fonts request. Asset discovery currently works
+per package, so applications using other `pax-std` components also carry the
+approximately 327 KiB of font files and licenses; browsers request a face only
+when it is used. The files are separate from Web's Wasm binary.
+
+For reactive font changes, use an expression that returns a complete
+`Font::Web(...)` value. Reactive fields inside the named-object shorthand
+currently fail during runtime property resolution. The
+[`native-text-style` fixture](https://github.com/paxdotdev/pax/blob/main/examples/fixtures/native-text-style/README.md)
+demonstrates switching weight and slant with the explicit form.
+
+On iOS/iPadOS and macOS, Pax currently creates native fonts at the authored
+size. It does not yet apply Dynamic Type or an equivalent accessibility
+text-size policy. Browser page zoom uses the browser's viewport and pixel
+scale; it is distinct from changing the native font's metrics. Test enlarged
+text and zoom on each shipping target rather than assuming native font
+rendering provides automatic accessibility scaling.
+
+<a id="fonts-on-experimental-desktop-hosts"></a>
+
+### Fonts on Windows and Linux
 
 The Windows and Linux hosts accept an empty font URL for a system family, or an
 app-relative URL for a bundled font file. Select the file's actual family:
@@ -205,18 +229,110 @@ app-relative URL for a bundled font file. Select the file's actual family:
 />
 ```
 
-Supply that licensed font file in the application's assets. Remote font files
-and stylesheet URLs are currently unsupported. This includes Pax's default
-Roboto/Google Fonts source: set a font explicitly on text and controls when
-using these experimental hosts.
+Supply that licensed font file in the application's assets. The default Roboto
+family works offline without an explicit font declaration, including bold and
+italic styles on text and controls. Its two licensed font files add about 1 MiB
+to the Windows/Linux asset inventory; web and Apple application bundles do not include
+them. Other remote font files and stylesheet URLs
+remain unsupported; the built-in default is resolved to its packaged files,
+not downloaded at runtime. A custom source URL is never silently replaced.
 
 Windows direct Cargo builds embed a bounded font inventory and materialize a
 verified cache beside the executable before initializing WinUI. That path needs
-a writable executable directory with hard-link support; the limits are 256
-fonts, 16 MiB per file, and 64 MiB total. Existing files with mismatched content
+a writable executable directory with hard-link support. Put font redistribution
+notices beside their font files as `OFL.txt`, `OFL-<family>.txt`, `LICENSE`,
+`LICENSE.txt`, `COPYING`, or `COPYING.txt`; those notices travel with the fonts.
+The limits are 256 resources including notices, 16 MiB per file, and 64 MiB total.
+Existing files with mismatched content
 produce an error. CLI packages already contain the font resources and perform
 no startup extraction. Linux registers bundled fonts through Fontconfig.
+Loading another face of an existing family refreshes the selected font and
+requests remeasurement of automatic Text dimensions. Reusing an already loaded
+file does not continually invalidate those measurements.
+
+Linux follows GTK's effective font resolution. At its 96-DPI font baseline,
+an authored `18px` font remains 18 logical pixels; a font resolution of 144 DPI
+enlarges it to 27 logical pixels. GTK handles display scaling separately.
+When GTK reports changed font metrics, the host remeasures Text's omitted
+dimensions in the running app. Autosized parents and following content then
+use the new measurements, including when text shrinks again. Content and width
+changes also preserve automatic dimensions across updates.
+
+This path has passed Debug and baked Release checks on GTK 4.14.5, plus the
+optional GTK 4.22.5 Flatpak runtime, using live X11 font-setting changes.
+Fresh launches at 144-DPI font resolution passed on all three configurations.
+Whether a desktop's large-text control supplies that setting depends on its
+GTK integration. The installed GTK settings portal also passed live
+100% → 150% → 100% changes through the optional Flatpak on headless Wayland,
+including intrinsic geometry and restoration in the same process. That isolated
+GSettings/portal check does not qualify a GNOME or KDE desktop's settings
+interface, physical monitor changes, or other portal providers.
+
+WinUI honors the Windows accessibility text-size setting independently of
+screen DPI. The Windows host remeasures Text's omitted dimensions after a live
+system text-size change, even when its content and width have not changed.
+Autosized containers can then grow and move following content using the new
+measurement. Repeated Text elements keep independent measurements.
+
+Increasing text size does not automatically enlarge authored Pax widths and
+heights. Leave a paragraph's height unspecified and use an autosized parent
+when following content should move. An explicitly fixed 30px-high label keeps
+that height even when enlarged glyphs need more room; they may overflow or
+be clipped according to the target and clipping settings. Check both fresh
+launches and live setting changes at the text sizes the application needs to
+support.
+
 See [desktop setup and packaging](targets-build-deploy.md#experimental-windows-and-linux-desktop).
+
+<a id="text-styling-on-experimental-desktop-hosts"></a>
+
+### Text styling on Windows and Linux
+
+Windows uses WinUI text and controls; Linux uses GTK/Pango. Both accept uniform
+plain-text font family, size, weight, slant and solid foreground color, including
+alpha. They preserve native editing and selection while styles change. A font
+still needs to be installed or bundled as described above.
+
+A fully transparent plain `Text` fill keeps its content, measurement and native
+selection behavior. On Linux, `fill: rgba(0, 0, 0, 0)` makes unselected glyphs
+invisible while selected text still has GTK's native selection highlight.
+Changing the fill back to a visible color preserves the same native text control.
+
+On Windows, `Text` with `font_size: 0px` has no visible glyphs and measures zero
+on omitted dimensions. Explicit width and height still define its layout box.
+Changing to a positive size restores the text and remeasures omitted dimensions;
+its content and native identity remain intact throughout. This zero-size behavior
+is specific to `Text`, not a promise for every native form control.
+
+| Capability | Windows | Linux |
+| --- | --- | --- |
+| Plain `Text` underline | Supported, including removing underline | Supported, including removing underline |
+| Plain `Text` block and line alignment | Separate horizontal/vertical block alignment and multiline line alignment | Separate horizontal/vertical block alignment and multiline line alignment |
+| Textbox font, color and horizontal line alignment | Native single-line and multiline editors | Native single-line and multiline editors |
+| Textbox underline | Not implemented | Supported, including new text inserted into an empty multiline editor |
+| Textbox vertical alignment | Native control content alignment; exact behavior remains control-specific | Single-line Entry keeps GTK's native vertical alignment; multiline vertical block alignment is not implemented |
+| Button, Dropdown and RadioList text | Font, foreground and underline through native labels | Font, foreground and underline through native labels |
+| Markdown / per-range rich text | Native styled runs for the [supported Markdown subset](#markdown-content) | Native styled runs for the [supported Markdown subset](#markdown-content) |
+
+Fixed Text bounds and glyph bounds are different. Alignment places the intrinsic
+text inside the authored box; it does not stretch glyphs. With `clip=false`,
+overflow can extend outside the box. Set `clip=true` for an explicit cutout and
+leave dimensions automatic when the layout should grow with the content.
+
+Windows does not implement `Text editable=true`; use `Textbox` for native text
+entry. Linux can switch Text to a native multiline editor and make it read-only
+again, but that retained editor does not implement vertical block alignment or
+`selectable=false`. Use plain Text for display-only content and Textbox for form
+input when these limits matter. Rich text is display-only: neither desktop host
+accepts `markdown=true` together with `editable=true`.
+
+The [`native-text-style` fixture](https://github.com/paxdotdev/pax/blob/main/examples/fixtures/native-text-style/README.md)
+compares fixed-box alignment, reactive styling and editing without remounting.
+Check each control type used by an application. A styled closed Dropdown does
+not establish styling or clipping parity for its separate native popup surface.
+On Linux, the closed Dropdown's arrow follows the authored foreground color,
+so it remains visible with a contrasting custom background. Check its separate
+popup surface and disabled state with the theme used by the application.
 
 ### Load a font file on web
 
@@ -353,6 +469,33 @@ trusted-content surface: the web path inserts rendered markup and does not
 provide a sanitization boundary for arbitrary user input. Leave `markdown`
 false for plain strings from users.
 
+Windows and Linux share a Markdown parser and render its results using native
+text controls. Supported formatting includes emphasis, strong emphasis,
+strikethrough, inline code, paragraphs, headings, simple ordered/unordered lists, fenced
+code blocks, and links. Native selection and automatic measurement use the
+rendered text; style changes preserve inline formatting. These hosts also accept
+`ExampleHost`'s preformatted, syntax-colored source markup, including escaped
+characters, Unicode, blank lines, and fixed line spacing.
+
+This is a defined subset, not a browser HTML renderer. Tables, inline images,
+blockquotes, task lists, footnotes, horizontal rules, and link titles are not
+implemented. Supported HTML elements are `span`, `pre`, `strong`/`b`, `em`/`i`,
+`u`, `s`/`del`, `code`, `a`, and `br`; attributes and CSS are limited to link
+`href`, opaque hexadecimal foreground colors, and the preformatted source
+layout used by `ExampleHost`. HTML anchors must stay within one Markdown
+paragraph, and a `pre` block must occupy the whole document. Headings, code or
+HTML blocks, and multiple paragraphs inside one list item need richer block
+layout and are not supported. Unsupported constructs fail the desktop session; correct the content
+and restart the application. Keep richer content on targets that implement it,
+or use ordinary Pax elements to lay it out.
+
+Desktop links accept application-relative destinations and `http`, `https`, or
+`mailto` URLs. Relative links use the native application's virtual router;
+absolute URLs go to the operating system. Other schemes are rejected. Editing
+rich text is not implemented; use `Textbox` or plain editable `Text` where the
+target supports it. Web and Apple retain their existing parsers, so richer
+formatting still needs target-specific checks.
+
 ## Image sources
 
 Keep project-owned images in the project's `assets/` directory. Pax copies
@@ -375,7 +518,7 @@ template.
 dimensions determine its proportions, but do not automatically size the
 node. Set width and height for the area the image should occupy.
 
-Image assets normally load asynchronously. The experimental Linux host currently
+Image assets normally load asynchronously. The Linux host currently
 decodes a local image once on its GTK thread; large files can stall that thread.
 Once decoding finishes, Pax schedules a redraw of the mounted image. On web, concurrent `Image` requests with the same
 source string in one app share one fetch/decode operation and one transfer of
@@ -390,6 +533,13 @@ resident on the GPU, without another network request or decode. Tile preparation
 does not defer component mounting. See
 [Scrolling & Viewports](scrolling-viewports.md) for resource sharing and diagnostics.
 
+Windows decodes up to eight local images concurrently. Larger bursts queue
+their paths until a decoder is available, so a gallery can request more than
+eight images in one frame. Repeated requests for a path share its pending work.
+Each decoded image remains limited to 32 MiB of RGBA pixels; this is a
+per-image limit, not a total gallery memory budget. Missing files and decode
+errors still fail explicitly.
+
 A string is shorthand for `ImageSource::Url`. `source={self.image_path}`
 works the same way when `image_path` is a `Property<String>`; updating the
 property changes the requested image. The explicit
@@ -400,7 +550,7 @@ Despite the `Url` name, arbitrary remote URLs are not currently a portable
 Image source. The web canvas loader prefixes the app's document directory,
 and the Apple canvas loaders resolve bundled assets. Use app-relative assets
 for this path. Web NativeImage has a separate browser URL path, described below.
-The experimental Windows and Linux hosts also resolve local assets; remote
+The alpha Windows and Linux hosts also resolve local assets; remote
 image URLs currently report an unsupported error.
 
 For portable Apple bundles, use distinct resource basenames even across
@@ -466,6 +616,17 @@ The same constructor can be demonstrated with two pixels in a template:
 ```
 
 The four values in each group are red, green, blue, and alpha, from 0 to 255.
+Supply straight, encoded RGB values: do not linearize them or multiply RGB by
+alpha yourself. On the ordinary 8-bit web and native outputs, an opaque pixel
+`[30, 120, 220, 255]` matches a vector filled with `rgb(30, 120, 220)`.
+Changing its alpha to 128 makes that same color roughly half opaque; the renderer
+applies alpha during composition. Image sampling follows the output's color
+encoding, avoiding an extra sRGB decode on these outputs.
+
+GPU adapters that support alternate texture views share one image upload across
+encoded and linear sampling. Other adapters cache a separate upload for each
+required sampling encoding; the image colors remain the same.
+
 For substantial images, keep pixel generation or decoding in Rust and bind
 the result, instead of embedding a large byte array in the template.
 

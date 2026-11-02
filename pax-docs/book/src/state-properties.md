@@ -251,6 +251,12 @@ also retire when their retained local view disappears. Cleanup follows those
 lifetime notifications rather than scanning every live property on each import;
 it does not defer component mounting or evaluate discarded UI computations.
 
+Normal imports process these notifications within the
+same finite FIFO budget as value updates; a large batch of drops can therefore
+take several settlement turns. Low-level embedders can call
+`PropertyGraph::collect()` to drain all pending lifetime notifications, or `close()` to detach all
+bindings when the graph shuts down.
+
 Use `LocalProperty<T>` for `Rc`/node values and local computations. It and its
 untyped dependency handles cannot cross threads, even inside `Arc<Mutex<_>>`.
 A local `get` evaluates dirty dependencies before returning. Its `read` closure

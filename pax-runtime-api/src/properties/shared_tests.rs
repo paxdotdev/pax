@@ -324,6 +324,233 @@ fn dropped_shared_handles_release_owner_thread_graph_entries() {
     graph.close();
 }
 
+fn property_with_owner_drop(on_drop: impl FnOnce() + 'static) -> Property<u32> {
+    struct OnDrop(Option<Box<dyn FnOnce()>>);
+    impl Drop for OnDrop {
+        fn drop(&mut self) {
+            self.0.take().unwrap()();
+        }
+    }
+    let guard = OnDrop(Some(Box::new(on_drop)));
+    Property::from_local(LocalProperty::computed(
+        move || {
+            let _ = &guard;
+            1_u32
+        },
+        &[],
+    ))
+}
+
+#[test]
+fn worker_final_drop_is_reclaimed_by_import_on_owner_thread() {
+    let before = property_table_total_properties_count();
+    let wakes = Arc::new(AtomicUsize::new(0));
+    let signal = wakes.clone();
+    let graph = PropertyGraph::new(move || {
+        signal.fetch_add(1, Ordering::SeqCst);
+    });
+    let _entered = graph.enter();
+    let drops = Rc::new(Cell::new(0));
+    let observed = drops.clone();
+    let owner = thread::current().id();
+    let value = property_with_owner_drop(move || {
+        assert_eq!(thread::current().id(), owner);
+        observed.set(observed.get() + 1);
+    });
+    thread::spawn(move || drop(value)).join().unwrap();
+    assert_eq!(wakes.load(Ordering::SeqCst), 1);
+    assert_eq!(drops.get(), 0);
+    assert!(graph.has_pending());
+    assert_eq!(graph.import(), 0);
+    assert_eq!(drops.get(), 1);
+    assert!(!graph.has_pending());
+    assert_eq!(property_table_total_properties_count(), before);
+    graph.close();
+}
+
+#[test]
+fn queued_update_and_final_drop_coalesce_without_importing_a_dead_value() {
+    let graph = PropertyGraph::new(|| {});
+    let _entered = graph.enter();
+    let value = Property::new(1_u32);
+    let retained = value.local();
+    value.set(2);
+    thread::spawn(move || drop(value)).join().unwrap();
+    assert_eq!(graph.import_batch(1), 0);
+    assert!(!graph.has_pending());
+    // A retained local view remains readable after its shared owner disappears.
+    assert_eq!(retained.get(), 1);
+    retained.set(3);
+    assert_eq!(retained.get(), 3);
+    graph.close();
+}
+
+#[test]
+fn live_and_dead_identities_share_the_fifo_import_budget() {
+    let graph = PropertyGraph::new(|| {});
+    let _entered = graph.enter();
+    let a = Property::new(0_u32);
+    let b = Property::new(0_u32);
+    let a_local = a.local();
+    let b_local = b.local();
+    let drops = Rc::new(Cell::new(0));
+    let observed = drops.clone();
+    let dead = property_with_owner_drop(move || observed.set(observed.get() + 1));
+    a.set(1);
+    drop(dead);
+    b.set(2);
+    assert_eq!(graph.import_batch(0), 0);
+    assert_eq!(drops.get(), 0);
+    assert!(graph.has_pending());
+    assert_eq!(graph.import_batch(1), 1);
+    assert_eq!(a_local.get(), 1);
+    assert_eq!(b_local.get(), 0);
+    assert_eq!(drops.get(), 0);
+    assert_eq!(graph.import_batch(1), 0);
+    assert_eq!(drops.get(), 1);
+    assert!(graph.has_pending());
+    assert_eq!(graph.import_batch(1), 1);
+    assert_eq!(b_local.get(), 2);
+    assert!(!graph.has_pending());
+    graph.close();
+}
+
+#[test]
+fn retirement_destructor_can_attach_and_publish_without_graph_borrows() {
+    let graph = PropertyGraph::new(|| {});
+    let _entered = graph.enter();
+    let value = Property::new(0_u32);
+    let local = value.local();
+    let published = value.clone();
+    let graph_at_drop = graph.clone();
+    let dead = property_with_owner_drop(move || {
+        let _entered = graph_at_drop.enter();
+        published.set(7);
+        let transient = Property::new(9_u32);
+        assert_eq!(transient.local().get(), 9);
+    });
+    drop(dead);
+    assert_eq!(graph.import_batch(1), 0);
+    assert_eq!(local.get(), 0);
+    assert!(graph.has_pending());
+    assert_eq!(graph.import(), 1);
+    assert_eq!(local.get(), 7);
+    assert!(!graph.has_pending());
+    graph.close();
+}
+
+#[test]
+fn retirement_destructor_queues_another_final_drop_for_a_later_batch() {
+    let graph = PropertyGraph::new(|| {});
+    let _entered = graph.enter();
+    let drops = Rc::new(Cell::new(0));
+    let observed = drops.clone();
+    let second = property_with_owner_drop(move || observed.set(observed.get() + 1));
+    let first = property_with_owner_drop(move || drop(second));
+    drop(first);
+    assert_eq!(graph.import_batch(1), 0);
+    assert_eq!(drops.get(), 0);
+    assert!(graph.has_pending());
+    assert_eq!(graph.import_batch(1), 0);
+    assert_eq!(drops.get(), 1);
+    assert!(!graph.has_pending());
+    graph.close();
+}
+
+#[test]
+fn import_freezes_all_snapshots_before_clone_can_publish_another_value() {
+    use std::sync::atomic::AtomicBool;
+    #[derive(Default)]
+    struct PublishOnClone {
+        armed: Arc<AtomicBool>,
+        target: Option<Property<u32>>,
+    }
+    impl Clone for PublishOnClone {
+        fn clone(&self) -> Self {
+            if self.armed.swap(false, Ordering::SeqCst) {
+                self.target.as_ref().unwrap().set(99);
+            }
+            Self {
+                armed: self.armed.clone(),
+                target: self.target.clone(),
+            }
+        }
+    }
+    impl crate::Interpolatable for PublishOnClone {}
+    let graph = PropertyGraph::new(|| {});
+    let _entered = graph.enter();
+    let second = Property::new(0_u32);
+    let second_local = second.local();
+    let first = Property::new(PublishOnClone::default());
+    let _first_local = first.local();
+    let armed = Arc::new(AtomicBool::new(false));
+    first.set(PublishOnClone {
+        armed: armed.clone(),
+        target: Some(second.clone()),
+    });
+    second.set(2);
+    armed.store(true, Ordering::SeqCst);
+    assert_eq!(graph.import(), 2);
+    assert_eq!(second.get(), 99);
+    assert_eq!(second_local.get(), 2);
+    assert!(graph.has_pending());
+    assert_eq!(graph.import(), 1);
+    assert_eq!(second_local.get(), 99);
+    assert!(!graph.has_pending());
+    graph.close();
+}
+
+#[test]
+fn final_drop_during_an_import_action_retires_an_already_prepared_identity() {
+    use std::sync::{atomic::AtomicBool, Mutex};
+    #[derive(Default)]
+    struct DropOnClone {
+        armed: Arc<AtomicBool>,
+        target: Arc<Mutex<Option<Property<u32>>>>,
+    }
+    impl Clone for DropOnClone {
+        fn clone(&self) -> Self {
+            if self.armed.swap(false, Ordering::SeqCst) {
+                let last_owner = self.target.lock().unwrap().take();
+                drop(last_owner);
+            }
+            Self {
+                armed: self.armed.clone(),
+                target: self.target.clone(),
+            }
+        }
+    }
+    impl crate::Interpolatable for DropOnClone {}
+    let graph = PropertyGraph::new(|| {});
+    let _entered = graph.enter();
+    let drops = Rc::new(Cell::new(0));
+    let observed = drops.clone();
+    let owner = thread::current().id();
+    let second = property_with_owner_drop(move || {
+        assert_eq!(thread::current().id(), owner);
+        observed.set(observed.get() + 1);
+    });
+    let retained = second.local();
+    let first = Property::new(DropOnClone::default());
+    let _first_local = first.local();
+    let armed = Arc::new(AtomicBool::new(false));
+    let target = Arc::new(Mutex::new(None));
+    first.set(DropOnClone {
+        armed: armed.clone(),
+        target: target.clone(),
+    });
+    second.set(2);
+    *target.lock().unwrap() = Some(second);
+    armed.store(true, Ordering::SeqCst);
+    assert_eq!(graph.import(), 2);
+    assert_eq!(retained.get(), 2);
+    assert!(!graph.has_pending());
+    assert_eq!(drops.get(), 0);
+    drop(retained);
+    assert_eq!(drops.get(), 1);
+    graph.close();
+}
+
 #[test]
 fn nested_conversion_uses_explicit_graph_snapshots() {
     use crate::{Size, Stroke, ToPaxValue};

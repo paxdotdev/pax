@@ -5,7 +5,7 @@
 A useful URL names a place in your application: a project, a member's profile,
 or the settings panel someone wants to share. Pax connects that location to a
 component tree. On the web, the location follows the browser URL and its
-history. On macOS, iOS, and iPadOS, the same route tree can select screens
+history. On native targets, the same route tree can select screens
 using an in-app location.
 
 This chapter builds on [Templates](template-language.md),
@@ -254,9 +254,31 @@ initializing Pax first.
 
 ### Native locations
 
-On macOS, iOS, and iPadOS, current-target relative paths update Pax's virtual
-in-app location. Query parameters and fragments travel with it. External
-destinations are handed to the operating system to open.
+On macOS, iOS, iPadOS, Windows, and Linux, current-target relative paths update
+Pax's virtual in-app location. Both `Link` and `NodeContext::navigate_to` use
+this path. Query parameters and fragments travel with the location, and Router
+updates its selected subtree without restarting the application.
+
+On Windows and Linux, a click on selectable Text inside a `Link` activates the
+link once. Dragging to select that text leaves the location unchanged. Native
+selection stays available; it does not need to be disabled to make the link
+clickable.
+
+Use root-relative destinations such as `/teams/design` for portable navigation.
+Native relative destinations resolve against the current application location,
+not the nearest Router. The native location stores decoded path segments and
+does not retain a trailing slash: `child` after `/folder/` resolves to `/child`.
+Native paths decode `%2F` before splitting into segments; query `+` characters
+remain literal plus signs. These details differ from browser URL handling.
+Repeated query parameters remain separate values on both paths.
+
+On Windows and Linux, external destinations require an absolute URI such as
+`https://pax.dev`. The operating system chooses the external application; a
+missing handler or failed launch leaves Pax running. A relative destination
+with `Target::New` cannot create a second native Pax window. The private
+`pax:` location scheme is not an OS deep-link registration. See the
+[desktop limits](targets-build-deploy.md#current-desktop-limits) for the
+qualification boundary.
 
 A native router does not provide browser chrome, a native back-stack control,
 or automatic universal-link registration. Supply the application's navigation

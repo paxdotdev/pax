@@ -1,0 +1,17 @@
+[package]
+name = "pax-rust-manifest-acceptance"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+resolver = "2"
+
+[dependencies]
+pax-manifest = { path = "../../..", default-features = false }
+pax-language = { path = "../../../../pax-language", default-features = false }
+
+[build-dependencies]
+pax-manifest = { path = "../../..", features = ["compiler"] }
+pax-language = { path = "../../../../pax-language", features = ["parser"] }
+syn = { version = "1.0", features = ["full", "parsing"] }

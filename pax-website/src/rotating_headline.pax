@@ -160,7 +160,7 @@
     @mount: mount
     .headline {
         style: TextStyle {
-            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::ExtraBold)
+            font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::ExtraBold)
             font_size: {(self.font_px)px}
             fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Center
@@ -170,7 +170,7 @@
     }
     .selection {
         style: TextStyle {
-            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::ExtraBold)
+            font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::ExtraBold)
             font_size: {(self.font_px)px}
             fill: rgba(0, 0, 0, 0)
             align_vertical: TextAlignVertical::Center

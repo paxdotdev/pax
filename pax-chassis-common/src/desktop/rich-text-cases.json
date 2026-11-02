@@ -1,0 +1,303 @@
+[
+  {
+    "content": "<pre data-pax-code-markup=\"example-host\" style=\"margin:0; white-space:pre; line-height:18px; color:#f5f5f5;\"><span style=\"color:#8c9eff\">let</span> café <span style=\"color:#b8b8b8\">=</span> <span style=\"color:#ffff00\">&quot;😀 &lt; &amp; &#39;&quot;</span><span style=\"color:#b8b8b8\">;</span>\n\n</pre>",
+    "markdown": true,
+    "name": "example-host-source",
+    "rich_text": {
+      "line_height": 18.0,
+      "runs": [
+        {
+          "color": [
+            0.5490196078431373,
+            0.6196078431372549,
+            1.0,
+            1.0
+          ],
+          "end": 3,
+          "start": 0
+        },
+        {
+          "color": [
+            0.9607843137254902,
+            0.9607843137254902,
+            0.9607843137254902,
+            1.0
+          ],
+          "end": 10,
+          "start": 3
+        },
+        {
+          "color": [
+            0.7215686274509804,
+            0.7215686274509804,
+            0.7215686274509804,
+            1.0
+          ],
+          "end": 11,
+          "start": 10
+        },
+        {
+          "color": [
+            0.9607843137254902,
+            0.9607843137254902,
+            0.9607843137254902,
+            1.0
+          ],
+          "end": 12,
+          "start": 11
+        },
+        {
+          "color": [
+            1.0,
+            1.0,
+            0.0,
+            1.0
+          ],
+          "end": 24,
+          "start": 12
+        },
+        {
+          "color": [
+            0.7215686274509804,
+            0.7215686274509804,
+            0.7215686274509804,
+            1.0
+          ],
+          "end": 25,
+          "start": 24
+        },
+        {
+          "color": [
+            0.9607843137254902,
+            0.9607843137254902,
+            0.9607843137254902,
+            1.0
+          ],
+          "end": 27,
+          "start": 25
+        }
+      ],
+      "text": "let café = \"😀 < & '\";\n\n"
+    }
+  },
+  {
+    "content": "é **bold _😀 italic_ after** `x < y` ~~gone~~",
+    "markdown": true,
+    "name": "inline-unicode",
+    "rich_text": {
+      "runs": [
+        {
+          "end": 3,
+          "start": 0
+        },
+        {
+          "bold": true,
+          "end": 8,
+          "start": 3
+        },
+        {
+          "bold": true,
+          "end": 19,
+          "italic": true,
+          "start": 8
+        },
+        {
+          "bold": true,
+          "end": 25,
+          "start": 19
+        },
+        {
+          "end": 26,
+          "start": 25
+        },
+        {
+          "end": 31,
+          "font_family": "monospace",
+          "start": 26
+        },
+        {
+          "end": 32,
+          "start": 31
+        },
+        {
+          "end": 36,
+          "start": 32,
+          "strikethrough": true
+        }
+      ],
+      "text": "é bold 😀 italic after x < y gone"
+    }
+  },
+  {
+    "content": "See [café 😀](https://example.org/docs) or [local](/guide#text).",
+    "markdown": true,
+    "name": "linked-unicode",
+    "rich_text": {
+      "runs": [
+        {
+          "end": 4,
+          "start": 0
+        },
+        {
+          "end": 14,
+          "link": "https://example.org/docs",
+          "link_id": 1,
+          "start": 4
+        },
+        {
+          "end": 18,
+          "start": 14
+        },
+        {
+          "end": 23,
+          "link": "/guide#text",
+          "link_id": 2,
+          "start": 18
+        },
+        {
+          "end": 24,
+          "start": 23
+        }
+      ],
+      "text": "See café 😀 or local."
+    }
+  },
+  {
+    "content": "## Heading\n\nA paragraph.\n\n3. third\n4. fourth\n\n```rust\nlet x = 1;\n```",
+    "markdown": true,
+    "name": "blocks",
+    "rich_text": {
+      "runs": [
+        {
+          "bold": true,
+          "end": 7,
+          "size_scale": 1.5,
+          "start": 0
+        },
+        {
+          "end": 43,
+          "start": 7
+        },
+        {
+          "end": 54,
+          "font_family": "monospace",
+          "start": 43
+        }
+      ],
+      "text": "Heading\n\nA paragraph.\n\n3. third\n4. fourth\n\nlet x = 1;\n"
+    }
+  },
+  {
+    "content": "**literal**",
+    "markdown": false,
+    "name": "plain-toggle",
+    "rich_text": null
+  },
+  {
+    "content": "",
+    "markdown": true,
+    "name": "empty-markdown",
+    "rich_text": {
+      "runs": [],
+      "text": ""
+    }
+  },
+  {
+    "content": "[one](/x)[two](/x)",
+    "markdown": true,
+    "name": "adjacent-distinct-links",
+    "rich_text": {
+      "runs": [
+        {
+          "end": 3,
+          "link": "/x",
+          "link_id": 1,
+          "start": 0
+        },
+        {
+          "end": 6,
+          "link": "/x",
+          "link_id": 2,
+          "start": 3
+        }
+      ],
+      "text": "onetwo"
+    }
+  },
+  {
+    "content": "[one **two** three](/x)",
+    "markdown": true,
+    "name": "one-styled-link",
+    "rich_text": {
+      "runs": [
+        {
+          "end": 4,
+          "link": "/x",
+          "link_id": 1,
+          "start": 0
+        },
+        {
+          "bold": true,
+          "end": 7,
+          "link": "/x",
+          "link_id": 1,
+          "start": 4
+        },
+        {
+          "end": 13,
+          "link": "/x",
+          "link_id": 1,
+          "start": 7
+        }
+      ],
+      "text": "one two three"
+    }
+  },
+  {
+    "content": "<a href=\"/x\">one <b>two</b> three</a>[four](/x)<a href=\"/x\"><span style=\"color:#f00\">five</span></a>",
+    "markdown": true,
+    "name": "mixed-html-links",
+    "rich_text": {
+      "runs": [
+        {
+          "end": 4,
+          "link": "/x",
+          "link_id": 1,
+          "start": 0
+        },
+        {
+          "bold": true,
+          "end": 7,
+          "link": "/x",
+          "link_id": 1,
+          "start": 4
+        },
+        {
+          "end": 13,
+          "link": "/x",
+          "link_id": 1,
+          "start": 7
+        },
+        {
+          "end": 17,
+          "link": "/x",
+          "link_id": 2,
+          "start": 13
+        },
+        {
+          "color": [
+            1.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "end": 21,
+          "link": "/x",
+          "link_id": 3,
+          "start": 17
+        }
+      ],
+      "text": "one two threefourfive"
+    }
+  }
+]

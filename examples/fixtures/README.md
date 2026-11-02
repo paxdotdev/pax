@@ -62,11 +62,17 @@ accepts `fixtures/<name>` and `examples/fixtures/<name>`.
 | [spatial-workbench](spatial-workbench) | Experimental orthographic 3D: rotating native controls, intersecting planes, clipping and depth |
 | [architecture-diagram](architecture-diagram) | Engine architecture reference and diagram export tool |
 | [async-workbench](async-workbench) | Async ownership, cancellation, startup and embedding probe |
+| [native-text-layout](native-text-layout) | Native text measurement, wrapping, autosized parents, and accessibility text-size probe |
+| [native-text-style](native-text-style) | Text block/line alignment, underline, reactive typography, native editor and form surfaces |
+| [native-navigation](native-navigation) | Native route resolution, declarative links, packaged default fonts, and receiving-package probe |
+| [native-controls](native-controls) | Native selection/range bindings, dynamic options, and standalone rounded Scroller probe |
 | [group-compositing](group-compositing) | Mixed native/canvas group opacity acceptance fixture |
 | [gyro-helper](gyro-helper) | Device sensor integration probe |
 | [mask-strokes](mask-strokes) | Paint layers and live component masks regression fixture |
 | [native-desktop-smoke](native-desktop-smoke) | Windows/Linux application, cartridge, native input and packaged resource acceptance |
 | [native-text-compatibility](native-text-compatibility) | macOS text/control/accessibility regression fixture |
+| [native-scroll-snap](native-scroll-snap) | Native snap-point replacement, removal, viewport resizing and off-anchor input |
+| [native-wheel](native-wheel) | Physical wheel input, Rust handler bubbling/cancellation, nested Scroller and rounded/overlay ownership |
 | [neon-opacity](neon-opacity) | Opacity, masks and compositing study |
 | [overlay-transfer](overlay-transfer) | Additive fixed Overlays, scroll-driven live transfer, native state, and borrower teardown/recovery |
 | [occlusion](occlusion) | Native/canvas occlusion and masking acceptance fixture |

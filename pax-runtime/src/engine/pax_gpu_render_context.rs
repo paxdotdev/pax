@@ -27,6 +27,8 @@ use std::{
 };
 
 #[cfg(not(target_arch = "wasm32"))]
+use pax_gpu::render_context::VectorCacheMemorySnapshot;
+#[cfg(not(target_arch = "wasm32"))]
 use pollster;
 
 /// Retained renderer bound to one physical surface tile for a logical layer.
@@ -56,6 +58,86 @@ pub struct LayerTarget {
     needs_replay: bool,
     failed_layout: Option<LayerSurfaceLayout>,
     incremental_initialization: bool,
+    #[cfg(not(target_arch = "wasm32"))]
+    memory_diagnostics: Option<LayerMemoryDiagnostics>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Default)]
+struct LayerMemoryDiagnostics {
+    id: u64,
+    flushes: u64,
+    window: ResourceChurnStats,
+    cumulative: ResourceChurnStats,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl LayerMemoryDiagnostics {
+    fn new() -> Option<Self> {
+        static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        if !*ENABLED
+            .get_or_init(|| std::env::var("PAX_GPU_MEMORY_DIAGNOSTICS").as_deref() == Ok("1"))
+        {
+            return None;
+        }
+        static NEXT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        Some(Self {
+            id: NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            ..Self::default()
+        })
+    }
+
+    fn record(&mut self, stats: ResourceChurnStats) -> Option<ResourceChurnStats> {
+        self.flushes += 1;
+        self.window.merge(stats);
+        self.cumulative.merge(stats);
+        (self.flushes == 1 || self.flushes % 120 == 0).then(|| std::mem::take(&mut self.window))
+    }
+
+    fn sample(
+        &mut self,
+        stats: ResourceChurnStats,
+        snapshot: impl FnOnce() -> Option<VectorCacheMemorySnapshot>,
+    ) -> Option<(ResourceChurnStats, Option<VectorCacheMemorySnapshot>)> {
+        self.record(stats).map(|window| (window, snapshot()))
+    }
+
+    fn report(
+        &mut self,
+        layer: usize,
+        surfaces: usize,
+        stats: ResourceChurnStats,
+        snapshot: impl FnOnce() -> Option<VectorCacheMemorySnapshot>,
+    ) {
+        let Some((window, cache)) = self.sample(stats, snapshot) else {
+            return;
+        };
+        let total = &self.cumulative;
+        // Churn counters report cache bytes only when a cache operation observes them.
+        // A zero window is not an empty-cache claim. Merge takes max across sibling
+        // tiles sharing these caches; these are reported peaks, not current gauges.
+        println!("[PaxGpuCacheMemory] target={} layer={} surfaces={} layer_flushes={} window_surface_flushes={} geometry_cache_reported_window_max_bytes={} resource_cache_reported_window_max_bytes={} geometry_cache_reported_peak_bytes={} resource_cache_reported_peak_bytes={} geometry_misses_total={} geometry_evictions_total={} resource_creates_total={} resource_recreates_total={} resource_updates_total={} resource_evictions_total={} resource_create_bytes_total={} resource_update_bytes_total={} image_uploads_total={} image_upload_bytes_total={} current_cache_bytes_available={}",
+            self.id, layer, surfaces, self.flushes, window.flushes,
+            window.vector_geometry_cache_bytes, window.vector_resource_cache_bytes,
+            total.vector_geometry_cache_bytes, total.vector_resource_cache_bytes,
+            total.vector_geometry_cache_misses, total.vector_geometry_cache_evictions,
+            total.vector_resource_creates, total.vector_resource_recreates,
+            total.vector_resource_updates, total.vector_resource_cache_evictions,
+            total.vector_resource_create_bytes, total.vector_resource_update_bytes,
+            total.texture_creates, total.texture_upload_bytes, cache.is_some());
+        if let Some(cache) = cache {
+            let unix_ms = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|elapsed| elapsed.as_millis())
+                .unwrap_or_default();
+            println!("[PaxGpuCacheOwnership] target={} layer={} surfaces={} layer_flushes={} sample_unix_ms={} geometry_cache_id={} geometry_entries={} geometry_current_bytes={} geometry_max_bytes={} resource_cache_id={} resource_entries={} resource_current_bytes={} resource_max_bytes={} resource_cache_only_entries={} resource_cache_only_bytes={} resource_externally_held_entries={} resource_externally_held_bytes={} logical_storage_only=true",
+                self.id, layer, surfaces, self.flushes, unix_ms,
+                cache.geometry_cache_id, cache.geometry_entries, cache.geometry_bytes, cache.geometry_max_bytes,
+                cache.resource_cache_id, cache.resource_entries, cache.resource_bytes, cache.resource_max_bytes,
+                cache.resource_cache_only_entries, cache.resource_cache_only_bytes,
+                cache.resource_externally_held_entries, cache.resource_externally_held_bytes);
+        }
+    }
 }
 
 #[cfg(debug_assertions)]
@@ -318,6 +400,8 @@ impl LayerTarget {
             needs_replay: false,
             failed_layout: None,
             incremental_initialization: false,
+            #[cfg(not(target_arch = "wasm32"))]
+            memory_diagnostics: LayerMemoryDiagnostics::new(),
         }
     }
 
@@ -1406,6 +1490,17 @@ impl PaxGpuRenderer {
                 {
                     println!("{}", line);
                 }
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(diagnostics) = &mut target.memory_diagnostics {
+                // All sibling tiles share these caches. Scan one by reference only
+                // when a diagnostic record is due, never on ordinary flushes.
+                let renderers = &target.renderers;
+                diagnostics.report(layer, renderers.len(), resource_stats, || {
+                    renderers
+                        .first()
+                        .map(|renderer| renderer.renderer.vector_cache_memory_snapshot())
+                });
             }
             if resource_stats.has_resource_churn() {
                 log::trace!(
@@ -3634,6 +3729,77 @@ mod tests {
         assert!(!renderer.prepares_surface_content());
         assert!(!renderer.begin_surface_recording(0));
         assert_eq!(renderer.missing_surface_drawings(0, &[1]), None);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn layer_memory_diagnostics_scan_only_on_reporting_frames() {
+        let mut diagnostics = LayerMemoryDiagnostics::default();
+        let calls = Cell::new(0);
+        for frame in 1..=240 {
+            let sample = diagnostics.sample(ResourceChurnStats::default(), || {
+                calls.set(calls.get() + 1);
+                Some(VectorCacheMemorySnapshot {
+                    resource_bytes: frame,
+                    ..Default::default()
+                })
+            });
+            if frame == 1 || frame % 120 == 0 {
+                assert_eq!(sample.unwrap().1.unwrap().resource_bytes, frame);
+            } else {
+                assert!(sample.is_none());
+            }
+        }
+        assert_eq!(calls.get(), 3);
+        diagnostics.flushes = 359;
+        assert_eq!(
+            diagnostics.sample(ResourceChurnStats::default(), || None),
+            Some((ResourceChurnStats::default(), None))
+        );
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn layer_memory_diagnostics_bound_cadence_and_separate_peaks_from_counters() {
+        let mut diagnostics = LayerMemoryDiagnostics::default();
+        let first = ResourceChurnStats {
+            flushes: 2,
+            vector_geometry_cache_bytes: 100,
+            vector_resource_cache_bytes: 400,
+            vector_resource_creates: 2,
+            ..Default::default()
+        };
+        assert_eq!(diagnostics.record(first), Some(first));
+        let later = ResourceChurnStats {
+            flushes: 1,
+            vector_geometry_cache_bytes: 60,
+            vector_resource_cache_bytes: 300,
+            vector_resource_recreates: 1,
+            vector_resource_cache_evictions: 1,
+            ..Default::default()
+        };
+        for _ in 2..120 {
+            assert!(diagnostics.record(later).is_none());
+        }
+        let window = diagnostics.record(later).unwrap();
+        assert_eq!(diagnostics.flushes, 120);
+        assert_eq!(window.flushes, 119);
+        assert_eq!(window.vector_geometry_cache_bytes, 60);
+        assert_eq!(window.vector_resource_cache_bytes, 300);
+        assert_eq!(window.vector_resource_recreates, 119);
+        assert_eq!(diagnostics.cumulative.vector_geometry_cache_bytes, 100);
+        assert_eq!(diagnostics.cumulative.vector_resource_cache_bytes, 400);
+        assert_eq!(diagnostics.cumulative.vector_resource_creates, 2);
+        assert_eq!(diagnostics.cumulative.vector_resource_cache_evictions, 119);
+        assert_eq!(diagnostics.window, ResourceChurnStats::default());
+        for _ in 121..240 {
+            assert!(diagnostics.record(ResourceChurnStats::default()).is_none());
+        }
+        assert_eq!(
+            diagnostics.record(ResourceChurnStats::default()),
+            Some(ResourceChurnStats::default()),
+        );
+        assert_eq!(diagnostics.cumulative.vector_resource_cache_bytes, 400);
     }
 
     #[test]

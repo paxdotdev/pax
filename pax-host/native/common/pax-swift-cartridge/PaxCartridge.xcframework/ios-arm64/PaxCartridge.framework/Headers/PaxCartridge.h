@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include "PaxProgramExports.h"
 
 typedef struct NativeMessageQueue {
     uint8_t *data_ptr;
@@ -20,7 +21,7 @@ typedef struct InterruptBuffer {
 
 typedef struct PaxEngineContainer PaxEngineContainer;
 
-struct PaxEngineContainer *pax_init(float initial_width, float initial_height);
+struct PaxEngineContainer *pax_init(float initial_width, float initial_height) PAX_PROGRAM_EXPORT(pax_init);
 
 void pax_activate_application(struct PaxEngineContainer *container);
 
@@ -30,7 +31,8 @@ bool pax_has_pending_properties(struct PaxEngineContainer *container);
 
 void pax_set_shutdown_waker(uint64_t token, void (*wake)(uint64_t));
 uint64_t pax_pump_shutdowns(void);
-uint32_t pax_cartridge_abi_version(void);
+uint32_t pax_cartridge_abi_version(void) PAX_PROGRAM_EXPORT(pax_cartridge_abi_version);
+size_t pax_cartridge_program_id(uint8_t *buffer, size_t capacity) PAX_PROGRAM_EXPORT(pax_cartridge_program_id);
 void pax_shutdown_for_replacement(PaxEngineContainer *container);
 
 void pax_set_property_waker(struct PaxEngineContainer *container, uint64_t token, void (*wake)(uint64_t));
@@ -89,6 +91,6 @@ struct NativeMessageQueue *pax_designtime_replace_node(struct PaxEngineContainer
 void pax_dealloc_message_queue(struct NativeMessageQueue *queue);
 
 // Inputs are copied during the call. Reply bytes are borrowed for the callback.
-PaxEngineContainer *pax_init_entry(float width, float height, const uint8_t *entry, size_t entry_len, const uint8_t *data, size_t len);
-PaxEngineContainer *pax_init_with_data(float width, float height, const uint8_t *data, size_t len);
+PaxEngineContainer *pax_init_entry(float width, float height, const uint8_t *entry, size_t entry_len, const uint8_t *data, size_t len) PAX_PROGRAM_EXPORT(pax_init_entry);
+PaxEngineContainer *pax_init_with_data(float width, float height, const uint8_t *data, size_t len) PAX_PROGRAM_EXPORT(pax_init_with_data);
 void pax_cartridge_request(PaxEngineContainer *engine, const uint8_t *data, size_t len, void *context, void (*reply)(void *, uint32_t, const uint8_t *, size_t));

@@ -1,0 +1,25 @@
+[package]
+publish = false
+name = "native-text-style"
+version = "0.39.1"
+edition = "2021"
+default-run = "native-text-style"
+
+[package.metadata.pax]
+title = "Native text styling"
+
+[dependencies]
+pax-kit = { path = "../../../pax-kit", version = "0.39.1" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "native-text-style"
+path = "src/main.rs"
+required-features = ["standalone"]

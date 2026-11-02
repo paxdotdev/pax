@@ -1403,6 +1403,22 @@ Type: `u32`
 
 ---
 
+### `TextMeasurementInvalidatedArgs`
+Native font metrics changed independently of the text's authored properties.
+
+The chassis supplies the most recent measurement generation it received.
+The runtime ignores stale invalidations and issues a fresh measurement
+request; the chassis must not reuse an already answered response generation.
+
+#### Properties
+##### `id`
+Type: `u32`
+
+##### `generation`
+Type: `u64`
+
+---
+
 ### `TextMeasurementResponseArgs`
 Chassis response to an engine-authored native text measurement request.
 
@@ -1848,6 +1864,7 @@ Events and data packets sent from the chassis back into the Pax runtime.
 #### Variants
 ##### `ChassisResizeRequestCollection`(`Vec`<[`ChassisResizeRequestArgs`](../../../api/internal/pax-message/index.md#chassisresizerequestargs)>)
 ##### `TextMeasurementResponse`([`TextMeasurementResponseArgs`](../../../api/internal/pax-message/index.md#textmeasurementresponseargs))
+##### `TextMeasurementInvalidated`([`TextMeasurementInvalidatedArgs`](../../../api/internal/pax-message/index.md#textmeasurementinvalidatedargs))
 ##### `SelectStart`([`SelectStartArgs`](../../../api/internal/pax-message/index.md#selectstartargs))
 ##### `Focus`([`FocusInterruptArgs`](../../../api/internal/pax-message/index.md#focusinterruptargs))
 ##### `Scroll`([`ScrollInterruptArgs`](../../../api/internal/pax-message/index.md#scrollinterruptargs))

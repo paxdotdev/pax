@@ -1,8 +1,10 @@
 #pragma once
 #include "json_helpers.h"
+#include <deque>
 #include <filesystem>
 #include <future>
 #include <map>
+#include <set>
 #include <vector>
 #include <wincodec.h>
 
@@ -16,7 +18,44 @@ class Assets {
     std::vector<std::filesystem::path> roots_;
     std::vector<std::filesystem::path> font_roots_;
     std::map<std::wstring, std::future<DecodedImage>> pending_;
+    struct Request { winrt::hstring path; std::filesystem::path file; };
+    std::deque<Request> queued_;
+    std::set<std::wstring> requested_;
     std::filesystem::path executable_;
+    bool stopped_ = false;
+    void start_queued() {
+        while (!stopped_ && pending_.size() < 8 && !queued_.empty()) {
+            auto const& request = queued_.front();
+            pending_.emplace(request.path.c_str(), decode(request));
+            queued_.pop_front();
+        }
+    }
+    static std::future<DecodedImage> decode(Request const& request) {
+        return std::async(std::launch::async, [file = request.file, path = request.path] {
+            winrt::init_apartment(winrt::apartment_type::multi_threaded);
+            struct Apartment { ~Apartment() { winrt::uninit_apartment(); } } apartment;
+            winrt::com_ptr<IWICImagingFactory> factory;
+            winrt::check_hresult(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+                __uuidof(IWICImagingFactory), factory.put_void()));
+            winrt::com_ptr<IWICBitmapDecoder> decoder;
+            winrt::check_hresult(factory->CreateDecoderFromFilename(file.c_str(), nullptr, GENERIC_READ,
+                WICDecodeMetadataCacheOnDemand, decoder.put()));
+            winrt::com_ptr<IWICBitmapFrameDecode> frame;
+            winrt::check_hresult(decoder->GetFrame(0, frame.put()));
+            DecodedImage image; image.path = winrt::to_string(path);
+            winrt::check_hresult(frame->GetSize(&image.width, &image.height));
+            uint64_t size = uint64_t(image.width) * image.height * 4;
+            if (!image.width || !image.height || size > 32 * 1024 * 1024)
+                throw std::runtime_error("Decoded image exceeds the 32 MiB per-asset budget");
+            winrt::com_ptr<IWICFormatConverter> converter;
+            winrt::check_hresult(factory->CreateFormatConverter(converter.put()));
+            winrt::check_hresult(converter->Initialize(frame.get(), GUID_WICPixelFormat32bppRGBA,
+                WICBitmapDitherTypeNone, nullptr, 0, WICBitmapPaletteTypeCustom));
+            image.rgba.resize(size);
+            winrt::check_hresult(converter->CopyPixels(nullptr, image.width * 4, UINT(size), image.rgba.data()));
+            return image;
+        });
+    }
 public:
     void configure(json::JsonObject const& configuration) {
         wchar_t executable[32768];
@@ -67,41 +106,31 @@ public:
         return winrt::hstring(L"ms-appx:///" + escaped + L"#" + std::wstring(family));
     }
     void request(winrt::hstring const& path) {
-        if (pending_.contains(path.c_str())) return;
-        if (pending_.size() == 8) throw std::runtime_error("Windows image decoding exceeds eight pending assets");
+        if (stopped_ || requested_.contains(path.c_str())) return;
         auto [index, relative] = resolve(path);
-        auto file = roots_[index] / relative;
-        pending_.emplace(path.c_str(), std::async(std::launch::async, [file, path] {
-            winrt::init_apartment(winrt::apartment_type::multi_threaded);
-            struct Apartment { ~Apartment() { winrt::uninit_apartment(); } } apartment;
-            winrt::com_ptr<IWICImagingFactory> factory;
-            winrt::check_hresult(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
-                __uuidof(IWICImagingFactory), factory.put_void()));
-            winrt::com_ptr<IWICBitmapDecoder> decoder;
-            winrt::check_hresult(factory->CreateDecoderFromFilename(file.c_str(), nullptr, GENERIC_READ,
-                WICDecodeMetadataCacheOnDemand, decoder.put()));
-            winrt::com_ptr<IWICBitmapFrameDecode> frame;
-            winrt::check_hresult(decoder->GetFrame(0, frame.put()));
-            DecodedImage image; image.path = winrt::to_string(path);
-            winrt::check_hresult(frame->GetSize(&image.width, &image.height));
-            uint64_t size = uint64_t(image.width) * image.height * 4;
-            if (!image.width || !image.height || size > 32 * 1024 * 1024)
-                throw std::runtime_error("Decoded image exceeds the 32 MiB per-asset budget");
-            winrt::com_ptr<IWICFormatConverter> converter;
-            winrt::check_hresult(factory->CreateFormatConverter(converter.put()));
-            winrt::check_hresult(converter->Initialize(frame.get(), GUID_WICPixelFormat32bppRGBA,
-                WICBitmapDitherTypeNone, nullptr, 0, WICBitmapPaletteTypeCustom));
-            image.rgba.resize(size);
-            winrt::check_hresult(converter->CopyPixels(nullptr, image.width * 4, UINT(size), image.rgba.data()));
-            return image;
-        }));
+        // Bursts can exceed the decoder budget; queue paths, not decoded pixels.
+        // Resolve synchronously so invalid paths still fail at the request site.
+        queued_.push_back({path, roots_[index] / relative});
+        requested_.emplace(path.c_str());
+        start_queued();
     }
     template<typename F> void poll(F&& consume) {
         for (auto it = pending_.begin(); it != pending_.end();) {
             if (it->second.wait_for(std::chrono::seconds(0)) != std::future_status::ready) { ++it; continue; }
-            auto value = it->second.get(); it = pending_.erase(it); consume(std::move(value));
+            auto future = std::move(it->second);
+            requested_.erase(it->first);
+            it = pending_.erase(it);
+            // get() may throw; the consumed future must not remain pending.
+            consume(future.get());
         }
+        start_queued();
     }
-    bool idle() const { return pending_.empty(); }
+    void stop() {
+        // Closing drains only work already running, never the scene's backlog.
+        stopped_ = true;
+        queued_.clear();
+        requested_.clear();
+    }
+    bool idle() const { return pending_.empty() && queued_.empty(); }
 };
 } // namespace pax::windows

@@ -21,6 +21,7 @@ pub struct TextureRenderer {
     texture_sampler: Rc<wgpu::Sampler>,
     texture_pipeline: Rc<wgpu::RenderPipeline>,
     texture_bind_group_layout: Rc<wgpu::BindGroupLayout>,
+    decode_srgb: bool,
 }
 
 #[derive(Clone)]
@@ -28,6 +29,7 @@ pub(crate) struct TexturePipelineResources {
     texture_sampler: Rc<wgpu::Sampler>,
     texture_pipeline: Rc<wgpu::RenderPipeline>,
     texture_bind_group_layout: Rc<wgpu::BindGroupLayout>,
+    decode_srgb: bool,
 }
 
 pub(crate) struct CachedTextureResource {
@@ -44,11 +46,14 @@ struct ImageTextureKey {
     version: u64,
     width: u32,
     height: u32,
+    // Alternate views share storage; downlevel adapters need one allocation per encoding.
+    decode_srgb: Option<bool>,
 }
 
 struct ImageTexture {
     _texture: wgpu::Texture,
     view: wgpu::TextureView,
+    encoded_view: Option<wgpu::TextureView>,
     width: u32,
     height: u32,
 }
@@ -64,21 +69,23 @@ pub(super) struct ImageTextureCache {
     retained: VecDeque<(ImageTextureKey, Rc<ImageTexture>, usize)>,
     retained_bytes: usize,
     retention_budget: usize,
+    supports_view_formats: bool,
 }
 
-impl Default for ImageTextureCache {
-    fn default() -> Self {
+impl ImageTextureCache {
+    pub(super) fn new(supports_view_formats: bool) -> Self {
         let budget = option_env!("PAX_EXPERIMENT_IMAGE_RESIDENCY_BYTES")
             .and_then(|value| value.parse().ok())
             .unwrap_or(0);
-        Self::with_retention_budget(budget)
+        Self::with_retention_budget(supports_view_formats, budget)
     }
 }
 
 impl ImageTextureCache {
-    pub(super) fn with_retention_budget(bytes: usize) -> Self {
+    pub(super) fn with_retention_budget(supports_view_formats: bool, bytes: usize) -> Self {
         Self {
             entries: HashMap::new(),
+            supports_view_formats,
             retained: VecDeque::new(),
             retained_bytes: 0,
             retention_budget: bytes.min(MAX_EXPERIMENT_IMAGE_RESIDENCY_BYTES),
@@ -122,12 +129,14 @@ impl ImageTextureCache {
         rgba: &[u8],
         width: u32,
         height: u32,
+        decode_srgb: bool,
     ) -> (Rc<ImageTexture>, bool) {
         let key = ImageTextureKey {
             identity: identity.into(),
             version,
             width,
             height,
+            decode_srgb: (!self.supports_view_formats).then_some(decode_srgb),
         };
         if let Some(image) = self.entries.get(&key).and_then(Weak::upgrade) {
             self.retain_recent(key, &image);
@@ -135,7 +144,15 @@ impl ImageTextureCache {
         }
         // Prune weak metadata once neither tile bindings nor the optional cache own the pixels.
         self.entries.retain(|_, image| image.strong_count() > 0);
-        let image = Rc::new(ImageTexture::upload(device, queue, rgba, width, height));
+        let image = Rc::new(ImageTexture::upload(
+            device,
+            queue,
+            rgba,
+            width,
+            height,
+            self.supports_view_formats,
+            decode_srgb,
+        ));
         self.entries.insert(key.clone(), Rc::downgrade(&image));
         self.retain_recent(key, &image);
         (image, true)
@@ -162,6 +179,8 @@ impl ImageTexture {
         rgba: &[u8],
         width: u32,
         height: u32,
+        supports_view_formats: bool,
+        decode_srgb: bool,
     ) -> Self {
         let size = wgpu::Extent3d {
             width,
@@ -174,9 +193,17 @@ impl ImageTexture {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            format: if supports_view_formats || decode_srgb {
+                wgpu::TextureFormat::Rgba8UnormSrgb
+            } else {
+                wgpu::TextureFormat::Rgba8Unorm
+            },
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
+            view_formats: if supports_view_formats {
+                &[wgpu::TextureFormat::Rgba8Unorm]
+            } else {
+                &[]
+            },
         });
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
@@ -194,9 +221,16 @@ impl ImageTexture {
             size,
         );
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let encoded_view = supports_view_formats.then(|| {
+            texture.create_view(&wgpu::TextureViewDescriptor {
+                format: Some(wgpu::TextureFormat::Rgba8Unorm),
+                ..Default::default()
+            })
+        });
         Self {
             _texture: texture,
             view,
+            encoded_view,
             width,
             height,
         }
@@ -239,6 +273,7 @@ impl TextureRenderer {
             texture_sampler: resources.texture_sampler,
             texture_pipeline: resources.texture_pipeline,
             texture_bind_group_layout: resources.texture_bind_group_layout,
+            decode_srgb: resources.decode_srgb,
         }
     }
 
@@ -369,6 +404,13 @@ impl TextureRenderer {
             texture_sampler: Rc::new(texture_sampler),
             texture_pipeline: Rc::new(texture_pipeline),
             texture_bind_group_layout: Rc::new(texture_bind_group_layout),
+            // Ordinary browser/native UNORM outputs blend encoded values, as
+            // vector fills do. Decoding only images there darkens their colors.
+            // Keep the existing linear sampling for sRGB/float attachments.
+            decode_srgb: !matches!(
+                target_format,
+                TextureFormat::Rgba8Unorm | TextureFormat::Bgra8Unorm
+            ),
         }
     }
 
@@ -432,7 +474,11 @@ impl TextureRenderer {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            format: if self.decode_srgb {
+                wgpu::TextureFormat::Rgba8UnormSrgb
+            } else {
+                wgpu::TextureFormat::Rgba8Unorm
+            },
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
@@ -534,6 +580,7 @@ impl TextureRenderer {
             rgba,
             rgba_width,
             rgba_height,
+            self.decode_srgb,
         );
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: self.texture_bind_group_layout.as_ref(),
@@ -544,7 +591,13 @@ impl TextureRenderer {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&image.view),
+                    // Without alternate views, the cache already selected a texture
+                    // whose default view has the required sampling encoding.
+                    resource: wgpu::BindingResource::TextureView(if self.decode_srgb {
+                        &image.view
+                    } else {
+                        image.encoded_view.as_ref().unwrap_or(&image.view)
+                    }),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,

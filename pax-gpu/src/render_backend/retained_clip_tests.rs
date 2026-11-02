@@ -1298,6 +1298,329 @@ fn perspective_effect_and_detached_source_follow_camera_and_tile_charts() {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+fn opacity_capture_capacity_reuses_storage_and_reclaims_large_shapes() {
+    use super::capture::CaptureKey;
+    let layer = MetalLayer::new();
+    let mut backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 512, 512, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    backend.memory_diagnostics = Some(MemoryDiagnostics::default());
+    let key = CaptureKey::Opacity(1, 2);
+    backend.capture_is_cached(key, 0);
+    for (frame, (width, height)) in [(256, 128), (257, 129), (260, 132), (240, 120)]
+        .into_iter()
+        .enumerate()
+    {
+        backend.begin_capture();
+        backend.end_capture_rect(key, frame as u64, (0, 0, width, height));
+        assert_eq!(backend.memory_diagnostics.as_ref().unwrap().capture_allocations, 1);
+    }
+    // These copies remain queued while old capacity is replaced. WGPU must keep
+    // their resources alive until submission, without us retaining a historical pool.
+    for (frame, (width, height)) in [(500, 8), (8, 500), (500, 8), (8, 8), (1, 1)]
+        .into_iter()
+        .enumerate()
+    {
+        backend.begin_capture();
+        backend.end_capture_rect(key, frame as u64 + 10, (0, 0, width, height));
+        let (groups, _, stack) = backend.retained_surfaces.as_ref().unwrap().memory_totals();
+        assert_eq!(groups.count, 1);
+        assert_eq!(stack, 0);
+        assert!(groups.bytes <= u64::from(width) * u64::from(height) * 4 * 2);
+    }
+    assert_eq!(backend.memory_diagnostics.as_ref().unwrap().capture_allocations, 6);
+    backend.retain_captures(&HashSet::new());
+    let (groups, scratch, _) = backend.retained_surfaces.as_ref().unwrap().memory_totals();
+    assert_eq!((groups.count, scratch.count), (0, 0));
+    backend.submit_pending_commands();
+    backend.device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn opacity_capture_capacity_preserves_patterned_nested_siblings() {
+    use crate::{GradientStop, GradientType};
+    use pax_runtime_api::OpacityScope;
+
+    let record = |renderer: &mut WgpuRenderer, frame: u32, sibling: usize, w: f32, h: f32| {
+        for node in 1..=2 {
+            renderer.begin_node(node, node as i32, 0);
+            renderer.set_node_opacity_scopes(node, &[
+                OpacityScope { node_id: 100, opacity: 0.75 },
+                OpacityScope { node_id: 200 + node, opacity: 0.5 },
+            ]);
+            renderer.save();
+            // Different fractional transforms and colors make each sibling's history distinct.
+            let angle = (frame as f32 % 4.0 - 1.5) * 0.035 * node as f32;
+            let (sin, cos) = angle.sin_cos();
+            renderer.transform(Transform2D::from_array([
+                cos, sin, -sin, cos,
+                3.25 + sibling as f32 * 1.5 + node as f32 * 3.0,
+                4.75 + node as f32 * 3.0,
+            ]));
+            let width = w / node as f32;
+            let height = h / node as f32;
+            let phase = (frame as usize + sibling + node as usize) % 3;
+            let colors = [
+                Color::rgba(1.0, 0.1, 0.0, 1.0),
+                Color::rgba(0.0, 1.0, 0.2, 1.0),
+                Color::rgba(0.1, 0.0, 1.0, 1.0),
+            ];
+            renderer.fill_path(rect(0.0, 0.0, width, height), Fill::Gradient {
+                gradient_type: GradientType::Linear,
+                pos: point(0.0, 0.0),
+                main_axis: Vector2D::new(width, 0.0),
+                off_axis: Vector2D::zero(),
+                stops: vec![
+                    GradientStop { color: colors[phase].clone(), stop: 0.0 },
+                    GradientStop { color: colors[(phase + 1) % 3].clone(), stop: width },
+                ],
+            });
+            // One-pixel stripes reaching the logical edge catch shifted UVs and stale padding,
+            // unlike an interior sample from a solid rectangle.
+            for stripe in 0..(width / 3.0) as u32 {
+                renderer.fill_path(
+                    rect(stripe as f32 * 3.0 + 0.25, 0.0, 1.0, height),
+                    Fill::Solid(if stripe % 2 == 0 {
+                        Color::rgba(1.0, 1.0, 1.0, 0.9)
+                    } else {
+                        Color::rgba(0.0, 0.0, 0.0, 0.9)
+                    }),
+                );
+            }
+            renderer.restore();
+            renderer.end_node(node);
+        }
+        renderer.request_screenshot_capture(frame);
+        renderer.flush_deferred();
+    };
+
+    for dpr in [1.0, 1.5, 2.0] {
+        let layers = [MetalLayer::new(), MetalLayer::new(), MetalLayer::new(), MetalLayer::new()];
+        let new_renderer = |layer: &MetalLayer, context: Option<SharedGpuContext>| {
+            let (backend, context) = pollster::block_on(unsafe {
+                RenderBackend::to_core_animation_layer_with_context(
+                    layer.0.cast(),
+                    RenderConfig::new(true, (96.0 * dpr) as u32, (96.0 * dpr) as u32, [dpr, dpr]),
+                    context,
+                )
+            }).expect("Metal backend");
+            let mut renderer = WgpuRenderer::new(backend);
+            renderer.set_viewport(96.0, 96.0, [dpr, dpr]);
+            (renderer, context)
+        };
+        let (first, context) = new_renderer(&layers[0], None);
+        let (second, _) = new_renderer(&layers[1], Some(context.clone()));
+        let mut reused = [first, second];
+        for (frame, (width, height)) in [
+            (72.0, 40.0), (70.0, 38.0), (71.0, 39.0), (68.0, 36.0),
+            (84.0, 8.0), (8.0, 84.0), (64.0, 32.0), (32.0, 16.0),
+            (16.0, 8.0), (72.0, 40.0),
+        ].into_iter().enumerate() {
+            let frame = frame as u32;
+            // Fresh renderers have no old pixels in spare capacity. Compare complete frames,
+            // including antialiased edges, against the history-bearing captures.
+            let mut fresh = [
+                new_renderer(&layers[2], Some(context.clone())).0,
+                new_renderer(&layers[3], Some(context.clone())).0,
+            ];
+            let mut commands = Vec::new();
+            for sibling in 0..2 {
+                for renderer in [&mut reused[sibling], &mut fresh[sibling]] {
+                    record(renderer, frame, sibling, width, height);
+                    assert_eq!(renderer.take_resource_churn_stats().opacity_group_renders, 3);
+                    commands.extend(renderer.take_pending_command_buffers());
+                }
+            }
+            context.submit_command_buffers(commands);
+            context.device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            for sibling in 0..2 {
+                let mut pixels = Vec::new();
+                for renderer in [&mut reused[sibling], &mut fresh[sibling]] {
+                    renderer.complete_submitted_work();
+                    renderer.present_deferred_frame();
+                    pixels.push(renderer.take_screenshot_capture(frame).unwrap());
+                }
+                assert_eq!(pixels[0].rgba.len(), pixels[1].rgba.len());
+                for (byte, (actual, expected)) in pixels[0].rgba.iter().zip(&pixels[1].rgba).enumerate() {
+                    assert!(actual.abs_diff(*expected) <= 1,
+                        "DPR {dpr}, frame {frame}, sibling {sibling}, byte {byte}: {actual} != {expected}");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_resource_changing_fill_updates_existing_buffers() {
+    use pax_runtime_api::OpacityScope;
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 32, 32, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    for frame_id in 0..12 {
+        let channel = frame_id as usize % 3;
+        let mut rgb = [0.0; 3];
+        rgb[channel] = 1.0;
+        let opacity = if frame_id % 2 == 0 { 1.0 } else { 0.5 };
+        renderer.begin_node(1, 1, 0);
+        // Force the retained mixed-scene path; the vector-only batch path does
+        // not use ensure_vector_resource_for_node's exclusive update attempt.
+        renderer.set_node_opacity_scopes(
+            1,
+            &[OpacityScope {
+                node_id: 100,
+                opacity: 0.5,
+            }],
+        );
+        renderer.fill_path_with_opacity(
+            rect(0.0, 0.0, 32.0, 32.0),
+            Fill::Solid(Color::rgba(rgb[0], rgb[1], rgb[2], 1.0)),
+            opacity,
+        );
+        renderer.end_node(1);
+        renderer.request_screenshot_capture(frame_id);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let frame = renderer.take_screenshot_capture(frame_id).unwrap();
+        let alpha = if opacity == 1.0 { 128 } else { 64 };
+        let mut expected = [0, 0, 0, alpha];
+        expected[channel] = alpha;
+        assert_pixel(&frame, 16, 16, expected);
+        let stats = renderer.take_resource_churn_stats();
+        if frame_id == 0 {
+            assert_eq!(stats.vector_resource_creates, 1);
+        } else {
+            assert_eq!(stats.vector_resource_creates, 0, "frame {frame_id}");
+            assert_eq!(stats.vector_resource_recreates, 0, "frame {frame_id}");
+            assert_eq!(stats.vector_resource_updates, 1, "frame {frame_id}");
+            assert!(stats.vector_resource_update_bytes > 0, "frame {frame_id}");
+            assert_eq!(stats.vector_resource_create_bytes, 0, "frame {frame_id}");
+            assert_eq!(stats.vector_geometry_rebuilds, 0, "unchanged geometry");
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_resource_changing_fill_preserves_shared_sibling() {
+    use pax_runtime_api::OpacityScope;
+    let layers = [MetalLayer::new(), MetalLayer::new()];
+    let mut context = None;
+    let mut renderers: Vec<WgpuRenderer<'static>> = Vec::new();
+    for layer in &layers {
+        let (backend, shared) = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer_with_context(
+                layer.0.cast(),
+                RenderConfig::new(true, 32, 32, [1.0, 1.0]),
+                context.clone(),
+            )
+        })
+        .expect("Metal backend");
+        context = Some(shared);
+        let mut renderer = WgpuRenderer::new(backend);
+        if let Some(first) = renderers.first() {
+            renderer.share_vector_caches_from(first);
+        }
+        renderers.push(renderer);
+    }
+    for frame_id in 0..4 {
+        let mut commands = Vec::new();
+        for (surface, renderer) in renderers.iter_mut().enumerate() {
+            let channel = match (frame_id, surface) {
+                (0, _) | (1 | 2, 1) => 0,
+                (1, 0) | (3, 1) => 2,
+                _ => 1,
+            };
+            let mut rgb = [0.0; 3];
+            rgb[channel] = 1.0;
+            renderer.begin_node(1, 1, 0);
+            renderer.set_node_opacity_scopes(
+                1,
+                &[OpacityScope {
+                    node_id: 100,
+                    opacity: 0.5,
+                }],
+            );
+            // Redraw even the unchanged sibling's capture; a cached image would
+            // otherwise conceal accidental writes into its shared vector data.
+            renderer.save();
+            renderer.transform(Transform2D::translation(frame_id as f32, 0.0));
+            renderer.fill_path(
+                rect(0.0, 0.0, 32.0, 32.0),
+                Fill::Solid(Color::rgba(rgb[0], rgb[1], rgb[2], 1.0)),
+            );
+            renderer.restore();
+            renderer.end_node(1);
+            renderer.request_screenshot_capture(frame_id);
+            renderer.flush_deferred();
+            commands.extend(renderer.take_pending_command_buffers());
+            let stats = renderer.take_resource_churn_stats();
+            assert_eq!(
+                stats.opacity_group_renders, 1,
+                "both siblings redraw their buffers"
+            );
+            match (frame_id, surface) {
+                (0, 1) => {
+                    assert_eq!(stats.vector_resource_creates, 0);
+                    assert_eq!(
+                        stats.vector_resource_cache_hits, 1,
+                        "initially shared buffers"
+                    );
+                }
+                (1, 0) => {
+                    assert_eq!(
+                        stats.vector_resource_creates, 1,
+                        "shared data needs copy-on-write"
+                    );
+                    assert_eq!(stats.vector_resource_update_bytes, 0);
+                }
+                (2, 0) | (3, 1) => {
+                    assert_eq!(
+                        stats.vector_resource_creates, 0,
+                        "exclusive buffers can update"
+                    );
+                    assert_eq!(stats.vector_resource_recreates, 0);
+                    assert!(stats.vector_resource_update_bytes > 0);
+                }
+                _ => {}
+            }
+        }
+        // Both siblings are encoded before submission so accidental mutation of
+        // their shared buffers cannot hide behind an earlier readback/submission.
+        let context = context.as_ref().unwrap();
+        context.submit_command_buffers(commands);
+        context
+            .device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .unwrap();
+        for (surface, renderer) in renderers.iter_mut().enumerate() {
+            renderer.complete_submitted_work();
+            renderer.present_deferred_frame();
+            let frame = renderer.take_screenshot_capture(frame_id).unwrap();
+            let expected = match (frame_id, surface) {
+                (0, _) | (1 | 2, 1) => [128, 0, 0, 128],
+                (1, 0) | (3, 1) => [0, 0, 128, 128],
+                _ => [0, 128, 0, 128],
+            };
+            assert_pixel(&frame, 16, 16, expected);
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
 fn mesh_paint_retained_pixels_blends_and_masks() {
     use crate::{AlphaMaskPaint, Vector2D};
     let layer = MetalLayer::new();

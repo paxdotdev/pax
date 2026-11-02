@@ -36,7 +36,9 @@ public:
     PAX_API(pax_desktop_finish_close);
 #undef PAX_API
     ~Cartridge() { if (module_) FreeLibrary(module_); }
-    void load(winrt::hstring const& path) {
+    void load(winrt::hstring const& path, json::JsonObject const& exports) {
+        auto abi_name = program_symbol(exports, L"abiVersion");
+        auto init_name = program_symbol(exports, L"initEntry");
         module_ = LoadLibraryExW(path.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
         if (!module_) winrt::throw_last_error();
         // Resource sessions are drained independently. Rust thread-local cleanup
@@ -45,7 +47,8 @@ public:
         if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_PIN, path.c_str(), &pinned)) winrt::throw_last_error();
         FreeLibrary(pinned);
 #define PAX_LOAD(name) name = symbol<decltype(name)>(#name)
-        PAX_LOAD(pax_cartridge_abi_version); PAX_LOAD(pax_init_entry);
+        pax_cartridge_abi_version = symbol<decltype(pax_cartridge_abi_version)>(abi_name.c_str());
+        pax_init_entry = symbol<decltype(pax_init_entry)>(init_name.c_str());
         PAX_LOAD(pax_desktop_free_buffer); PAX_LOAD(pax_desktop_initialize_gpu);
         PAX_LOAD(pax_desktop_tick); PAX_LOAD(pax_desktop_plan); PAX_LOAD(pax_desktop_set_surfaces);
         PAX_LOAD(pax_desktop_render); PAX_LOAD(pax_desktop_interrupt); PAX_LOAD(pax_desktop_load_image);
@@ -55,6 +58,12 @@ public:
         PAX_LOAD(pax_desktop_request); PAX_LOAD(pax_desktop_begin_close); PAX_LOAD(pax_desktop_finish_close);
 #undef PAX_LOAD
         if (pax_cartridge_abi_version() != 4) throw std::runtime_error("Incompatible desktop cartridge ABI (requires 4)");
+    }
+    static std::string program_symbol(json::JsonObject const& exports, wchar_t const* field) {
+        auto name = winrt::to_string(exports.GetNamedString(field));
+        if (name.empty() || name.size() > 128 || name.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_") != std::string::npos)
+            throw std::runtime_error("Invalid native program export; rebuild the launcher, cartridge and host together");
+        return name;
     }
     json::JsonObject response(PaxDesktopBuffer buffer) const {
         try {

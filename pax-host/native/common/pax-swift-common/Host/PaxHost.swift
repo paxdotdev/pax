@@ -14,9 +14,33 @@ typealias PaxPlatformController = UIHostingController<PaxViewIos>
 #endif
 
 // Copied launch metadata. Bundle resources remain the distribution default.
+struct PaxNativeExports: Decodable, Equatable {
+    var abiVersion: String
+    var programId: String
+    var initializer: String
+    var initWithData: String
+    var initEntry: String
+
+    enum CodingKeys: String, CodingKey {
+        case abiVersion, programId, initWithData, initEntry
+        case initializer = "init"
+    }
+
+    func validate() throws {
+        for name in [abiVersion, programId, initializer, initWithData, initEntry] {
+            guard !name.isEmpty, name.utf8.count <= 128,
+                  name.utf8.allSatisfy({ (65...90).contains($0) || (97...122).contains($0) || (48...57).contains($0) || $0 == 95 }) else {
+                throw NSError(domain: "PaxCartridgeRuntime", code: 8,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid native program export; rebuild the launcher, cartridge and host together"])
+            }
+        }
+    }
+}
+
 struct PaxHostConfiguration: Decodable {
     var cartridge: String?
     var programId: String?
+    var nativeExports: PaxNativeExports?
     var assets: [String]?
     var title: String?
     var entry: String?

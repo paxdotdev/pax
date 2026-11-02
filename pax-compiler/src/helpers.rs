@@ -34,6 +34,28 @@ pub const ASSETS_DIR_NAME: &str = "assets";
 
 pub const ERR_SPAWN: &str = "failed to spawn child";
 
+pub(crate) fn select_native_launcher(
+    package: &cargo_metadata::Package,
+) -> color_eyre::eyre::Result<&cargo_metadata::Target> {
+    let candidates: Vec<_> = package
+        .targets
+        .iter()
+        .filter(|target| {
+            target.kind.iter().any(|kind| kind == "bin")
+                && target
+                    .required_features
+                    .iter()
+                    .any(|feature| feature == "standalone")
+        })
+        .collect();
+    // Cargo's default may be a development wrapper. It only disambiguates
+    // native launchers when it names one of the standalone candidates.
+    package.default_run.as_deref()
+        .and_then(|name| candidates.iter().copied().find(|target| target.name == name))
+        .or_else(|| (candidates.len() == 1).then(|| candidates[0]))
+        .ok_or_else(|| color_eyre::eyre::eyre!("Native launch requires a Cargo binary with required-features = [\"standalone\"]. Add src/main.rs using pax_kit::init!()?.run(), and set package.default-run when there is more than one launcher."))
+}
+
 //whitelist of package ids that are relevant to the compiler, e.g. for cloning & patching, for assembling FS paths,
 //or for looking up package IDs from a userland Cargo.lock.
 pub const ALL_PKGS: &[&str] = &[
@@ -307,6 +329,51 @@ pub fn configure_pax_build_env(cmd: &mut Command, target: &str, should_run_desig
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_launcher_selection_preserves_non_native_cargo_default() {
+        let directory = tempfile::tempdir().unwrap();
+        write_local_crate(
+            directory.path(),
+            "launcher-fixture",
+            r#"
+default-run = "dev"
+[features]
+standalone = []
+[[bin]]
+name = "dev"
+path = "src/main.rs"
+[[bin]]
+name = "native"
+path = "src/native.rs"
+required-features = ["standalone"]
+"#,
+        );
+        for file in ["main.rs", "native.rs"] {
+            fs::write(directory.path().join("src").join(file), "fn main() {}\n").unwrap();
+        }
+        let metadata = cargo_metadata::MetadataCommand::new()
+            .manifest_path(directory.path().join("Cargo.toml"))
+            .no_deps()
+            .other_options(vec!["--offline".into()])
+            .exec()
+            .unwrap();
+        let mut package = metadata.root_package().unwrap().clone();
+        assert_eq!(select_native_launcher(&package).unwrap().name, "native");
+        assert_eq!(package.default_run.as_deref(), Some("dev"));
+        package.default_run = None;
+        assert_eq!(select_native_launcher(&package).unwrap().name, "native");
+        let mut second = select_native_launcher(&package).unwrap().clone();
+        second.name = "native-two".into();
+        package.targets.push(second);
+        assert!(select_native_launcher(&package).is_err());
+        package.default_run = Some("dev".into());
+        assert!(select_native_launcher(&package).is_err());
+        package.default_run = Some("native-two".into());
+        assert_eq!(select_native_launcher(&package).unwrap().name, "native-two");
+        package.targets.retain(|target| target.name == "dev");
+        assert!(select_native_launcher(&package).is_err());
+    }
 
     #[test]
     fn production_removes_development_default_but_preserves_application_defaults() {

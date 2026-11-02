@@ -127,6 +127,10 @@ asset URLs work on web. Apple chassis register TTF/OTF files from the project's
 URL, or use that family with the web asset URL in a shared declaration. The
 native Web-font loader itself does not resolve relative URLs into bundle
 resources. Browser-only aliases do not name the registered Apple family.
+Windows and Linux resolve Pax's built-in default Roboto source to the
+standard library's packaged normal/italic font files. Other remote sources
+require explicit local assets on those hosts; the default does not enable
+a general remote font loader.
 
 Font shorthand has no positional ("magic index") fields: named keys are
 canonical, and positional list/tuple forms are not accepted. Use the

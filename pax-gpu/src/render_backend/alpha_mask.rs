@@ -310,6 +310,7 @@ pub(crate) struct AlphaMasks {
     resources: Rc<AlphaMaskResources>,
     masks: HashMap<u32, MaskResource>,
     empty: HashSet<u32>,
+    memory_allocations: Option<(u64, u64)>,
 }
 
 // All pipelines target single-sampled R8Unorm, independent of the output surface.
@@ -622,6 +623,7 @@ impl AlphaMasks {
             resources,
             masks: HashMap::new(),
             empty: HashSet::new(),
+            memory_allocations: super::memory_diagnostics_enabled().then_some((0, 0)),
         }
     }
 
@@ -659,6 +661,36 @@ impl AlphaMasks {
     pub fn retain(&mut self, active: &HashSet<u32>) {
         self.masks.retain(|id, _| active.contains(id));
         self.empty.retain(|id| active.contains(id));
+    }
+
+    pub(super) fn memory_totals(&self) -> (u64, u64, u64, u64, u64) {
+        let mut bytes = 0;
+        let mut buffers = 0;
+        for mask in self.masks.values() {
+            // Each mask owns source, feather scratch and result R8 textures.
+            bytes += super::texture_storage_bytes(mask._result_texture.size(), 1, FORMAT) * 3;
+            let b = &mask.buffers;
+            buffers += [
+                &b.vertices,
+                &b.indices,
+                &b.paints,
+                &b.terms,
+                &b.globals,
+                &b.filters[0],
+                &b.filters[1],
+            ]
+            .into_iter()
+            .map(|b| b.capacity)
+            .sum::<u64>();
+        }
+        let (allocations, replacements) = self.memory_allocations.unwrap_or_default();
+        (
+            self.masks.len() as u64 * 3,
+            bytes,
+            buffers,
+            allocations,
+            replacements,
+        )
     }
 
     pub fn render(
@@ -705,6 +737,10 @@ impl AlphaMasks {
             }
         };
         if !self.masks.get(&id).is_some_and(|m| m.size == size) {
+            if let Some((allocations, replacements)) = &mut self.memory_allocations {
+                *allocations += 3;
+                *replacements += u64::from(self.masks.contains_key(&id)) * 3;
+            }
             // IDs let GPU captures join alpha passes to runtime
             // node inspection. Format only on allocation, never on cache hits.
             let source = texture(device, size, &format!("Alpha mask source node={id}"))

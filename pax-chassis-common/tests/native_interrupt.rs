@@ -4,7 +4,7 @@ use pax_message::{
     KeyDownInterruptArgs, KeyPressInterruptArgs, KeyUpInterruptArgs, ModifierKeyMessage,
     NativeInterrupt, RenderSurfaceUpdateArgs, ScrollerPositionInterruptArgs,
     TouchCancelInterruptArgs, TouchEndInterruptArgs, TouchMessage, TouchMoveInterruptArgs,
-    TouchStartInterruptArgs,
+    TouchStartInterruptArgs, WheelInterruptArgs,
 };
 use pax_runtime::api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime::api::*;
@@ -28,6 +28,7 @@ enum Observation {
     Slider(f64, ControlState),
     Scroll((f64, f64), ControlState),
     Key(&'static str, String, bool, Vec<&'static str>),
+    Wheel(&'static str, (f64, f64), (f64, f64), Vec<&'static str>),
 }
 
 #[derive(Default)]
@@ -157,9 +158,8 @@ fn scroll(owner: Rc<RefCell<PaxAny>>, context: &NodeContext, event: Option<PaxAn
     );
 }
 
-fn record_keyboard(owner: Rc<RefCell<PaxAny>>, phase: &'static str, args: &KeyboardEventArgs) {
-    let modifiers = args
-        .modifiers
+fn modifier_names(modifiers: &[ModifierKey]) -> Vec<&'static str> {
+    modifiers
         .iter()
         .map(|modifier| match modifier {
             ModifierKey::Shift => "shift",
@@ -167,11 +167,52 @@ fn record_keyboard(owner: Rc<RefCell<PaxAny>>, phase: &'static str, args: &Keybo
             ModifierKey::Alt => "alt",
             ModifierKey::Command => "command",
         })
-        .collect();
+        .collect()
+}
+
+fn record_keyboard(owner: Rc<RefCell<PaxAny>>, phase: &'static str, args: &KeyboardEventArgs) {
     record(
         owner,
-        Observation::Key(phase, args.key.clone(), args.is_repeat, modifiers),
+        Observation::Key(
+            phase,
+            args.key.clone(),
+            args.is_repeat,
+            modifier_names(&args.modifiers),
+        ),
     );
+}
+
+fn wheel(owner: Rc<RefCell<PaxAny>>, _: &NodeContext, event: Option<PaxAny>) {
+    let event = Event::<Wheel>::from_pax_any(event.unwrap()).unwrap();
+    record(
+        owner,
+        Observation::Wheel(
+            "target",
+            (event.x, event.y),
+            (event.delta_x, event.delta_y),
+            modifier_names(&event.modifiers),
+        ),
+    );
+}
+
+fn ancestor_wheel(owner: Rc<RefCell<PaxAny>>, _: &NodeContext, event: Option<PaxAny>) {
+    let event = Event::<Wheel>::from_pax_any(event.unwrap()).unwrap();
+    record(
+        owner,
+        Observation::Wheel(
+            "ancestor",
+            (event.x, event.y),
+            (event.delta_x, event.delta_y),
+            modifier_names(&event.modifiers),
+        ),
+    );
+    if event
+        .modifiers
+        .iter()
+        .any(|modifier| matches!(modifier, ModifierKey::Control))
+    {
+        event.prevent_default();
+    }
 }
 
 macro_rules! keyboard_handler {
@@ -230,7 +271,7 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         type HandlerFn = fn(Rc<RefCell<PaxAny>>, &NodeContext, Option<PaxAny>);
-        let handlers: [(&str, HandlerFn); 8] = [
+        let handlers: [(&str, HandlerFn); 9] = [
             ("textbox_input", input),
             ("textbox_change", change),
             ("checkbox_change", checkbox),
@@ -239,6 +280,7 @@ impl Fixture {
             ("key_down", key_down),
             ("key_up", key_up),
             ("key_press", key_press),
+            ("wheel", wheel),
         ];
         let mut child = arguments::<ControlState>();
         child.handler_registry = Some(Rc::new(RefCell::new(HandlerRegistry {
@@ -250,6 +292,12 @@ impl Fixture {
                 .collect(),
         })));
         let mut parent = arguments::<Owner>();
+        parent.handler_registry = Some(Rc::new(RefCell::new(HandlerRegistry {
+            handlers: std::collections::HashMap::from([(
+                "wheel".into(),
+                vec![Handler::new_component_handler(ancestor_wheel)],
+            )]),
+        })));
         parent.component_template = Some(RefCell::new(vec![NativeControl::instantiate(child)]));
         let mut engine = empty_engine();
         let owner = engine.mount_root_component(ComponentInstance::instantiate(parent));
@@ -449,6 +497,94 @@ fn scrolling_reports_presentation_deltas_and_keeps_authoritative_values() {
             }
         )]
     );
+}
+
+#[test]
+fn wheel_input_bubbles_once_and_returns_ancestor_default_prevention() {
+    let fixture = Fixture::new();
+    fixture
+        .control
+        .transform_and_bounds
+        .replace_with(LocalProperty::new(TransformAndBounds::default()));
+    fixture.position((0.0, 0.0), None);
+    for (modifiers, names, prevented) in [
+        (vec![], vec![], false),
+        (
+            vec![
+                ModifierKeyMessage::Shift,
+                ModifierKeyMessage::Control,
+                ModifierKeyMessage::Alt,
+                ModifierKeyMessage::Command,
+            ],
+            vec!["shift", "control", "alt", "command"],
+            true,
+        ),
+    ] {
+        assert_eq!(
+            fixture.dispatch(NativeInterrupt::Wheel(WheelInterruptArgs {
+                x: 12.0,
+                y: 14.0,
+                delta_x: -0.25,
+                delta_y: 1.75,
+                modifiers,
+            })),
+            Some(prevented)
+        );
+        assert_eq!(
+            fixture.calls(),
+            vec![
+                Observation::Wheel("target", (12.0, 14.0), (-0.25, 1.75), names.clone()),
+                Observation::Wheel("ancestor", (12.0, 14.0), (-0.25, 1.75), names),
+            ],
+            "wheel delivery must not manufacture a scroll notification"
+        );
+    }
+    fixture.position((2.0, 3.0), None);
+    assert_eq!(
+        fixture.calls(),
+        vec![Observation::Scroll(
+            (2.0, 3.0),
+            ControlState {
+                scroll: (2.0, 3.0),
+                ..Default::default()
+            }
+        )]
+    );
+}
+
+#[test]
+fn wheel_input_outside_geometry_preserves_the_engine_root_fallback() {
+    let fixture = Fixture::new();
+    fixture
+        .control
+        .transform_and_bounds
+        .replace_with(LocalProperty::new(TransformAndBounds::default()));
+    let interrupt = serde_json::from_str(
+        r#"{"Wheel":{"x":-100,"y":-100,
+        "delta_x":120,"delta_y":0,"modifiers":["Control"]}}"#,
+    )
+    .unwrap();
+    assert_eq!(fixture.dispatch(interrupt), Some(true));
+    assert_eq!(
+        fixture.calls(),
+        vec![Observation::Wheel(
+            "ancestor",
+            (-100.0, -100.0),
+            (120.0, 0.0),
+            vec!["control"],
+        )]
+    );
+}
+
+#[test]
+fn wheel_transport_without_a_scene_leaves_native_default_available() {
+    let engine = empty_engine();
+    let dispatcher = NativeInterruptDispatcher::default();
+    let interrupt = serde_json::from_str(
+        r#"{"Wheel":{"x":12,"y":14,"delta_x":120,"delta_y":0,"modifiers":[]}}"#,
+    )
+    .unwrap();
+    assert_eq!(dispatcher.dispatch(&engine, &interrupt), Some(false));
 }
 
 #[test]

@@ -24,7 +24,8 @@ Use `pax-cli` to package applications and run development sessions.
 A prepared native application in the calling process.
 
 Initialization invokes the selected root initializer on the main thread.
-Consume this value to run a standalone application or mount in a host view.
+Consume this value to run a standalone application. On Apple targets it can
+also mount in a caller-owned host view; the Windows/Linux facade is standalone-only.
 
 #### Implementations
 ##### `mount`
@@ -40,4 +41,4 @@ Enter the native application loop in the calling process.
 ##### `run_with`
 <pre><code class="api-signature language-rust ignore">pub fn run_with(self, options: <a href="../../api/pax-host/native.md#windowoptions">WindowOptions</a>) -&gt; Result&lt;(), <a href="../../api/pax-host/index.md#error">Error</a>&gt;</code></pre>
 
-Run a native macOS application with explicit window options.
+Run a native desktop application with explicit window options.

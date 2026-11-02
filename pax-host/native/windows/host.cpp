@@ -6,6 +6,7 @@
 #undef GetCurrentTime
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
+#include <winrt/Windows.System.h>
 #include <winrt/Windows.UI.Xaml.Interop.h>
 #include <winrt/Microsoft.UI.Dispatching.h>
 #include <winrt/Microsoft.UI.Windowing.h>
@@ -14,6 +15,8 @@
 #include <winrt/Microsoft.UI.Xaml.Markup.h>
 #include <winrt/Microsoft.UI.Xaml.XamlTypeInfo.h>
 #include <chrono>
+#include <array>
+#include <atomic>
 #include <cstring>
 #include <fstream>
 #include <map>
@@ -24,6 +27,7 @@
 #include "composition_presenter.h"
 #include "native_scene.h"
 #include "assets.h"
+#include "navigation.h"
 
 using namespace pax::windows;
 using namespace winrt;
@@ -41,6 +45,8 @@ bool application_started = false;
 bool runtime_initialized = false;
 std::mutex wake_mutex;
 DispatcherQueue wake_queue{nullptr};
+bool wake_queued = false;
+std::atomic<uint64_t> wake_requests{0}, wake_callbacks{0};
 winrt::handle preparation_wake;
 struct Session;
 std::shared_ptr<Session> active;
@@ -60,6 +66,15 @@ std::string exception_message() {
     catch (...) { return "Unknown native host failure"; }
 }
 int32_t fail(std::string const& error) { last_error = error; log("error " + error); return -1; }
+winrt::fire_and_forget launch_external(winrt::Windows::Foundation::Uri uri) {
+    try {
+        bool opened = co_await winrt::Windows::System::Launcher::LaunchUriAsync(uri);
+        log(std::string("external_navigation opened=") + (opened ? "true" : "false"));
+    } catch (...) {
+        // A missing handler or rejected URL must not terminate the UI session.
+        log("external_navigation failed=" + exception_message());
+    }
+}
 void initialize_runtime() {
     if (runtime_initialized) return;
     log("bootstrap starting minimum=" WINDOWSAPPSDK_RUNTIME_VERSION_DOTQUADSTRING);
@@ -130,10 +145,106 @@ struct Session : std::enable_shared_from_this<Session> {
     std::map<uint64_t,std::vector<uint64_t>> publications;
     std::shared_ptr<Observer> observer;
     hstring title = L"Pax";
+    VirtualRoute route;
     double width = 900, height = 650, min_width = 0, min_height = 0;
     bool resizable = true, user_released = false, running_tick = false, failed = false;
+    bool releasing_close_keys = false;
     uint32_t status = 0;
     uint64_t frames = 0, blocked_frames = 0;
+    // Opt-in qualification telemetry. These are host callback/submission
+    // timings, not display presentation times or GPU execution durations.
+    bool timing_enabled = [] { wchar_t value[2]; return GetEnvironmentVariableW(L"PAX_WINDOWS_TIMINGS", value, 2) && value[0] == L'1'; }();
+    struct TimingSamples {
+        std::array<double, 4096> values{};
+        uint64_t count = 0;
+        void add(double value) { values[count++ % values.size()] = value; }
+        std::string summary() const {
+            auto n = std::min<uint64_t>(count, values.size());
+            if (!n) return "samples=0";
+            std::vector<double> sorted(values.begin(), values.begin() + size_t(n));
+            std::sort(sorted.begin(), sorted.end());
+            auto percentile = [&](double p) { return sorted[size_t(std::ceil(p * n)) - 1]; };
+            return "samples=" + std::to_string(count) + " window=" + std::to_string(n) +
+                " p50_ms=" + std::to_string(percentile(.50)) + " p95_ms=" + std::to_string(percentile(.95)) +
+                " p99_ms=" + std::to_string(percentile(.99)) + " max_ms=" + std::to_string(sorted.back());
+        }
+    } callback_intervals, callback_work, publication_intervals;
+    std::chrono::steady_clock::time_point last_callback{}, last_publication{};
+    std::chrono::steady_clock::time_point preparation_started{};
+    bool startup_publication_recorded = false;
+    void startup_stage(char const* name, std::chrono::steady_clock::time_point& previous) const {
+        if (!timing_enabled) return;
+        auto now = std::chrono::steady_clock::now();
+        log(std::string("host_startup_stage name=") + name + " duration_ms=" +
+            std::to_string(std::chrono::duration<double, std::milli>(now - previous).count()) +
+            " since_prepare_ms=" + std::to_string(std::chrono::duration<double, std::milli>(now - preparation_started).count()));
+        previous = now;
+    }
+    // Separate opt-in phase accounting keeps normal frame callbacks free of
+    // thread-clock queries. CPU time covers this UI thread, not worker/GPU work.
+    bool phase_timing_enabled = [] { wchar_t value[2]; return GetEnvironmentVariableW(L"PAX_WINDOWS_PHASE_TIMINGS", value, 2) && value[0] == L'1'; }();
+    enum class Phase : size_t { PollCopies, DecodeImages, Preflight, RuntimeTick, NativeQueue,
+        SurfacePlan, Render, NativeApply, NativeCommit, Publication, CallbackTail, Count };
+    struct PhaseSamples {
+        uint64_t count = 0, cpu_count = 0;
+        double wall_ms = 0, cpu_ms = 0, first_wall_ms = 0, max_wall_ms = 0;
+    };
+    std::array<PhaseSamples, size_t(Phase::Count)> phase_samples{}, phase_last_logged{};
+    struct PhaseClock {
+        Session* session;
+        std::chrono::steady_clock::time_point wall;
+        uint64_t cpu = 0;
+        bool cpu_valid = false;
+        static bool read_cpu(uint64_t& value) {
+            FILETIME created{}, exited{}, kernel{}, user{};
+            if (!GetThreadTimes(GetCurrentThread(), &created, &exited, &kernel, &user)) return false;
+            value = ((uint64_t(kernel.dwHighDateTime) << 32) | kernel.dwLowDateTime) +
+                ((uint64_t(user.dwHighDateTime) << 32) | user.dwLowDateTime);
+            return true;
+        }
+        explicit PhaseClock(Session* value) : session(value) {
+            if (session) { wall = std::chrono::steady_clock::now(); cpu_valid = read_cpu(cpu); }
+        }
+        void mark(Phase phase) {
+            if (!session) return;
+            auto now = std::chrono::steady_clock::now();
+            uint64_t current_cpu = 0; bool current_valid = read_cpu(current_cpu);
+            auto& samples = session->phase_samples[size_t(phase)];
+            auto duration = std::chrono::duration<double, std::milli>(now - wall).count();
+            if (!samples.count) samples.first_wall_ms = duration;
+            ++samples.count; samples.wall_ms += duration;
+            samples.max_wall_ms = std::max(samples.max_wall_ms, duration);
+            if (cpu_valid && current_valid && current_cpu >= cpu) {
+                ++samples.cpu_count; samples.cpu_ms += double(current_cpu - cpu) / 10000.0;
+            }
+            wall = now; cpu = current_cpu; cpu_valid = current_valid;
+        }
+    };
+    void log_phase_timings() {
+        if (!phase_timing_enabled) return;
+        static constexpr char const* names[] = {"poll_copies", "decode_images", "preflight", "runtime_tick", "native_queue",
+            "surface_plan", "render", "native_apply", "native_commit", "publication", "callback_tail"};
+        for (size_t i = 0; i < phase_samples.size(); ++i) {
+            auto const& total = phase_samples[i]; auto const& previous = phase_last_logged[i];
+            log(std::string("host_phase name=") + names[i] + " count=" + std::to_string(total.count) +
+                " window_count=" + std::to_string(total.count - previous.count) +
+                " wall_ms=" + std::to_string(total.wall_ms) + " window_wall_ms=" + std::to_string(total.wall_ms - previous.wall_ms) +
+                " thread_cpu_ms=" + std::to_string(total.cpu_ms) + " window_thread_cpu_ms=" + std::to_string(total.cpu_ms - previous.cpu_ms) +
+                " cpu_count=" + std::to_string(total.cpu_count) + " first_wall_ms=" + std::to_string(total.first_wall_ms) +
+                " max_wall_ms=" + std::to_string(total.max_wall_ms));
+            phase_last_logged[i] = total;
+        }
+    }
+    float logged_width = 0, logged_height = 0, logged_scale = 0;
+    void log_timings() {
+        log_phase_timings();
+        if (!timing_enabled) return;
+        log("host_wakes requests=" + std::to_string(wake_requests.load()) + " callbacks=" + std::to_string(wake_callbacks.load()));
+        log("host_callback_interval " + callback_intervals.summary());
+        log("host_callback_work " + callback_work.summary());
+        log("host_publication_interval " + publication_intervals.summary());
+        if (scene) log(scene->composition_diagnostics());
+    }
     json::JsonArray pending_messages;
     size_t pending_message_bytes = 0;
     std::chrono::steady_clock::time_point closing_started;
@@ -147,13 +258,16 @@ struct Session : std::enable_shared_from_this<Session> {
         }
     }
     void prepare(std::string const& startup) {
-        cartridge.load(configuration.GetNamedString(L"cartridge"));
+        auto stage_started = preparation_started = std::chrono::steady_clock::now();
+        cartridge.load(configuration.GetNamedString(L"cartridge"), configuration.GetNamedObject(L"nativeExports"));
+        startup_stage("load_cartridge", stage_started);
         assets.configure(configuration);
         title = string(configuration, L"title", L"Pax");
         auto entry = to_string(string(configuration, L"entry"));
         engine = cartridge.pax_init_entry(0, 0, reinterpret_cast<uint8_t const*>(entry.data()), entry.size(),
             reinterpret_cast<uint8_t const*>(startup.data()), startup.size());
         if (!engine) throw std::runtime_error("Pax cartridge initialization failed");
+        startup_stage("initialize_engine", stage_started);
         cartridge.pax_desktop_set_property_waker(engine, token, wake);
         cartridge.pax_desktop_set_shutdown_waker(token, wake);
     }
@@ -183,11 +297,25 @@ struct Session : std::enable_shared_from_this<Session> {
         json::JsonArray registry;
         std::map<uint32_t, std::optional<uint32_t>> owners;
     };
+    void navigate(hstring const& destination, bool current = true) {
+        try {
+            auto location = current ? route.navigate(destination) : json::JsonObject{nullptr};
+            if (location) interrupt(pax::windows::event(L"RouteChange", location));
+            else if (auto external = external_navigation_uri(destination)) launch_external(external);
+            else log("navigation rejected=destination has no public absolute URI");
+        } catch (...) { log("navigation rejected=" + exception_message()); }
+    }
     void enqueue_messages(json::JsonArray const& messages) {
         // Preserve creation/update/deletion ordering during GPU backpressure.
         // A permanently stalled consumer cannot grow an unbounded UI queue.
         constexpr size_t max_bytes = 8 * 1024 * 1024;
         for (auto const& message : messages) {
+            auto envelope = message.GetObject();
+            if (present(envelope, L"Navigate")) {
+                auto patch = envelope.GetNamedObject(L"Navigate");
+                navigate(patch.GetNamedString(L"url"), string(patch, L"target", L"current") == L"current");
+                continue;
+            }
             size_t bytes = message.Stringify().size() * sizeof(wchar_t);
             if (pending_messages.Size() == 65536 || bytes > max_bytes - pending_message_bytes)
                 throw std::runtime_error("Native patch backlog exceeded its bounded capacity while waiting for GPU publication");
@@ -286,6 +414,12 @@ struct Session : std::enable_shared_from_this<Session> {
         }
         publications.emplace(batch, std::move(tokens));
         presenter->submit(batch, copies);
+        if (timing_enabled) {
+            auto now = std::chrono::steady_clock::now();
+            if (last_publication.time_since_epoch().count())
+                publication_intervals.add(std::chrono::duration<double, std::milli>(now - last_publication).count());
+            last_publication = now;
+        }
         ++frames;
         if (status == 1) { set_status(2); log("first_frame_published source=pax-runtime"); }
         if (frames % 120 == 0) {
@@ -295,18 +429,31 @@ struct Session : std::enable_shared_from_this<Session> {
                 " peak=" + std::to_string(stats.peak_in_flight) + " backpressure=" + std::to_string(blocked_frames) +
                 " pending_native_messages=" + std::to_string(pending_messages.Size()) + " pending_native_bytes=" + std::to_string(pending_message_bytes));
             log("gpu=" + to_string(cartridge.result(cartridge.pax_desktop_poll(engine)).GetNamedObject(L"gpu").Stringify()));
+            log_timings();
         }
     }
     void tick() {
-        if (running_tick || status == 4 || failed) return;
+        if (running_tick || releasing_close_keys || status == 4 || failed) return;
         running_tick = true;
+        auto callback_start = std::chrono::steady_clock::now();
+        bool sample_callback = timing_enabled && status < 3;
+        PhaseClock phases(phase_timing_enabled && status < 3 ? this : nullptr);
+        if (sample_callback) {
+            if (last_callback.time_since_epoch().count())
+                callback_intervals.add(std::chrono::duration<double, std::milli>(callback_start - last_callback).count());
+            last_callback = callback_start;
+        }
+        char const* operation = "poll native copies";
         try {
             if (presenter) presenter->poll();
+            phases.mark(Phase::PollCopies);
+            operation = "poll image decodes";
             assets.poll([this](DecodedImage image) {
                 if (status < 3) cartridge.result(cartridge.pax_desktop_load_image(engine,
                     reinterpret_cast<uint8_t const*>(image.path.data()), image.path.size(),
                     image.rgba.data(), image.rgba.size(), image.width, image.height));
             });
+            phases.mark(Phase::DecodeImages);
             if (status == 3) {
                 // A terminal render error does not revoke release/close. The
                 // shared runtime still reports whether its resources drained.
@@ -334,41 +481,80 @@ struct Session : std::enable_shared_from_this<Session> {
                 // established XamlRoot. Start rendering with its real scale.
                 if (viewport_width > 0 && viewport_height > 0 && xaml_root) {
                     float scale = float(xaml_root.RasterizationScale());
+                    if (timing_enabled && (viewport_width != logged_width || viewport_height != logged_height || scale != logged_scale)) {
+                        logged_width = viewport_width; logged_height = viewport_height; logged_scale = scale;
+                        log("engine_viewport width=" + std::to_string(viewport_width) + " height=" + std::to_string(viewport_height) + " scale=" + std::to_string(scale));
+                    }
+                    auto sample_startup = timing_enabled && !startup_publication_recorded;
+                    auto startup_mark = sample_startup ? std::chrono::steady_clock::now() :
+                        std::chrono::steady_clock::time_point{};
+                    phases.mark(Phase::Preflight);
+                    operation = "tick shared runtime";
                     auto update = cartridge.result(cartridge.pax_desktop_tick(engine, viewport_width, viewport_height, scale));
+                    phases.mark(Phase::RuntimeTick);
+                    if (sample_startup) startup_stage("first_runtime_tick", startup_mark);
+                    operation = "queue native patches";
                     enqueue_messages(update.GetNamedArray(L"messages"));
+                    phases.mark(Phase::NativeQueue);
                     // Native input and runtime ticks remain responsive, but
                     // control/mask patches advance with accepted GPU output.
                     if (presenter->can_submit()) {
+                        operation = "plan native surfaces";
                         auto surfaces = plan(uint32_t(number(update, L"layerCount", scene->layer_count())), scale);
+                        phases.mark(Phase::SurfacePlan);
+                        if (sample_startup) startup_stage("first_surface_plan", startup_mark);
+                        operation = "render shared frame";
                         auto rendered = cartridge.result(cartridge.pax_desktop_render(engine));
+                        phases.mark(Phase::Render);
+                        if (sample_startup) startup_stage("first_render", startup_mark);
                         if (pax::windows::boolean(rendered, L"blocked")) ++blocked_frames;
                         else {
+                            operation = "resize native scene";
                             scene->resize(viewport_width, viewport_height, scale);
+                            operation = "apply native patches";
                             scene->apply(pending_messages);
+                            phases.mark(Phase::NativeApply);
+                            if (sample_startup) startup_stage("first_native_apply", startup_mark);
+                            operation = "commit native surfaces";
                             commit_surfaces(surfaces);
-                            if (present(rendered, L"frame")) publish(rendered.GetNamedObject(L"frame"));
+                            operation = "initialize native focus";
+                            scene->initialize_canvas_focus();
+                            operation = "publish native frame";
+                            phases.mark(Phase::NativeCommit);
+                            if (sample_startup) startup_stage("first_native_commit", startup_mark);
+                            if (present(rendered, L"frame")) {
+                                publish(rendered.GetNamedObject(L"frame"));
+                                if (sample_startup) startup_stage("first_publication", startup_mark);
+                                startup_publication_recorded = true;
+                            }
+                            phases.mark(Phase::Publication);
                             pending_messages.Clear(); pending_message_bytes = 0;
                         }
                     } else ++blocked_frames;
                 }
             }
         } catch (...) {
-            failed = true; fail(exception_message());
+            failed = true; fail(std::string(operation) + ": " + exception_message());
             if (timer) timer.Stop();
             // Retain the session on terminal GPU/ABI failure. Reclaiming it here
             // could free exports still read by a driver; process teardown owns
             // that exceptional path, and diagnostics never call it a clean exit.
             if (window) window.Title(L"Pax — stopped: " + to_hstring(last_error));
         }
+        phases.mark(Phase::CallbackTail);
+        if (sample_callback)
+            callback_work.add(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - callback_start).count());
         running_tick = false;
     }
     void launch() {
+        auto stage_started = std::chrono::steady_clock::now();
         window = Window(); window.Title(title);
         auto weak = weak_from_this();
         scene = std::make_unique<NativeScene>(
             [weak](auto const& value) { auto self = weak.lock(); return self ? self->interrupt(value) : false; },
             [weak](auto const& metadata) { auto self = weak.lock(); if (!self) throw std::runtime_error("Font requested after session release"); return self->assets.font(metadata); },
             [weak](auto const& path) { if (auto self = weak.lock()) self->assets.request(path); });
+        scene->set_navigation([weak](auto const& destination) { if (auto self = weak.lock()) self->navigate(destination); });
         Grid layout; layout.RequestedTheme(ElementTheme::Light); layout.Children().Append(scene->root());
         window.Content(layout); window.Activate();
         HWND hwnd = nullptr;
@@ -383,12 +569,19 @@ struct Session : std::enable_shared_from_this<Session> {
             if (min_height > 0) overlapped.PreferredMinimumHeight(int32_t(std::ceil(min_height * initial_scale)));
         }
         compositor = xaml::Hosting::ElementCompositionPreview::GetElementVisual(scene->root()).Compositor();
+        startup_stage("create_window", stage_started);
         auto gpu = cartridge.result(cartridge.pax_desktop_initialize_gpu(engine)).GetNamedObject(L"gpu");
+        startup_stage("initialize_gpu", stage_started);
         log("initialized_gpu=" + to_string(gpu.Stringify()));
         presenter = std::make_unique<CompositionPresenter>();
         presenter->initialize(compositor, handle<ID3D12Device>(gpu, L"device"), handle<ID3D12CommandQueue>(gpu, L"queue"),
             [weak](uint64_t token, ID3D12Fence* fence, uint64_t value) { if (auto self = weak.lock()) self->release_publication(token, fence, value); });
         scene->initialize(presenter->drawing_device());
+        startup_stage("initialize_composition", stage_started);
+        window.Activated([weak](auto const&, WindowActivatedEventArgs const& args) {
+            if (args.WindowActivationState() == WindowActivationState::Deactivated)
+                if (auto self = weak.lock()) if (self->scene) self->scene->release_keys();
+        });
         window.AppWindow().Closing([weak](auto const&, AppWindowClosingEventArgs const& args) {
             if (auto self = weak.lock()) {
                 if (self->failed) {
@@ -404,12 +597,24 @@ struct Session : std::enable_shared_from_this<Session> {
         timer.Tick([weak](auto const&, auto const&) { if (auto self = weak.lock()) self->tick(); });
         { std::lock_guard lock(wake_mutex); wake_queue = DispatcherQueue::GetForCurrentThread(); }
         set_status(1); cartridge.pax_desktop_activate(engine); timer.Start();
+        startup_stage("activate_runtime", stage_started);
         log("running native runtime + WinUI; asynchronous DX12 composition exports");
     }
     void close() {
+        if (releasing_close_keys) return;
         if (failed) { if (window) window.Close(); return; }
         if (status >= 3) return;
+        log_timings();
+        {
+            // KeyUp handlers must run while interrupts still reach the engine.
+            // A handler may request close again; the outer call owns teardown.
+            releasing_close_keys = true;
+            struct Reset { bool& value; ~Reset() { value = false; } } reset{releasing_close_keys};
+            if (scene) scene->release_keys();
+        }
+        if (failed) { if (window) window.Close(); return; }
         set_status(3); closing_started = std::chrono::steady_clock::now();
+        assets.stop();
         cartridge.pax_desktop_begin_close(engine);
         if (presenter) presenter->stop();
         if (scene) scene->close();
@@ -444,13 +649,24 @@ struct Session : std::enable_shared_from_this<Session> {
 };
 
 void wake(uint64_t token) {
+    ++wake_requests;
     DispatcherQueue queue{nullptr};
     {
         std::lock_guard lock(wake_mutex);
         if (preparation_wake) SetEvent(preparation_wake.get());
         queue = wake_queue;
+        if (!queue || wake_queued) return;
+        wake_queued = true;
     }
-    if (queue) queue.TryEnqueue([token] { if (active && active->token == token) active->tick(); });
+    // Property publication may wake repeatedly while an expensive frame is in
+    // progress. Keep one pending callback and let native input/layout run first.
+    if (!queue.TryEnqueue(DispatcherQueuePriority::Low, [token] {
+        { std::lock_guard lock(wake_mutex); wake_queued = false; }
+        ++wake_callbacks;
+        if (active && active->token == token) active->tick();
+    })) {
+        std::lock_guard lock(wake_mutex); wake_queued = false;
+    }
 }
 std::shared_ptr<Session> session(void* pointer) {
     thread_check();

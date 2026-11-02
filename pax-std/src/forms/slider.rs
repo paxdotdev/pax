@@ -9,6 +9,7 @@ use_RefCell!();
 use pax_runtime::api::*;
 
 use pax_engine::pax;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::common::{native_surface_opacity, patch_if_needed, patch_liquid_glass_if_needed};
@@ -52,11 +53,52 @@ impl Default for Slider {
 // Runtime instance backing `<Slider>`.
 pub struct SliderInstance {
     base: BaseInstance,
-    native_value_to_ack: Rc<RefCell<Option<f64>>>,
+    native_values: Rc<RefCell<SliderNativeValues>>,
 }
 
 fn slider_values_equal(lhs: f64, rhs: f64) -> bool {
     (lhs - rhs).abs() <= 0.000001
+}
+
+// Repeated template nodes share an InstanceNode. Only the expanded node that
+// supplied native input may suppress its corresponding outgoing value patch.
+#[derive(Default)]
+struct SliderNativeValues {
+    pending: HashMap<u32, f64>,
+}
+
+impl SliderNativeValues {
+    fn record(&mut self, id: u32, value: f64) {
+        self.pending.insert(id, value);
+    }
+
+    fn patch_value(
+        &mut self,
+        id: u32,
+        value: f64,
+        previous: &mut Option<f64>,
+        patch: &mut Option<f64>,
+    ) -> bool {
+        match self.pending.remove(&id) {
+            Some(native) if slider_values_equal(native, value) => {
+                *previous = Some(value);
+                false
+            }
+            Some(_) => {
+                // A handler can reject input and restore the previous engine value.
+                // The native widget still needs that correction even if our cached
+                // engine value did not change.
+                *previous = Some(value);
+                *patch = Some(value);
+                true
+            }
+            None => patch_if_needed(previous, patch, value),
+        }
+    }
+
+    fn unmount(&mut self, id: u32) {
+        self.pending.remove(&id);
+    }
 }
 
 impl InstanceNode for SliderInstance {
@@ -79,7 +121,7 @@ impl InstanceNode for SliderInstance {
                     is_slot: false,
                 },
             ),
-            native_value_to_ack: Rc::new(RefCell::new(None)),
+            native_values: Rc::new(RefCell::new(SliderNativeValues::default())),
         })
     }
 
@@ -103,7 +145,7 @@ impl InstanceNode for SliderInstance {
             id: id.to_u32(),
             ..Default::default()
         }));
-        let native_value_to_ack = self.native_value_to_ack.clone();
+        let native_values = self.native_values.clone();
 
         let deps: Vec<_> = borrow_mut!(expanded_node.properties_scope)
             .values()
@@ -134,16 +176,12 @@ impl InstanceNode for SliderInstance {
                         let computed_tab = expanded_node.presentation_transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
                         let current_value = properties.value.local().get();
-                        let pending_native_value = *native_value_to_ack.borrow();
-                        let value_updated = if pending_native_value
-                            .is_some_and(|value| slider_values_equal(value, current_value))
-                        {
-                            old_state.value = Some(current_value);
-                            *borrow_mut!(native_value_to_ack) = None;
-                            false
-                        } else {
-                            patch_if_needed(&mut old_state.value, &mut patch.value, current_value)
-                        };
+                        let value_updated = borrow_mut!(native_values).patch_value(
+                            id.to_u32(),
+                            current_value,
+                            &mut old_state.value,
+                            &mut patch.value,
+                        );
                         let updates = [
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
@@ -218,6 +256,7 @@ impl InstanceNode for SliderInstance {
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.clone();
+        borrow_mut!(self.native_values).unmount(id.to_u32());
         expanded_node
             .changed_listener
             .replace_with(LocalProperty::default());
@@ -246,9 +285,58 @@ impl InstanceNode for SliderInstance {
         interrupt: &NativeInterrupt,
     ) {
         if let NativeInterrupt::FormSliderChange(args) = interrupt {
-            *borrow_mut!(self.native_value_to_ack) = Some(args.value);
+            borrow_mut!(self.native_values).record(expanded_node.id.to_u32(), args.value);
             expanded_node
                 .with_properties_unwrapped(|props: &mut Slider| props.value.set(args.value));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SliderNativeValues;
+
+    #[test]
+    fn repeated_slider_cannot_consume_siblings_acknowledgement() {
+        let mut values = SliderNativeValues::default();
+        values.record(7, 0.75);
+        let mut peer_previous = Some(0.5);
+        let mut origin_previous = Some(0.5);
+        let mut peer_patch = None;
+        let mut origin_patch = None;
+        assert!(values.patch_value(8, 0.75, &mut peer_previous, &mut peer_patch));
+        assert_eq!(peer_patch, Some(0.75));
+        assert!(!values.patch_value(7, 0.75, &mut origin_previous, &mut origin_patch));
+        assert_eq!(origin_patch, None);
+        assert_eq!(origin_previous, Some(0.75));
+    }
+
+    #[test]
+    fn application_correction_does_not_leave_a_future_false_acknowledgement() {
+        let mut values = SliderNativeValues::default();
+        values.record(7, 0.75);
+        let mut previous = Some(0.5);
+        let mut patch = None;
+        assert!(values.patch_value(7, 0.5, &mut previous, &mut patch));
+        assert_eq!(patch, Some(0.5), "rejected input must restore native value");
+        patch = None;
+        assert!(values.patch_value(7, 0.75, &mut previous, &mut patch));
+        assert_eq!(
+            patch,
+            Some(0.75),
+            "later updates must not consume a stale ack"
+        );
+    }
+
+    #[test]
+    fn latest_native_value_and_unmount_are_independent_per_node() {
+        let mut values = SliderNativeValues::default();
+        values.record(7, 0.25);
+        values.record(7, 0.5);
+        values.record(8, 0.75);
+        values.unmount(8);
+        assert!(!values.patch_value(7, 0.5000001, &mut Some(0.0), &mut None));
+        assert!(values.patch_value(8, 0.75, &mut Some(0.0), &mut None));
+        assert!(values.pending.is_empty());
     }
 }

@@ -1,8 +1,8 @@
 # native
-<!-- summary: Apple process entry, view ownership and asynchronous mount observations. -->
+<!-- summary: Native process entry, view ownership and asynchronous mount observations. -->
 <!-- tags: api, pax-host -->
 
-Apple process entry, view ownership and asynchronous mount observations.
+Native process entry, view ownership and asynchronous mount observations.
 
 ## Structs
 ### `Completion`
@@ -55,14 +55,14 @@ the caller's view. The caller continues to own its window and event loop.
 ##### `run`
 <pre><code class="api-signature language-rust ignore">pub fn run(self) -&gt; Result&lt;(), <a href="../../api/pax-host/index.md#error">Error</a>&gt;</code></pre>
 
-Enter the platform's standalone SwiftUI application loop on the main
+Enter the platform's standalone application loop on the main
 thread. On iOS this normally does not return. Configure process services
 before calling this; cartridge-local services belong in its initializer.
 
 ##### `run_with`
 <pre><code class="api-signature language-rust ignore">pub fn run_with(self, options: <a href="../../api/pax-host/native.md#windowoptions">WindowOptions</a>) -&gt; Result&lt;(), <a href="../../api/pax-host/index.md#error">Error</a>&gt;</code></pre>
 
-Enter the standalone macOS loop with an explicit window policy.
+Enter the standalone desktop loop with an explicit window policy.
 
 ---
 
@@ -74,6 +74,8 @@ Observation of one host request. Poll on the host's UI executor.
 ### `ViewHost`
 A caller-owned native view and (on iOS) its containing view controller.
 This borrow prevents the Rust wrapper from outliving the supplied owner.
+The public embedding contract covers Apple targets. The lower-level GTK
+mounting path is experimental and has not been qualified for application use.
 
 #### Implementations
 ##### `from_raw`
@@ -90,23 +92,29 @@ must own the container in its view hierarchy. Do not reparent a live mount.
 ---
 
 ### `WindowOptions`
-Standalone macOS window policy, expressed in logical points. iOS/iPadOS
+Standalone desktop window policy, expressed in logical points. iOS/iPadOS
 windows are controlled by their scene; embedded mounts use their host bounds.
 
 #### Properties
 ##### `title`
 Type: `Option`<`String`>
 
-None preserves the application's bundle display name.
+None preserves the application title from its project metadata.
 
 ##### `size`
 Type: (`f64`, `f64`)
 
+Initial content width and height in logical pixels.
+
 ##### `minimum_size`
 Type: (`f64`, `f64`)
 
+Minimum content width and height in logical pixels.
+
 ##### `resizable`
 Type: `bool`
+
+Whether the user may resize the standalone window.
 
 ## Functions
 ### `init`

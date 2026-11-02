@@ -1,0 +1,66 @@
+<Text class="heading" x=24px y=20px width=690px height=40px text="Native text · alignment and surface styles"/>
+<Button id=toggle_style class="surface" x=766px y=20px width=234px height=44px
+    label={alternate ? "Restore styles" : "Change styles"} @button_click=self.toggle_style/>
+<Text class="caption" x=24px y=78px width=976px height=28px
+    text="Pale rectangles mark fixed Text bounds. Underline, weight and color change without replacing controls."/>
+for i in 0..3 {
+    <Text class="caption" x={(24 + i * 330)px} y=118px width=310px height=24px
+        text={i == 0 ? "LEFT / TOP" : i == 1 ? "CENTER / CENTER" : "RIGHT / BOTTOM"}/>
+    <Text id=single_swatches class="swatch" x={(24 + i * 330)px} y=150px width=310px height=110px
+        wrap=false text="Native text"
+        style={
+            font: {alternate ? Font::Web("Arial", "", FontStyle::Italic, FontWeight::Bold) : Font::Web("Arial", "", FontStyle::Normal, FontWeight::Normal)}
+            font_size: 24px fill: {alternate ? rgb(145, 36, 74) : rgb(24, 58, 82)} underline: {alternate}
+            align_horizontal: {i == 0 ? TextAlignHorizontal::Left : i == 1 ? TextAlignHorizontal::Center : TextAlignHorizontal::Right}
+            align_vertical: {i == 0 ? TextAlignVertical::Top : i == 1 ? TextAlignVertical::Center : TextAlignVertical::Bottom}
+        }/>
+    <Rectangle x={(24 + i * 330)px} y=150px width=310px height=110px fill={rgb(224, 235, 242)}/>
+    <Text class="caption" x={(24 + i * 330)px} y=286px width=310px height=24px
+        text={i == 0 ? "BLOCK RIGHT / LINES LEFT" : i == 1 ? "BLOCK CENTER / LINES CENTER" : "BLOCK LEFT / LINES RIGHT"}/>
+    <Text id=multiline_swatches class="swatch" x={(24 + i * 330)px} y=318px width=310px height=130px
+        wrap=false text={sample_lines}
+        style={
+            font: "Arial" font_size: 22px fill: {alternate ? rgb(145, 36, 74) : rgb(24, 58, 82)} underline: {alternate}
+            align_horizontal: {i == 0 ? TextAlignHorizontal::Right : i == 1 ? TextAlignHorizontal::Center : TextAlignHorizontal::Left}
+            align_vertical: TextAlignVertical::Center
+            align_multiline: {i == 0 ? TextAlignHorizontal::Left : i == 1 ? TextAlignHorizontal::Center : TextAlignHorizontal::Right}
+        }/>
+    <Rectangle x={(24 + i * 330)px} y=318px width=310px height=130px fill={rgb(224, 235, 242)}/>
+}
+<Text class="caption" x=24px y=478px width=976px height=28px text="GENUINE NATIVE CONTROLS · edit text, switch styles, and keep editing"/>
+<Textbox id=single_editor class="editor" x=24px y=524px width=460px height=48px text=bind:single/>
+<Textbox id=multiline_editor class="editor" x=24px y=600px width=460px height=160px multiline=true text=bind:multiline/>
+<Dropdown id=styled_dropdown class="control_text" x=530px y=524px width=470px height=48px
+    background={rgb(31, 45, 62)}
+    options=["First option", "Second option", "Third option"] selected_id=bind:selected/>
+<RadioList id=styled_radio class="control_text" x=550px y=610px width=430px height=142px
+    options=["First radio", "Second radio", "Third radio"] selected_id=bind:radio/>
+<Rectangle x=530px y=600px width=470px height=160px fill={rgb(31, 45, 62)}/>
+<Text class="caption" x=24px y=792px width=976px height=28px
+    text={alternate ? "Alternate: magenta, italic, bold, underlined; editor surfaces are warm." : "Initial: blue, normal weight, no underline; editor surfaces are cool."}/>
+<Rectangle width=100% height=100% fill={rgb(248, 249, 251)}/>
+
+@settings {
+    @mount: on_mount
+    .heading { style: {font: {family: "Arial", weight: 700} font_size: 25px fill: rgb(24, 35, 52)} }
+    .caption { style: {font: "Arial" font_size: 14px fill: rgb(62, 76, 94)} }
+    .surface {
+        color: {alternate ? rgb(145, 36, 74) : rgb(24, 58, 82)}
+        hover_color: rgb(65, 99, 125)
+        outline: {paint: rgb(14, 25, 38) width: 2px}
+        style: {font: "Arial" font_size: 18px fill: WHITE underline: {alternate} align_horizontal: TextAlignHorizontal::Center align_vertical: TextAlignVertical::Center}
+    }
+    .editor {
+        background: {alternate ? rgb(252, 230, 231) : rgb(229, 241, 250)}
+        stroke: {paint: rgb(80, 100, 125) width: 2px}
+        corner_radius: 8
+        style: {
+            font: {alternate ? Font::Web("Arial", "", FontStyle::Italic, FontWeight::Bold) : Font::Web("Arial", "", FontStyle::Normal, FontWeight::Normal)}
+            font_size: 20px fill: {alternate ? rgb(145, 36, 74) : rgb(24, 58, 82)} underline: {alternate}
+            align_horizontal: TextAlignHorizontal::Center align_vertical: TextAlignVertical::Center align_multiline: TextAlignHorizontal::Center
+        }
+    }
+    .control_text {
+        style: {font: {alternate ? Font::Web("Arial", "", FontStyle::Normal, FontWeight::Bold) : Font::Web("Arial", "", FontStyle::Normal, FontWeight::Normal)} font_size: 20px fill: {alternate ? rgb(255, 183, 211) : rgb(170, 221, 250)} underline: {alternate}}
+    }
+}

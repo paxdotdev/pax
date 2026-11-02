@@ -213,3 +213,201 @@ fn authored_write_after_observation_is_a_command_only_on_its_axis() {
     context.drain_node_effects();
     assert!(updates(&context).iter().any(|p| p.scroll_y == Some(800.0)));
 }
+
+mod hit_testing {
+    use super::*;
+    use pax_runtime::api::math::{Point2, Transform2};
+    use pax_runtime::{InstanceNodePtr, TransformAndBounds};
+
+    fn geometry(node: &ExpandedNode, bounds: (f64, f64), transform: Affine) {
+        node.transform_and_bounds
+            .replace_with(LocalProperty::new(TransformAndBounds {
+                transform: Transform2::new(transform.as_coeffs()),
+                bounds,
+            }));
+    }
+
+    fn hit(
+        context: &RuntimeContext,
+        node: &Rc<ExpandedNode>,
+        ray: Point2<pax_runtime::api::Window>,
+    ) -> bool {
+        context
+            .get_elements_beneath_ray(Some(node.clone()), ray, true, vec![], true)
+            .iter()
+            .any(|hit| hit.id == node.id)
+    }
+
+    fn rounded_host() -> (Rc<RuntimeContext>, Rc<ExpandedNode>, ScrollerHost) {
+        let (context, root, props) = mount();
+        let node = root.children.get()[0].clone();
+        geometry(&node, (100.0, 100.0), Affine::IDENTITY);
+        node.with_properties_unwrapped(|props: &mut ScrollerHost| props.corner_radius.set(32.0));
+        context.drain_node_effects();
+        (context, node, props)
+    }
+
+    #[test]
+    fn rounded_hit_region_matches_rendered_clip() {
+        let (context, node, _) = rounded_host();
+        for radius in [32.0, 1000.0] {
+            node.with_properties_unwrapped(|props: &mut ScrollerHost| {
+                props.corner_radius.set(radius)
+            });
+            context.drain_node_effects();
+            let clip = node
+                .instance_node
+                .borrow()
+                .resolve_effect_clip_path(&node)
+                .unwrap();
+            for (x, y, expected) in [(4.0, 4.0, false), (50.0, 50.0, true), (96.0, 4.0, false)] {
+                assert_eq!(clip.contains(kurbo::Point::new(x, y)), expected);
+                assert_eq!(
+                    hit(&context, &node, Point2::new(x, y)),
+                    expected,
+                    "point ({x}, {y}) at radius {radius}"
+                );
+            }
+        }
+        // Preserve the existing open rectangular boundary for input.
+        for (x, y) in [(0.0, 50.0), (100.0, 50.0), (50.0, 0.0), (50.0, 100.0)] {
+            assert!(!hit(&context, &node, Point2::new(x, y)));
+        }
+    }
+
+    #[test]
+    fn zero_radius_and_disabled_clipping_keep_rectangular_hits() {
+        let (context, node, _) = rounded_host();
+        for radius in [0.0, -10.0] {
+            node.with_properties_unwrapped(|props: &mut ScrollerHost| {
+                props.corner_radius.set(radius)
+            });
+            context.drain_node_effects();
+            assert!(hit(&context, &node, Point2::new(4.0, 4.0)));
+        }
+        node.with_properties_unwrapped(|props: &mut ScrollerHost| {
+            props.corner_radius.set(32.0);
+            props._clip_content.set(false);
+        });
+        context.drain_node_effects();
+        assert!(node
+            .instance_node
+            .borrow()
+            .resolve_effect_clip_path(&node)
+            .is_none());
+        assert!(hit(&context, &node, Point2::new(4.0, 4.0)));
+        assert!(!hit(&context, &node, Point2::new(-1.0, 4.0)));
+    }
+
+    #[test]
+    fn rounded_hits_follow_rotated_scaled_host_coordinates() {
+        let (context, node, _) = rounded_host();
+        let transform =
+            Affine::translate((250.0, 90.0)) * Affine::rotate(0.35) * Affine::scale(1.4);
+        geometry(&node, (100.0, 100.0), transform);
+        for (x, y, expected) in [(4.0, 4.0, false), (25.0, 25.0, true), (50.0, 50.0, true)] {
+            let ray = transform * Point2::new(x, y);
+            assert_eq!(hit(&context, &node, ray), expected);
+        }
+    }
+
+    struct HitLeaf {
+        base: BaseInstance,
+    }
+    impl InstanceNode for HitLeaf {
+        fn instantiate(args: InstantiationArgs) -> Rc<Self> {
+            Rc::new(Self {
+                base: BaseInstance::new(
+                    args,
+                    InstanceFlags {
+                        invisible_to_slot: false,
+                        invisible_to_raycasting: false,
+                        layer: Layer::Canvas,
+                        is_component: false,
+                        is_slot: false,
+                    },
+                ),
+            })
+        }
+        fn base(&self) -> &BaseInstance {
+            &self.base
+        }
+        fn resolve_debug(
+            &self,
+            f: &mut std::fmt::Formatter,
+            _: Option<&ExpandedNode>,
+        ) -> std::fmt::Result {
+            f.debug_struct("HitLeaf").finish()
+        }
+    }
+
+    #[test]
+    fn nested_scrolled_hit_testing_respects_rounded_clip_and_unclippable_escape() {
+        let context = Rc::new(crate::test_support::runtime_context_with_target(
+            (800.0, 800.0),
+            Platform::Web,
+            OS::Unknown,
+        ));
+        let props = ScrollerHost {
+            corner_radius: Property::new(32.0),
+            scroll_pos_y: Property::new(20.0),
+            scroll_width: Property::new(Size::Pixels(1000.into())),
+            scroll_height: Property::new(Size::Pixels(1000.into())),
+            ..Default::default()
+        };
+        let leaf: InstanceNodePtr = HitLeaf::instantiate(args(ScrollerHost::default()));
+        let mut inner_args = args(props.clone());
+        inner_args.children = Some(RefCell::new(vec![leaf]));
+        let inner: InstanceNodePtr = ScrollerHostInstance::instantiate(inner_args);
+        let mut outer_args = args(ScrollerHost {
+            scroll_pos_y: Property::new(40.0),
+            scroll_width: Property::new(Size::Pixels(1000.into())),
+            scroll_height: Property::new(Size::Pixels(1000.into())),
+            ..Default::default()
+        });
+        outer_args.children = Some(RefCell::new(vec![inner]));
+        let outer: InstanceNodePtr = ScrollerHostInstance::instantiate(outer_args);
+        let mut root_args = args(ScrollerHost::default());
+        root_args.component_template = Some(RefCell::new(vec![outer]));
+        let root =
+            ExpandedNode::initialize_root(ComponentInstance::instantiate(root_args), &context);
+        root.recurse_update(&context);
+        context.drain_node_effects();
+        let outer = root.children.get()[0].clone();
+        let inner = outer.children.get()[0].clone();
+        let leaf = inner.children.get()[0].clone();
+        // Layout remains in content coordinates; native presentation moves descendants.
+        let outer_transform =
+            Affine::translate((100.0, 80.0)) * Affine::rotate(0.2) * Affine::scale(1.2);
+        let inner_transform = outer_transform * Affine::translate((40.0, 100.0));
+        geometry(&outer, (300.0, 300.0), outer_transform);
+        geometry(&inner, (100.0, 100.0), inner_transform);
+        geometry(&leaf, (300.0, 300.0), inner_transform);
+        context.update_scroller_surface_scroll(outer.id.to_u32(), 0.0, 40.0, 0.0, 40.0);
+        context.update_scroller_surface_scroll(inner.id.to_u32(), 0.0, 20.0, 0.0, 20.0);
+        let presented_inner = outer_transform * Affine::translate((40.0, 60.0));
+        let outside = presented_inner * Point2::new(4.0, 4.0);
+        let inside = presented_inner * Point2::new(25.0, 25.0);
+        let hit = |ray| {
+            context
+                .get_elements_beneath_ray(Some(root.clone()), ray, true, vec![], false)
+                .into_iter()
+                .next()
+                .map(|node| node.id)
+        };
+        assert_eq!(hit(inside), Some(leaf.id));
+        assert_eq!(hit(outside), None);
+        leaf.get_common_properties()
+            .borrow()
+            .unclippable
+            .set(Some(true));
+        assert_eq!(hit(outside), Some(leaf.id));
+        leaf.get_common_properties()
+            .borrow()
+            .unclippable
+            .set(Some(false));
+        inner.with_properties_unwrapped(|props: &mut ScrollerHost| props._clip_content.set(false));
+        context.drain_node_effects();
+        assert_eq!(hit(outside), Some(leaf.id));
+    }
+}

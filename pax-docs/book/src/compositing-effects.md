@@ -421,6 +421,11 @@ must fit within 4096 pixels in each dimension; an oversized or nonfinite
 capture hides masked content and reports a bounded diagnostic.
 This limit is evaluated against the complete tile, including during a partial repaint.
 
+Changed vector paint can update existing GPU buffers when the draw owns them
+exclusively and their capacity is sufficient. Shared draws keep independent
+pixels by allocating a replacement when needed. This reduces allocation churn;
+it does not eliminate uploads or the cost of redrawing an animated capture.
+
 ## Opacity through a subtree
 
 A vector element assembles its fill and stroke layers before applying its
@@ -447,6 +452,16 @@ that result once. Nested opacity works the same way: a child with `opacity=50%`
 fades inside its parent, and a parent at 50% fades the assembled result again.
 Setting a child to `opacity=1` cannot cancel an ancestor's fade. A Group does
 not add clipping; use a Frame or Mask to restrict overflow.
+
+The WGPU renderer retains cropped opacity textures between frames. When their
+bounds animate, it can reuse a texture with spare capacity instead of replacing
+it for each pixel-sized change. A new allocation adds up to one eighth on each
+axis, limited by the capture surface; a retained allocation never exceeds twice
+the current cropped pixel area. Substantial shrinkage or a changed aspect ratio
+reclaims excess capacity. Removing the capture releases its retained resources.
+This trades a bounded amount of texture memory for fewer allocations; animated
+content still needs drawing and copying. Alpha-mask and shader-source textures
+keep their exact source dimensions.
 
 Paint alpha remains useful for a different purpose. Lower a background's fill
 alpha to let content behind it show through while its label stays crisp. Set
@@ -680,6 +695,36 @@ covers it. During a fade, artwork can therefore appear stronger in row gutters
 than over the rows themselves, even when the masks update synchronously.
 Per-primitive opacity does not correct this cross-surface blending limitation.
 
+This also occurs without subtree opacity. For example, with a blue canvas
+background, an opaque black native control, and a 50%-opaque red Rectangle
+above the control, ordinary scene order produces dark red (`#800000`). The
+current alpha-only native mask instead reveals dark purple (approximately
+`#400040`): it attenuates the already blended canvas color a second time.
+An alpha mask alone cannot supply the missing foreground color. Check final
+colors, including native text edges, rather than only the shape of the hole.
+
+The experimental Windows `ScrollViewer` adapter retains native mouse-wheel
+input when its visual is redirected through a fractional mask. Server 2022/T4
+NativeScene checks cover mask/input behavior and default prevention in visible
+and captured native controls. Ordinary Debug and default baked Release
+Rust-callback wheel fixtures each passed 121 assertions across 14 cases with
+30 native observations and normal retirement, using the ordinary CLI and
+automatic SDK without an override. These include the DX12 cache-budget and
+startup-subtiming changes. Fresh Debug and default baked Release snapping
+fixtures on that same core passed 36 checks each. CLI Release website checks cover demos,
+all 72 exact source occurrences, and local-route retirement/return. The package
+with the D3D12 cache allocation-budget correction and startup reconciliation
+diagnostics has aggregate coverage across an interrupted combined run and a
+successful resource-section/route replay; the earlier package passed one combined
+matrix. Selection, clipboard and responsive checks retain separate package
+provenance. See the
+[Windows probe guide](https://github.com/paxdotdev/pax/blob/main/tests/src/native-platform-probes/windows/README.md#website-acceptance-workload)
+and [desktop qualification boundary](targets-build-deploy.md#current-desktop-limits)
+for exact scope and omitted interactions. Touchscreens, precision touchpads,
+open native popups, and exhaustive whole-site behavior remain unqualified.
+The alpha-only color approximation above remains. Test both final colors and
+interactive overlaps on the target where they will ship.
+
 - A gradient with changing alpha has one estimated coverage opacity for
   the native mask, rather than a separate alpha value at each pixel.
 - A rendered Image's coverage is rectangular, including transparent pixels
@@ -725,6 +770,14 @@ dismissal and focus behavior. EventBlocker's background is transparent by
 default. It is a native surface that absorbs pointer input; it does not
 establish a keyboard focus trap. [Routing](routing.md) covers route-driven
 panels and their lifecycle.
+
+Windows and Linux also paint this solid background in the native layer. An
+opaque background hides the controls underneath; a translucent background
+dims them, and a fully transparent background still blocks pointer input.
+Changing `background` updates the retained surface without replacing its input
+node. Its color alpha combines with the node's `opacity`, clipping, and native
+occlusion mask. This does not change the separate approximation for translucent
+vectors above native content described earlier in this chapter.
 
 On native iOS and iPadOS, the blocker retains UIKit touch ownership so the
 content behind it cannot scroll. It forwards touch sequences into Pax's scene
@@ -836,6 +889,10 @@ pax-cli run --path examples/fixtures/occlusion --target web
 ```
 
 `neon-opacity` adds animated nested transparency and mixed controls.
+Its **PAUSE ANIMATION** control freezes the moving scene while keeping native
+input and frame delivery active. This makes stable-scene comparisons possible;
+the [fixture instructions](https://github.com/paxdotdev/pax/tree/main/examples/fixtures/neon-opacity)
+also describe opt-in native resource counters and their measurement limits.
 Verify the target and renderer you intend to ship: web, macOS, iOS, and
 iPadOS share the authoring model, but their native surfaces and effect
 implementations have the qualifications described here.

@@ -61,10 +61,12 @@ pub struct Scroller {
     /// Optional override for whether autosize manages the `y` axis.
     pub autosize_y: Property<Option<bool>>,
     /// Corner radius for the scroller clipping region, in pixels.
+    /// When clipping is enabled, pointer targeting follows the same rounded boundary.
     pub corner_radius: Property<f64>,
     /// Scroll snap anchors expressed in px/% along each axis.
-    /// Web maps to CSS scroll-snap-type + scroll-snap-align; Apple chassis map these
-    /// offsets to native scroll end-points while keeping engine scroll state authoritative.
+    /// Web uses CSS snapping; Apple and Windows use native snapping. Linux preserves
+    /// GTK momentum, then snaps after a guarded settling period. Actual native positions
+    /// are mirrored back to the bound scroll offsets.
     pub snap_positions_x: Property<Vec<Size>>,
     /// Vertical scroll snap anchors expressed in px/%.
     pub snap_positions_y: Property<Vec<Size>>,
@@ -208,6 +210,13 @@ fn resolve_scroller_island_layer(
     find_descendant_layer(expanded_node, own_layer, context)
 }
 
+fn scroller_rounded_clip(bounds: (f64, f64), corner_radius: f64) -> Option<RoundedRect> {
+    let (width, height) = bounds;
+    let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
+    let radius = corner_radius.clamp(0.0, max_radius);
+    (radius > f64::EPSILON).then(|| RoundedRect::new(0.0, 0.0, width, height, radius))
+}
+
 fn scroller_local_clip_path(
     expanded_node: &ExpandedNode,
     clip_content: bool,
@@ -219,11 +228,8 @@ fn scroller_local_clip_path(
 
     let t_and_b = expanded_node.presentation_transform_and_bounds.get();
     let (width, height) = t_and_b.bounds;
-    let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
-    let radius = corner_radius.clamp(0.0, max_radius);
-
-    let bez_path = if radius > f64::EPSILON {
-        RoundedRect::new(0.0, 0.0, width, height, radius).to_path(0.1)
+    let bez_path = if let Some(rounded) = scroller_rounded_clip(t_and_b.bounds, corner_radius) {
+        rounded.to_path(0.1)
     } else {
         let mut bez_path = BezPath::new();
         bez_path.move_to((0.0, 0.0));
@@ -709,6 +715,20 @@ impl InstanceNode for ScrollerHostInstance {
         }
     }
 
+    fn prepare_hit_shape(&self, node: &ExpandedNode) -> pax_runtime_api::HitShape {
+        let bounds = node.presentation_transform_and_bounds.get().bounds;
+        node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
+            if scroller._clip_content.local().get() {
+                if let Some(clip) =
+                    scroller_rounded_clip(bounds, scroller.corner_radius.local().get())
+                {
+                    return pax_runtime_api::HitShape::RoundedRect(clip);
+                }
+            }
+            pax_runtime_api::HitShape::Rect(kurbo::Rect::new(0.0, 0.0, bounds.0, bounds.1))
+        })
+    }
+
     fn resolve_local_clip_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
         let (clip_content, corner_radius) =
             expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
@@ -856,7 +876,12 @@ impl InstanceNode for ScrollerHostInstance {
     fn property_requires_input_recompute(&self, name: &str) -> bool {
         matches!(
             name,
-            "scroll_pos_x" | "scroll_pos_y" | "_presentation_scroll_x" | "_presentation_scroll_y"
+            "scroll_pos_x"
+                | "scroll_pos_y"
+                | "_presentation_scroll_x"
+                | "_presentation_scroll_y"
+                | "_clip_content"
+                | "corner_radius"
         )
     }
 

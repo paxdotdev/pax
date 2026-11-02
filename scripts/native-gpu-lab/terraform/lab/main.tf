@@ -196,6 +196,10 @@ resource "aws_instance" "machine" {
   }
   depends_on = [aws_scheduler_schedule.expiry, aws_route_table_association.lab, aws_iam_role_policy_attachment.ssm]
   lifecycle {
+    # EC2 reports no associated public IPv4 address while a guest is stopped.
+    # Preserve its launch-time allocation setting when refreshing expiry tags;
+    # otherwise the provider proposes replacing the retained development disk.
+    ignore_changes = [associate_public_ip_address]
     precondition {
       condition = try(
         timecmp(var.machine.expires_at, plantimestamp()) > 0 &&

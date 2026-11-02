@@ -11,7 +11,7 @@
         <Text width=100% height=100% selectable=false style={
             font: {
                 family: "Manrope"
-                url: "/assets/fonts/Manrope.ttf"
+                url: "assets/fonts/Manrope.ttf"
             }
             font_size: 12px
             fill: {SiteTheme::paper()}
@@ -21,7 +21,7 @@
     <Text x={100% - 16px} anchor_x=100% y=8px width=140px height=36px style={
         font: {
             family: "Manrope"
-            url: "/assets/fonts/Manrope.ttf"
+            url: "assets/fonts/Manrope.ttf"
         }
         font_size: 12px
         fill: {SiteTheme::muted()}

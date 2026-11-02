@@ -95,6 +95,7 @@ pub struct WheelRegion {
 pub enum NativeInterrupt {
     ChassisResizeRequestCollection(Vec<ChassisResizeRequestArgs>),
     TextMeasurementResponse(TextMeasurementResponseArgs),
+    TextMeasurementInvalidated(TextMeasurementInvalidatedArgs),
     SelectStart(SelectStartArgs),
     Focus(FocusInterruptArgs),
     Scroll(ScrollInterruptArgs),
@@ -158,6 +159,18 @@ pub struct TextMeasurementResponseArgs {
     pub generation: u64,
     pub width: f64,
     pub height: f64,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+/// Native font metrics changed independently of the text's authored properties.
+///
+/// The chassis supplies the most recent measurement generation it received.
+/// The runtime ignores stale invalidations and issues a fresh measurement
+/// request; the chassis must not reuse an already answered response generation.
+pub struct TextMeasurementInvalidatedArgs {
+    pub id: u32,
+    pub generation: u64,
 }
 
 #[derive(Deserialize)]

@@ -45,7 +45,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "/assets/fonts/Manrope.ttf",
+                "assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: 9px
@@ -59,7 +59,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "/assets/fonts/Manrope.ttf",
+                "assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::SemiBold)
             font_size: 10px
@@ -73,7 +73,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "/assets/fonts/Manrope.ttf",
+                "assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Bold)
             font_size: 23px
@@ -87,7 +87,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "/assets/fonts/Manrope.ttf",
+                "assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Normal)
             font_size: 14px
@@ -101,7 +101,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "/assets/fonts/Manrope.ttf",
+                "assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::SemiBold)
             font_size: 10px

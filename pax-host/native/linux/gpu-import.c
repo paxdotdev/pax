@@ -193,7 +193,10 @@ gboolean pax_linux_gpu_capacity(PaxLinuxGpu *gpu, JsonArray *surfaces,
   // could permanently backpressure its own replacement.
   if (count > MAX_GL_IMAGES / 2 || bytes > MAX_GL_BYTES / 2) {
     g_set_error(error, G_IO_ERROR, G_IO_ERROR_NO_SPACE,
-                "Linux frame exceeds replacement headroom (24 images/128 MiB)");
+                "Linux frame needs %u images/%" G_GUINT64_FORMAT
+                " bytes; replacement headroom is %u images/%" G_GUINT64_FORMAT
+                " bytes",
+                count, bytes, MAX_GL_IMAGES / 2, MAX_GL_BYTES / 2);
     return FALSE;
   }
   return gpu->live + count <= MAX_GL_IMAGES &&

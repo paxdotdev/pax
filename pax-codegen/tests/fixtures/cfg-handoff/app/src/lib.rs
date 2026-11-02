@@ -1,5 +1,5 @@
 use pax_kit::*;
-use renamed_widgets::Widget;
+use renamed_widgets::{Widget, Wrapper};
 #[pax]
 #[inlined(@settings {})]
 pub struct BlankComponent {}
@@ -25,7 +25,7 @@ pub struct App {
 pub struct App {}
 
 #[pax]
-#[cfg_attr(all(), inlined(<App/><Widget/>))]
+#[cfg_attr(all(), inlined(<App/><Widget/><Wrapper/>))]
 pub struct Shell {}
 
 pax_kit::runnable! { root: crate::Shell, init: crate::init_shell }
@@ -118,4 +118,25 @@ pub extern "C" fn cfg_initializer_count(shell: bool) -> usize {
         &APP_INITIALIZATIONS
     })
     .load(std::sync::atomic::Ordering::SeqCst)
+}
+
+#[no_mangle]
+pub extern "C" fn cfg_dependency_initializer_count() -> usize {
+    renamed_widgets::initializer_count()
+}
+
+macro_rules! capture_recipe {
+    (($recipe:literal, $options:expr, $fonts:expr)) => {
+        $recipe
+    };
+}
+
+// Observe the production handoff instead of independently computing names.
+#[no_mangle]
+pub unsafe extern "C" fn cfg_program_recipe(buffer: *mut u8, capacity: usize) -> usize {
+    let recipe: &str = __pax_program_v1_cfg_app!(capture_recipe, ());
+    if !buffer.is_null() && capacity >= recipe.len() {
+        std::ptr::copy_nonoverlapping(recipe.as_ptr(), buffer, recipe.len());
+    }
+    recipe.len()
 }

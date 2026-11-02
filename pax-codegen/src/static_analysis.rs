@@ -351,7 +351,9 @@ fn build_definitions(
     Ok(manifest)
 }
 
-fn validate_asset_paths(directories: &[String]) -> Result<()> {
+/// Reject conflicting relative paths when a frontend adds packaged asset roots.
+#[doc(hidden)]
+pub fn validate_asset_paths(directories: &[String]) -> Result<()> {
     let mut files: HashMap<PathBuf, PathBuf> = HashMap::new();
     for directory in directories {
         for entry in walkdir::WalkDir::new(directory) {

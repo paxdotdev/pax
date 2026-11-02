@@ -42,10 +42,18 @@ libc = "=0.2.189"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+standalone = ["pax-kit/host"]
+
 [[bin]]
 name = "run"
 path = "bin/run.rs"
 required-features = ["app"]
+
+[[bin]]
+name = "pax-website"
+path = "bin/native.rs"
+required-features = ["standalone"]
 
 # Optimize runtime dependencies while keeping application rebuilds fast.
 # Build scripts and proc macros keep Cargo's unoptimized defaults.

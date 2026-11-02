@@ -18,8 +18,11 @@ and `pax-app.json`. Debug CLI sessions can reload `.pax` edits; Rust edits requi
 rebuilding and restarting. Direct Cargo runs do not start a reload server.
 `PAX_HOST_SDK_DIR` can select an already-built native SDK for both CLI and direct
 Cargo builds; it must contain `PaxHost.dll` on Windows or `libpax_host.so` on Linux.
-The CLI copies that entire SDK directory into its package. Select a matching
-Debug or Release SDK for the intended build.
+The CLI copies the SDK's runtime files into its package. Windows Release packages
+omit SDK debug symbols and linker intermediates (`.pdb`, `.ilk`, `.exp`, `.lib`,
+and `.obj`); those remain in the original SDK for debugging. Debug Windows and
+Linux retain the complete SDK copy. Select a matching Debug or Release SDK for
+the intended build.
 
 The acceptance checks are visible: startup text must read “Initialized by
 user-owned main”; Increment updates the count and animates the rectangle and
@@ -31,8 +34,27 @@ accessibility, resize, repeated close/reopen, debug reload, and release startup
 must also be checked on each platform. This fixture does not itself establish
 that those checks have passed.
 
-The top-right PNG checks decoded image upload and source alpha. The “Bundled
-Manrope” line uses `assets/fonts/Manrope.ttf`, copied from the website's existing
+The teal rectangle in the outer scroller is a canvas keyboard/cursor probe.
+Click it to focus rendered content, then type while watching the `Keys:`,
+`KeyDown:`, `KeyUp:`, and `KeyPress:` labels. Printable keys and Enter produce
+legacy key-press events; `q` and Escape cancel key-down, and Control/Command
+shortcuts must not produce key-press events. Holding a key increases the repeat
+counter. Moving focus away must release held keys. Typing in either native
+Textbox must update its binding without incrementing the canvas keyboard
+counters. The `Pointer:` label exposes mouse modifiers. Hovering the teal
+rectangle requests the pointer cursor and leaving restores the default through
+the same `SetCursor` message used by Link hover, without invoking navigation.
+On Windows, `PAX_NATIVE_INPUT_DIAGNOSTICS=1` also writes `pax-key-up:` markers
+to stderr from the Rust handler. The close test uses them because native labels
+can disappear before the final held-key release is painted. This diagnostic is
+disabled by default and is excluded from Linux and web builds.
+
+The top-right PNG checks decoded image upload and source alpha: opaque blue must
+remain RGB `[30, 120, 220]`, and the half-alpha gold pixel over white must be
+`[247, 212, 142]` (allowing rounding). The “Bundled Manrope” line repeats `@`
+because its native text width distinguishes Manrope from Arial and Segoe UI;
+mixed-letter samples can have similar total widths across those fonts.
+It uses `assets/fonts/Manrope.ttf`, copied from the website's existing
 font asset with its SIL Open Font License. Its SHA-256 is
 `3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6`;
 provenance is recorded in [the website font notes](../../../pax-website/assets/fonts/README.md).

@@ -3,12 +3,14 @@
 #include "assets.h"
 #include "gpu-import.h"
 #include "native-scene.h"
+#include "navigation.h"
 #include <dlfcn.h>
 #include <glib-unix.h>
 #include <math.h>
 #include <signal.h>
 #include <string.h>
 #include <sys/syscall.h>
+#include <time.h>
 #include <unistd.h>
 
 typedef struct {
@@ -48,6 +50,17 @@ typedef struct {
   void (*notify)(void *, uint32_t);
   void (*release)(void *);
 } Observer;
+typedef struct {
+  guint64 count, total_us, first_us, maximum_us, buckets[513];
+} TimingDistribution;
+typedef struct {
+  TimingDistribution callback, callback_cpu, interval, presentation;
+  TimingDistribution tick, messages, surfaces, capacity, render, import_release;
+  TimingDistribution native_apply, tile_commit, activate;
+  TimingDistribution cartridge_load, engine_init, gpu_importer, gpu_init, scene_mount;
+  gint64 last_callback, last_presentation, next_counter;
+  guint64 completed_frames, unavailable_presentations, skipped_frames;
+} DiagnosticTimings;
 typedef struct Session {
   gint references;
   Cartridge api;
@@ -64,11 +77,12 @@ typedef struct Session {
   guint32 status, delivered_status;
   gint64 last_close_report;
   Observer *observer;
-  char *title, *registry;
+  char *title, *registry, *route_uri;
   double width, height, min_width, min_height;
   gboolean resizable, failed, standalone, ever_mounted;
   JsonArray *surfaces, *pending_messages, *pending_owners;
   char **assets;
+  DiagnosticTimings *timings;
 } Session;
 static Session *active;
 static char *configuration, *last_error;
@@ -106,8 +120,10 @@ static void session_unref(Session *session) {
     g_main_loop_unref(session->loop);
   g_main_context_unref(session->main);
   g_strfreev(session->assets);
+  g_free(session->timings);
   g_free(session->title);
   g_free(session->registry);
+  g_free(session->route_uri);
   g_free(session);
 }
 typedef struct {
@@ -316,11 +332,59 @@ static gboolean update_surfaces(Session *session, float dpr, guint layers) {
   session->surfaces = surfaces;
   return ok;
 }
+static void navigation_launched(GObject *source, GAsyncResult *result, gpointer data) {
+  (void)data;
+  GError *error = NULL;
+  if (!gtk_uri_launcher_launch_finish(GTK_URI_LAUNCHER(source), result, &error)) {
+    g_message("Pax navigation: external destination was not opened: %s", error->message);
+    g_error_free(error);
+  }
+}
+static void navigate(Session *session, JsonObject *patch) {
+  const char *destination = json_object_get_string_member(patch, "url");
+  const char *target = json_object_get_string_member(patch, "target");
+  if (!destination || !*destination) return;
+  if ((!target || !strcmp(target, "current")) && pax_route_is_relative(destination)) {
+    GError *error = NULL; char *next = NULL;
+    JsonObject *location = pax_route_resolve(session->route_uri, destination, &next, &error);
+    if (!location) {
+      g_message("Pax navigation: invalid virtual destination: %s", error ? error->message : destination);
+      g_clear_error(&error); return;
+    }
+    g_free(session->route_uri); session->route_uri = next;
+    JsonObject *message = json_object_new(); json_object_set_object_member(message,"RouteChange",location);
+    JsonNode *node = json_node_new(JSON_NODE_OBJECT); json_node_take_object(node,message);
+    char *text = json_to_string(node,FALSE); scene_interrupt(session,text,strlen(text));
+    g_free(text); json_node_free(node); return;
+  }
+  // A native "new" target has no browser base. Never send the private virtual
+  // scheme to the desktop, or reinterpret a relative path as a local filename.
+  if (!g_uri_peek_scheme(destination) || !g_ascii_strcasecmp(g_uri_peek_scheme(destination),"pax")) {
+    g_message("Pax navigation: external destinations require an absolute public URI");
+    return;
+  }
+  GtkUriLauncher *launcher = gtk_uri_launcher_new(destination);
+  GtkRoot *root = gtk_widget_get_root(GTK_WIDGET(session->scene));
+  gtk_uri_launcher_launch(launcher, GTK_IS_WINDOW(root) ? GTK_WINDOW(root) : NULL,
+                          NULL, navigation_launched, NULL);
+  g_object_unref(launcher);
+}
+static void text_navigate(gpointer data, const char *uri) {
+  JsonObject *patch = json_object_new();
+  json_object_set_string_member(patch, "url", uri);
+  json_object_set_string_member(patch, "target", "current");
+  navigate(data, patch);
+  json_object_unref(patch);
+}
 static JsonArray *prepare_messages(Session *session, JsonArray *messages,
                                    GError **error) {
   JsonArray *native = json_array_new();
   for (guint i = 0; i < json_array_get_length(messages); i++) {
     JsonObject *message = json_array_get_object_element(messages, i);
+    if (json_object_has_member(message, "Navigate")) {
+      navigate(session, json_object_get_object_member(message, "Navigate"));
+      continue;
+    }
     if (!json_object_has_member(message, "ImageLoad")) {
       json_array_add_object_element(native, json_object_ref(message));
       continue;
@@ -384,7 +448,16 @@ static void retain_for_test(Session *session, GdkTexture *texture) {
   g_source_attach(source, session->main);
   g_source_unref(source);
 }
-static gboolean frame_tick(GtkWidget *widget, GdkFrameClock *clock,
+static void timing_sample(TimingDistribution *distribution, gint64 microseconds);
+static gint64 phase_start(Session *session) {
+  return session->timings ? g_get_monotonic_time() : 0;
+}
+// Guard before selecting the member: ordinary sessions allocate no timing state.
+#define PHASE_END(session, member, start) do { \
+  if ((session)->timings) \
+    timing_sample(&(session)->timings->member, g_get_monotonic_time() - (start)); \
+} while (0)
+static gboolean frame_tick_inner(GtkWidget *widget, GdkFrameClock *clock,
                            gpointer data) {
   (void)clock;
   Session *session = data;
@@ -399,25 +472,39 @@ static gboolean frame_tick(GtkWidget *widget, GdkFrameClock *clock,
   // Retain one engine tick until all of its surface generations are ready.
   // Advancing again under pressure would mix native geometry with older pixels.
   if (!session->pending_messages) {
+    gint64 phase = phase_start(session);
     JsonObject *tick = response(
         session, session->api.tick(session->engine, width, height, dpr));
+    PHASE_END(session, tick, phase);
     if (!tick)
       goto failed;
     session->ticks++;
+    phase = phase_start(session);
     session->pending_messages = prepare_messages(
         session, json_object_get_array_member(tick, "messages"), &error);
     guint layers = json_object_get_int_member(tick, "layerCount");
     json_object_unref(tick);
-    if (!session->pending_messages || !update_surfaces(session, dpr, layers))
+    PHASE_END(session, messages, phase);
+    if (!session->pending_messages)
+      goto failed;
+    phase = phase_start(session);
+    gboolean updated = update_surfaces(session, dpr, layers);
+    PHASE_END(session, surfaces, phase);
+    if (!updated)
       goto failed;
   }
-  if (!pax_linux_gpu_capacity(session->gpu, session->surfaces, &error)) {
+  gint64 phase = phase_start(session);
+  gboolean capacity = pax_linux_gpu_capacity(session->gpu, session->surfaces, &error);
+  PHASE_END(session, capacity, phase);
+  if (!capacity) {
     if (error)
       goto failed;
     session->blocked++;
     return G_SOURCE_CONTINUE;
   }
+  phase = phase_start(session);
   JsonObject *render = response(session, session->api.render(session->engine));
+  PHASE_END(session, render, phase);
   if (!render)
     goto failed;
   if (json_object_get_boolean_member(render, "blocked")) {
@@ -425,6 +512,7 @@ static gboolean frame_tick(GtkWidget *widget, GdkFrameClock *clock,
     json_object_unref(render);
     return G_SOURCE_CONTINUE;
   }
+  phase = phase_start(session);
   JsonNode *frame_node = json_object_get_member(render, "frame");
   JsonArray *frames = frame_node && !JSON_NODE_HOLDS_NULL(frame_node)
                           ? json_object_get_array_member(
@@ -454,6 +542,7 @@ static gboolean frame_tick(GtkWidget *widget, GdkFrameClock *clock,
       g_ptr_array_add(textures, texture);
     }
   }
+  PHASE_END(session, import_release, phase);
   if (!imported) {
     g_ptr_array_unref(textures);
     json_object_unref(render);
@@ -461,16 +550,22 @@ static gboolean frame_tick(GtkWidget *widget, GdkFrameClock *clock,
   }
   // No main-context dispatch occurs within this commit. Native controls and
   // every changed GPU tile become visible in the same GTK frame.
+  phase = phase_start(session);
+  pax_native_scene_begin_commit(session->scene);
   for (guint i = 0; i < json_array_get_length(session->pending_owners); i++)
     pax_native_scene_layer_owner(
         session->scene, i,
         json_array_get_int_element(session->pending_owners, i));
-  if (!pax_native_scene_apply(session->scene, session->pending_messages,
-                              &error)) {
+  gboolean applied = pax_native_scene_apply(session->scene, session->pending_messages,
+                                            &error);
+  PHASE_END(session, native_apply, phase);
+  if (!applied) {
+    pax_native_scene_end_commit(session->scene, FALSE);
     g_ptr_array_unref(textures);
     json_object_unref(render);
     goto failed;
   }
+  phase = phase_start(session);
   pax_native_scene_prune_tiles(session->scene, session->surfaces);
   for (guint i = 0; frames && i < json_array_get_length(frames); i++)
     pax_native_scene_texture(
@@ -478,6 +573,7 @@ static gboolean frame_tick(GtkWidget *widget, GdkFrameClock *clock,
         json_object_get_object_member(json_array_get_object_element(frames, i),
                                       "surface"),
         g_ptr_array_index(textures, i));
+  pax_native_scene_end_commit(session->scene, TRUE);
   g_ptr_array_unref(textures);
   gboolean changed = frames && json_array_get_length(frames);
   json_object_unref(render);
@@ -488,10 +584,13 @@ static gboolean frame_tick(GtkWidget *widget, GdkFrameClock *clock,
     session->changed_frames++;
   else
     session->clean_frames++;
+  PHASE_END(session, tile_commit, phase);
   if (session->status == 1) {
+    phase = phase_start(session);
     session->api.activate(session->engine);
     session->status = 2;
     notify(session);
+    PHASE_END(session, activate, phase);
   }
   return G_SOURCE_CONTINUE;
 failed:
@@ -504,6 +603,124 @@ failed:
   close_session(session);
   return G_SOURCE_REMOVE;
 }
+static void timing_sample(TimingDistribution *distribution, gint64 microseconds) {
+  if (microseconds < 0)
+    return;
+  if (!distribution->count)
+    distribution->first_us = microseconds;
+  distribution->count++;
+  distribution->total_us += microseconds;
+  distribution->maximum_us = MAX(distribution->maximum_us, (guint64)microseconds);
+  distribution->buckets[MIN((guint64)microseconds / 250, 512)]++;
+}
+static JsonObject *timing_report(TimingDistribution *distribution) {
+  JsonObject *object = json_object_new();
+  json_object_set_int_member(object, "count", distribution->count);
+  json_object_set_double_member(object, "meanMs", distribution->count
+      ? (double)distribution->total_us / distribution->count / 1000 : 0);
+  json_object_set_double_member(object, "maxMs", distribution->maximum_us / 1000.0);
+  json_object_set_double_member(object, "firstMs", distribution->first_us / 1000.0);
+  const guint percentiles[] = {50, 95, 99};
+  const char *names[] = {"p50UpperMs", "p95UpperMs", "p99UpperMs"};
+  for (guint p = 0; p < G_N_ELEMENTS(percentiles); p++) {
+    guint64 total = 0, threshold = (distribution->count * percentiles[p] + 99) / 100;
+    double upper = 0;
+    for (guint b = 0; threshold && b < G_N_ELEMENTS(distribution->buckets); b++) {
+      total += distribution->buckets[b];
+      if (total >= threshold) {
+        upper = b == 512 ? distribution->maximum_us / 1000.0 : (b + 1) * .25;
+        break;
+      }
+    }
+    json_object_set_double_member(object, names[p], upper);
+  }
+  return object;
+}
+static gint64 thread_cpu_us(void) {
+  struct timespec time;
+  if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time) != 0)
+    return -1;
+  return (gint64)time.tv_sec * G_USEC_PER_SEC + time.tv_nsec / 1000;
+}
+static gboolean frame_tick(GtkWidget *widget, GdkFrameClock *clock, gpointer data) {
+  Session *session = data;
+  if (!session->timings)
+    return frame_tick_inner(widget, clock, data);
+  gint64 start = g_get_monotonic_time();
+  gint64 cpu_start = thread_cpu_us();
+  if (session->timings->last_callback)
+    timing_sample(&session->timings->interval, start - session->timings->last_callback);
+  session->timings->last_callback = start;
+  gboolean result = frame_tick_inner(widget, clock, data);
+  timing_sample(&session->timings->callback, g_get_monotonic_time() - start);
+  gint64 cpu_end = thread_cpu_us();
+  if (cpu_start >= 0 && cpu_end >= cpu_start)
+    timing_sample(&session->timings->callback_cpu, cpu_end - cpu_start);
+  return result;
+}
+static JsonObject *frame_timing_report(Session *session) {
+  DiagnosticTimings *timings = session->timings;
+  GdkFrameClock *clock = gtk_widget_get_frame_clock(GTK_WIDGET(session->scene));
+  if (clock) {
+    gint64 history = gdk_frame_clock_get_history_start(clock);
+    if (timings->next_counter < history) {
+      timings->skipped_frames += history - timings->next_counter;
+      timings->next_counter = history;
+      timings->last_presentation = 0;
+    }
+    gint64 current = gdk_frame_clock_get_frame_counter(clock);
+    for (; timings->next_counter < current; timings->next_counter++) {
+      GdkFrameTimings *frame = gdk_frame_clock_get_timings(clock, timings->next_counter);
+      if (!frame) {
+        timings->skipped_frames++;
+        timings->last_presentation = 0;
+        continue;
+      }
+      if (!gdk_frame_timings_get_complete(frame))
+        break;
+      timings->completed_frames++;
+      gint64 presented = gdk_frame_timings_get_presentation_time(frame);
+      if (presented > 0) {
+        if (timings->last_presentation && presented > timings->last_presentation)
+          timing_sample(&timings->presentation, presented - timings->last_presentation);
+        timings->last_presentation = presented;
+      } else {
+        timings->unavailable_presentations++;
+        timings->last_presentation = 0;
+      }
+    }
+  }
+  JsonObject *object = json_object_new();
+  json_object_set_object_member(object, "callbackWork", timing_report(&timings->callback));
+  json_object_set_object_member(object, "callbackThreadCpu", timing_report(&timings->callback_cpu));
+  json_object_set_object_member(object, "callbackInterval", timing_report(&timings->interval));
+  json_object_set_object_member(object, "presentationInterval", timing_report(&timings->presentation));
+  JsonObject *phases = json_object_new();
+#define PHASE_REPORT(name, member) \
+  json_object_set_object_member(phases, name, timing_report(&timings->member))
+  PHASE_REPORT("engineTick", tick);
+  PHASE_REPORT("prepareMessages", messages);
+  PHASE_REPORT("surfacePlan", surfaces);
+  PHASE_REPORT("importCapacity", capacity);
+  PHASE_REPORT("render", render);
+  PHASE_REPORT("importRelease", import_release);
+  PHASE_REPORT("nativeApply", native_apply);
+  PHASE_REPORT("tileCommit", tile_commit);
+  PHASE_REPORT("activate", activate);
+  json_object_set_object_member(object, "callbackPhases", phases);
+  phases = json_object_new();
+  PHASE_REPORT("cartridgeLoad", cartridge_load);
+  PHASE_REPORT("engineInit", engine_init);
+  PHASE_REPORT("gpuImporter", gpu_importer);
+  PHASE_REPORT("gpuInit", gpu_init);
+  PHASE_REPORT("sceneMount", scene_mount);
+#undef PHASE_REPORT
+  json_object_set_object_member(object, "startupPhases", phases);
+  json_object_set_int_member(object, "completedGdkFrames", timings->completed_frames);
+  json_object_set_int_member(object, "unavailablePresentations", timings->unavailable_presentations);
+  json_object_set_int_member(object, "skippedGdkFrames", timings->skipped_frames);
+  return object;
+}
 static gboolean diagnostic_report(gpointer data) {
   Session *session = data;
   if (session->status >= 3 || !session->scene) {
@@ -514,6 +731,10 @@ static gboolean diagnostic_report(gpointer data) {
   if (!path)
     return G_SOURCE_REMOVE;
   JsonObject *report = pax_native_scene_report(session->scene);
+  json_object_set_string_member(report, "displayBackend",
+      G_OBJECT_TYPE_NAME(gtk_widget_get_display(GTK_WIDGET(session->scene))));
+  if (session->timings)
+    json_object_set_object_member(report, "timings", frame_timing_report(session));
   json_object_set_int_member(report, "frames", session->frames);
   json_object_set_int_member(report, "ticks", session->ticks);
   json_object_set_int_member(report, "changedFrames", session->changed_frames);
@@ -652,7 +873,40 @@ static void engine_wake(uint64_t token) {
   g_source_attach(source, ui_context);
   g_source_unref(source);
 }
-static gboolean load_cartridge(Session *session, const char *path) {
+static const char *program_symbol(JsonObject *exports, const char *field) {
+  JsonNode *node = json_object_get_member(exports, field);
+  if (!node || !JSON_NODE_HOLDS_VALUE(node) ||
+      json_node_get_value_type(node) != G_TYPE_STRING) {
+    fail("Missing native program export; rebuild the launcher, cartridge and "
+         "host together");
+    return NULL;
+  }
+  const char *name = json_node_get_string(node);
+  if (!name || !*name || strlen(name) > 128) {
+    fail("Invalid native program export");
+    return NULL;
+  }
+  for (const char *c = name; *c; ++c) {
+    if (!g_ascii_isalnum(*c) && *c != '_') {
+      fail("Invalid native program export");
+      return NULL;
+    }
+  }
+  return name;
+}
+static gboolean load_cartridge(Session *session, const char *path,
+                               JsonObject *config) {
+  JsonNode *node = json_object_get_member(config, "nativeExports");
+  if (!node || !JSON_NODE_HOLDS_OBJECT(node)) {
+    fail("Missing native export metadata; rebuild the launcher, cartridge and "
+         "host together");
+    return FALSE;
+  }
+  JsonObject *exports = json_node_get_object(node);
+  const char *abi_symbol = program_symbol(exports, "abiVersion");
+  const char *init_symbol = program_symbol(exports, "initEntry");
+  if (!abi_symbol || !init_symbol)
+    return FALSE;
   void *library = dlopen(path, RTLD_NOW | RTLD_LOCAL);
   if (!library) {
     fail(dlerror());
@@ -664,12 +918,15 @@ static gboolean load_cartridge(Session *session, const char *path) {
   do {                                                                         \
     *(void **)(&session->api.field) = dlsym(library, symbol);                  \
     if (!session->api.field) {                                                 \
-      fail("Missing desktop cartridge symbol " symbol);                        \
+      char *message =                                                          \
+          g_strdup_printf("Missing desktop cartridge symbol %s", symbol);      \
+      fail(message);                                                           \
+      g_free(message);                                                         \
       return FALSE;                                                            \
     }                                                                          \
   } while (0)
-  LOAD(abi, "pax_cartridge_abi_version");
-  LOAD(init, "pax_init_entry");
+  LOAD(abi, abi_symbol);
+  LOAD(init, init_symbol);
   LOAD(free_buffer, "pax_desktop_free_buffer");
   LOAD(initialize_gpu, "pax_desktop_initialize_gpu");
   LOAD(tick, "pax_desktop_tick");
@@ -774,13 +1031,17 @@ pax_host_prepare_with_data(const uint8_t *data, size_t length) {
       }
       session->test_retain_ms = duration;
     }
+    session->timings = g_new0(DiagnosticTimings, 1);
   }
   session->main = g_main_context_ref_thread_default();
   session->token = next_session_token++;
   if (!ui_context)
     ui_context = g_main_context_ref(session->main);
-  if (!load_cartridge(session,
-                      json_object_get_string_member(config, "cartridge"))) {
+  gint64 phase = phase_start(session);
+  gboolean loaded = load_cartridge(session,
+                      json_object_get_string_member(config, "cartridge"), config);
+  PHASE_END(session, cartridge_load, phase);
+  if (!loaded) {
     g_object_unref(parser);
     session_unref(session);
     return NULL;
@@ -797,8 +1058,10 @@ pax_host_prepare_with_data(const uint8_t *data, size_t length) {
     for (guint i = 0; i < json_array_get_length(roots); i++)
       session->assets[i] = g_strdup(json_array_get_string_element(roots, i));
   }
+  phase = phase_start(session);
   session->engine = session->api.init(0, 0, (const uint8_t *)entry,
                                       strlen(entry), data, length);
+  PHASE_END(session, engine_init, phase);
   g_object_unref(parser);
   if (!session->engine) {
     fail("Desktop cartridge initializer failed");
@@ -838,17 +1101,24 @@ static int mount_session(Session *session, GtkWidget *parent) {
   if (!main_thread() || session != active || session->status != 0)
     return fail("Prepared Linux Pax must be mounted once on the main thread");
   GError *error = NULL;
+  gint64 phase = phase_start(session);
   session->gpu = pax_linux_gpu_new(gtk_widget_get_display(parent), &error);
+  PHASE_END(session, gpu_importer, phase);
   if (!session->gpu) {
     int result = fail(error ? error->message : "Linux GPU import unavailable");
     g_clear_error(&error);
     return result;
   }
-  if (!discard_response(session, session->api.initialize_gpu(session->engine)))
+  phase = phase_start(session);
+  gboolean initialized = discard_response(session, session->api.initialize_gpu(session->engine));
+  PHASE_END(session, gpu_init, phase);
+  if (!initialized)
     return -1;
+  phase = phase_start(session);
   GtkWidget *scene =
       pax_native_scene_new(scene_interrupt, scene_error, session);
   session->scene = (PaxNativeScene *)scene;
+  pax_native_scene_navigation(session->scene, text_navigate);
   pax_native_scene_assets(session->scene, session->assets);
   session->parent = parent;
   gtk_widget_set_hexpand(scene, TRUE);
@@ -865,8 +1135,11 @@ static int mount_session(Session *session, GtkWidget *parent) {
   }
   session->ever_mounted = TRUE;
   session->status = 1;
-  if (g_getenv("PAX_NATIVE_TEST_REPORT"))
+  PHASE_END(session, scene_mount, phase);
+  if (session->timings) {
+    // Bounded diagnostics are opt-in; callbacks time host submission, not GPU completion.
     session->diagnostic_id = g_timeout_add(250, diagnostic_report, session);
+  }
   notify(session);
   session->tick_id =
       gtk_widget_add_tick_callback(scene, frame_tick, session, NULL);
@@ -884,6 +1157,12 @@ static gboolean window_close(GtkWindow *window, gpointer data) {
   close_session(data);
   return TRUE;
 }
+static void window_active_changed(GtkWindow *window, GParamSpec *property, gpointer data) {
+  (void)property;
+  Session *session = data;
+  if (!gtk_window_is_active(window) && session->scene)
+    pax_native_scene_release_keys(session->scene);
+}
 __attribute__((visibility("default"))) int32_t pax_host_run(void *handle) {
   Session *session = handle;
   if (!main_thread() || session != active || session->status != 0)
@@ -898,6 +1177,7 @@ __attribute__((visibility("default"))) int32_t pax_host_run(void *handle) {
                               session->min_height);
   g_signal_connect(session->window, "close-request", G_CALLBACK(window_close),
                    session);
+  g_signal_connect(session->window, "notify::is-active", G_CALLBACK(window_active_changed), session);
   if (mount_session(session, GTK_WIDGET(session->window)) != 0) {
     close_session(session);
     return -1;
@@ -905,12 +1185,15 @@ __attribute__((visibility("default"))) int32_t pax_host_run(void *handle) {
   session->signal_id = g_unix_signal_add(SIGTERM, terminate_session, session);
   session->loop = g_main_loop_new(session->main, FALSE);
   gtk_window_present(session->window);
+  gtk_widget_grab_focus(GTK_WIDGET(session->scene));
   g_main_loop_run(session->loop);
   return session->failed ? -1 : 0;
 }
 static void close_session(Session *session) {
   if (!session || session->status >= 3)
     return;
+  if (session->scene)
+    pax_native_scene_release_keys(session->scene);
   session->status = 3;
   g_clear_pointer(&session->pending_messages, json_array_unref);
   g_clear_pointer(&session->pending_owners, json_array_unref);

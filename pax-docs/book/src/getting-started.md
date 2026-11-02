@@ -7,7 +7,7 @@ Start with `pax-cli` and the web target on macOS, Linux, or Windows. This gives
 every workstation the same first project, development server, and template
 reload workflow. Native Apple targets are an optional next step and require a
 macOS workstation with full Xcode.
-Experimental [Windows and Linux desktop hosts](targets-build-deploy.md#experimental-windows-and-linux-desktop)
+Alpha [Windows and Linux desktop hosts](targets-build-deploy.md#experimental-windows-and-linux-desktop)
 are also available, with narrower control support and specific GPU requirements.
 
 ## Quick start
@@ -48,7 +48,7 @@ Already running? Continue to [Project anatomy](#project-anatomy).
 You can develop Pax web applications on macOS, Debian/Ubuntu Linux, or Windows.
 Native macOS, iOS, and iPadOS development requires a macOS workstation with full
 Xcode. For native Linux or Windows work, follow the separate
-[experimental desktop prerequisites](targets-build-deploy.md#experimental-windows-and-linux-desktop).
+[alpha desktop prerequisites](targets-build-deploy.md#experimental-windows-and-linux-desktop).
 The web setup below does not install those native dependencies.
 
 Choose the instructions for your workstation below. If Rust is already

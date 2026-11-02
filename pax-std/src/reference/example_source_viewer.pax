@@ -95,7 +95,7 @@
         // Retain the native button's accessible name and keyboard focus.
         // The drawn thumb communicates the state without relying on color alone.
         style: {
-            font: "monospace"
+            font: Font::Web("JetBrains Mono", "assets/pax-example-host-fonts/JetBrainsMono.ttf", FontStyle::Normal, FontWeight::Normal)
             font_size: 1px
             fill: TRANSPARENT
         }
@@ -104,7 +104,7 @@
         style: {
             font: {
                 family: "Manrope"
-                url: "/assets/fonts/Manrope.ttf"
+                url: "assets/fonts/Manrope.ttf"
                 weight: 800
             }
             font_size: 21px
@@ -116,7 +116,7 @@
     }
     .viewer_code {
         style: {
-            font: "monospace"
+            font: Font::Web("JetBrains Mono", "assets/pax-example-host-fonts/JetBrainsMono.ttf", FontStyle::Normal, FontWeight::Normal)
             font_size: 13px
             fill: {ExampleSourceViewer::source_foreground(self.source_light_mode)}
             align_vertical: TextAlignVertical::Top

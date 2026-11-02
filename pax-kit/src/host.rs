@@ -9,7 +9,8 @@ pub use pax_host::*;
 /// A prepared native application in the calling process.
 ///
 /// Initialization invokes the selected root initializer on the main thread.
-/// Consume this value to run a standalone application or mount in a host view.
+/// Consume this value to run a standalone application. On Apple targets it can
+/// also mount in a caller-owned host view; the Windows/Linux facade is standalone-only.
 pub struct Application(Entry);
 
 enum Entry {

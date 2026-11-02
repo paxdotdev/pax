@@ -3,9 +3,11 @@ name = "cfg-app"
 version = "0.39.1"
 edition = "2021"
 publish = false
+default-run = "cfg-app"
 [features]
 fancy = []
 widget-fancy = ["renamed-widgets/fancy"]
+standalone = ["pax-kit/host"]
 [dependencies]
 pax-kit = { path = "../../../../../pax-kit", version = "0.39.1"}
 renamed-widgets = { package = "cfg-widgets", path = "../widgets", version = "0.39.1"}
@@ -14,3 +16,8 @@ unexpected_cfgs = { level = "deny", check-cfg = ["cfg(widget_config)", "cfg(proo
 
 [lib]
 crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "cfg-app"
+path = "src/main.rs"
+required-features = ["standalone"]

@@ -1,0 +1,77 @@
+<Text class="title" x=24px y=20px width=976px height=40px text="Native scroll snapping"/>
+<Text class="label" x=24px y=68px width=976px height=36px text={state}/>
+<Button class="control" x=24px y=120px width=130px height=44px label="Reset" @button_click=self.reset/>
+<Button class="control" x=166px y=120px width=150px height=44px label="Pixel anchors" @button_click=self.replace/>
+<Button class="control" x=328px y=120px width=140px height=44px label="Clear anchors" @button_click=self.clear/>
+<Button class="control" x=480px y=120px width=140px height=44px label="Page anchors" @button_click=self.restore/>
+<Button class="control" x=632px y=120px width=160px height=44px label="Resize viewports" @button_click=self.resize/>
+<Button class="control" x=804px y=120px width=180px height=44px label="Jump to 173" @button_click=self.jump/>
+<Text class="label" x=24px y=184px width=460px height=32px text="Horizontal · native wheel / trackpad"/>
+<Text class="label" x=640px y=184px width=340px height=32px text="Vertical · native wheel / trackpad"/>
+<Scroller id=horizontal_scroller x=24px y=224px width={(viewport_width)px} height=240px scroll_width=300% scroll_height=100% 
+    corner_radius=18 snap_positions_x={points} scroll_pos_x=bind:horizontal>
+    for i in 0..3 {
+        <Group x={(i * 100)%} anchor_x=0% width=100% height=100%>
+            <Button class="control" x=24px y=80px width=190px height=48px label={"Horizontal " + i} @button_click=self.click_page/>
+            <Text class="title" x=24px y=24px width={100% - 48px} height=40px text={"Page " + i}/>
+            <Rectangle width=100% height=100% fill={i == 0 ? rgb(209, 232, 245) : i == 1 ? rgb(213, 235, 222) : rgb(242, 222, 205)}/>
+        </Group>
+    }
+</Scroller>
+<Scroller id=vertical_scroller x=640px y=224px width=340px height={(viewport_height)px} scroll_width=100% scroll_height=300% 
+    corner_radius=18 snap_positions_y={points} scroll_pos_y=bind:vertical>
+    for i in 0..3 {
+        <Group y={(i * 100)%} anchor_y=0% width=100% height=100%>
+            <Button class="control" x=24px y=80px width=190px height=48px label={"Vertical " + i} @button_click=self.click_page/>
+            <Text class="title" x=24px y=24px width={100% - 48px} height=40px text={"Page " + i}/>
+            <Rectangle width=100% height=100% fill={i == 0 ? rgb(209, 232, 245) : i == 1 ? rgb(213, 235, 222) : rgb(242, 222, 205)}/>
+        </Group>
+    }
+</Scroller>
+<Text class="label" x=24px y=504px width=952px height=110px 
+    text="Page anchors use viewport percentages. Pixel anchors replace them with 0, 125, 325 and 625px. Clear anchors must restore continuous movement. Resize changes each viewport without remounting. Jump to 173 probes authored offsets between anchors; native settling policy can differ by platform."/>
+<Button class="control" x=24px y=616px width=180px height=44px label="Switch colors" @button_click=self.switch_colors/>
+<Rectangle width=100% height=100% fill={rgb(246, 248, 252)}/>
+
+@settings {
+    @mount: on_mount
+    @pre_render: pre_render
+    .label {
+        style: {
+            font: {
+                family: "Arial"
+                url: ""
+            }
+            font_size: 16px
+            fill: rgb(24, 35, 52)
+        }
+    }
+    .title {
+        style: {
+            font: {
+                family: "Arial"
+                url: ""
+            }
+            font_size: 26px
+            fill: rgb(24, 35, 52)
+        }
+    }
+    .control {
+        style: {
+            font: {
+                family: "Arial"
+                url: ""
+            }
+            font_size: 16px
+            fill: WHITE
+            align_horizontal: TextAlignHorizontal::Center
+            align_vertical: TextAlignVertical::Center
+        }
+        color: {warm ? rgb(152, 53, 37) : rgb(42, 68, 104)}
+        hover_color: {warm ? rgb(190, 79, 55) : rgb(63, 96, 140)}
+        outline: {
+            paint: rgb(24, 35, 52)
+            width: {warm ? 3px : 1px}
+        }
+    }
+}

@@ -1,0 +1,26 @@
+<Button class="label" x=24px y=20px width=200px height=48px label="Toggle content" @button_click=self.toggle_content/>
+<Button class="label" x=244px y=20px width=200px height=48px label="Toggle width" @button_click=self.toggle_width/>
+<Button class="label" x=464px y=20px width=200px height=48px label="Record layout" @button_click=self.record_layout/>
+<Text id=intrinsic class="label" x=24px y=90px wrap=false selectable=true text="Intrinsic @@@@@@@@"/>
+<Text id=fixed class="label" clip=true x=480px y=90px width=360px height=30px selectable=true text="Fixed-height @@@@@@@@"/>
+<Text id=paragraph class="label" x=24px y=180px width={narrow ? 180px : 320px} selectable=true
+    text={expanded ? "Paragraph: native text should wrap and grow when the available width changes or the system text size increases. The final words must remain visible." : "Paragraph: short text."}/>
+<Stacker id=stack x=410px y=180px width={narrow ? 180px : 320px} autosize=true gutter=12px>
+    <Text id=stack_text class="label" width=100% selectable=true
+        text={expanded ? "Stack: native text should wrap and grow when the available width changes or the system text size increases. The final words must remain visible." : "Stack: short text."}/>
+    <Button id=follower class="label" width=100% height=48px label="Following control"/>
+</Stacker>
+<Frame id=frame x=760px y=180px width=216px autosize=true padding_x=12px padding_y=12px>
+    <Text id=frame_text class="label" width=100% selectable=true text="Frame: measured text sets its parent's height."/>
+</Frame>
+for i in 0..2 {
+    <Text id=repeat_text class="label" x=760px y={(500 + i * 180)px} width=216px
+        text={expanded ? "Repeated text grows with content." : "Repeated text."}/>
+}
+<Rectangle width=100% height=100% fill=WHITE/>
+
+@settings {
+    .label {
+        style: { font: { family: "Arial" url: "" } font_size: 18px fill: BLACK }
+    }
+}

@@ -151,6 +151,7 @@
       - [engine::surface_scheduling](api/internal/pax-runtime/engine/surface_scheduling.md)
       - [engine::surface_work](api/internal/pax-runtime/engine/surface_work.md)
       - [engine::vello_render_context](api/internal/pax-runtime/engine/vello_render_context.md)
+      - [engine::surface_visibility](api/internal/pax-runtime/engine/surface_visibility.md)
     - [layout](api/internal/pax-runtime/layout.md)
     - [node_inspection](api/internal/pax-runtime/node_inspection.md)
     - [node_query](api/internal/pax-runtime/node_query.md)

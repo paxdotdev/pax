@@ -19,7 +19,11 @@ const WINDOWS: &[(&str, &[u8])] = &[
     source!("windows", "cartridge.h"),
     source!("windows", "composition_presenter.h"),
     source!("windows", "json_helpers.h"),
+    source!("windows", "keyboard.h"),
     source!("windows", "native_scene.h"),
+    source!("windows", "navigation.h"),
+    source!("windows", "snap_canvas.h"),
+    source!("windows", "wheel_input.h"),
     source!("windows", "native_mask.h"),
     source!("windows", "mask_path.h"),
 ];
@@ -32,6 +36,7 @@ const LINUX: &[(&str, &[u8])] = &[
     source!("linux", "gpu-import.h"),
     source!("linux", "native-scene.c"),
     source!("linux", "native-scene.h"),
+    source!("linux", "navigation.h"),
 ];
 pub const HEADER: &[u8] = include_bytes!("../native/common/pax-desktop.h");
 
@@ -80,6 +85,20 @@ mod tests {
             assert!(!output.join("native-packages").exists());
             assert!(!output.join("out").exists());
             assert!(!output.join("tools").exists());
+            for entry in fs::read_dir(&output).unwrap() {
+                let path = entry.unwrap().path();
+                let source = fs::read_to_string(&path).unwrap();
+                for line in source.lines() {
+                    if let Some(include) = line.trim().strip_prefix("#include \"") {
+                        let include = include.split('"').next().unwrap();
+                        assert!(
+                            output.join(include).is_file(),
+                            "{} requires missing embedded input {include}",
+                            path.display()
+                        );
+                    }
+                }
+            }
         }
     }
 }

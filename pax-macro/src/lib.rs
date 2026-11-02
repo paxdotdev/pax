@@ -156,6 +156,11 @@ fn render_generated_cartridge(
         loader: None,
         loader_snippet: String::new(),
         web_entrypoint: "init_web".into(),
+        native_exports: pax_codegen::project_layout::ProjectLayout::resolve(
+            &PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap()),
+        )
+        .expect("resolve native cartridge export identity")
+        .native_exports,
         root_path: "super::__PaxSelectedRoot".into(),
         initializer: "super::__pax_initialize".into(),
         cartridge_snippet: snippet,

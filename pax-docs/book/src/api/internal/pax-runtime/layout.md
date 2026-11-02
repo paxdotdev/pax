@@ -7,8 +7,8 @@
 Per-axis local extents contributed by a node subtree for container measurement.
 
 Coordinates are expressed in the node's local layout space. Validity is tracked
-per axis so parent-dependent axes can be ignored without discarding the entire
-subtree.
+per axis so parent-dependent or nonfinite axes can be ignored without
+discarding the entire subtree. Valid ranges have finite endpoints.
 
 #### Properties
 ##### `min_x`
@@ -204,3 +204,4 @@ axis-aligned hull in the destination coordinate space.
 <pre><code class="api-signature language-rust ignore">pub fn resolve_padded_autosize_axis(content_extent: f64, padding: Option&lt;<a href="../../../api/pax-runtime-api/layout.md#size">Size</a>&gt;) -&gt; Option&lt;f64&gt;</code></pre>
 
 Solve an autosized outer axis from measured content and symmetric padding.
+Returns `None` when the measurement or resolved size is not finite.

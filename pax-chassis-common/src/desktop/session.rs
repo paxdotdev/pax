@@ -7,7 +7,7 @@ use pax_runtime::api::{RenderContext, StopReason};
 use pax_runtime::engine::layer_surface::{LayerSurfaceEntry, LayerSurfaceLayout, LayerSurfaceSize};
 use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, ScrollerTilingPolicy};
 use pax_runtime::pax_gpu_render_context::{LayerRenderer, LayerTarget, PaxGpuRenderer};
-use pax_runtime::PaxEngine;
+use pax_runtime::{ExpandedNodeIdentifier, PaxEngine};
 use serde_json::{json, Value};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -19,6 +19,7 @@ use std::thread::{self, ThreadId};
 
 const JSON_LIMIT: usize = 16 * 1024 * 1024;
 const MAX_SURFACES: usize = 512;
+const SURFACE_PREWARM_PADDING: f64 = 384.0;
 
 /// Shared native surface planning limits. GPU exporters independently enforce
 /// their byte budgets across live and retiring generations.
@@ -297,9 +298,13 @@ impl Session {
                 self.interrupts.forget_scroller(*id);
             }
         }
-        Ok(
-            json!({"ok":true,"messages":messages,"layerCount":self.engine.runtime_context.layer_count.get()}),
-        )
+        #[allow(unused_mut)] // Only Windows/Linux extend the shared message JSON.
+        let mut result =
+            json!({"ok":true,"messages":messages,"layerCount":self.engine.runtime_context.layer_count.get()});
+        #[cfg(any(target_os = "windows", target_os = "linux"))]
+        super::rich_text::enrich_native_messages(&mut result["messages"])
+            .map_err(|error| self.fail(error))?;
+        Ok(result)
     }
 
     fn plan(&self, layer: usize, dpr: f32) -> Result<Value, String> {
@@ -311,7 +316,7 @@ impl Session {
         let owner = ctx.get_layer_scroller_owner(layer).map(|id| id.to_u32());
         let mut policy = self.engine.scroller_tiling_policy;
         policy.min_untiled_render_dpr = policy.min_untiled_render_dpr.max(dpr as f64);
-        let plan = if let Some(id) = owner {
+        let mut plan = if let Some(id) = owner {
             ctx.get_scroller_surface_state(id).map(|s| {
                 let mut vw = s.viewport_width;
                 let mut vh = s.viewport_height;
@@ -363,6 +368,25 @@ impl Session {
                 policy,
             ))
         };
+        if let (Some(id), Some(plan)) = (owner, plan.as_mut()) {
+            if ctx.layer_allows_scroller_surface_culling(layer) {
+                let visibility = ctx.scroller_surface_visibility(
+                    ExpandedNodeIdentifier(id),
+                    SURFACE_PREWARM_PADDING,
+                );
+                plan.surfaces.retain(|tile| {
+                    visibility.as_ref().is_some_and(|visibility| {
+                        visibility.contains_tile(piet::kurbo::Rect::new(
+                            tile.left,
+                            tile.top,
+                            tile.left + tile.width,
+                            tile.top + tile.height,
+                        ))
+                    })
+                });
+                plan.active = !plan.surfaces.is_empty();
+            }
+        }
         Ok(json!({"ok":true,"plan":plan,"owner":owner}))
     }
 
@@ -424,7 +448,8 @@ impl Session {
         if ready.len() != surfaces.len() {
             return Ok(json!({"ok":true,"blocked":true,"frame":null}));
         }
-        self.published.retain(|identity, _| ready.contains(identity));
+        self.published
+            .retain(|identity, _| ready.contains(identity));
         if frames.is_empty() {
             return Ok(json!({"ok":true,"blocked":false,"frame":null}));
         }
@@ -829,6 +854,63 @@ mod tests {
                 .unwrap();
         unsafe { pax_desktop_free_buffer(buffer) };
         value
+    }
+
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    #[test]
+    fn rich_text_abi_serialization_and_parse_failure_latch() {
+        let c = container();
+        let enqueue = |content: Option<&str>, markdown: Option<bool>| {
+            unsafe { &*c }
+                .session
+                .borrow()
+                .engine
+                .runtime_context
+                .enqueue_native_message(NativeMessage::TextUpdate(pax_message::TextPatch {
+                    id: 99,
+                    content: content.map(str::to_owned),
+                    markdown,
+                    ..Default::default()
+                }));
+        };
+        enqueue(Some("**é 😀**"), Some(true));
+        let tick = response(pax_desktop_tick(c, 100.0, 50.0, 1.0));
+        assert_eq!(tick["ok"], true);
+        let patch = tick["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find_map(|message| message.get("TextUpdate"))
+            .unwrap();
+        assert_eq!(patch["rich_text"]["text"], "é 😀");
+        assert_eq!(patch["rich_text"]["runs"][0]["end"], 7);
+        enqueue(None, None);
+        let tick = response(pax_desktop_tick(c, 100.0, 50.0, 1.0));
+        let patch = tick["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find_map(|message| message.get("TextUpdate"))
+            .unwrap();
+        assert!(patch.get("rich_text").is_none());
+        enqueue(Some("**literal**"), Some(false));
+        let tick = response(pax_desktop_tick(c, 100.0, 50.0, 1.0));
+        let patch = tick["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find_map(|message| message.get("TextUpdate"))
+            .unwrap();
+        assert_eq!(patch.get("rich_text"), Some(&Value::Null));
+        enqueue(Some("<script>bad</script>"), Some(true));
+        let failure = response(pax_desktop_tick(c, 100.0, 50.0, 1.0));
+        assert_eq!(failure["ok"], false);
+        assert_eq!(
+            response(pax_desktop_tick(c, 100.0, 50.0, 1.0))["error"],
+            failure["error"]
+        );
+        pax_desktop_begin_close(c);
+        assert!(unsafe { pax_desktop_finish_close(c) });
     }
 
     struct FailedBackend {

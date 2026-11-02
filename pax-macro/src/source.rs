@@ -596,7 +596,13 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
             return request_dependency(&request, e);
         }
     };
-    let manifest = catalog.manifest_for(Some(&catalog.entries()[0].root))?;
+    let mut manifest = catalog.manifest_for(Some(&catalog.entries()[0].root))?;
+    crate::font_assets::append_desktop_defaults(
+        &mut manifest.assets_dirs,
+        &packages,
+        request.snapshot.facts["target_os = \"windows\""]
+            || request.snapshot.facts["target_os = \"linux\""],
+    )?;
     for name in [
         "PAX_DIR",
         "PAX_MANIFEST_OUTPUT",
@@ -655,6 +661,15 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
         ));
     }
     let engine = &request.engine;
+    let package = package(session)?;
+    let library = package
+        .targets
+        .iter()
+        .find(|t| t.src_path.as_std_path() == request.snapshot.package.entry)
+        .unwrap();
+    let native_exports =
+        pax_codegen::project_layout::NativeExports::new(&package.id.repr, &library.name);
+    let program_id_export = &native_exports.program_id;
     let designtime = crate::designtime_enabled();
     let mut generated = pax_codegen::generate(&manifest, designtime, !designtime);
     let mut hasher = Sha256::new();
@@ -691,7 +706,7 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
             manifest
         }}
         #[cfg(any(target_os = "macos", target_os = "ios", target_os = "windows", target_os = "linux"))]
-        #[no_mangle]
+        #[unsafe(export_name = {program_id_export:?})]
         pub unsafe extern "C" fn pax_cartridge_program_id(buffer: *mut u8, capacity: usize) -> usize {{
             let bytes = {id:?}.as_bytes();
             if !buffer.is_null() && capacity >= bytes.len() {{ std::ptr::copy_nonoverlapping(bytes.as_ptr(), buffer, bytes.len()); }}
@@ -707,16 +722,11 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
         linux: request.snapshot.facts["target_os = \"linux\""],
         designtime,
     };
-    let package = package(session)?;
-    let library = package
-        .targets
-        .iter()
-        .find(|t| t.src_path.as_std_path() == request.snapshot.package.entry)
-        .unwrap();
     let adapter = crate::TemplateArgsCartridge {
         catalog: true,
         loader,
         loader_snippet,
+        native_exports: native_exports.clone(),
         web_entrypoint: pax_codegen::project_layout::web_entrypoint(
             &package.id.repr,
             &library.name,
@@ -729,7 +739,7 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
     }
     .render_once()?;
     let recipe = serde_json::to_string(&serde_json::json!({
-        "library": library.name, "programId": id, "assets":manifest.assets_dirs,
+        "library": library.name, "programId": id, "nativeExports": native_exports, "assets":manifest.assets_dirs,
         "title": package.metadata.get("pax").and_then(|p|p.get("title")).and_then(|s|s.as_str()).unwrap_or(&package.name),
         "roots": roots,
     }))?;
@@ -891,6 +901,16 @@ fn normalize_legacy(items: &mut Vec<syn::Item>) -> Result<()> {
             _ => None,
         };
         if let Some(ident) = ident {
+            // An interpolated #[init] path keeps the attribute's earlier span.
+            // Catalog lookup must use the component site where its initializer
+            // helper was emitted, not a span joined with that attribute.
+            let declaration: proc_macro2::TokenStream = declaration
+                .into_iter()
+                .map(|mut token| {
+                    token.set_span(ident.span());
+                    token
+                })
+                .collect();
             declarations.push(syn::parse2(
                 quote::quote_spanned!(ident.span()=> pax_kit::runnable! { #declaration }),
             )?);
@@ -898,6 +918,45 @@ fn normalize_legacy(items: &mut Vec<syn::Item>) -> Result<()> {
     }
     items.extend(declarations);
     Ok(())
+}
+
+#[cfg(test)]
+mod legacy_site_tests {
+    use super::*;
+
+    #[test]
+    fn custom_initializers_preserve_the_component_site_when_normalized() {
+        for declaration in [
+            "#[pax]\n#[main]\n#[init(crate::initialize)]\npub struct Root {}",
+            "mod nested {\n#[pax]\n#[init(super::initialize)]\n#[main]\npub enum Root { First }\n}",
+        ] {
+            let path = PathBuf::from("fixture.rs");
+            let mut sources =
+                Sources::from([(path.clone(), syn::parse_file(declaration).unwrap())]);
+            let original = sites(&sources, true);
+            assert_eq!(original.len(), 1);
+            normalize_legacy(&mut sources.get_mut(&path).unwrap().items).unwrap();
+            let normalized = sites(&sources, true);
+            assert_eq!(
+                original.keys().collect::<Vec<_>>(),
+                normalized.keys().collect::<Vec<_>>()
+            );
+            assert_eq!(
+                runnable_declaration(original.values().next().unwrap())
+                    .unwrap()
+                    .init
+                    .unwrap()
+                    .to_token_stream()
+                    .to_string(),
+                runnable_declaration(normalized.values().next().unwrap())
+                    .unwrap()
+                    .init
+                    .unwrap()
+                    .to_token_stream()
+                    .to_string(),
+            );
+        }
+    }
 }
 
 pub(crate) fn handoff_helper_name(name: &str, kind: &str) -> String {

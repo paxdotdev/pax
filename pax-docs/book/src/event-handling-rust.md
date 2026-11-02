@@ -105,6 +105,8 @@ starting points:
 | `@submit` | `Event<Submit>` | `event.origin` (originating node ID), `event.trigger` |
 | `@click`, `@tap` | `Event<Click>` | `event.mouse.x`, `.y`, `.button`, `.modifiers` |
 | `@mouse_move` | `Event<MouseMove>` | Pointer position through `event.mouse` |
+| `@wheel` | `Event<Wheel>` | Window position, raw `delta_x` / `delta_y`, and modifiers |
+| `@scroll` | `Event<Scroll>` | Scroll deltas; use bound Scroller positions for reading progress |
 | `@touch_start`, `@touch_move`, `@touch_end`, `@touch_cancel` | `Event<TouchStart>`, `Event<TouchMove>`, `Event<TouchEnd>`, `Event<TouchCancel>` | `event.touches`, including identifiers and positions |
 | `@key_down`, `@key_up` | `Event<KeyDown>`, `Event<KeyUp>` | `event.keyboard.key`, `.modifiers`, `.is_repeat` |
 | `@mouse_cancel` | `Event<MouseCancel>` | Last mouse position and cancelled button; clear drag state |
@@ -664,6 +666,11 @@ drawn above later siblings; see
 can also send events directly to their corresponding node, as a Button does
 for `@button_click`.
 
+A Scroller's rounded viewport also clips pointer targets. Its rectangular
+bounding box does not make a cut-off corner interactive; the same rule applies
+to clipped descendants after scrolling and transforms. See
+[Scrolling & Viewports](scrolling-viewports.md#viewport-content-and-position).
+
 Common pointer and control events then travel from the receiving node through
 its template parents. This is event bubbling. Each visited node runs its
 applicable handlers with its own context, which is why an inline handler and
@@ -708,11 +715,44 @@ The touch-start, touch-end, and touch-cancel listeners are also passive. Do not
 rely on default prevention as a portable way to take ownership of a gesture
 or prevent a native control from changing its value.
 
+On Windows and Linux, the current pointer bridge reports mouse events without
+returning their default-prevention result to the toolkit. Mouse handlers cannot
+cancel native selection, editing, or scrolling through `prevent_default()`;
+the keyboard and wheel paths have separate cancellation contracts.
+
+### Wheel input and scrolling
+
+`@wheel` describes input at a point. Its `x` and `y` use window coordinates,
+and its deltas are positive toward the right and downward. Delta magnitude
+depends on the platform and input device; it is not a portable pixel distance.
+Use `ctx.local_point` when a custom control needs coordinates within itself.
+
+Wheel handlers bubble through template parents. An ancestor can call
+`event.prevent_default()` without suppressing the handlers that observed the
+event along that path. Whether this cancels native movement depends on the
+target's input bridge; see the current
+[desktop support and movement contract](scrolling-viewports.md#position-versus-scroll-events).
+
+Wheel input does not prove that a viewport moved: it might be at its limit,
+disabled, or covered by an unrelated element. Conversely, dragging a scrollbar,
+touch scrolling, and momentum can move content without another wheel event.
+Bind `scroll_pos_x` / `scroll_pos_y` for actual movement. A native Scroller also
+reports movement through `@scroll`, but that event can describe raw input
+outside a Scroller on some chassis. Do not accumulate raw wheel deltas into a
+second copy of a native Scroller's position.
+
+The [native-wheel fixture](https://github.com/paxdotdev/pax/tree/main/examples/fixtures/native-wheel)
+exercises nested viewports, ancestor cancellation, a fixed sibling overlay,
+and rounded clip boundaries using physical input and visible Rust handler
+counts. Its README distinguishes functional input checks from performance
+qualification.
+
 ### Keyboard delivery
 
 The global `@key_down`, `@key_up`, and `@key_press` event bridge is implemented
-on web, macOS, and iOS/iPadOS with a hardware keyboard. The binding and Rust
-handler shown above work on each of these targets.
+on web, macOS, iOS/iPadOS with a hardware keyboard, and the alpha
+Windows/Linux desktop hosts. The binding and Rust handler shown above use the
+same event payload on these targets.
 
 Keyboard events currently dispatch across the mounted Pax tree, so multiple
 components with keyboard handlers may receive the same key. If a shortcut
@@ -735,6 +775,14 @@ Losing focus, deactivating the app, or closing the mount releases held keys
 through `@key_up`. A component's `@key_down` binding does not by itself give
 that component keyboard focus.
 
+By default, the alpha Windows and Linux standalone hosts initially focus
+the Pax canvas. Clicking rendered content returns keyboard focus to it; native text
+editors, buttons, and other controls keep their own keyboard handling. Native
+editing therefore does not also invoke the app's canvas shortcuts. Tab follows
+the toolkit's focus traversal. Leaving canvas focus or deactivating the window
+releases its held keys. Native controls retain responsibility for IME preedit
+and committed text; the canvas event bridge is not a text-input implementation.
+
 `event.keyboard.key` carries the typed character, or names such as `Enter`,
 `Backspace`, `Delete`, `Tab`, `Escape`, and `ArrowLeft`. Modifiers use
 `ModifierKey::{Shift, Control, Alt, Command}`. macOS preserves the native repeat
@@ -744,9 +792,11 @@ system shortcuts still affect which events the OS delivers.
 
 On Apple targets, calling `event.prevent_default()` suppresses forwarding that
 key to the next native responder. Unhandled keys continue through the native
-responder chain. Cancelling `@key_down` also suppresses the legacy `@key_press`
-event; otherwise it is emitted for printable characters and Enter without
-Control or Command. Prefer `@key_down`/`@key_up` for shortcuts and held-key state.
+responder chain. On Windows/Linux, cancelling `@key_down` or `@key_press`
+suppresses the toolkit's default handling of that canvas key-down. On these
+native hosts, cancelling `@key_down` also suppresses the
+legacy `@key_press` event; otherwise it is emitted for printable characters and
+Enter without Control or Command. Prefer `@key_down`/`@key_up` for shortcuts and held-key state.
 These canvas events do not implement IME composition or summon an iOS software
 keyboard; use native text controls for platform text entry.
 
@@ -755,7 +805,7 @@ focus and accessibility model.
 
 ## Events and coordinates
 
-Mouse and touch positions use Pax's window coordinate space. An interaction
+Mouse, touch, and wheel positions use Pax's window coordinate space. An interaction
 inside a translated, scaled, rotated, or scrolling node needs local
 coordinates. Use `ctx.local_point` to convert through the node handling the
 event.

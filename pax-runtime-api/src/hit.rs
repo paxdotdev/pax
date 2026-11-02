@@ -14,6 +14,8 @@ pub enum HitShape {
     Empty,
     /// A rectangle in local layout coordinates, with exclusive edges.
     Rect(Rect),
+    /// A rounded rectangle in local coordinates, with exclusive outer bounds.
+    RoundedRect(kurbo::RoundedRect),
     /// Nonzero-winding local coverage. `tolerance` also tests offsets along the
     /// two local axes, preserving Line's historical stroke-edge convention.
     Path { path: Rc<BezPath>, tolerance: f64 },
@@ -61,6 +63,7 @@ impl HitShape {
         match self {
             Self::Empty => Some(Rect::ZERO),
             Self::Rect(rect) => Some(*rect),
+            Self::RoundedRect(rect) => Some(rect.rect()),
             Self::Path { path, tolerance } => Some(
                 path.bounding_box()
                     .inflate(tolerance.max(0.), tolerance.max(0.)),
@@ -79,6 +82,14 @@ impl HitShape {
             Self::Empty => false,
             Self::Rect(rect) => {
                 point.x > rect.x0 && point.x < rect.x1 && point.y > rect.y0 && point.y < rect.y1
+            }
+            Self::RoundedRect(rounded) => {
+                let rect = rounded.rect();
+                point.x > rect.x0
+                    && point.x < rect.x1
+                    && point.y > rect.y0
+                    && point.y < rect.y1
+                    && rounded.contains(point)
             }
             Self::Path { path, tolerance } => {
                 path.contains(point) || {

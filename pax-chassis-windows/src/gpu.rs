@@ -1,11 +1,14 @@
 use pax_chassis_common::desktop::{DesktopGpuBackend, DesktopSurfaceFrame, DesktopSurfaceInfo};
 use pax_gpu::render_backend::{GpuContext, SharedGpuContext};
 use serde_json::{json, Value};
+use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::ffi::c_void;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex,
 };
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use windows::Win32::Graphics::{Direct3D12::*, Dxgi::Common::*};
 use windows_core::Interface;
 
@@ -15,6 +18,210 @@ const FRAME_CAPACITY: usize = 3;
 const IMAGE_CAPACITY: usize = 64;
 const DEFAULT_EXPORT_BUDGET: u64 = 256 * 1024 * 1024;
 const MAX_JSON_INTEGER: u64 = (1 << 53) - 1;
+const ALLOCATOR_SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
+const ALLOCATOR_LABEL_LIMIT: usize = 16;
+const ALLOCATOR_LABEL_CHARS: usize = 160;
+
+#[derive(Default)]
+struct AllocatorDiagnostics {
+    sample: Option<(Instant, Value)>,
+}
+
+impl AllocatorDiagnostics {
+    fn snapshot(
+        &mut self,
+        now: Instant,
+        report: impl FnOnce() -> Option<wgpu::AllocatorReport>,
+    ) -> Value {
+        // Reports lock and walk the device allocator. Frequent shutdown polls
+        // must reuse the sample rather than turning diagnostics into frame work.
+        if self.sample.as_ref().map_or(true, |(at, _)| {
+            now.saturating_duration_since(*at) >= ALLOCATOR_SAMPLE_INTERVAL
+        }) {
+            let started = Instant::now();
+            let sample_unix_ms = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .ok()
+                .and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
+            let mut value = allocator_summary(report());
+            value["sampleUnixMs"] = json!(sample_unix_ms);
+            value["sampleDurationMs"] = json!(started.elapsed().as_secs_f64() * 1000.0);
+            self.sample = Some((now, value));
+        }
+        let (at, sample) = self.sample.as_ref().unwrap();
+        let mut value = sample.clone();
+        value["sampleAgeMs"] = json!(now.saturating_duration_since(*at).as_secs_f64() * 1000.0);
+        value
+    }
+}
+
+fn allocator_summary(report: Option<wgpu::AllocatorReport>) -> Value {
+    let mut result = json!({"scope":"wgpu-device-suballocations",
+        "includesProcessPrivateBytes":false,"includesNativeCompositionAllocations":false,
+        "supported":report.is_some()});
+    let Some(report) = report else {
+        return result;
+    };
+    let mut labels = BTreeMap::<&str, (u64, u64)>::new();
+    for allocation in &report.allocations {
+        let (count, bytes) = labels.entry(&allocation.name).or_default();
+        *count += 1;
+        *bytes += allocation.size;
+    }
+    let mut labels: Vec<_> = labels.into_iter().collect();
+    labels.sort_by(|(a, (_, a_bytes)), (b, (_, b_bytes))| {
+        b_bytes.cmp(a_bytes).then_with(|| a.cmp(b))
+    });
+    let omitted = labels.iter().skip(ALLOCATOR_LABEL_LIMIT);
+    result["omittedLabelCount"] = json!(labels.len().saturating_sub(ALLOCATOR_LABEL_LIMIT));
+    result["omittedLabelBytes"] = json!(omitted.clone().map(|(_, (_, bytes))| bytes).sum::<u64>());
+    result["omittedAllocationCount"] = json!(omitted.map(|(_, (count, _))| count).sum::<u64>());
+    result["labels"] = json!(labels
+        .into_iter()
+        .take(ALLOCATOR_LABEL_LIMIT)
+        .map(|(label, (count, bytes))| json!({
+            "label":label.chars().take(ALLOCATOR_LABEL_CHARS).collect::<String>(),
+            "labelTruncated":label.chars().count() > ALLOCATOR_LABEL_CHARS,
+            "allocationCount":count,"allocatedBytes":bytes}))
+        .collect::<Vec<_>>());
+    result["liveAllocatedBytes"] = json!(report.total_allocated_bytes);
+    result["reservedBytes"] = json!(report.total_reserved_bytes);
+    // Reserved slack includes padding/fragmentation; it is not a leak count.
+    result["unusedReservedBytes"] = json!(report
+        .total_reserved_bytes
+        .saturating_sub(report.total_allocated_bytes));
+    result["allocationCount"] = json!(report.allocations.len());
+    result["blockCount"] = json!(report.blocks.len());
+    result["emptyBlockBytes"] = json!(report
+        .blocks
+        .iter()
+        .filter(|block| block.allocations.is_empty())
+        .map(|block| block.size)
+        .sum::<u64>());
+    result["blockReport"] = allocator_block_summary(&report);
+    result
+}
+
+fn allocator_block_summary(report: &wgpu::AllocatorReport) -> Value {
+    const BLOCK_LIMIT: usize = 16;
+    const LABEL_LIMIT: usize = 8;
+    let mut assigned = vec![false; report.allocations.len()];
+    let mut ranges_valid = true;
+    let mut ranges_disjoint = true;
+    let mut layouts_valid = true;
+    let mut block_live_total = Some(0u64);
+    let mut omitted_live = Some(0u64);
+    let mut omitted_reserved = Some(0u64);
+    let mut blocks = Vec::with_capacity(report.blocks.len().min(BLOCK_LIMIT));
+    for (index, block) in report.blocks.iter().enumerate() {
+        let allocations = report.allocations.get(block.allocations.clone());
+        let mut live = None;
+        let mut offsets_valid = true;
+        let mut offsets_disjoint = true;
+        let mut overlaps_earlier_range = false;
+        let mut labels = BTreeMap::<&str, (u64, u64)>::new();
+        if let Some(allocations) = allocations {
+            live = allocations
+                .iter()
+                .try_fold(0u64, |sum, a| sum.checked_add(a.size));
+            let mut spans = Vec::with_capacity(allocations.len());
+            for (relative, allocation) in allocations.iter().enumerate() {
+                let assigned = &mut assigned[block.allocations.start + relative];
+                overlaps_earlier_range |= *assigned;
+                *assigned = true;
+                match allocation.offset.checked_add(allocation.size) {
+                    Some(end) if end <= block.size => {
+                        // Empty allocations do not overlap an occupied byte interval.
+                        if allocation.size != 0 {
+                            spans.push((allocation.offset, end));
+                        }
+                    }
+                    _ => offsets_valid = false,
+                }
+                if index < BLOCK_LIMIT && live.is_some() {
+                    let (count, bytes) = labels.entry(&allocation.name).or_default();
+                    *count += 1;
+                    *bytes += allocation.size;
+                }
+            }
+            spans.sort_unstable();
+            let mut previous_end = 0;
+            for (start, end) in spans {
+                offsets_disjoint &= start >= previous_end;
+                previous_end = previous_end.max(end);
+            }
+        } else {
+            ranges_valid = false;
+        }
+        ranges_disjoint &= !overlaps_earlier_range;
+        let fits = live.is_some_and(|bytes| bytes <= block.size);
+        layouts_valid &= allocations.is_some() && offsets_valid && offsets_disjoint && fits;
+        block_live_total =
+            block_live_total.and_then(|total| live.and_then(|v| total.checked_add(v)));
+        if index >= BLOCK_LIMIT {
+            omitted_live = omitted_live.and_then(|total| live.and_then(|v| total.checked_add(v)));
+            omitted_reserved = omitted_reserved.and_then(|total| total.checked_add(block.size));
+            continue;
+        }
+        let mut labels: Vec<_> = labels.into_iter().collect();
+        labels.sort_by(|(a, (_, a_bytes)), (b, (_, b_bytes))| {
+            b_bytes.cmp(a_bytes).then_with(|| a.cmp(b))
+        });
+        let omitted = labels.iter().skip(LABEL_LIMIT);
+        let labels_valid = allocations.is_some() && live.is_some();
+        blocks.push(json!({
+            "snapshotIndex":index,"reservedBytes":block.size,
+            "liveAllocatedBytes":live,
+            "unusedReservedBytes":live.and_then(|bytes| block.size.checked_sub(bytes)),
+            "allocationCount":allocations.map(|a| a.len()),
+            "allocationRangeValid":allocations.is_some(),
+            "rangeOverlapsEarlierBlock":overlaps_earlier_range,
+            "allocationOffsetsValid":allocations.is_some() && offsets_valid,
+            "allocationOffsetsDisjoint":allocations.is_some() && offsets_disjoint,
+            "liveFitsReserved":fits,
+            "labelsValid":labels_valid,
+            "omittedLabelCount":labels_valid.then_some(labels.len().saturating_sub(LABEL_LIMIT)),
+            "omittedLabelBytes":labels_valid.then(|| omitted.clone().map(|(_, (_, bytes))| bytes).sum::<u64>()),
+            "omittedAllocationCount":labels_valid.then(|| omitted.map(|(_, (count, _))| count).sum::<u64>()),
+            "labels":labels.into_iter().take(LABEL_LIMIT).map(|(label, (count, bytes))| json!({
+                "label":label.chars().take(ALLOCATOR_LABEL_CHARS).collect::<String>(),
+                "labelTruncated":label.chars().count() > ALLOCATOR_LABEL_CHARS,
+                "allocationCount":count,"allocatedBytes":bytes
+            })).collect::<Vec<_>>()
+        }));
+    }
+    let reserved = report
+        .blocks
+        .iter()
+        .try_fold(0u64, |sum, block| sum.checked_add(block.size));
+    let allocated = report
+        .allocations
+        .iter()
+        .try_fold(0u64, |sum, a| sum.checked_add(a.size));
+    let all_assigned = assigned.iter().all(|assigned| *assigned);
+    let allocated_matches = allocated == Some(report.total_allocated_bytes);
+    let reserved_matches = reserved == Some(report.total_reserved_bytes);
+    let block_live_matches = block_live_total == Some(report.total_allocated_bytes);
+    json!({
+        "scope":"Reported wgpu block occupants only; indices are local to this snapshot, not stable block identities, heap types or VMMap addresses",
+        "reportedBlockCount":report.blocks.len(),"displayedBlockCount":blocks.len(),
+        "omittedBlockCount":report.blocks.len().saturating_sub(BLOCK_LIMIT),
+        "omittedBlockReservedBytes":omitted_reserved,"omittedBlockLiveAllocatedBytes":omitted_live,
+        "consistent":ranges_valid && ranges_disjoint && layouts_valid && all_assigned
+            && allocated_matches && reserved_matches && block_live_matches,
+        "consistency":{
+            "allocationRangesValid":ranges_valid,"allocationRangesDisjoint":ranges_disjoint,
+            "allocationLayoutsValid":layouts_valid,"allAllocationsAssigned":all_assigned,
+            "allocationByteSumValid":allocated.is_some(),
+            "blockLiveByteSumValid":block_live_total.is_some(),
+            "blockReservedByteSumValid":reserved.is_some(),
+            "allocationBytesMatchReportedTotal":allocated_matches,
+            "blockLiveBytesMatchReportedTotal":block_live_matches,
+            "blockReservedBytesMatchReportedTotal":reserved_matches
+        },
+        "blocks":blocks
+    })
+}
 
 struct Completion {
     fence: ID3D12Fence,
@@ -51,6 +258,7 @@ struct WindowsGpu {
     closing: bool,
     error: Arc<Mutex<Option<String>>>,
     byte_budget: u64,
+    allocator_diagnostics: Option<RefCell<AllocatorDiagnostics>>,
 }
 
 /// Creates an explicitly DX12 hardware backend. Software adapters are diagnostic
@@ -114,6 +322,8 @@ fn create_backend_with_budget(byte_budget: u64) -> Result<WindowsGpu, String> {
         closing: false,
         error,
         byte_budget,
+        allocator_diagnostics: (std::env::var("PAX_GPU_MEMORY_DIAGNOSTICS").as_deref() == Ok("1"))
+            .then(|| RefCell::new(AllocatorDiagnostics::default())),
     })
 }
 
@@ -450,7 +660,7 @@ impl DesktopGpuBackend for WindowsGpu {
 
     fn diagnostics(&self) -> Value {
         let handles = self.handles().ok();
-        json!({"transport": TRANSPORT, "adapter": self.adapter.name,
+        let mut result = json!({"transport": TRANSPORT, "adapter": self.adapter.name,
             "deviceType": format!("{:?}", self.adapter.device_type),
             "device": handles.as_ref().map(|handles| &handles.0),
             "queue": handles.as_ref().map(|handles| &handles.1),
@@ -463,7 +673,13 @@ impl DesktopGpuBackend for WindowsGpu {
             "pendingBytes": self.batches.iter().filter(|batch| !batch.available())
                 .flat_map(|batch| &batch.images).map(|image| image.allocation_bytes).sum::<u64>(),
             "published": self.published, "retired": self.retired, "backpressure": self.backpressure,
-            "closing": self.closing, "cpuPresentationReadback": false})
+            "closing": self.closing, "cpuPresentationReadback": false});
+        if let Some(diagnostics) = &self.allocator_diagnostics {
+            result["allocatorReport"] = diagnostics
+                .borrow_mut()
+                .snapshot(Instant::now(), || self.device.generate_allocator_report());
+        }
+        result
     }
 }
 
@@ -473,6 +689,278 @@ mod tests {
     use pax_gpu::render_backend::{RenderBackend, RenderConfig};
     use pax_gpu::{point, Color, Fill, Path, WgpuRenderer};
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn allocator_diagnostics_preserve_totals_with_bounded_labels() {
+        let allocations: Vec<_> = (0..20)
+            .flat_map(|i| {
+                (0..2).map(move |_| wgpu::wgt::AllocationReport {
+                    name: format!("{i:02}\"{}", "é".repeat(170)),
+                    offset: 0,
+                    size: i + 1,
+                })
+            })
+            .collect();
+        let result = allocator_summary(Some(wgpu::AllocatorReport {
+            total_allocated_bytes: allocations.iter().map(|allocation| allocation.size).sum(),
+            total_reserved_bytes: 3072,
+            blocks: vec![
+                wgpu::wgt::MemoryBlockReport {
+                    size: 1024,
+                    allocations: 0..40,
+                },
+                wgpu::wgt::MemoryBlockReport {
+                    size: 2048,
+                    allocations: 40..40,
+                },
+            ],
+            allocations,
+        }));
+        assert_eq!(result["liveAllocatedBytes"], 420);
+        assert_eq!(result["reservedBytes"], 3072);
+        assert_eq!(result["unusedReservedBytes"], 2652);
+        assert_eq!(result["emptyBlockBytes"], 2048);
+        assert_eq!(result["allocationCount"], 40);
+        let labels = result["labels"].as_array().unwrap();
+        assert_eq!(labels.len(), 16);
+        assert_eq!(labels[0]["allocatedBytes"], 40);
+        assert!(labels.iter().all(|label| label["allocationCount"] == 2
+            && label["labelTruncated"] == true
+            && label["label"].as_str().unwrap().chars().count() == ALLOCATOR_LABEL_CHARS));
+        assert_eq!(result["omittedLabelCount"], 4);
+        assert_eq!(result["omittedAllocationCount"], 8);
+        assert_eq!(result["omittedLabelBytes"], 20);
+        assert_eq!(
+            labels
+                .iter()
+                .map(|label| label["allocatedBytes"].as_u64().unwrap())
+                .sum::<u64>()
+                + result["omittedLabelBytes"].as_u64().unwrap(),
+            420
+        );
+    }
+
+    #[test]
+    fn allocator_diagnostics_cache_unsupported_and_refresh_after_interval() {
+        let mut diagnostics = AllocatorDiagnostics::default();
+        let now = Instant::now();
+        let first = diagnostics.snapshot(now, || None);
+        assert_eq!(first["supported"], false);
+        assert!(first.get("liveAllocatedBytes").is_none());
+        let cached = diagnostics.snapshot(now + Duration::from_millis(500), || {
+            panic!("cached report must not walk allocator")
+        });
+        assert_eq!(cached["sampleUnixMs"], first["sampleUnixMs"]);
+        assert_eq!(cached["supported"], false);
+        assert_eq!(cached["sampleAgeMs"], 500.0);
+        let refreshed = diagnostics.snapshot(now + ALLOCATOR_SAMPLE_INTERVAL, || {
+            Some(wgpu::AllocatorReport {
+                allocations: Vec::new(),
+                blocks: Vec::new(),
+                total_allocated_bytes: 0,
+                total_reserved_bytes: 0,
+            })
+        });
+        assert_eq!(refreshed["supported"], true);
+        assert_eq!(refreshed["liveAllocatedBytes"], 0);
+        assert_eq!(refreshed["blockCount"], 0);
+    }
+
+    #[test]
+    fn allocator_diagnostics_blocks_reconcile_bounded_labels_and_omissions() {
+        let mut allocations = Vec::new();
+        let mut blocks = Vec::new();
+        for block in 0..18 {
+            let start = allocations.len();
+            for label in 0..10 {
+                allocations.push(wgpu::wgt::AllocationReport {
+                    name: format!("block-{block}-label-{label}"),
+                    offset: label * 64,
+                    size: 64,
+                });
+            }
+            blocks.push(wgpu::wgt::MemoryBlockReport {
+                size: 1024,
+                allocations: start..allocations.len(),
+            });
+        }
+        let value = allocator_block_summary(&wgpu::AllocatorReport {
+            allocations,
+            blocks,
+            total_allocated_bytes: 18 * 640,
+            total_reserved_bytes: 18 * 1024,
+        });
+        assert_eq!(value["consistent"], true);
+        assert_eq!(value["reportedBlockCount"], 18);
+        assert_eq!(value["displayedBlockCount"], 16);
+        assert_eq!(value["omittedBlockCount"], 2);
+        assert_eq!(value["omittedBlockReservedBytes"], 2048);
+        assert_eq!(value["omittedBlockLiveAllocatedBytes"], 1280);
+        for (index, block) in value["blocks"].as_array().unwrap().iter().enumerate() {
+            assert_eq!(block["snapshotIndex"], index);
+            assert_eq!(block["liveAllocatedBytes"], 640);
+            assert_eq!(block["unusedReservedBytes"], 384);
+            assert_eq!(block["labels"].as_array().unwrap().len(), 8);
+            assert_eq!(block["omittedLabelCount"], 2);
+            assert_eq!(block["omittedLabelBytes"], 128);
+            assert_eq!(block["omittedAllocationCount"], 2);
+            assert_eq!(
+                block["labels"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v["allocatedBytes"].as_u64().unwrap())
+                    .sum::<u64>()
+                    + block["omittedLabelBytes"].as_u64().unwrap(),
+                640
+            );
+        }
+    }
+
+    #[test]
+    fn allocator_diagnostics_blocks_reject_malformed_ranges_and_layouts() {
+        let allocation = |offset, size| wgpu::wgt::AllocationReport {
+            name: "test".into(),
+            offset,
+            size,
+        };
+        let block = |size, allocations| wgpu::wgt::MemoryBlockReport { size, allocations };
+        let value = allocator_block_summary(&wgpu::AllocatorReport {
+            allocations: vec![allocation(0, 8), allocation(4, 8), allocation(u64::MAX, 1)],
+            blocks: vec![
+                block(16, 0..2),
+                block(16, 1..3),
+                block(16, 4..3),
+                block(16, 3..5),
+            ],
+            total_allocated_bytes: 17,
+            total_reserved_bytes: 64,
+        });
+        assert_eq!(value["consistent"], false);
+        assert_eq!(value["consistency"]["allocationRangesValid"], false);
+        assert_eq!(value["consistency"]["allocationRangesDisjoint"], false);
+        assert_eq!(value["consistency"]["allocationLayoutsValid"], false);
+        assert_eq!(value["blocks"][0]["allocationOffsetsDisjoint"], false);
+        assert_eq!(value["blocks"][1]["rangeOverlapsEarlierBlock"], true);
+        assert_eq!(value["blocks"][1]["allocationOffsetsValid"], false);
+        assert_eq!(value["blocks"][2]["allocationRangeValid"], false);
+        assert!(value["blocks"][2]["liveAllocatedBytes"].is_null());
+        assert!(value["blocks"][3]["unusedReservedBytes"].is_null());
+    }
+
+    #[test]
+    fn allocator_diagnostics_blocks_preserve_unicode_labels_and_dedicated_layout() {
+        let name = format!("quoted\"{}", "é".repeat(170));
+        let value = allocator_block_summary(&wgpu::AllocatorReport {
+            allocations: vec![wgpu::wgt::AllocationReport {
+                name: name.clone(),
+                offset: 0,
+                size: 1024,
+            }],
+            blocks: vec![wgpu::wgt::MemoryBlockReport {
+                size: 1024,
+                allocations: 0..1,
+            }],
+            total_allocated_bytes: 1024,
+            total_reserved_bytes: 1024,
+        });
+        assert_eq!(value["consistent"], true);
+        let block = &value["blocks"][0];
+        assert_eq!(block["unusedReservedBytes"], 0);
+        assert_eq!(block["labels"][0]["labelTruncated"], true);
+        assert_eq!(
+            block["labels"][0]["label"],
+            name.chars().take(160).collect::<String>()
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&value.to_string()).unwrap(),
+            value
+        );
+    }
+
+    #[test]
+    fn allocator_diagnostics_blocks_mark_overflow_unknown_instead_of_zero() {
+        let value = allocator_block_summary(&wgpu::AllocatorReport {
+            allocations: vec![
+                wgpu::wgt::AllocationReport {
+                    name: "huge".into(),
+                    offset: 0,
+                    size: u64::MAX,
+                },
+                wgpu::wgt::AllocationReport {
+                    name: "extra".into(),
+                    offset: 0,
+                    size: 1,
+                },
+            ],
+            blocks: vec![
+                wgpu::wgt::MemoryBlockReport {
+                    size: u64::MAX,
+                    allocations: 0..2,
+                },
+                wgpu::wgt::MemoryBlockReport {
+                    size: 1,
+                    allocations: 2..2,
+                },
+            ],
+            total_allocated_bytes: 0,
+            total_reserved_bytes: 0,
+        });
+        assert_eq!(value["consistent"], false);
+        for field in [
+            "allocationByteSumValid",
+            "blockLiveByteSumValid",
+            "blockReservedByteSumValid",
+            "allocationBytesMatchReportedTotal",
+            "blockLiveBytesMatchReportedTotal",
+            "blockReservedBytesMatchReportedTotal",
+        ] {
+            assert_eq!(value["consistency"][field], false, "{field}");
+        }
+        let block = &value["blocks"][0];
+        assert!(block["liveAllocatedBytes"].is_null());
+        assert!(block["unusedReservedBytes"].is_null());
+        assert_eq!(block["labelsValid"], false);
+        assert!(block["omittedLabelBytes"].is_null());
+        assert!(block["omittedAllocationCount"].is_null());
+        assert_eq!(value["blocks"][1]["liveAllocatedBytes"], 0);
+        assert_eq!(value["blocks"][1]["unusedReservedBytes"], 1);
+    }
+
+    #[test]
+    fn allocator_diagnostics_blocks_report_empty_and_unassigned_allocations() {
+        let mut report = wgpu::AllocatorReport {
+            allocations: Vec::new(),
+            blocks: vec![wgpu::wgt::MemoryBlockReport {
+                size: 1024,
+                allocations: 0..0,
+            }],
+            total_allocated_bytes: 0,
+            total_reserved_bytes: 1024,
+        };
+        let value = allocator_block_summary(&report);
+        assert_eq!(value["consistent"], true);
+        assert_eq!(value["blocks"][0]["liveAllocatedBytes"], 0);
+        assert_eq!(value["blocks"][0]["unusedReservedBytes"], 1024);
+        report.allocations.push(wgpu::wgt::AllocationReport {
+            name: "unassigned".into(),
+            offset: 0,
+            size: 16,
+        });
+        report.total_allocated_bytes = 16;
+        report.total_reserved_bytes = 2048;
+        let value = allocator_block_summary(&report);
+        assert_eq!(value["consistent"], false);
+        assert_eq!(value["consistency"]["allAllocationsAssigned"], false);
+        assert_eq!(
+            value["consistency"]["blockLiveBytesMatchReportedTotal"],
+            false
+        );
+        assert_eq!(
+            value["consistency"]["blockReservedBytesMatchReportedTotal"],
+            false
+        );
+    }
 
     fn surface(width: u32, height: u32, generation: &str) -> DesktopSurfaceInfo {
         DesktopSurfaceInfo {

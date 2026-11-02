@@ -1,0 +1,5 @@
+<Text id=route_status width=100% height=100% selectable=true text={snapshot} style={font_size: 22px, fill: BLACK}/>
+@settings {
+    @mount: mount
+    @pre_render: record
+}

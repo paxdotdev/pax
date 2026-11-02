@@ -2,6 +2,8 @@
 #include "mask_path.h"
 #include <algorithm>
 #include <d2d1_1.h>
+#include <windows.graphics.interop.h>
+#include <winrt/Windows.Graphics.h>
 #include <winrt/Windows.Data.Json.h>
 #include <winrt/Microsoft.UI.Composition.h>
 #include <winrt/Microsoft.UI.Composition.Interop.h>
@@ -21,6 +23,22 @@ struct MaskHole {
 };
 
 class NativeMaskPainter {
+    // Composition retains the D2D geometry through this public Windows SDK
+    // interop interface; it does not borrow a temporary path or XAML object.
+    struct GeometrySource : winrt::implements<GeometrySource,
+        winrt::Windows::Graphics::IGeometrySource2D,
+        ABI::Windows::Graphics::IGeometrySource2DInterop> {
+        winrt::com_ptr<ID2D1Geometry> geometry;
+        explicit GeometrySource(winrt::com_ptr<ID2D1Geometry> value) : geometry(std::move(value)) {}
+        HRESULT __stdcall GetGeometry(ID2D1Geometry** value) noexcept override {
+            if (!value) return E_POINTER;
+            geometry.copy_to(value); return S_OK;
+        }
+        HRESULT __stdcall TryGetGeometryUsingFactory(ID2D1Factory*, ID2D1Geometry** value) noexcept override {
+            if (!value) return E_POINTER;
+            *value = nullptr; return E_NOTIMPL;
+        }
+    };
     struct InputSink : winrt::implements<InputSink, ID2D1SimplifiedGeometrySink> {
         winrt::Microsoft::UI::Xaml::Media::PathGeometry path;
         winrt::Microsoft::UI::Xaml::Media::PathFigure figure{nullptr};
@@ -50,6 +68,27 @@ class NativeMaskPainter {
     winrt::com_ptr<ID2D1DeviceContext> recorder_;
     winrt::Microsoft::UI::Composition::CompositionGraphicsDevice graphics_{nullptr};
 public:
+    winrt::Microsoft::UI::Composition::CompositionGeometricClip geometric_clip(
+        winrt::com_ptr<ID2D1Geometry> const& path, winrt::Microsoft::UI::Composition::Compositor const& compositor) const {
+        auto source = winrt::make<GeometrySource>(path);
+        auto geometry = compositor.CreatePathGeometry(winrt::Microsoft::UI::Composition::CompositionPath(source));
+        return compositor.CreateGeometricClip(geometry);
+    }
+    winrt::Microsoft::UI::Composition::CompositionGeometricClip geometric_clip(
+        MaskPath const& path, winrt::Microsoft::UI::Composition::Compositor const& compositor) const {
+        return geometric_clip(path.gpu.as<ID2D1Geometry>(), compositor);
+    }
+    // Accumulated compositor clips need no XAML copy of each intermediate
+    // Boolean result. Input paths keep their separately constructed geometry.
+    winrt::com_ptr<ID2D1Geometry> combine_gpu(ID2D1Geometry* a, ID2D1Geometry* b, D2D1_COMBINE_MODE mode) const {
+        winrt::com_ptr<ID2D1PathGeometry> result;
+        winrt::check_hresult(factory_->CreatePathGeometry(result.put()));
+        winrt::com_ptr<ID2D1GeometrySink> output;
+        winrt::check_hresult(result->Open(output.put()));
+        winrt::check_hresult(a->CombineWithGeometry(b, mode, D2D1::Matrix3x2F::Identity(), output.get()));
+        winrt::check_hresult(output->Close());
+        return result.as<ID2D1Geometry>();
+    }
     MaskPath transform(MaskPath const& source, D2D1_MATRIX_3X2_F matrix) const {
         MaskPath result;
         winrt::check_hresult(factory_->CreatePathGeometry(result.gpu.put()));
@@ -79,6 +118,24 @@ public:
     }
     MaskPath rectangle(float width, float height) const {
         return parse(winrt::to_hstring("M0 0 L" + std::to_string(width) + " 0 L" + std::to_string(width) + " " + std::to_string(height) + " L0 " + std::to_string(height) + " Z"));
+    }
+    MaskPath rounded_rectangle(float width, float height, float radius) const {
+        radius = std::clamp(radius, 0.0f, std::min(width, height) / 2);
+        winrt::com_ptr<ID2D1RoundedRectangleGeometry> rounded;
+        winrt::check_hresult(factory_->CreateRoundedRectangleGeometry(
+            D2D1::RoundedRect(D2D1::RectF(0, 0, width, height), radius, radius), rounded.put()));
+        MaskPath result;
+        winrt::check_hresult(factory_->CreatePathGeometry(result.gpu.put()));
+        winrt::com_ptr<ID2D1GeometrySink> output;
+        winrt::check_hresult(result.gpu->Open(output.put()));
+        winrt::check_hresult(rounded->Simplify(D2D1_GEOMETRY_SIMPLIFICATION_OPTION_CUBICS_AND_LINES,
+            D2D1::Matrix3x2F::Identity(), output.get()));
+        winrt::check_hresult(output->Close());
+        auto input = winrt::make_self<InputSink>();
+        winrt::check_hresult(result.gpu->Simplify(D2D1_GEOMETRY_SIMPLIFICATION_OPTION_CUBICS_AND_LINES,
+            D2D1::Matrix3x2F::Identity(), input.get()));
+        winrt::check_hresult(input->Close()); result.input = input->path;
+        return result;
     }
     void initialize(winrt::Microsoft::UI::Composition::Compositor const& compositor, ID3D11Device* device) {
         D2D1_FACTORY_OPTIONS options{};

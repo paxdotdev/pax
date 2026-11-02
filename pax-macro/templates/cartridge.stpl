@@ -131,20 +131,20 @@
     <% } %>
 
     <% if build_config.macos || build_config.ios || build_config.ipados { %>
-    #[no_mangle]
+    #[unsafe(export_name = "<%= native_exports.abi_version %>")]
     pub extern "C" fn pax_cartridge_abi_version() -> u32 { 3 }
 
-    #[no_mangle]
+    #[unsafe(export_name = "<%= native_exports.init %>")]
     pub extern "C" fn pax_init(initial_width: f32, initial_height: f32) -> *mut <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
         unsafe { pax_init_with_data(initial_width, initial_height, std::ptr::null(), 0) }
     }
 
-    #[no_mangle]
+    #[unsafe(export_name = "<%= native_exports.init_with_data %>")]
     pub unsafe extern "C" fn pax_init_with_data(initial_width: f32, initial_height: f32, data: *const u8, len: usize) -> *mut <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
         pax_init_entry(initial_width, initial_height, std::ptr::null(), 0, data, len)
     }
 
-    #[no_mangle]
+    #[unsafe(export_name = "<%= native_exports.init_entry %>")]
     pub unsafe extern "C" fn pax_init_entry(initial_width: f32, initial_height: f32, entry: *const u8, entry_len: usize, data: *const u8, len: usize) -> *mut <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
         if entry_len > 4096 || (entry_len > 0 && entry.is_null()) { return std::ptr::null_mut(); }
         let entry = if entry_len == 0 { "" } else {
@@ -210,7 +210,7 @@
                 let container =
                     std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
                         _engine: Box::into_raw(std::mem::ManuallyDrop::into_inner(engine)),
-                        interrupt_dispatcher: Default::default(),
+                        interrupt_dispatcher: <%= engine_import_path %>::pax_chassis_common::native_interrupt::NativeInterruptDispatcher::with_synthetic_wheel_scroll(),
                         _render_context: std::ptr::null_mut(),
                         _render_target: std::ptr::null_mut(),
                         userland_definition_to_instance_traverser,
@@ -222,9 +222,10 @@
             <% } else { %>
             {
                 let manifest = <% if catalog { %>init_manifest_for(entry)<% } else { %>init_manifest()<% } %>;
-                let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest.clone());
+                let main_component_type_id = manifest.main_component_type_id.to_string();
+                let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest);
 
-                let main_component_instance = definition_to_instance_traverser.get_main_component_with_properties(&manifest.main_component_type_id.to_string(), root);
+                let main_component_instance = definition_to_instance_traverser.get_main_component_with_properties(&main_component_type_id, root);
                 let start = std::time::Instant::now();
 
                 //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
@@ -244,7 +245,7 @@
 
                 let container = std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
                     _engine: Box::into_raw(std::mem::ManuallyDrop::into_inner(engine)),
-                    interrupt_dispatcher: Default::default(),
+                    interrupt_dispatcher: <%= engine_import_path %>::pax_chassis_common::native_interrupt::NativeInterruptDispatcher::with_synthetic_wheel_scroll(),
                     _render_context: std::ptr::null_mut(),
                     _render_target: std::ptr::null_mut(),
                 }));
@@ -275,20 +276,20 @@
     <% } %>
 
     <% if build_config.windows || build_config.linux { %>
-    #[no_mangle]
+    #[unsafe(export_name = "<%= native_exports.abi_version %>")]
     pub extern "C" fn pax_cartridge_abi_version() -> u32 { 4 }
 
-    #[no_mangle]
+    #[unsafe(export_name = "<%= native_exports.init %>")]
     pub extern "C" fn pax_init(initial_width: f32, initial_height: f32) -> *mut <%= engine_import_path %>::pax_chassis_common::desktop::DesktopEngineContainer {
         unsafe { pax_init_with_data(initial_width, initial_height, std::ptr::null(), 0) }
     }
 
-    #[no_mangle]
+    #[unsafe(export_name = "<%= native_exports.init_with_data %>")]
     pub unsafe extern "C" fn pax_init_with_data(initial_width: f32, initial_height: f32, data: *const u8, len: usize) -> *mut <%= engine_import_path %>::pax_chassis_common::desktop::DesktopEngineContainer {
         pax_init_entry(initial_width, initial_height, std::ptr::null(), 0, data, len)
     }
 
-    #[no_mangle]
+    #[unsafe(export_name = "<%= native_exports.init_entry %>")]
     pub unsafe extern "C" fn pax_init_entry(initial_width: f32, initial_height: f32, entry: *const u8, entry_len: usize, data: *const u8, len: usize) -> *mut <%= engine_import_path %>::pax_chassis_common::desktop::DesktopEngineContainer {
         if entry_len > 4096 || (entry_len > 0 && entry.is_null()) { return std::ptr::null_mut(); }
         let entry = if entry_len == 0 { "" } else {
@@ -359,9 +360,10 @@
             <% } else { %>
             {
                 let manifest = <% if catalog { %>init_manifest_for(entry)<% } else { %>init_manifest()<% } %>;
-                let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest.clone());
+                let main_component_type_id = manifest.main_component_type_id.to_string();
+                let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest);
 
-                let main_component_instance = definition_to_instance_traverser.get_main_component_with_properties(&manifest.main_component_type_id.to_string(), root);
+                let main_component_instance = definition_to_instance_traverser.get_main_component_with_properties(&main_component_type_id, root);
                 let start = std::time::Instant::now();
 
                 let engine = <%= engine_import_path %>::pax_runtime::engine::PaxEngine::new(

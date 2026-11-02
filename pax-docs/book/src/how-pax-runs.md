@@ -158,6 +158,15 @@ evaluation when that value has not been read or its effect drained between
 the writes. This does not make a sequence of arbitrary property writes an
 atomic transaction.
 
+Before returning native updates for a frame, the runtime settles geometry and
+compositing assignments together. If assigning layers triggers effects that
+mount more nodes, it reconciles again without advancing time or repeating
+lifecycle handlers or viewport observations. An ordinary settled frame needs
+no additional reconciliation. If the scene still changes after 16 compositing
+passes, the tick fails instead of publishing an incomplete scene. This can
+indicate a reactive cycle or an unusually deep chain of mounts triggered by
+compositing; ordinary template nesting does not itself consume these passes.
+
 The consequences depend on what changed. New text can require a native text
 update and measurement. A different width can change descendant layout. A
 new fill can mark drawn content for rendering. Changing an `if` condition
@@ -873,6 +882,59 @@ chassis's tick, native-view update, and surface synchronization costs. Simulator
 GPU and presentation timings do not predict performance on physical hardware.
 Keep startup separate from interaction captures, and relaunch without the flag
 after measuring to disable the instrumentation.
+
+For a Windows/Linux host, also measure the native adapter's work. Linux's
+opt-in `PAX_NATIVE_TEST_REPORT=/absolute/path/report.json` report separates
+engine tick, surface planning, rendering, GPU import, and native-control updates,
+and records selected initialization calls. It includes first-call and cumulative
+timings plus callback-thread CPU time. GTK can perform layout/rendering after
+the callback, and the detailed report itself has a cost; use a separate CPU
+sampling capture to attribute whole-process work. See the
+[Linux host measurement guide](https://github.com/paxdotdev/pax/tree/main/pax-host/native/linux)
+for the fields and their limits. Windows provides the analogous opt-in
+`PAX_WINDOWS_PHASE_TIMINGS=1` for callback phase wall time and thread CPU time;
+its CPU counters are coarser than the wall clock. The
+[Windows host measurement guide](https://github.com/paxdotdev/pax/tree/main/pax-host/native/windows)
+describes the phase boundaries and comparison procedure. Neither callback
+intervals nor EC2 remote desktop smoothness establish physical display frame
+rate.
+
+On Windows, `PAX_WINDOWS_TIMINGS=1` also breaks down the first three engine ticks
+and first 64 GPU backend constructions, alongside the host's startup stages.
+These nested spans help distinguish application initialization, first-tick work,
+and pipeline creation without changing execution order. A bounded reconciliation
+record splits each initial tick's settlement iterations into effects, geometry,
+and occlusion work, including the final clean check. The effects span includes
+entering the property graph and importing shared values before draining effects;
+it is not a measurement of evaluator work alone. For memory investigation,
+`PAX_GPU_MEMORY_DIAGNOSTICS=1` adds a cached per-device allocator report to GPU
+status, refreshed at most once per second. Compare live allocations with reserved
+blocks and sample age; reserved slack alone does not establish a leak. This
+report includes a bounded per-block summary of allocation labels and unused
+reservation. Check its consistency flags before attributing memory; block
+indices are local to each snapshot and do not identify operating-system heaps.
+The report excludes native-composition allocations and whole-process private bytes;
+an available report does not imply complete driver or GPU-memory coverage.
+Both diagnostics are opt-in and add measurement overhead; the Windows host
+measurement guide above describes their fields and limits.
+
+The shared GPU renderer also retains CPU geometry to avoid repeating
+tessellation. Its history cache budgets the vectors' allocated capacities and
+inline entries, including unused reserved space. Evicting an old cache entry
+does not discard geometry already held by a visible node, but revisiting that
+shape after eviction can require tessellation again. The cache budget excludes
+hash-map spare storage and allocator overhead; it is not a bound on total
+process or driver memory. Compare sustained animation with a paused interval
+and a resumed interval to distinguish cache warm-up from continuing growth.
+
+The separate GPU geometry cache retains reusable buffer allocations. On D3D12,
+its budget charge includes each buffer's allocation alignment and wgpu padding;
+other backends retain their payload-byte accounting. Upload counters still count
+transferred bytes. Eviction releases unused cache entries, while buffers still
+referenced by the scene remain alive and can exceed the retention target. This
+target excludes allocator heap slack, other GPU resources, and driver storage,
+so it does not bound total GPU or process memory. Revisiting evicted geometry
+can require another upload.
 
 ## Read more
 

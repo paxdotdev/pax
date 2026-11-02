@@ -90,6 +90,83 @@ pub const NATIVE_VECTOR_RESOURCE_CACHE_BYTES: usize = 256 * 1024 * 1024;
 type SharedVectorGeometryCache = Rc<RefCell<VectorGeometryCache>>;
 type SharedVectorResourceCache = Rc<RefCell<VectorResourceCache>>;
 
+/// Point-in-time cache accounting for explicit renderer diagnostics.
+///
+/// Bytes use each cache's existing budget charge, not process RSS or driver residency.
+/// Resource ownership describes Rust `Rc` owners outside the cache; it does not count
+/// references retained internally by wgpu or in-flight GPU work. Sibling surface tiles
+/// share these caches, so snapshots with the same cache identity must not be summed.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct VectorCacheMemorySnapshot {
+    /// Opaque identities valid only during this process and these caches' lifetimes.
+    pub geometry_cache_id: usize,
+    pub resource_cache_id: usize,
+    pub geometry_entries: usize,
+    pub geometry_bytes: usize,
+    pub geometry_max_bytes: usize,
+    pub resource_entries: usize,
+    pub resource_bytes: usize,
+    /// Eviction can exceed this target while entries have external Rust owners.
+    pub resource_max_bytes: usize,
+    pub resource_cache_only_entries: usize,
+    pub resource_cache_only_bytes: usize,
+    pub resource_externally_held_entries: usize,
+    pub resource_externally_held_bytes: usize,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct ResourceCacheOwnership {
+    cache_only_entries: usize,
+    cache_only_bytes: usize,
+    externally_held_entries: usize,
+    externally_held_bytes: usize,
+}
+
+fn resource_cache_ownership<'a, T: 'a>(
+    entries: impl Iterator<Item = (&'a Rc<T>, usize)>,
+) -> ResourceCacheOwnership {
+    let mut snapshot = ResourceCacheOwnership::default();
+    for (resource, bytes) in entries {
+        // Borrow the Rc: cloning here would misclassify cache-only resources.
+        if Rc::strong_count(resource) == 1 {
+            snapshot.cache_only_entries += 1;
+            snapshot.cache_only_bytes = snapshot.cache_only_bytes.saturating_add(bytes);
+        } else {
+            snapshot.externally_held_entries += 1;
+            snapshot.externally_held_bytes = snapshot.externally_held_bytes.saturating_add(bytes);
+        }
+    }
+    snapshot
+}
+
+fn snapshot_vector_caches(
+    geometry: &SharedVectorGeometryCache,
+    resources: &SharedVectorResourceCache,
+) -> VectorCacheMemorySnapshot {
+    let geometry_cache = geometry.borrow();
+    let resource_cache = resources.borrow();
+    let ownership = resource_cache_ownership(
+        resource_cache
+            .entries
+            .values()
+            .map(|entry| (&entry.resource, entry.bytes)),
+    );
+    VectorCacheMemorySnapshot {
+        geometry_cache_id: Rc::as_ptr(geometry) as usize,
+        resource_cache_id: Rc::as_ptr(resources) as usize,
+        geometry_entries: geometry_cache.entries.len(),
+        geometry_bytes: geometry_cache.current_bytes,
+        geometry_max_bytes: geometry_cache.max_bytes,
+        resource_entries: resource_cache.entries.len(),
+        resource_bytes: resource_cache.current_bytes,
+        resource_max_bytes: resource_cache.max_bytes,
+        resource_cache_only_entries: ownership.cache_only_entries,
+        resource_cache_only_bytes: ownership.cache_only_bytes,
+        resource_externally_held_entries: ownership.externally_held_entries,
+        resource_externally_held_bytes: ownership.externally_held_bytes,
+    }
+}
+
 /// Resource churn counters for renderer profiling.
 /// Effect counters are available with the opt-in `shaders` Cargo feature.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -375,6 +452,8 @@ struct VectorGeometryCacheInsertStats {
 
 struct VectorGeometryCache {
     entries: HashMap<VectorGeometryCacheKey, CachedVectorGeometry>,
+    // Retained Vec capacities and inline key/entry storage. HashMap spare
+    // buckets, control bytes, and allocator overhead are not included.
     current_bytes: usize,
     max_bytes: usize,
     clock: u64,
@@ -405,7 +484,10 @@ impl VectorGeometryCache {
         vertices: Vec<GpuVertex>,
         indices: Vec<u16>,
     ) -> VectorGeometryCacheInsertStats {
-        let bytes = vector_geometry_bytes(vertices.len(), indices.len());
+        // Lyon reserves space beyond the written geometry. Keeping those Vecs
+        // while charging only their lengths can exceed this cache's budget by
+        // several times when animation introduces many small geometry versions.
+        let bytes = cached_vector_geometry_bytes(vertices.capacity(), indices.capacity());
         if bytes > self.max_bytes {
             return VectorGeometryCacheInsertStats {
                 current_bytes: self.current_bytes,
@@ -418,7 +500,7 @@ impl VectorGeometryCache {
         }
 
         self.clock = self.clock.wrapping_add(1);
-        self.current_bytes += bytes;
+        self.current_bytes = self.current_bytes.saturating_add(bytes);
         self.entries.insert(
             key,
             CachedVectorGeometry {
@@ -863,6 +945,15 @@ impl<'w> WgpuRenderer<'w> {
     pub fn share_vector_caches_from(&mut self, other: &Self) {
         self.vector_geometry_cache = Rc::clone(&other.vector_geometry_cache);
         self.vector_resource_cache = Rc::clone(&other.vector_resource_cache);
+    }
+
+    /// Inspect current cache charges and Rust ownership without changing LRU order.
+    ///
+    /// This explicitly requested snapshot scans resource entries without allocating or
+    /// cloning their owners. Normal rendering does not call it; opt-in native memory
+    /// diagnostics call it only at their reporting cadence. It is not GPU residency.
+    pub fn vector_cache_memory_snapshot(&self) -> VectorCacheMemorySnapshot {
+        snapshot_vector_caches(&self.vector_geometry_cache, &self.vector_resource_cache)
     }
 
     pub fn set_vector_resource_cache_max_bytes(&mut self, max_bytes: usize) {
@@ -2418,7 +2509,7 @@ impl<'w> WgpuRenderer<'w> {
         let cache_stats = self.vector_resource_cache.borrow_mut().insert(
             resource_key.clone(),
             Rc::clone(&shared_resource),
-            upload_bytes,
+            shared_resource.cache_budget_bytes(),
         );
         self.merge_vector_resource_cache_stats(cache_stats);
         node.resource = Some(
@@ -3302,8 +3393,14 @@ fn append_cached_geometry(
         .extend(indices.iter().map(|index| *index + vertex_offset));
 }
 
-fn vector_geometry_bytes(vertices: usize, indices: usize) -> usize {
-    vertices * std::mem::size_of::<GpuVertex>() + indices * std::mem::size_of::<u16>()
+fn cached_vector_geometry_bytes(vertex_capacity: usize, index_capacity: usize) -> usize {
+    vertex_capacity
+        .saturating_mul(std::mem::size_of::<GpuVertex>())
+        .saturating_add(index_capacity.saturating_mul(std::mem::size_of::<u16>()))
+        .saturating_add(std::mem::size_of::<(
+            VectorGeometryCacheKey,
+            CachedVectorGeometry,
+        )>())
 }
 
 fn append_cpu_buffers(dst: &mut CpuBuffers, src: &CpuBuffers) {
@@ -4931,6 +5028,175 @@ mod tests {
             };
             assert!((tessellated_area(&coverage) - area).abs() < 0.01);
         }
+    }
+
+    #[test]
+    fn vector_cache_memory_snapshot_tracks_current_geometry_and_shared_identity() {
+        let geometry = Rc::new(RefCell::new(VectorGeometryCache::default()));
+        let resources = Rc::new(RefCell::new(VectorResourceCache::default()));
+        let empty = snapshot_vector_caches(&geometry, &resources);
+        assert_eq!(empty.geometry_entries, 0);
+        assert_eq!(empty.resource_entries, 0);
+        assert_eq!(empty.resource_cache_only_bytes, 0);
+        assert_eq!(empty.resource_externally_held_bytes, 0);
+        let key = VectorGeometryCacheKey {
+            geometry_signature: 7,
+            tolerance_bits: DEFAULT_TESSELLATION_TOLERANCE.to_bits(),
+        };
+        let mut vertices = Vec::with_capacity(512);
+        vertices.push(GpuVertex::default());
+        let bytes = cached_vector_geometry_bytes(vertices.capacity(), 0);
+        geometry.borrow_mut().insert(key, vertices, Vec::new());
+        let clock = geometry.borrow().clock;
+
+        let occupied = snapshot_vector_caches(&geometry, &resources);
+        let sibling_geometry = Rc::clone(&geometry);
+        let sibling_resources = Rc::clone(&resources);
+        assert_eq!(
+            occupied,
+            snapshot_vector_caches(&sibling_geometry, &sibling_resources)
+        );
+        assert_eq!(occupied.geometry_entries, 1);
+        assert_eq!(occupied.geometry_bytes, bytes);
+        assert_eq!(occupied.geometry_max_bytes, MAX_VECTOR_GEOMETRY_CACHE_BYTES);
+        assert_eq!(occupied.resource_max_bytes, MAX_VECTOR_RESOURCE_CACHE_BYTES);
+        assert_eq!(geometry.borrow().clock, clock);
+
+        geometry.borrow_mut().insert(key, Vec::new(), Vec::new());
+        let smaller = snapshot_vector_caches(&geometry, &resources);
+        assert_eq!(smaller.geometry_bytes, cached_vector_geometry_bytes(0, 0));
+        assert!(smaller.geometry_bytes < occupied.geometry_bytes);
+        assert_eq!(smaller.geometry_cache_id, empty.geometry_cache_id);
+        assert_eq!(smaller.resource_cache_id, empty.resource_cache_id);
+    }
+
+    #[test]
+    fn vector_cache_memory_snapshot_borrows_resource_owners_and_observes_release() {
+        let cache_only = Rc::new(());
+        let shared = Rc::new(());
+        let external = Rc::clone(&shared);
+        let weak = Rc::downgrade(&cache_only);
+        let entries = [(&cache_only, 17), (&shared, 29)];
+        assert_eq!(
+            resource_cache_ownership(entries.into_iter()),
+            ResourceCacheOwnership {
+                cache_only_entries: 1,
+                cache_only_bytes: 17,
+                externally_held_entries: 1,
+                externally_held_bytes: 29,
+            }
+        );
+        assert_eq!(Rc::strong_count(&cache_only), 1);
+        assert_eq!(Rc::strong_count(&shared), 2);
+        assert_eq!(weak.strong_count(), 1);
+        drop(external);
+        assert_eq!(
+            resource_cache_ownership(entries.into_iter()),
+            ResourceCacheOwnership {
+                cache_only_entries: 2,
+                cache_only_bytes: 46,
+                externally_held_entries: 0,
+                externally_held_bytes: 0,
+            }
+        );
+        assert_eq!(
+            resource_cache_ownership(std::iter::empty::<(&Rc<()>, usize)>()),
+            ResourceCacheOwnership::default()
+        );
+    }
+
+    #[test]
+    fn vector_geometry_cache_charges_reserved_capacity_and_evicts_least_recently_used() {
+        let geometry = |capacity| {
+            let mut vertices = Vec::with_capacity(capacity);
+            vertices.push(GpuVertex::default());
+            let mut indices = Vec::with_capacity(capacity);
+            indices.push(0);
+            (vertices, indices)
+        };
+        let key = |geometry_signature| VectorGeometryCacheKey {
+            geometry_signature,
+            tolerance_bits: DEFAULT_TESSELLATION_TOLERANCE.to_bits(),
+        };
+        let (first_vertices, first_indices) = geometry(1);
+        let (second_vertices, second_indices) = geometry(1);
+        let (large_vertices, large_indices) = geometry(512);
+        assert_eq!(first_vertices.len(), large_vertices.len());
+        assert_eq!(first_indices.len(), large_indices.len());
+        let small_bytes =
+            cached_vector_geometry_bytes(first_vertices.capacity(), first_indices.capacity());
+        let large_bytes =
+            cached_vector_geometry_bytes(large_vertices.capacity(), large_indices.capacity());
+        assert!(large_bytes > small_bytes);
+        let mut cache = VectorGeometryCache {
+            max_bytes: small_bytes + large_bytes,
+            ..Default::default()
+        };
+        cache.insert(key(1), first_vertices, first_indices);
+        cache.insert(key(2), second_vertices, second_indices);
+        assert!(cache.get(&key(1)).is_some());
+
+        let stats = cache.insert(key(3), large_vertices, large_indices);
+
+        assert_eq!(stats.evicted_entries, 1);
+        assert_eq!(stats.current_bytes, small_bytes + large_bytes);
+        assert!(cache.get(&key(1)).is_some());
+        assert!(cache.get(&key(2)).is_none());
+        let retained = cache.get(&key(3)).unwrap();
+        assert_eq!(retained.vertices.len(), 1);
+        assert_eq!(retained.indices, [0]);
+    }
+
+    #[test]
+    fn vector_geometry_cache_rejects_oversized_capacity_and_accounts_replacement() {
+        let key = VectorGeometryCacheKey {
+            geometry_signature: 1,
+            tolerance_bits: DEFAULT_TESSELLATION_TOLERANCE.to_bits(),
+        };
+        let vertices = vec![GpuVertex::default()];
+        let indices = vec![0];
+        let small_bytes = cached_vector_geometry_bytes(vertices.capacity(), indices.capacity());
+        let mut cache = VectorGeometryCache {
+            max_bytes: small_bytes,
+            ..Default::default()
+        };
+        cache.insert(key, vertices, indices);
+        let mut oversized = Vec::with_capacity(512);
+        oversized.push(GpuVertex::default());
+
+        let rejected = cache.insert(key, oversized, vec![0]);
+
+        assert_eq!(rejected.evicted_entries, 0);
+        assert_eq!(rejected.current_bytes, small_bytes);
+        assert_eq!(cache.get(&key).unwrap().vertices.capacity(), 1);
+        let replaced = cache.insert(key, Vec::new(), Vec::new());
+        assert_eq!(replaced.evicted_entries, 0);
+        assert_eq!(replaced.current_bytes, cached_vector_geometry_bytes(0, 0));
+        assert_eq!(cache.entries.len(), 1);
+    }
+
+    #[test]
+    fn vector_geometry_cache_bounds_empty_entries_and_saturates_byte_accounting() {
+        let entry_bytes = cached_vector_geometry_bytes(0, 0);
+        assert!(entry_bytes > 0);
+        assert_eq!(cached_vector_geometry_bytes(usize::MAX, 0), usize::MAX);
+        assert_eq!(cached_vector_geometry_bytes(0, usize::MAX), usize::MAX);
+        let mut cache = VectorGeometryCache {
+            max_bytes: entry_bytes * 2,
+            ..Default::default()
+        };
+        for geometry_signature in 0..10 {
+            cache.insert(
+                VectorGeometryCacheKey {
+                    geometry_signature,
+                    tolerance_bits: DEFAULT_TESSELLATION_TOLERANCE.to_bits(),
+                },
+                Vec::new(),
+                Vec::new(),
+            );
+        }
+        assert_eq!(cache.entries.len(), 2);
+        assert_eq!(cache.current_bytes, entry_bytes * 2);
     }
 
     #[test]

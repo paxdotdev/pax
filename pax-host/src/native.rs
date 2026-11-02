@@ -88,6 +88,23 @@ fn configure(value: &serde_json::Value) -> Result<(), Error> {
     Ok(())
 }
 
+// Names are supplied by the compiled UI's metadata, never inferred from a
+// dependency alias, checkout path, or the contents of the loaded library.
+#[cfg(any(
+    test,
+    target_os = "windows",
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "ios"
+))]
+fn native_export(recipe: &serde_json::Value, field: &str) -> Result<std::ffi::CString, Error> {
+    let name = recipe["nativeExports"][field].as_str()
+        .filter(|name| !name.is_empty() && name.len() <= 128
+            && name.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'_'))
+        .ok_or_else(|| Error(format!("Missing or invalid native export `{field}`; rebuild the launcher, UI library and native host together")))?;
+    std::ffi::CString::new(name).map_err(|error| Error(error.to_string()))
+}
+
 /// Used by the facade's launch macros to carry copied build metadata across
 /// the native ABI. The application library is never called through Rust.
 #[doc(hidden)]
@@ -148,6 +165,15 @@ pub fn __init_cartridge_with_fonts(
             fonts,
         )?;
     }
+    for field in [
+        "abiVersion",
+        "programId",
+        "init",
+        "initWithData",
+        "initEntry",
+    ] {
+        native_export(&recipe, field)?;
+    }
     configure(&recipe)?;
     prepare(options)
 }
@@ -167,16 +193,22 @@ fn configure_desktop_recipe(recipe: &mut serde_json::Value) -> Result<(), Error>
         // library before initialization so an old cdylib cannot silently run.
         unsafe {
             let handle = open(std::path::Path::new(cartridge)).map_err(Error)?;
-            let abi: unsafe extern "C" fn() -> u32 =
-                symbol(handle, b"pax_cartridge_abi_version\0").map_err(Error)?;
+            let abi: unsafe extern "C" fn() -> u32 = symbol(
+                handle,
+                native_export(recipe, "abiVersion")?.as_bytes_with_nul(),
+            )
+            .map_err(Error)?;
             if abi() != 4 {
                 return Err(Error(
                     "Desktop cartridge requires ABI 4; rebuild its cdylib and launcher together"
                         .into(),
                 ));
             }
-            let identity: unsafe extern "C" fn(*mut u8, usize) -> usize =
-                symbol(handle, b"pax_cartridge_program_id\0").map_err(Error)?;
+            let identity: unsafe extern "C" fn(*mut u8, usize) -> usize = symbol(
+                handle,
+                native_export(recipe, "programId")?.as_bytes_with_nul(),
+            )
+            .map_err(Error)?;
             validate_program_identity(identity, expected)?;
         }
     }
@@ -237,6 +269,7 @@ fn resolve_desktop_recipe(
                 .collect::<Result<_, _>>()?,
         );
         recipe["programId"] = serde_json::Value::Null;
+        recipe["nativeExports"] = metadata["nativeExports"].clone();
     } else {
         let library = recipe["library"]
             .as_str()
@@ -434,6 +467,8 @@ fn prepare(options: InitOptions) -> Result<PreparedApp, Error> {
 
 /// A caller-owned native view and (on iOS) its containing view controller.
 /// This borrow prevents the Rust wrapper from outliving the supplied owner.
+/// The public embedding contract covers Apple targets. The lower-level GTK
+/// mounting path is experimental and has not been qualified for application use.
 pub struct ViewHost<'a> {
     view: NonNull<c_void>,
     controller: *mut c_void,
@@ -661,6 +696,29 @@ mod package_tests {
     use serde_json::json;
 
     #[test]
+    fn native_exports_require_explicit_valid_metadata() {
+        let mut recipe = json!({"nativeExports": {"initEntry": "pax_init_entry_selected"}});
+        assert_eq!(
+            native_export(&recipe, "initEntry").unwrap().to_bytes(),
+            b"pax_init_entry_selected"
+        );
+        assert!(native_export(&recipe, "abiVersion").is_err());
+        assert!(native_export(&json!({}), "initEntry").is_err());
+        for name in [
+            json!(null),
+            json!(12),
+            json!(""),
+            json!("pax_init\u{0}other"),
+            json!("pax::init"),
+            json!("é"),
+            json!("x".repeat(129)),
+        ] {
+            recipe["nativeExports"]["initEntry"] = name;
+            assert!(native_export(&recipe, "initEntry").is_err());
+        }
+    }
+
+    #[test]
     fn direct_cargo_rejects_stale_or_oversized_program_identities() {
         unsafe extern "C" fn identity(data: *mut u8, capacity: usize) -> usize {
             let value = b"current-program";
@@ -686,12 +744,13 @@ mod package_tests {
         std::fs::write(
             package.path().join("pax-app.json"),
             serde_json::to_vec(&json!({
-                "cartridge": "app.dll", "assets": ["assets/0", "assets/1"]
+                "cartridge": "app.dll", "assets": ["assets/0", "assets/1"],
+                "nativeExports": {"initEntry": "pax_init_entry_packaged"}
             }))
             .unwrap(),
         )
         .unwrap();
-        let mut recipe = json!({"library":"app","programId":"source-build", "assets":["/old/source/assets"],"entry":"crate::Root"});
+        let mut recipe = json!({"library":"app","programId":"source-build", "assets":["/old/source/assets"],"entry":"crate::Root", "nativeExports":{"initEntry":"pax_init_entry_source"}});
         resolve_desktop_recipe(&mut recipe, package.path(), true).unwrap();
         assert_eq!(
             recipe["cartridge"],
@@ -706,6 +765,10 @@ mod package_tests {
         );
         assert!(recipe["programId"].is_null());
         assert_eq!(recipe["entry"], "crate::Root");
+        assert_eq!(
+            native_export(&recipe, "initEntry").unwrap().to_bytes(),
+            b"pax_init_entry_packaged"
+        );
     }
 
     #[test]
@@ -728,7 +791,7 @@ mod package_tests {
             std::fs::create_dir_all(profile.path().join("deps")).unwrap();
             std::fs::create_dir_all(profile.path().join("examples")).unwrap();
             std::fs::write(profile.path().join("deps").join(filename), b"fixture").unwrap();
-            let mut recipe = json!({"library":"chosen-ui","programId":"source-build","assets":["/source/assets"]});
+            let mut recipe = json!({"library":"chosen-ui","programId":"source-build","assets":["/source/assets"],"nativeExports":{"initEntry":"pax_init_entry_source"}});
             resolve_desktop_recipe(&mut recipe, &profile.path().join("examples"), windows).unwrap();
             assert_eq!(
                 recipe["cartridge"],
@@ -741,6 +804,10 @@ mod package_tests {
             );
             assert_eq!(recipe["programId"], "source-build");
             assert_eq!(recipe["assets"], json!(["/source/assets"]));
+            assert_eq!(
+                native_export(&recipe, "initEntry").unwrap().to_bytes(),
+                b"pax_init_entry_source"
+            );
         }
     }
 }

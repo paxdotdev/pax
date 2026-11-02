@@ -47,15 +47,24 @@ impl RustManifestWriter {
     }
 
     fn pax_manifest(&self, manifest: &PaxManifest) -> String {
+        // Keep each definition in a separate function during optimization. A single
+        // constructor for a large program creates costly aggregate temporaries
+        // and cleanup paths; these helpers still allocate fresh values per call.
+        let mut helpers = String::new();
         let components = manifest
             .components
             .iter()
-            .map(|(type_id, definition)| {
-                format!(
-                    "({}, {})",
-                    self.type_id(type_id),
-                    self.constructor("ComponentDefinition", self.component_definition(definition))
+            .enumerate()
+            .map(|(index, (type_id, definition))| {
+                let helper = format!("__pax_manifest_component_{index}");
+                write!(
+                    helpers,
+                    "#[inline(never)] fn {helper}() -> {}::ComponentDefinition {{ {} }}",
+                    self.manifest_path,
+                    self.component_definition(definition),
                 )
+                .unwrap();
+                format!("({}, {helper}())", self.type_id(type_id))
             })
             .collect::<Vec<_>>();
 
@@ -63,17 +72,22 @@ impl RustManifestWriter {
         type_table.sort_by(|(lhs, _), (rhs, _)| lhs.cmp(rhs));
         let type_table = type_table
             .into_iter()
-            .map(|(type_id, definition)| {
-                format!(
-                    "({}, {})",
-                    self.type_id(type_id),
-                    self.type_definition(definition)
+            .enumerate()
+            .map(|(index, (type_id, definition))| {
+                let helper = format!("__pax_manifest_type_{index}");
+                write!(
+                    helpers,
+                    "#[inline(never)] fn {helper}() -> {}::TypeDefinition {{ {} }}",
+                    self.manifest_path,
+                    self.type_definition(definition),
                 )
+                .unwrap();
+                format!("({}, {helper}())", self.type_id(type_id))
             })
             .collect::<Vec<_>>();
 
         format!(
-            "{mp}::PaxManifest {{ components: {components}, main_component_type_id: {main_component_type_id}, type_table: {type_table}, assets_dirs: {assets_dirs}, engine_import_path: {engine_import_path} }}",
+            "{{ {helpers} {mp}::PaxManifest {{ components: {components}, main_component_type_id: {main_component_type_id}, type_table: {type_table}, assets_dirs: {assets_dirs}, engine_import_path: {engine_import_path} }} }}",
             mp = self.manifest_path,
             components = map_from_entries("std::collections::BTreeMap", components),
             main_component_type_id = self.type_id(&manifest.main_component_type_id),

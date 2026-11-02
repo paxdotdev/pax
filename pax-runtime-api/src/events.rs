@@ -397,13 +397,17 @@ pub struct MouseMove {
 /// Web and macOS deliver this to the hit node with template-parent bubbling.
 #[derive(Clone)]
 pub struct Wheel {
-    /// Window-space x-coordinate; use `NodeContext::local_point` for node-local coordinates.
+    /// The window-space x-coordinate of the wheel event.
+    /// Use `NodeContext::local_point` to convert it to the receiving node's coordinates.
     pub x: f64,
-    /// Window-space y-coordinate; use `NodeContext::local_point` for node-local coordinates.
+    /// The window-space y-coordinate of the wheel event.
+    /// Use `NodeContext::local_point` to convert it to the receiving node's coordinates.
     pub y: f64,
-    /// Horizontal wheel delta, positive in the direction that scrolls content to the right.
+    /// Horizontal input delta, positive toward the right. Magnitude depends on
+    /// the platform and input device; use bound Scroller positions for actual content movement.
     pub delta_x: f64,
-    /// Vertical wheel delta, positive in the direction that scrolls down a document.
+    /// Vertical input delta, positive downward. Magnitude depends on the
+    /// platform and input device; use bound Scroller positions for actual content movement.
     pub delta_y: f64,
     /// Modifier keys active during the event.
     pub modifiers: Vec<ModifierKey>,

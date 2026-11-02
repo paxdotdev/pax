@@ -946,6 +946,13 @@ impl PaxChassisWeb {
                 }
                 false
             }
+            NativeInterrupt::TextMeasurementInvalidated(args) => {
+                let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
+                if let Some(node) = node {
+                    borrow!(node.instance_node).handle_native_interrupt(&node, &x);
+                }
+                false
+            }
             NativeInterrupt::Image(args) => match args {
                 ImageLoadInterruptArgs::Reference(_ref_args) => false,
                 ImageLoadInterruptArgs::Data(data_args) => {

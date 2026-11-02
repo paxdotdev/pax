@@ -133,7 +133,7 @@ final class PaxCartridgeRuntime {
     private var configuration = PaxHostConfiguration()
 
     func configure(_ value: PaxHostConfiguration) {
-        if value.cartridge != configuration.cartridge || value.programId != configuration.programId {
+        if value.cartridge != configuration.cartridge || value.programId != configuration.programId || value.nativeExports != configuration.nativeExports {
             // Shutdown routes retain old code until asynchronous cleanup ends.
             // Never dlclose a library whose destructors may still be scheduled.
             api = nil
@@ -207,6 +207,17 @@ final class PaxCartridgeRuntime {
     #endif
 
     private func openAPI(at path: String) throws -> LoadedPaxCartridgeAPI {
+        // Cargo copies the selected library's names into the launch recipe.
+        // Foreign hosts without that recipe use the framework's own metadata.
+        let exports: PaxNativeExports
+        if let selected = configuration.nativeExports {
+            exports = selected
+        } else {
+            let resource = URL(fileURLWithPath: path).deletingLastPathComponent()
+                .appendingPathComponent("Resources/PaxProgramExports.json")
+            exports = try JSONDecoder().decode(PaxNativeExports.self, from: Data(contentsOf: resource))
+        }
+        try exports.validate()
         guard let handle = dlopen(path, RTLD_NOW | RTLD_LOCAL) else {
             let detail = dlerror().map { String(cString: $0) } ?? "dlopen failed"
             throw NSError(
@@ -217,13 +228,13 @@ final class PaxCartridgeRuntime {
         }
 
         do {
-            let version = try resolveSymbol(handle: handle, name: "pax_cartridge_abi_version", as: (@convention(c) () -> UInt32).self)
+            let version = try resolveSymbol(handle: handle, name: exports.abiVersion, as: (@convention(c) () -> UInt32).self)
             guard version() == 3 else {
                 throw NSError(domain: "PaxCartridgeRuntime", code: 5,
                     userInfo: [NSLocalizedDescriptionKey: "Incompatible Pax cartridge ABI; rebuild the host and cartridge together"])
             }
             if let expected = configuration.programId {
-                let identity = try resolveSymbol(handle: handle, name: "pax_cartridge_program_id",
+                let identity = try resolveSymbol(handle: handle, name: exports.programId,
                     as: (@convention(c) (UnsafeMutablePointer<UInt8>?, Int) -> Int).self)
                 let count = identity(nil, 0)
                 guard count == 64 else { throw NSError(domain: "PaxCartridgeRuntime", code: 6,
@@ -271,9 +282,9 @@ final class PaxCartridgeRuntime {
             let loaded = LoadedPaxCartridgeAPI(
                 handle: handle,
                 sourcePath: path,
-                paxInitEntry: try resolveSymbol(handle: handle, name: "pax_init_entry", as: LoadedPaxCartridgeAPI.PaxInitEntry.self),
+                paxInitEntry: try resolveSymbol(handle: handle, name: exports.initEntry, as: LoadedPaxCartridgeAPI.PaxInitEntry.self),
                 paxRequest: try resolveSymbol(handle: handle, name: "pax_cartridge_request", as: LoadedPaxCartridgeAPI.PaxRequest.self),
-                paxInit: try resolveSymbol(handle: handle, name: "pax_init", as: LoadedPaxCartridgeAPI.PaxInit.self),
+                paxInit: try resolveSymbol(handle: handle, name: exports.initializer, as: LoadedPaxCartridgeAPI.PaxInit.self),
                 paxHasPendingProperties: try resolveSymbol(handle: handle, name: "pax_has_pending_properties", as: LoadedPaxCartridgeAPI.PaxHasPendingProperties.self),
                 paxActivateApplication: try resolveSymbol(handle: handle, name: "pax_activate_application", as: LoadedPaxCartridgeAPI.PaxDeallocEngine.self),
                 paxSetPropertyWaker: try resolveSymbol(handle: handle, name: "pax_set_property_waker", as: LoadedPaxCartridgeAPI.PaxSetPropertyWaker.self),

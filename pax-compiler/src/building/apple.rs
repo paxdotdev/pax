@@ -455,21 +455,7 @@ fn build_native_launcher(
         .iter()
         .find(|package| package.manifest_path.as_std_path() == host_manifest)
         .ok_or_else(|| eyre!("Select a Pax application package"))?;
-    let bins: Vec<_> = package
-        .targets
-        .iter()
-        .filter(|target| {
-            target.kind.iter().any(|kind| kind == "bin")
-                && target
-                    .required_features
-                    .iter()
-                    .any(|feature| feature == "standalone")
-        })
-        .collect();
-    let selected = if let Some(name) = package.default_run.as_deref() {
-        bins.iter().copied().find(|target| target.name == name)
-    } else if bins.len() == 1 { Some(bins[0]) } else { None }
-        .ok_or_else(|| eyre!("Native launch requires a Cargo binary with required-features = [\"standalone\"]. Add src/main.rs using pax_kit::init!()?.run(), and set package.default-run when there is more than one launcher."))?;
+    let selected = crate::helpers::select_native_launcher(package)?;
     let mode = if ctx.is_release { "release" } else { "debug" };
     let platform = if matches!(ctx.target, RunTarget::macOS) {
         "macos"
@@ -576,6 +562,26 @@ fn build_native_launcher(
         }
     }
     Ok(launcher)
+}
+
+fn write_native_program_exports(
+    framework: &Path,
+    exports: &pax_codegen::project_layout::NativeExports,
+) -> Result<(), eyre::Report> {
+    let headers = framework.join("Headers");
+    if !fs::read_to_string(headers.join("PaxCartridge.h"))?.contains("PAX_PROGRAM_EXPORT(") {
+        return Err(eyre!(
+            "PaxCartridge headers need rebuilding for namespaced program exports"
+        ));
+    }
+    fs::write(headers.join("PaxProgramExports.h"), exports.apple_header())?;
+    let resources = framework.join("Resources");
+    fs::create_dir_all(&resources)?;
+    fs::write(
+        resources.join("PaxProgramExports.json"),
+        serde_json::to_vec(exports)?,
+    )?;
+    Ok(())
 }
 
 pub fn build_apple_project_with_cartridge(
@@ -927,6 +933,23 @@ pub fn build_apple_project_with_cartridge(
                 .join("PaxCartridge.xcframework")
                 .join(MACOS_MULTIARCH_PACKAGE_ID)
                 .join("PaxCartridge.framework"),
+        )?;
+    }
+
+    // All architecture slices use the same Cargo library identity. C/Swift
+    // link declarations and dynamic host metadata select that exact program.
+    let frameworks = pax_dir
+        .join(INTERFACE_DIR_NAME)
+        .join("common")
+        .join("pax-swift-cartridge/PaxCartridge.xcframework");
+    for package in [
+        MACOS_MULTIARCH_PACKAGE_ID,
+        IOS_SIMULATOR_MULTIARCH_PACKAGE_ID,
+        IOS_PACKAGE_ID,
+    ] {
+        write_native_program_exports(
+            &frameworks.join(package).join("PaxCartridge.framework"),
+            &layout.native_exports,
         )?;
     }
 
@@ -2872,6 +2895,40 @@ fn is_simulator_booted(device_udid: &str, process_child_ids: &Arc<Mutex<Vec<u64>
 mod tests {
     use super::*;
     use std::ffi::OsStr;
+
+    #[test]
+    fn selected_program_exports_replace_both_apple_bindings_and_metadata() {
+        let directory = tempfile::tempdir().unwrap();
+        let framework = directory.path();
+        fs::create_dir(framework.join("Headers")).unwrap();
+        fs::write(
+            framework.join("Headers/PaxCartridge.h"),
+            "void *pax_init(void) PAX_PROGRAM_EXPORT(pax_init);",
+        ).unwrap();
+        for (index, package) in ["path+file:///first#ui@1.0.0", "path+file:///second#ui@1.0.0"].into_iter().enumerate() {
+            // Exercise the flat iOS and versioned macOS framework layouts.
+            #[cfg(unix)]
+            if index == 1 {
+                normalize_macos_framework_bundle(framework).unwrap();
+            }
+            #[cfg(not(unix))]
+            let _ = index;
+            let exports = pax_codegen::project_layout::NativeExports::new(package, "ui");
+            write_native_program_exports(framework, &exports).unwrap();
+            assert_eq!(
+                fs::read_to_string(framework.join("Headers/PaxProgramExports.h")).unwrap(),
+                exports.apple_header(),
+            );
+            let copied: pax_codegen::project_layout::NativeExports =
+                serde_json::from_slice(&fs::read(framework.join("Resources/PaxProgramExports.json")).unwrap()).unwrap();
+            assert_eq!(copied, exports);
+        }
+        fs::write(framework.join("Headers/PaxCartridge.h"), "void *pax_init(void);").unwrap();
+        assert!(write_native_program_exports(
+            framework,
+            &pax_codegen::project_layout::NativeExports::new("ui@1", "ui"),
+        ).is_err());
+    }
 
     const MACOS_HOST_SWIFT: &str = include_str!(
         "../../../pax-host/native/macos/pax-app-macos/pax-app-macos/PaxViewMacos.swift"

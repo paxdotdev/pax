@@ -763,6 +763,7 @@ export class NativeElementPool {
     
     radioListCreate(patch: AnyCreatePatch) {
         let fields = document.createElement('fieldset') as HTMLFieldSetElement;
+        fields.dataset.paxSelectedId = "0";
         fields.style.border = "0";
         fields.style.margin = "0";
         fields.style.padding = "0";
@@ -778,6 +779,8 @@ export class NativeElementPool {
                 // get the index of the triggered radio button in the fieldset
                 let container = target.parentNode as Element;
                 let index = Array.from(container!.parentNode!.children).indexOf(container);
+                if (index < 0) return;
+                fields.dataset.paxSelectedId = index.toString();
                 let message = {
                     "FormRadioListChange": {
                         "id": patch.id!,
@@ -812,6 +815,9 @@ export class NativeElementPool {
         }
 
         let fields = leaf!.firstChild as HTMLFieldSetElement;
+        if (patch.selected_id != null) {
+            fields.dataset.paxSelectedId = patch.selected_id.toString();
+        }
         if (patch.options != null) {
             fields!.innerHTML = "";
             patch.options.forEach((optionText, index) => {
@@ -839,11 +845,14 @@ export class NativeElementPool {
             });
         }
 
-        if (patch.selected_id != null) {
-            let radio = fields.children[patch.selected_id]
-                ?.querySelector("input[type='radio']") as HTMLInputElement | null;
-            if (radio != null && radio.checked == false) {
-                radio.checked = true;
+        if (patch.options != null || patch.selected_id != null) {
+            const selected = Number(fields.dataset.paxSelectedId);
+            for (let index = 0; index < fields.children.length; index++) {
+                const radio = fields.children[index]
+                    .querySelector("input[type='radio']") as HTMLInputElement | null;
+                if (radio && radio.checked !== (index === selected)) {
+                    radio.checked = index === selected;
+                }
             }
         }
 
@@ -953,11 +962,15 @@ export class NativeElementPool {
 
     dropdownCreate(patch: AnyCreatePatch) {
         const dropdown = this.objectManager.getFromPool(SELECT) as HTMLSelectElement;
+        dropdown.dataset.paxSelectedId = "0";
         dropdown.addEventListener("change", (event) => {
+            const selected = (event.target as HTMLSelectElement).selectedIndex;
+            if (selected < 0) return;
+            dropdown.dataset.paxSelectedId = selected.toString();
             let message = {
                 "FormDropdownChange": {
                     "id": patch.id!,
-                    "selected_id": (event.target! as any).selectedIndex,
+                    "selected_id": selected,
                 }
             }
             this.chassis!.interrupt(message, undefined);
@@ -1001,7 +1014,11 @@ export class NativeElementPool {
             dropdown.style.borderRadius = patch.borderRadius + "px";
         }
 
-        // Apply the content
+        // The engine sends delta patches. Replacing options can reset the DOM
+        // selection even when selected_id itself did not change.
+        if (patch.selected_id != null) {
+            dropdown.dataset.paxSelectedId = patch.selected_id.toString();
+        }
         if (patch.options != null) {
             // Iterate over the options array and create option elements
 
@@ -1016,8 +1033,10 @@ export class NativeElementPool {
             });
         }
 
-        if (patch.selected_id != null && dropdown.options.selectedIndex != patch.selected_id) {
-            dropdown.options.selectedIndex = patch.selected_id;
+        const requested = Number(dropdown.dataset.paxSelectedId);
+        const selected = requested < dropdown.options.length ? requested : -1;
+        if (dropdown.selectedIndex !== selected) {
+            dropdown.selectedIndex = selected;
         }
     }
 
@@ -2724,6 +2743,7 @@ export class NativeElementPool {
         if (state?.awaitingInitialConfiguration) return;
         if (
             state != null
+            && !state.scrollAcknowledgementPending
             && Math.abs(state.lastSentScrollX - measurement.scrollX) <= 0.1
             && Math.abs(state.lastSentScrollY - measurement.scrollY) <= 0.1
             && Math.abs(state.lastSentPresentationScrollX - measurement.presentationScrollX) <= 0.1
@@ -2732,6 +2752,7 @@ export class NativeElementPool {
             return;
         }
         if (state != null) {
+            state.scrollAcknowledgementPending = false;
             state.lastSentScrollX = measurement.scrollX;
             state.lastSentScrollY = measurement.scrollY;
             state.lastSentPresentationScrollX = measurement.presentationScrollX;
@@ -2973,6 +2994,7 @@ export class NativeElementPool {
                 lastSentScrollY: Number.NaN,
                 lastSentPresentationScrollX: Number.NaN,
                 lastSentPresentationScrollY: Number.NaN,
+                scrollAcknowledgementPending: false,
                 snapPointsX: undefined,
                 snapPointsY: undefined,
             });
@@ -3140,6 +3162,17 @@ export class NativeElementPool {
         }
         if (patch.borderRadius != null) {
             leaf.style.borderRadius = `${patch.borderRadius}px`;
+        }
+
+        // Snap/clamp can leave the browser at its last reported offset even when
+        // the engine requests another position. The already-scheduled measurement
+        // must acknowledge that request once, including when no scroll event fires.
+        // Matching native echoes and presentation-only patches remain deduplicated.
+        if (state != null && (
+            (patch.scrollX != null && Math.abs(patch.scrollX - state.lastSentScrollX) > 0.1)
+            || (patch.scrollY != null && Math.abs(patch.scrollY - state.lastSentScrollY) > 0.1)
+        )) {
+            state.scrollAcknowledgementPending = true;
         }
 
         if (patch.scrollX != null) {
@@ -4828,6 +4861,7 @@ type ScrollerMeasurementState = {
     lastSentScrollY: number;
     lastSentPresentationScrollX: number;
     lastSentPresentationScrollY: number;
+    scrollAcknowledgementPending: boolean;
     snapPointsX?: number[];
     snapPointsY?: number[];
 };

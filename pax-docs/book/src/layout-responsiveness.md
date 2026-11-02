@@ -262,6 +262,9 @@ from a child at `height=100%` leaves the calculation circular. Use concrete
 child sizes or intrinsic measurements on the axis being measured. When the
 axis cannot be resolved, current containers can fall back to top-down layout.
 Empty measured content collapses to zero on managed axes.
+Nonfinite geometry is not a content measurement. If a parent transform becomes
+singular, such as at zero scale, affected measurements are unavailable until
+the transform permits projection again; autosize then recomputes.
 
 Conditional children participate in this measurement too. Adding or removing
 rows inside an autosized Stacker reflows its cells and updates its measured

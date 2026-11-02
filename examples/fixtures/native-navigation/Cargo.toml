@@ -1,0 +1,25 @@
+[package]
+name = "native-navigation"
+version = "0.39.1"
+edition = "2021"
+publish = false
+default-run = "native-navigation"
+
+[package.metadata.pax]
+title = "Pax native navigation"
+
+[dependencies]
+pax-kit = { path = "../../../pax-kit", version = "0.39.1" }
+serde_json = "1"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "native-navigation"
+required-features = ["standalone"]

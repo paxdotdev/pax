@@ -8,7 +8,7 @@
         style={
             font: {
                 family: "Inter"
-                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+                url: "assets/fonts/Inter.ttf"
                 weight: 700
             }
             font_size: 28px
@@ -28,7 +28,7 @@
         style={
             font: {
                 family: "Inter"
-                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+                url: "assets/fonts/Inter.ttf"
             }
             font_size: 15px
             fill: rgba(101, 107, 120, 255)
@@ -62,7 +62,7 @@
                         style={
                             font: {
                                 family: "Inter"
-                                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+                                url: "assets/fonts/Inter.ttf"
                                 weight: 700
                             }
                             font_size: 16px

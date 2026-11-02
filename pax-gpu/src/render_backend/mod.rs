@@ -72,6 +72,7 @@ pub fn record_browser_surface_event(canvas: &web_sys::HtmlCanvasElement, event: 
         let _ = canvas.dispatch_event(&event);
     }
 }
+mod buffer_accounting;
 pub(crate) mod capture;
 #[cfg(feature = "shaders")]
 mod effects;
@@ -151,6 +152,56 @@ const OPAQUE_FALLBACK_CLEAR_COLOR: wgpu::Color = wgpu::Color {
 };
 const STAGING_BELT_CHUNK_SIZE: wgpu::BufferAddress = 256 * 1024;
 
+#[cfg(target_os = "windows")]
+struct BackendInitTiming {
+    id: usize,
+    started: std::time::Instant,
+    last: std::time::Instant,
+    stages: Vec<(&'static str, f64)>,
+}
+
+#[cfg(target_os = "windows")]
+impl BackendInitTiming {
+    fn new() -> Option<Self> {
+        static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        if !*ENABLED.get_or_init(|| std::env::var("PAX_WINDOWS_TIMINGS").as_deref() == Ok("1")) {
+            return None;
+        }
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if id >= 64 {
+            return None;
+        }
+        let started = std::time::Instant::now();
+        Some(Self {
+            id,
+            started,
+            last: started,
+            stages: Vec::with_capacity(9),
+        })
+    }
+
+    fn mark(&mut self, stage: &'static str) {
+        let now = std::time::Instant::now();
+        self.stages
+            .push((stage, now.duration_since(self.last).as_secs_f64() * 1000.0));
+        self.last = now;
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl Drop for BackendInitTiming {
+    fn drop(&mut self) {
+        // Emit after construction so log I/O is not charged to the next stage.
+        eprintln!(
+            "windows_backend_init id={} total_ms={:.3} stages={:?}",
+            self.id,
+            self.started.elapsed().as_secs_f64() * 1000.0,
+            self.stages
+        );
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct VectorPipelineKey {
     format: TextureFormat,
@@ -166,6 +217,7 @@ pub struct GpuContext {
     )]
     instance: wgpu::Instance,
     adapter: wgpu::Adapter,
+    backend: wgpu::Backend,
     device: wgpu::Device,
     queue: wgpu::Queue,
     max_surface_dimension: u32,
@@ -185,6 +237,117 @@ pub struct GpuContext {
 }
 
 pub type SharedGpuContext = Rc<GpuContext>;
+
+fn memory_diagnostics_enabled() -> bool {
+    #[cfg(target_arch = "wasm32")]
+    {
+        false
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        *ENABLED.get_or_init(|| std::env::var("PAX_GPU_MEMORY_DIAGNOSTICS").as_deref() == Ok("1"))
+    }
+}
+
+#[derive(Default)]
+struct MemoryDiagnostics {
+    id: u64,
+    frames: u64,
+    capture_allocations: u64,
+    capture_replacements: u64,
+    scratch_allocations: u64,
+}
+
+impl MemoryDiagnostics {
+    fn new() -> Option<Self> {
+        if !memory_diagnostics_enabled() {
+            return None;
+        }
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        Some(Self {
+            id: NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            ..Self::default()
+        })
+    }
+}
+
+#[derive(Default)]
+struct TextureMemory {
+    count: u64,
+    bytes: u64,
+}
+
+#[cfg(test)]
+mod memory_diagnostic_tests {
+    use super::*;
+
+    #[test]
+    fn memory_accounting_counts_layers_samples_and_format_bytes() {
+        let size = wgpu::Extent3d {
+            width: 81,
+            height: 49,
+            depth_or_array_layers: 2,
+        };
+        assert_eq!(
+            texture_storage_bytes(size, 1, TextureFormat::Bgra8Unorm),
+            81 * 49 * 2 * 4
+        );
+        assert_eq!(
+            texture_storage_bytes(size, 4, TextureFormat::Rgba16Float),
+            81 * 49 * 2 * 4 * 8
+        );
+        let mask = wgpu::Extent3d {
+            depth_or_array_layers: 1,
+            ..size
+        };
+        assert_eq!(
+            texture_storage_bytes(mask, 1, alpha_mask::FORMAT) * 3,
+            81 * 49 * 3
+        );
+    }
+
+    #[test]
+    fn memory_accounting_rounds_compressed_blocks_and_uses_wide_arithmetic() {
+        let partial = wgpu::Extent3d {
+            width: 7,
+            height: 5,
+            depth_or_array_layers: 1,
+        };
+        assert_eq!(
+            texture_storage_bytes(partial, 1, TextureFormat::Bc1RgbaUnorm),
+            2 * 2 * 8
+        );
+        let large = wgpu::Extent3d {
+            width: 16384,
+            height: 16384,
+            depth_or_array_layers: 2,
+        };
+        assert_eq!(
+            texture_storage_bytes(large, 4, TextureFormat::Rgba16Float),
+            17_179_869_184
+        );
+    }
+}
+
+// Logical texel storage only: excludes driver alignment, deferred frees,
+// allocator capacity, and compositor-owned surfaces. Our render targets have one mip.
+fn texture_storage_bytes(size: wgpu::Extent3d, samples: u32, format: TextureFormat) -> u64 {
+    let (bw, bh) = format.block_dimensions();
+    u64::from(size.width.div_ceil(bw))
+        .saturating_mul(u64::from(size.height.div_ceil(bh)))
+        .saturating_mul(u64::from(size.depth_or_array_layers))
+        .saturating_mul(u64::from(samples))
+        .saturating_mul(u64::from(format.block_copy_size(None).unwrap_or(0)))
+}
+
+impl TextureMemory {
+    fn add(&mut self, texture: &Texture) {
+        self.count += 1;
+        self.bytes +=
+            texture_storage_bytes(texture.size(), texture.sample_count(), texture.format());
+    }
+}
 
 impl GpuContext {
     async fn new(
@@ -290,10 +453,18 @@ impl GpuContext {
             &mesh_paint_layout,
             [1, 1, 1],
         ));
+        let image_textures = ImageTextureCache::new(
+            adapter
+                .get_downlevel_capabilities()
+                .flags
+                .contains(wgpu::DownlevelFlags::VIEW_FORMATS),
+        );
+        let backend = adapter.get_info().backend;
 
         Ok(Rc::new(Self {
             instance,
             adapter,
+            backend,
             device,
             queue,
             max_surface_dimension,
@@ -303,7 +474,7 @@ impl GpuContext {
             transform_layout,
             vector_pipelines: RefCell::new(HashMap::new()),
             texture_pipelines: RefCell::new(HashMap::new()),
-            image_textures: RefCell::new(ImageTextureCache::default()),
+            image_textures: RefCell::new(image_textures),
             stencil_pipelines: RefCell::new(HashMap::new()),
             alpha_mask_resources,
             mesh_pipeline_resources,
@@ -664,6 +835,7 @@ pub struct RenderBackend<'w> {
     needs_device_poll: bool,
     pending_capture_ids: Vec<u32>,
     completed_captures: Arc<Mutex<HashMap<u32, CapturedFrame>>>,
+    memory_diagnostics: Option<MemoryDiagnostics>,
     // Drop the surface after its commands/frames, and the canvas lease last.
     target: RenderTarget<'w>,
     #[cfg(target_arch = "wasm32")]
@@ -739,6 +911,7 @@ pub struct CapturedFrame {
 
 pub(crate) struct SharedRetainedVectorResource {
     uniform_capacity: VectorUniformCapacity,
+    cache_budget_bytes: u64,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     index_count: u32,
@@ -753,6 +926,12 @@ pub(crate) struct SharedRetainedVectorResource {
     _colors_buffer: wgpu::Buffer,
     _gradients_buffer: wgpu::Buffer,
     _materials_buffer: wgpu::Buffer,
+}
+
+impl SharedRetainedVectorResource {
+    pub(crate) fn cache_budget_bytes(&self) -> u64 {
+        self.cache_budget_bytes
+    }
 }
 
 pub(crate) struct RetainedVectorResource {
@@ -1283,6 +1462,8 @@ impl<'w> RenderBackend<'w> {
         context: SharedGpuContext,
         config: RenderConfig,
     ) -> Result<Self, anyhow::Error> {
+        #[cfg(target_os = "windows")]
+        let mut startup_timing = BackendInitTiming::new();
         let adapter = &context.adapter;
         let device = context.device.clone();
         let queue = context.queue.clone();
@@ -1389,6 +1570,11 @@ impl<'w> RenderBackend<'w> {
             view_formats: vec![],
             desired_maximum_frame_latency: 2, //TODO 1 for lower latency?
         };
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.mark("configuration");
+        }
+
         fn create_buffer<T: Default + Clone + Pod>(
             device: &Device,
             name: &str,
@@ -1513,13 +1699,25 @@ impl<'w> RenderBackend<'w> {
             label: Some("bind_group"),
         });
 
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.mark("buffers_and_bind_groups");
+        }
         let pipeline = context.vector_pipeline(surface_config.format, sample_count);
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.mark("vector_pipeline");
+        }
 
         let texture_renderer = TextureRenderer::with_pipeline_resources(
             &device,
             context.texture_pipeline_resources(surface_config.format, sample_count),
         );
         let attachment_uses = AttachmentUses::default();
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.mark("texture_pipeline");
+        }
         let stencil_renderer = StencilRenderer::with_pipeline_resources(
             &device,
             initial_width,
@@ -1530,6 +1728,10 @@ impl<'w> RenderBackend<'w> {
             context.stencil_pipeline_resources(surface_config.format, sample_count),
             Some(attachment_uses.clone()),
         );
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.mark("stencil_pipeline");
+        }
 
         let initial_width = initial_width;
         let initial_height = initial_height;
@@ -1539,6 +1741,14 @@ impl<'w> RenderBackend<'w> {
         let mesh_rasterizer =
             mesh_paint::MeshRasterizer::with_resources(Rc::clone(&context.mesh_pipeline_resources));
         let empty_mesh_page = Rc::clone(&context.empty_mesh_page);
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.mark("alpha_masks");
+        }
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.mark("mesh_pipeline_and_page");
+        }
         let mut backend = Self {
             alpha_mesh_pages: HashMap::new(),
             mesh_rasterizer,
@@ -1595,9 +1805,14 @@ impl<'w> RenderBackend<'w> {
             needs_device_poll: false,
             pending_capture_ids: Vec::new(),
             completed_captures: Arc::new(Mutex::new(HashMap::new())),
+            memory_diagnostics: MemoryDiagnostics::new(),
         };
         backend.globals.dpr = initial_dpr;
         backend.resize(initial_width, initial_height);
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.mark("backend_and_initial_targets");
+        }
         Ok(backend)
     }
 
@@ -2079,9 +2294,24 @@ impl<'w> RenderBackend<'w> {
                 contents: bytemuck::cast_slice(&materials),
                 usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             });
+        let cache_budget_bytes = buffer_accounting::retained_buffer_cache_bytes(
+            self.context.backend,
+            upload_bytes,
+            [
+                &vertex_buffer,
+                &index_buffer,
+                &primitive_buffer,
+                &colors_buffer,
+                &gradients_buffer,
+                &materials_buffer,
+            ]
+            .into_iter()
+            .map(|buffer| (buffer.size(), buffer.usage())),
+        );
         (
             Rc::new(SharedRetainedVectorResource {
                 uniform_capacity,
+                cache_budget_bytes,
                 vertex_buffer,
                 index_buffer,
                 index_count: buffers.geometry.indices.len() as u32,
@@ -3569,6 +3799,58 @@ impl<'w> RenderBackend<'w> {
             self.retained_encoder = Some(encoder);
         }
         self.capture_surface_for_pending_requests();
+        self.report_memory_diagnostics();
+    }
+
+    fn report_memory_diagnostics(&mut self) {
+        let Some(diagnostics) = &mut self.memory_diagnostics else {
+            return;
+        };
+        diagnostics.frames += 1;
+        if diagnostics.frames != 1 && diagnostics.frames % 120 != 0 {
+            return;
+        }
+        let (groups, scratch, capture_stack) = self
+            .retained_surfaces
+            .as_ref()
+            .map(capture::RetainedSurfaces::memory_totals)
+            .unwrap_or_default();
+        let (alpha_count, alpha_bytes, alpha_buffer_bytes, alpha_allocations, alpha_replacements) =
+            self.alpha_masks.memory_totals();
+        let mut output = TextureMemory::default();
+        if let RenderTarget::Texture(Some(texture)) = &self.target {
+            output.add(texture);
+        }
+        if let Some(target) = &self.multisampled_target {
+            output.add(&target._texture);
+        }
+        let buffers: u64 = [
+            &self.globals_buffer,
+            &self.vertex_buffer,
+            &self.index_buffer,
+            &self.primitive_buffer,
+            &self.transforms_buffer,
+            &self.colors_buffer,
+            &self.gradients_buffer,
+            &self.materials_buffer,
+            &self.lighting_buffer,
+        ]
+        .into_iter()
+        .map(wgpu::Buffer::size)
+        .sum();
+        // Pipeline counts are context-wide, repeated on each backend line; do
+        // not sum them across backend IDs sharing the same context identity.
+        println!("[PaxGpuMemory] backend={} context={} encoded_frames={} width={} height={} retained_textures={} retained_bytes={} scratch_textures={} scratch_bytes={} capture_stack={} alpha_textures={} alpha_bytes={} alpha_buffer_bytes={} capture_allocations={} capture_replacements={} scratch_allocations={} alpha_allocations={} alpha_replacements={} output_textures={} output_bytes={} main_buffer_bytes={} pending_commands={} pending_screenshots={} completed_screenshots={} vector_pipelines={} texture_pipelines={} stencil_pipelines={} logical_storage_only=true",
+            diagnostics.id, Rc::as_ptr(&self.context) as usize, diagnostics.frames,
+            self.surface_config.width, self.surface_config.height,
+            groups.count, groups.bytes, scratch.count, scratch.bytes, capture_stack,
+            alpha_count, alpha_bytes, alpha_buffer_bytes, diagnostics.capture_allocations,
+            diagnostics.capture_replacements, diagnostics.scratch_allocations,
+            alpha_allocations, alpha_replacements, output.count, output.bytes, buffers,
+            self.pending_command_buffers.len(), self.pending_capture_ids.len(),
+            self.completed_captures.lock().unwrap().len(),
+            self.context.vector_pipelines.borrow().len(), self.context.texture_pipelines.borrow().len(),
+            self.context.stencil_pipelines.borrow().len());
     }
 
     pub(crate) fn present_queued_frame(&mut self) {

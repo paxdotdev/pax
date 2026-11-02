@@ -28,6 +28,7 @@ pub mod startup;
 pub mod surface_metrics;
 pub mod surface_preparation;
 pub mod surface_scheduling;
+pub mod surface_visibility;
 pub mod surface_work;
 // TODO move these to not be in engine - make separate crates?
 pub mod pax_gpu_render_context;
@@ -53,6 +54,242 @@ use self::node_interface::NodeLocal;
 
 fn saturating_u128_to_u64(value: u128) -> u64 {
     value.min(u64::MAX as u128) as u64
+}
+
+const MAX_COMPOSITING_PASSES: usize = 16;
+
+#[cfg(target_os = "windows")]
+#[derive(Clone, Copy)]
+struct StartupReconciliationRecord {
+    iteration: usize,
+    effect_drain_ms: f64,
+    geometry_prepare_ms: f64,
+    occlusion_ms: Option<f64>,
+    iteration_ms: f64,
+    unattributed_ms: f64,
+    outcome: &'static str,
+    geometry_delta: crate::scene_geometry::SceneGeometryStats,
+    occlusion_delta: occlusion::OcclusionStats,
+}
+
+#[cfg(target_os = "windows")]
+impl std::fmt::Debug for StartupReconciliationRecord {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Iteration")
+            .field("iteration", &self.iteration)
+            .field("effect_drain_ms", &self.effect_drain_ms)
+            .field("geometry_prepare_ms", &self.geometry_prepare_ms)
+            .field("occlusion_ms", &self.occlusion_ms)
+            .field("iteration_ms", &self.iteration_ms)
+            .field("unattributed_ms", &self.unattributed_ms)
+            .field("outcome", &self.outcome)
+            .field("geometry_delta", &self.geometry_delta)
+            .field("occlusion_delta", &self.occlusion_delta)
+            .finish()
+    }
+}
+
+#[cfg(target_os = "windows")]
+struct StartupReconciliationTiming {
+    started: std::time::Instant,
+    last: std::time::Instant,
+    effect_drain_ms: f64,
+    geometry_prepare_ms: f64,
+    occlusion_ms: Option<f64>,
+    geometry_before: crate::scene_geometry::SceneGeometryStats,
+    occlusion_before: occlusion::OcclusionStats,
+}
+
+#[cfg(target_os = "windows")]
+impl StartupReconciliationTiming {
+    fn new(ctx: &RuntimeContext) -> Self {
+        // These accessors only copy stored counters; they do not prepare geometry
+        // or evaluate properties. Their observation cost remains in the group span.
+        let geometry_before = ctx.scene_geometry_stats();
+        let occlusion_before = ctx.occlusion_stats();
+        let started = std::time::Instant::now();
+        Self {
+            started,
+            last: started,
+            effect_drain_ms: 0.0,
+            geometry_prepare_ms: 0.0,
+            occlusion_ms: None,
+            geometry_before,
+            occlusion_before,
+        }
+    }
+
+    fn finish_effect_drain(&mut self) {
+        let now = std::time::Instant::now();
+        self.effect_drain_ms = now.duration_since(self.last).as_secs_f64() * 1000.0;
+        self.last = now;
+    }
+
+    fn finish_geometry_prepare(&mut self) {
+        let now = std::time::Instant::now();
+        self.geometry_prepare_ms = now.duration_since(self.last).as_secs_f64() * 1000.0;
+    }
+
+    fn start_occlusion(&mut self) {
+        self.last = std::time::Instant::now();
+    }
+
+    fn finish_occlusion(&mut self) {
+        self.occlusion_ms = Some(self.last.elapsed().as_secs_f64() * 1000.0);
+    }
+
+    fn finish(
+        self,
+        iteration: usize,
+        outcome: &'static str,
+        ctx: &RuntimeContext,
+    ) -> StartupReconciliationRecord {
+        let geometry_after = ctx.scene_geometry_stats();
+        let occlusion_after = ctx.occlusion_stats();
+        let iteration_ms = self.started.elapsed().as_secs_f64() * 1000.0;
+        StartupReconciliationRecord {
+            iteration,
+            effect_drain_ms: self.effect_drain_ms,
+            geometry_prepare_ms: self.geometry_prepare_ms,
+            occlusion_ms: self.occlusion_ms,
+            iteration_ms,
+            // Keep the dirty check, control flow, and observation remainder visible.
+            // The enclosing group also includes record insertion and initial counters.
+            unattributed_ms: (iteration_ms
+                - self.effect_drain_ms
+                - self.geometry_prepare_ms
+                - self.occlusion_ms.unwrap_or(0.0))
+            .max(0.0),
+            outcome,
+            geometry_delta: crate::scene_geometry::SceneGeometryStats {
+                preparations: geometry_after
+                    .preparations
+                    .saturating_sub(self.geometry_before.preparations),
+                index_updates: geometry_after
+                    .index_updates
+                    .saturating_sub(self.geometry_before.index_updates),
+                queries: geometry_after
+                    .queries
+                    .saturating_sub(self.geometry_before.queries),
+                candidate_tests: geometry_after
+                    .candidate_tests
+                    .saturating_sub(self.geometry_before.candidate_tests),
+            },
+            occlusion_delta: occlusion::OcclusionStats {
+                rebuilds: occlusion_after
+                    .rebuilds
+                    .saturating_sub(self.occlusion_before.rebuilds),
+                records_updated: occlusion_after
+                    .records_updated
+                    .saturating_sub(self.occlusion_before.records_updated),
+                masks_evaluated: occlusion_after
+                    .masks_evaluated
+                    .saturating_sub(self.occlusion_before.masks_evaluated),
+                mask_candidates: occlusion_after
+                    .mask_candidates
+                    .saturating_sub(self.occlusion_before.mask_candidates),
+            },
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+struct StartupReconciliationRecords {
+    // The final clean check (or failed pass-limit check) is an iteration too.
+    records: [Option<StartupReconciliationRecord>; MAX_COMPOSITING_PASSES + 1],
+    len: usize,
+    dropped: usize,
+}
+
+#[cfg(target_os = "windows")]
+impl StartupReconciliationRecords {
+    fn new() -> Self {
+        Self {
+            records: [None; MAX_COMPOSITING_PASSES + 1],
+            len: 0,
+            dropped: 0,
+        }
+    }
+
+    fn push(&mut self, record: StartupReconciliationRecord) {
+        if let Some(slot) = self.records.get_mut(self.len) {
+            *slot = Some(record);
+            self.len += 1;
+        } else {
+            self.dropped += 1;
+        }
+    }
+
+    fn settled(&self) -> bool {
+        self.len > 0
+            && self.dropped == 0
+            && self.records[self.len - 1].is_some_and(|record| record.outcome == "clean")
+    }
+}
+
+#[cfg(target_os = "windows")]
+struct StartupTickTiming {
+    id: usize,
+    started: std::time::Instant,
+    last: std::time::Instant,
+    stages: Vec<(&'static str, f64)>,
+    compositing_passes: usize,
+    reconciliation: StartupReconciliationRecords,
+}
+
+#[cfg(target_os = "windows")]
+impl StartupTickTiming {
+    fn new() -> Option<Self> {
+        static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        if !*ENABLED.get_or_init(|| std::env::var("PAX_WINDOWS_TIMINGS").as_deref() == Ok("1")) {
+            return None;
+        }
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if id >= 3 {
+            return None;
+        }
+        let started = std::time::Instant::now();
+        Some(Self {
+            id,
+            started,
+            last: started,
+            stages: Vec::with_capacity(10),
+            compositing_passes: 0,
+            reconciliation: StartupReconciliationRecords::new(),
+        })
+    }
+
+    fn mark(&mut self, stage: &'static str) {
+        let now = std::time::Instant::now();
+        self.stages
+            .push((stage, now.duration_since(self.last).as_secs_f64() * 1000.0));
+        self.last = now;
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl Drop for StartupTickTiming {
+    fn drop(&mut self) {
+        // The bounded startup sample never changes update order or flushes effects.
+        eprintln!(
+            "windows_startup_tick id={} total_ms={:.3} compositing_passes={} stages={:?}",
+            self.id,
+            self.started.elapsed().as_secs_f64() * 1000.0,
+            self.compositing_passes,
+            self.stages
+        );
+        eprintln!(
+            "windows_startup_reconciliation id={} settled={} panicking={} iterations={} dropped={} records={:?}",
+            self.id,
+            self.reconciliation.settled(),
+            std::thread::panicking(),
+            self.reconciliation.len,
+            self.reconciliation.dropped,
+            &self.reconciliation.records[..self.reconciliation.len]
+        );
+    }
 }
 
 struct FilteredRenderPlan {
@@ -665,9 +902,20 @@ impl PaxEngine {
     // NOTES: this is the order of different things being computed in recurse-expand-nodes
     // - expanded_node instantiated from instance_node.
 
-    /// Settles reactive state and imperative update branches, dispatches lifecycle
-    /// handlers, then reconciles geometry/compositing and returns native patches.
-    /// Rendering/replay is serviced separately by the chassis.
+    /// Advances the scene once and returns its pending native updates.
+    ///
+    /// Runs lifecycle handlers, advances the clock, and dispatches viewport
+    /// observations once. Before publishing updates, settles reactive effects,
+    /// geometry, and compositing assignments, including nodes mounted by effects
+    /// of those assignments. Reconciliation repeats only while compositing is
+    /// dirty; it does not repeat handlers, time, or viewport observations.
+    /// Drawing is performed separately by the render path.
+    ///
+    /// # Panics
+    ///
+    /// Panics if compositing remains dirty after 16 reconciliation passes. This
+    /// can indicate a reactive cycle or a deeper chain of mounts triggered by
+    /// compositing; no partially settled update batch is returned in that case.
     pub fn tick(&mut self) -> Vec<NativeMessage> {
         self.tick_with_phase_observer(|_| {})
     }
@@ -688,16 +936,26 @@ impl PaxEngine {
         ) {
             return Vec::new();
         }
+        #[cfg(target_os = "windows")]
+        let mut startup_timing = StartupTickTiming::new();
         let _graph = self.runtime_context.property_graph.enter();
         self.runtime_context
             .property_graph
             .import_batch_with_observer(1024, &mut completed);
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.mark("property_import");
+        }
         // Reactive settlement surrounds the remaining imperative update branches.
         if let Some(root_expanded_node) = &self.root_expanded_node {
             root_expanded_node.recurse_update_with_observer(&self.runtime_context, &mut completed);
         }
 
         let ctx = &self.runtime_context;
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.mark("node_update_and_settings");
+        }
         ctx.drain_node_effects_with_observer(&mut completed);
         let deliveries = ctx.application.dispatcher().drain(|| {
             completed("async_deliveries");
@@ -708,13 +966,25 @@ impl PaxEngine {
             self.shutdown(pax_runtime_api::StopReason::HostClosed);
             return Vec::new();
         }
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.mark("effects_and_dispatcher");
+        }
         completed("async_deliveries");
         self.run_lifecycle_handlers(TICK_HANDLERS, ctx.tick_handler_nodes());
         completed("tick_handlers");
         ctx.drain_node_effects_with_observer(&mut completed);
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.mark("tick_handlers_and_effects");
+        }
         self.run_lifecycle_handlers(PRE_RENDER_HANDLERS, ctx.pre_render_handler_nodes());
         completed("pre_render_handlers");
         ctx.drain_node_effects_with_observer(&mut completed);
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.mark("pre_render_handlers_and_effects");
+        }
 
         let globals = ctx.globals();
         let time = &globals.elapsed_frames;
@@ -735,29 +1005,111 @@ impl PaxEngine {
         ctx.finish_move_flights();
         ctx.drain_node_effects_with_observer(&mut completed);
         ctx.prepare_scene_geometry();
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.mark("clock_events_effects_and_geometry");
+        }
         completed("geometry_before_proximity");
         ctx.dispatch_viewport_proximity();
         completed("proximity");
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.mark("proximity_delivery");
+        }
         // Handler mutations settle for drawing, but observation samples at most once
         // per tick. Their invalidations remain pending for the next display tick.
         // Observation uses layout/scroll geometry, not compositing assignments.
         // Finalize occlusion only after handlers settle, so animation plus a
         // proximity callback does not traverse the whole scene twice in one tick.
-        ctx.drain_node_effects_with_observer(&mut completed);
-        if ctx.take_occlusion_dirty() {
-            if let Some(root) = &self.root_expanded_node {
-                occlusion::update_node_occlusion_observed(root, ctx, &mut completed);
-            }
-            completed("occlusion");
+        // Compositing assignments can trigger effects that mount more nodes.
+        // Keep their geometry and classifications in the same committed scene;
+        // publishing between passes would expose stale layer ownership to hosts.
+        // This does not repeat lifecycle handlers, time, or proximity delivery.
+        let mut passes = 0;
+        loop {
+            #[cfg(target_os = "windows")]
+            let mut reconciliation_timing = startup_timing
+                .as_ref()
+                .map(|_| StartupReconciliationTiming::new(ctx));
             ctx.drain_node_effects_with_observer(&mut completed);
+            #[cfg(target_os = "windows")]
+            if let Some(timing) = &mut reconciliation_timing {
+                timing.finish_effect_drain();
+            }
+            ctx.prepare_scene_geometry();
+            #[cfg(target_os = "windows")]
+            if let Some(timing) = &mut reconciliation_timing {
+                timing.finish_geometry_prepare();
+            }
+            if !ctx.take_occlusion_dirty() {
+                #[cfg(target_os = "windows")]
+                if let (Some(timing), Some(iteration)) =
+                    (&mut startup_timing, reconciliation_timing.take())
+                {
+                    timing
+                        .reconciliation
+                        .push(iteration.finish(passes, "clean", ctx));
+                }
+                break;
+            }
+            #[cfg(target_os = "windows")]
+            if let Some(timing) = &mut startup_timing {
+                if passes >= MAX_COMPOSITING_PASSES {
+                    if let Some(iteration) = reconciliation_timing.take() {
+                        // Preserve the failed check before the unchanged assertion
+                        // unwinds. No occlusion call occurred in this iteration.
+                        timing
+                            .reconciliation
+                            .push(iteration.finish(passes, "pass_limit", ctx));
+                    }
+                }
+            }
+            assert!(
+                passes < MAX_COMPOSITING_PASSES,
+                "Scene did not settle after 16 compositing passes; a reactive cycle or a deeper post-compositing mount chain prevented safe scene publication"
+            );
+            if let Some(root) = &self.root_expanded_node {
+                #[cfg(target_os = "windows")]
+                if let Some(timing) = &mut reconciliation_timing {
+                    timing.start_occlusion();
+                }
+                occlusion::update_node_occlusion_observed(root, ctx, &mut completed);
+                completed("occlusion");
+                #[cfg(target_os = "windows")]
+                if let Some(timing) = &mut reconciliation_timing {
+                    timing.finish_occlusion();
+                }
+            }
+            #[cfg(target_os = "windows")]
+            if let (Some(timing), Some(iteration)) =
+                (&mut startup_timing, reconciliation_timing.take())
+            {
+                let outcome = if iteration.occlusion_ms.is_some() {
+                    "reconciled"
+                } else {
+                    "no_root"
+                };
+                timing
+                    .reconciliation
+                    .push(iteration.finish(passes, outcome, ctx));
+            }
+            passes += 1;
+        }
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.compositing_passes = passes;
+            timing.mark("post_proximity_effects_geometry_and_occlusion");
         }
         completed("occlusion_tail");
-        ctx.prepare_scene_geometry();
         completed("geometry_after_occlusion");
         occlusion::update_native_culling(ctx, self.scroller_tiling_policy);
         completed("native_culling");
         ctx.update_wheel_regions();
         let native_messages = ctx.take_native_messages();
+        #[cfg(target_os = "windows")]
+        if let Some(timing) = &mut startup_timing {
+            timing.mark("native_culling_and_messages");
+        }
         native_messages
     }
 
@@ -1710,6 +2062,67 @@ mod tests {
     use pax_runtime_api::pax_value::{PaxAny, PaxValue};
     use std::cell::RefCell;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[cfg(target_os = "windows")]
+    fn reconciliation_record(
+        iteration: usize,
+        outcome: &'static str,
+    ) -> StartupReconciliationRecord {
+        StartupReconciliationRecord {
+            iteration,
+            effect_drain_ms: 1.0,
+            geometry_prepare_ms: 2.0,
+            occlusion_ms: (outcome == "reconciled").then_some(3.0),
+            iteration_ms: 7.0,
+            unattributed_ms: if outcome == "reconciled" { 1.0 } else { 4.0 },
+            outcome,
+            geometry_delta: Default::default(),
+            occlusion_delta: Default::default(),
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn startup_reconciliation_keeps_final_clean_check_within_fixed_bound() {
+        let mut records = StartupReconciliationRecords::new();
+        for iteration in 0..MAX_COMPOSITING_PASSES {
+            records.push(reconciliation_record(iteration, "reconciled"));
+        }
+        assert!(!records.settled());
+        records.push(reconciliation_record(MAX_COMPOSITING_PASSES, "clean"));
+        assert_eq!(records.len, 17);
+        assert_eq!(records.dropped, 0);
+        assert!(records.settled());
+        assert!(records.records[16].unwrap().occlusion_ms.is_none());
+
+        records.push(reconciliation_record(17, "clean"));
+        assert_eq!(records.len, 17);
+        assert_eq!(records.dropped, 1);
+        assert!(
+            !records.settled(),
+            "A truncated observation cannot claim settlement"
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn startup_reconciliation_pass_limit_does_not_report_an_occlusion_call() {
+        let mut records = StartupReconciliationRecords::new();
+        for iteration in 0..MAX_COMPOSITING_PASSES {
+            records.push(reconciliation_record(iteration, "reconciled"));
+        }
+        records.push(reconciliation_record(MAX_COMPOSITING_PASSES, "pass_limit"));
+        assert_eq!(records.len, 17);
+        assert_eq!(records.dropped, 0);
+        assert!(!records.settled());
+        let final_record = records.records[16].unwrap();
+        assert_eq!(final_record.effect_drain_ms, 1.0);
+        assert_eq!(final_record.geometry_prepare_ms, 2.0);
+        assert!(final_record.occlusion_ms.is_none());
+        let diagnostic = format!("{final_record:?}");
+        assert!(diagnostic.contains("outcome: \"pass_limit\""));
+        assert!(diagnostic.contains("occlusion_ms: None"));
+    }
 
     static TICK_CALLS: AtomicUsize = AtomicUsize::new(0);
     static PRE_RENDER_CALLS: AtomicUsize = AtomicUsize::new(0);

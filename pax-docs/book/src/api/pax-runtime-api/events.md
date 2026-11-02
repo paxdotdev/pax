@@ -633,22 +633,26 @@ Web and macOS deliver this to the hit node with template-parent bubbling.
 ##### `x`
 Type: `f64`
 
-Window-space x-coordinate; use `NodeContext::local_point` for node-local coordinates.
+The window-space x-coordinate of the wheel event.
+Use `NodeContext::local_point` to convert it to the receiving node's coordinates.
 
 ##### `y`
 Type: `f64`
 
-Window-space y-coordinate; use `NodeContext::local_point` for node-local coordinates.
+The window-space y-coordinate of the wheel event.
+Use `NodeContext::local_point` to convert it to the receiving node's coordinates.
 
 ##### `delta_x`
 Type: `f64`
 
-Horizontal wheel delta, positive in the direction that scrolls content to the right.
+Horizontal input delta, positive toward the right. Magnitude depends on
+the platform and input device; use bound Scroller positions for actual content movement.
 
 ##### `delta_y`
 Type: `f64`
 
-Vertical wheel delta, positive in the direction that scrolls down a document.
+Vertical input delta, positive downward. Magnitude depends on the
+platform and input device; use bound Scroller positions for actual content movement.
 
 ##### `modifiers`
 Type: `Vec`<[`ModifierKey`](../../api/pax-runtime-api/events.md#modifierkey)>

@@ -34,7 +34,7 @@ if self._logo_started && self.logo_visible && self.portal_departure < 1.0 && (se
                 <Text class="hero_copy" width=100%>{"Write application logic in Rust, alongside Pax: a declarative language for making UIs powerful, expressive, and fun."}</Text>
                 <Text class="hero_copy" width=100%>{"Ship to native macOS, iOS, iPadOS, and the web. Experimentally: ship to native Android, Windows, and Linux."}</Text>
                 <Text class="hero_copy" width=100% style={
-                    font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::SemiBold)
+                    font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::SemiBold)
                     font_size: {self.compact ? 16px : 18px}
                     fill: {SiteTheme::muted()}
                     align_horizontal: TextAlignHorizontal::Left
@@ -77,7 +77,7 @@ cd my-app && pax-cli run"}</Text>
     @pre_render: handle_pre_render
     .hero_copy {
         style: TextStyle {
-            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
+            font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
             font_size: {self.compact ? 16px : 18px}
             fill: {SiteTheme::muted()}
             align_horizontal: TextAlignHorizontal::Left
@@ -86,7 +86,11 @@ cd my-app && pax-cli run"}</Text>
     }
     .hero_command {
         style: TextStyle {
-            font: "monospace"
+            font: Font::Web(
+                "IBM Plex Mono",
+                "assets/fonts/IBMPlexMono-Regular.ttf",
+                FontStyle::Normal,
+                FontWeight::Normal)
             font_size: 14.95px
             fill: {SiteTheme::paper()}
             align_horizontal: TextAlignHorizontal::Left

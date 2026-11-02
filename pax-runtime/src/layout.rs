@@ -96,7 +96,11 @@ pub fn apply_padding_frame(
 }
 
 /// Solve an autosized outer axis from measured content and symmetric padding.
+/// Returns `None` when the measurement or resolved size is not finite.
 pub fn resolve_padded_autosize_axis(content_extent: f64, padding: Option<Size>) -> Option<f64> {
+    if !content_extent.is_finite() {
+        return None;
+    }
     let Some(padding) = padding else {
         return Some(content_extent.max(0.0));
     };
@@ -111,15 +115,15 @@ pub fn resolve_padded_autosize_axis(content_extent: f64, padding: Option<Size>) 
     };
 
     let denominator = 1.0 - (2.0 * percent_component);
-    (denominator > f64::EPSILON)
-        .then_some(((content_extent.max(0.0) + (2.0 * pixel_component)) / denominator).max(0.0))
+    let resolved = ((content_extent.max(0.0) + (2.0 * pixel_component)) / denominator).max(0.0);
+    (denominator > f64::EPSILON && resolved.is_finite()).then_some(resolved)
 }
 
 /// Per-axis local extents contributed by a node subtree for container measurement.
 ///
 /// Coordinates are expressed in the node's local layout space. Validity is tracked
-/// per axis so parent-dependent axes can be ignored without discarding the entire
-/// subtree.
+/// per axis so parent-dependent or nonfinite axes can be ignored without
+/// discarding the entire subtree. Valid ranges have finite endpoints.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct LayoutHull {
     pub min_x: f64,
@@ -160,18 +164,18 @@ impl LayoutHull {
 
     pub fn from_axis_ranges(x: Option<(f64, f64)>, y: Option<(f64, f64)>) -> Self {
         let (min_x, max_x, valid_x) = match x {
-            Some((min_x, max_x)) => {
+            Some((min_x, max_x)) if min_x.is_finite() && max_x.is_finite() => {
                 let (min_x, max_x) = order_pair(min_x, max_x);
                 (min_x, max_x, true)
             }
-            None => (0.0, 0.0, false),
+            _ => (0.0, 0.0, false),
         };
         let (min_y, max_y, valid_y) = match y {
-            Some((min_y, max_y)) => {
+            Some((min_y, max_y)) if min_y.is_finite() && max_y.is_finite() => {
                 let (min_y, max_y) = order_pair(min_y, max_y);
                 (min_y, max_y, true)
             }
-            None => (0.0, 0.0, false),
+            _ => (0.0, 0.0, false),
         };
         Self {
             min_x,
@@ -221,15 +225,28 @@ pub fn project_layout_hull<F: Space, T: Space>(
             transform * Point2::new(hull.max_x, hull.min_y),
             transform * Point2::new(hull.max_x, hull.max_y),
         ];
-        let (min_x, max_x) = corners.iter().fold(
+        // A singular coordinate-space projection or overflow leaves this axis
+        // unavailable. min/max alone discard NaNs and can invent a finite range
+        // or retain the infinite fold sentinels as a supposedly valid hull.
+        let x = corners.iter().try_fold(
             (f64::INFINITY, f64::NEG_INFINITY),
-            |(min_x, max_x), point| (min_x.min(point.x), max_x.max(point.x)),
+            |(min_x, max_x), point| {
+                point
+                    .x
+                    .is_finite()
+                    .then_some((min_x.min(point.x), max_x.max(point.x)))
+            },
         );
-        let (min_y, max_y) = corners.iter().fold(
+        let y = corners.iter().try_fold(
             (f64::INFINITY, f64::NEG_INFINITY),
-            |(min_y, max_y), point| (min_y.min(point.y), max_y.max(point.y)),
+            |(min_y, max_y), point| {
+                point
+                    .y
+                    .is_finite()
+                    .then_some((min_y.min(point.y), max_y.max(point.y)))
+            },
         );
-        return LayoutHull::from_axis_ranges(Some((min_x, max_x)), Some((min_y, max_y)));
+        return LayoutHull::from_axis_ranges(x, y);
     }
 
     if mixes_axes {
@@ -809,6 +826,36 @@ fn test_resolve_padded_autosize_axis_solves_percent_padding() {
 }
 
 #[test]
+fn test_autosize_measurements_require_finite_extents() {
+    for extent in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        assert_eq!(resolve_padded_autosize_axis(extent, None), None);
+        assert_eq!(
+            resolve_padded_autosize_axis(extent, Some(Size::Pixels(8.into()))),
+            None,
+        );
+    }
+    assert_eq!(
+        resolve_padded_autosize_axis(f64::MAX, Some(Size::Pixels(f64::MAX.into()))),
+        None,
+        "finite inputs whose sum overflows are not a measurable size",
+    );
+}
+
+#[test]
+fn test_layout_hull_nonfinite_axes_are_unavailable() {
+    for extent in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let hull = LayoutHull::from_axis_ranges(Some((0.0, extent)), Some((10.0, 30.0)));
+        assert_eq!(hull.x_range(), None);
+        assert_eq!(hull.forward_extent_x(), None);
+        assert_eq!(hull.y_range(), Some((10.0, 30.0)));
+
+        let hull = LayoutHull::from_axis_ranges(Some((20.0, 5.0)), Some((extent, 0.0)));
+        assert_eq!(hull.x_range(), Some((5.0, 20.0)));
+        assert_eq!(hull.y_range(), None);
+    }
+}
+
+#[test]
 fn test_add_symmetric_padding_to_content_layout_hull_solves_from_content() {
     let hull = LayoutHull::from_axis_ranges(Some((0.0, 50.0)), Some((4.0, 84.0)));
     let padded = add_symmetric_padding_to_content_layout_hull(
@@ -834,6 +881,60 @@ fn test_project_layout_hull_with_translation_preserves_forward_extents() {
     assert_eq!(projected.y_range(), Some((-5.0, 15.0)));
     assert_eq!(projected.forward_extent_x(), Some(70.0));
     assert_eq!(projected.forward_extent_y(), Some(15.0));
+}
+
+#[test]
+fn test_project_layout_hull_does_not_discard_nonfinite_corners() {
+    let hull = LayoutHull::from_bounds((2.0, 20.0));
+    for transform in [
+        Transform2::<Generic>::translate(Vector2::new(f64::NAN, 5.0)),
+        Transform2::<Generic>::new([f64::MAX, 0.0, 0.0, 1.0, 0.0, 5.0]),
+    ] {
+        let projected = project_layout_hull(transform, hull);
+        assert_eq!(projected.x_range(), None);
+        assert_eq!(projected.y_range(), Some((5.0, 25.0)));
+    }
+}
+
+#[test]
+fn test_projected_child_layout_hull_recovers_after_singular_parent() {
+    let parent = LocalProperty::new(TransformAndBounds::<NodeLocal, Window> {
+        transform: Transform2::scale(0.0),
+        bounds: (200.0, 100.0),
+    });
+    let child_parent = parent.clone();
+    let child = LocalProperty::computed(
+        move || TransformAndBounds {
+            transform: child_parent.get().transform
+                * Transform2::translate(Vector2::new(10.0, 20.0)),
+            bounds: (30.0, 40.0),
+        },
+        &[parent.untyped()],
+    );
+    let projected = projected_child_layout_hull_property(
+        parent.clone(),
+        LocalProperty::new(None),
+        LocalProperty::new(None),
+        child,
+        LocalProperty::new(LayoutHull::from_bounds((30.0, 40.0))),
+        LocalProperty::new(None),
+        "singular-parent regression",
+    );
+
+    assert_eq!(projected.get(), LayoutHull::default());
+    for scale in [1.0, -2.0, 0.0, 0.5] {
+        parent.set(TransformAndBounds {
+            transform: Transform2::<NodeLocal, Window>::translate(Vector2::new(50.0, 60.0))
+                * Transform2::<NodeLocal>::scale(scale),
+            bounds: (200.0, 100.0),
+        });
+        let expected = if scale == 0.0 {
+            LayoutHull::default()
+        } else {
+            LayoutHull::from_axis_ranges(Some((10.0, 40.0)), Some((20.0, 60.0)))
+        };
+        assert_eq!(projected.get(), expected);
+    }
 }
 
 #[test]

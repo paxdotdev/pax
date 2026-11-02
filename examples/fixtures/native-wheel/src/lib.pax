@@ -1,0 +1,89 @@
+<Text class="title" x=24px y=18px width=976px height=40px text="Native wheel · nested graph"/>
+<Text class="label" x=24px y=64px width=976px height=32px
+    text="Physical wheel / trackpad input → Rust handlers → native scrolling"/>
+<Checkbox id=prevent_default x=24px y=110px width=28px height=28px checked=bind:prevent_native_default/>
+<Text class="label" x=64px y=108px width=450px height=32px text="Prevent native default (at root handler)"/>
+<Button class="control" id=reset x=620px y=102px width=150px height=42px label="Reset" @button_click=self.reset/>
+<Button class="control" id=snapshot x=788px y=102px width=212px height=42px label="Snapshot to log" @button_click=self.snapshot/>
+<Text class="status" id=counts x=24px y=154px width=976px height=28px text={counts}/>
+<Text class="status" id=positions x=24px y=184px width=976px height=28px text={positions}/>
+<Text class="status" id=raw_event x=24px y=214px width=976px height=28px text={last_event}/>
+
+// Earlier siblings paint on top. This fixed overlay is deliberately unrelated
+// to either Scroller; neither viewport may inherit its native wheel default.
+<Group id=overlay x=410px y=410px width=220px height=90px @wheel=self.overlay_wheel>
+    <Text class="light" x=16px y=14px width=188px height=62px
+        text="ROOT OVERLAY · No viewport owns this input"/>
+    <Rectangle width=100% height=100% fill=rgb(159, 49, 64) corner_radius=12/>
+</Group>
+
+<Scroller id=outer x=24px y=260px width=760px height=430px corner_radius=40
+    scroll_width=1360px scroll_height=900px
+    scroll_pos_x=bind:outer_x scroll_pos_y=bind:outer_y @wheel=self.outer_wheel>
+    <Group width=1360px height=900px>
+        <Scroller id=inner x=80px y=100px width=440px height=260px corner_radius=32
+            scroll_width=940px scroll_height=660px
+            scroll_pos_x=bind:inner_x scroll_pos_y=bind:inner_y @wheel=self.inner_wheel>
+            <Group width=940px height=660px>
+                <Text class="light" x=24px y=20px width=800px height=32px text="INNER · both axes · rounded viewport"/>
+                for i in 0..8 {
+                    <Text class="light" x={(50 + i * 110)px} y={(120 + (i %% 3) * 110)px}
+                        width=60px height=26px text={"N" + i}/>
+                    <Ellipse x={(40 + i * 110)px} y={(110 + (i %% 3) * 110)px}
+                        width=80px height=80px fill=rgb(92, 76, 161)/>
+                }
+                <Path x=30px y=100px width=860px height=330px fill=TRANSPARENT stroke={paint: rgb(164, 150, 225), width: 3px}
+                    elements={[
+                        PathElement::Point(0%, 0%), PathElement::Line,
+                        PathElement::Point(20%, 50%), PathElement::Line,
+                        PathElement::Point(40%, 20%), PathElement::Line,
+                        PathElement::Point(60%, 90%), PathElement::Line,
+                        PathElement::Point(100%, 40%)
+                    ]}/>
+                for i in 0..16 {
+                    <Rectangle x={(i * 60)px} y=0px width=1px height=660px fill=rgb(55, 51, 82)/>
+                }
+                for i in 0..12 {
+                    <Rectangle x=0px y={(i * 60)px} width=940px height=1px fill=rgb(55, 51, 82)/>
+                }
+                <Rectangle width=940px height=660px fill=rgb(33, 29, 54)/>
+            </Group>
+        </Scroller>
+        <Text class="light" x=32px y=24px width=1250px height=32px text="OUTER · both axes · blue grid"/>
+        <Text class="light" x=570px y=350px width=430px height=70px text="Wheel here: outer + root only · Inner offsets stay still"/>
+        for i in 0..23 {
+            <Rectangle x={(i * 60)px} y=0px width=1px height=900px fill=rgb(41, 69, 92)/>
+        }
+        for i in 0..16 {
+            <Rectangle x=0px y={(i * 60)px} width=1360px height=1px fill=rgb(41, 69, 92)/>
+        }
+        <Rectangle width=1360px height=900px fill=rgb(21, 44, 65)/>
+    </Group>
+</Scroller>
+<Text class="label" x=808px y=268px width=192px height=400px
+    text="Start inside purple. Inner → outer → root: one increment each per delivered event. Red overlay: overlay + root only. Reset before checking rounded corners. Deltas are device input, not pixel offsets."/>
+<Text class="label" x=24px y=714px width=976px height=50px
+    text="Wait for momentum to settle before toggling cancellation. Reset returns all offsets and counters to zero. Hold modifiers to inspect the raw event; use a horizontal gesture for X."/>
+<Rectangle width=100% height=100% fill=rgb(241, 245, 249)/>
+
+@settings {
+    @mount: on_mount
+    @pre_render: pre_render
+    @wheel: root_wheel
+    .title { style: { font: { family: "Arial", url: "" }, font_size: 27px, fill: rgb(24, 35, 52) } }
+    .label { style: { font: { family: "Arial", url: "" }, font_size: 16px, fill: rgb(40, 55, 74) } }
+    .status { style: { font: { family: "Arial", url: "" }, font_size: 17px, fill: rgb(24, 35, 52) } }
+    .light { style: { font: { family: "Arial", url: "" }, font_size: 16px, fill: rgb(244, 242, 255) } }
+    .control {
+        style: {
+            font: { family: "Arial", url: "" }
+            font_size: 16px
+            fill: WHITE
+            align_horizontal: TextAlignHorizontal::Center
+            align_vertical: TextAlignVertical::Center
+        }
+        color: rgb(42, 68, 104)
+        hover_color: rgb(63, 96, 140)
+        outline: { paint: rgb(24, 35, 52), width: 1px }
+    }
+}

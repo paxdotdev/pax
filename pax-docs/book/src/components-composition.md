@@ -248,8 +248,14 @@ Migration: remove `#[main]` and `#[init(path)]` from the component, then add
 `pax_kit::runnable! { root: YourRoot, init: path }` beside the module declarations.
 The old `#[main]` plus optional `#[init(path)]` remains a compatibility shorthand
 when no explicit declaration exists. Mixing the legacy shorthand with explicit declarations produces an error.
+Its custom initializer can remain private to the library and runs only when that
+program is selected, including when another application reuses the component.
 Library use does not initialize or mount the application; each cartridge keeps
 its own platform entrypoints and immutable program definitions.
+Pax generates distinct native linker names automatically when runnable libraries
+are composed. No extra launcher crate or changes to a reused library are needed;
+see [entry and mounting](targets-build-deploy.md#entry-and-mounting) for the
+rebuild and shared-runtime requirements.
 
 For a lightweight embedded bundle, also separate **compilation** from mounting.
 A dependency's exported runnable entrypoints can retain application code even
@@ -280,7 +286,7 @@ target name (including a custom `[lib].name`); Cargo permits one library target
 per package. Without the table, Pax selects the host package's own library.
 The UI library needs `crate-type = ["rlib", "cdylib"]` and its Pax dependencies.
 The host needs the [native launcher target](targets-build-deploy.md#entry-and-mounting)
-when building for Apple. The direct dependency lets Cargo schedule the UI
+when building for Apple, Windows, or Linux. The direct dependency lets Cargo schedule the UI
 artifacts; metadata alone does not add a Cargo dependency. `init!()` selects
 that library through its metadata helper, including renamed dependencies,
 while preserving the separate native cartridge boundary.

@@ -10,6 +10,9 @@ use std::{
     time::Duration,
 };
 
+#[path = "desktop_artifacts.rs"]
+mod artifacts;
+
 pub(crate) fn validate_host_target(target: &RunTarget) -> Result<()> {
     if matches!(target, RunTarget::Windows) && !cfg!(target_os = "windows") {
         return Err(eyre!(
@@ -102,6 +105,35 @@ fn validate_package_destination(sdk: &Path, destination: &Path) -> Result<()> {
             sdk.display(),
             destination.display()
         ));
+    }
+    Ok(())
+}
+
+fn copy_sdk_runtime(source: &Path, destination: &Path, windows_release: bool) -> Result<()> {
+    if source.is_dir() {
+        fs::create_dir_all(destination)?;
+        for entry in fs::read_dir(source)? {
+            let entry = entry?;
+            copy_sdk_runtime(
+                &entry.path(),
+                &destination.join(entry.file_name()),
+                windows_release,
+            )?;
+        }
+    } else {
+        // Keep symbols and linker inputs in the SDK for debugging/relinking;
+        // runtime DLLs, PRI files and other resources still travel together.
+        let build_artifact = source
+            .extension()
+            .and_then(|value| value.to_str())
+            .is_some_and(|extension| {
+                ["pdb", "ilk", "exp", "lib", "obj"]
+                    .iter()
+                    .any(|excluded| extension.eq_ignore_ascii_case(excluded))
+            });
+        if !windows_release || !build_artifact {
+            fs::copy(source, destination)?;
+        }
     }
     Ok(())
 }
@@ -204,26 +236,13 @@ pub(crate) fn build(
                 == Some(host_manifest.as_path())
         })
         .ok_or_else(|| eyre!("Select a Pax application package"))?;
-    let bins: Vec<_> = package
-        .targets
-        .iter()
-        .filter(|target| {
-            target.kind.iter().any(|kind| kind == "bin")
-                && target
-                    .required_features
-                    .iter()
-                    .any(|feature| feature == "standalone")
-        })
-        .collect();
-    let selected = if let Some(name) = package.default_run.as_deref() {
-        bins.iter().copied().find(|target| target.name == name)
-    } else if bins.len() == 1 { Some(bins[0]) } else { None }
-        .ok_or_else(|| eyre!("Native launch requires a Cargo binary with required-features = [\"standalone\"]. Add src/main.rs using pax_kit::init!()?.run(), and set package.default-run when there is more than one launcher."))?;
+    let selected = crate::helpers::select_native_launcher(package)?;
     let mut requested = vec![platform];
     if ctx.should_run_designtime {
         requested.push("designtime");
     }
-    let mut features = if layout.cartridge_dir == ctx.project_path.canonicalize()? {
+    let same_package = layout.cartridge_dir == ctx.project_path.canonicalize()?;
+    let mut features = if same_package {
         helpers::pax_project_feature_args(&ctx.project_path, &requested)
     } else {
         let mut features =
@@ -240,6 +259,24 @@ pub(crate) fn build(
     features.sort();
     features.dedup();
     crate::validate_release_cargo_features(ctx, &ctx.project_path, &features, &[triple])?;
+    let destination = pax_dir
+        .join(helpers::BUILD_DIR_NAME)
+        .join(mode)
+        .join(platform);
+    let symbols_destination = destination.with_file_name("windows-symbols");
+    let cartridge = cartridge_name(&layout.library_name, windows);
+    let cartridge_source = layout.target_dir.join(triple).join(mode).join(&cartridge);
+    let frozen = if windows && same_package {
+        validate_package_destination(&sdk, &destination)?;
+        validate_package_destination(&sdk, &symbols_destination)?;
+        let temporary = tempfile::Builder::new()
+            .prefix("desktop-cartridge-")
+            .tempdir_in(pax_dir)?;
+        let pair = artifacts::freeze_cartridge(&cartridge_source, temporary.path())?;
+        Some((temporary, pair))
+    } else {
+        None
+    };
     timings.record("cargo/native launcher", || -> Result<()> {
         let mut command = Command::new("cargo");
         command
@@ -263,18 +300,25 @@ pub(crate) fn build(
         }
         checked(&mut command, ctx)
     })?;
-    let destination = pax_dir
-        .join(helpers::BUILD_DIR_NAME)
-        .join(mode)
-        .join(platform);
+    if let Some((temporary, pair)) = &frozen {
+        let launcher_symbols = metadata
+            .target_directory
+            .join(triple)
+            .join(mode)
+            .join(artifacts::launcher_pdb_name(&selected.name));
+        artifacts::stage_symbols(
+            &temporary.path().join("symbols"),
+            pair.symbols.as_deref(),
+            launcher_symbols.as_std_path(),
+        )?;
+    }
     validate_package_destination(&sdk, &destination)?;
     // This directory is CLI-owned output; replace stale SDK resources as a unit.
     if destination.exists() {
         fs::remove_dir_all(&destination)?;
     }
     fs::create_dir_all(&destination)?;
-    helpers::copy_dir_recursively(&sdk, &destination, &[])
-        .map_err(|error| eyre!(error.to_string()))?;
+    copy_sdk_runtime(&sdk, &destination, windows && ctx.is_release)?;
     let executable_name = format!("{}{}", selected.name, if windows { ".exe" } else { "" });
     let executable = destination.join(&executable_name);
     fs::copy(
@@ -299,9 +343,10 @@ pub(crate) fn build(
             ],
         )?;
     }
-    let cartridge = cartridge_name(&layout.library_name, windows);
     fs::copy(
-        layout.target_dir.join(triple).join(mode).join(&cartridge),
+        frozen
+            .as_ref()
+            .map_or(cartridge_source.as_path(), |(_, pair)| pair.image.as_path()),
         destination.join(&cartridge),
     )?;
     let mut roots = Vec::new();
@@ -313,8 +358,14 @@ pub(crate) fn build(
     }
     fs::write(
         destination.join("pax-app.json"),
-        serde_json::to_vec_pretty(&serde_json::json!({"cartridge":cartridge,"assets":roots}))?,
+        serde_json::to_vec_pretty(
+            &serde_json::json!({"cartridge":cartridge,"assets":roots,"nativeExports":layout.native_exports}),
+        )?,
     )?;
+    if let Some((temporary, _)) = &frozen {
+        artifacts::publish_symbols(&temporary.path().join("symbols"), &symbols_destination)?;
+    }
+    drop(frozen);
     if ctx.should_also_run {
         run(ctx, pax_dir, &executable, &manifest)?;
     }
@@ -367,6 +418,10 @@ mod tests {
     fn cartridges_use_platform_names_without_changing_library_identity() {
         assert_eq!(cartridge_name("my-ui", true), "my_ui.dll");
         assert_eq!(cartridge_name("my-ui", false), "libmy_ui.so");
+        assert_eq!(
+            artifacts::launcher_pdb_name("other-launcher"),
+            "other_launcher.pdb"
+        );
     }
     #[test]
     fn native_builds_reject_other_host_operating_systems() {
@@ -392,5 +447,137 @@ mod tests {
         assert!(validate_package_destination(&sdk, &sdk.join("package")).is_err());
         assert!(validate_package_destination(&sdk, &root.path().join("package")).is_ok());
         assert_eq!(fs::read(input).unwrap(), b"preserve SDK input");
+    }
+    #[test]
+    fn windows_release_keeps_runtime_resources_and_leaves_build_artifacts_in_sdk() {
+        let root = tempfile::tempdir().unwrap();
+        let sdk = root.path().join("sdk");
+        let runtime_files = [
+            "PaxHost.dll",
+            "resources/en-US/PaxHost.pri",
+            "host.manifest",
+        ];
+        let build_files = [
+            "PaxHost.PDB",
+            "PaxHost.ilk",
+            "PaxHost.exp",
+            "PaxHost.lib",
+            "obj/host.obj",
+        ];
+        for name in runtime_files.iter().chain(build_files.iter()) {
+            let source = sdk.join(name);
+            fs::create_dir_all(source.parent().unwrap()).unwrap();
+            fs::write(source, name.as_bytes()).unwrap();
+        }
+        let release = root.path().join("release");
+        copy_sdk_runtime(&sdk, &release, true).unwrap();
+        for name in runtime_files {
+            assert_eq!(fs::read(release.join(name)).unwrap(), name.as_bytes());
+        }
+        for name in build_files {
+            assert!(!release.join(name).exists());
+            assert_eq!(fs::read(sdk.join(name)).unwrap(), name.as_bytes());
+        }
+        // Debug Windows and Linux packages retain their existing copy behavior.
+        let unfiltered = root.path().join("unfiltered");
+        copy_sdk_runtime(&sdk, &unfiltered, false).unwrap();
+        for name in runtime_files.iter().chain(build_files.iter()) {
+            assert_eq!(fs::read(unfiltered.join(name)).unwrap(), name.as_bytes());
+        }
+    }
+
+    #[test]
+    fn windows_cartridge_and_symbols_survive_launcher_output_replacement() {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("application.dll");
+        let symbols = source.with_extension("pdb");
+        fs::write(&source, b"selected cartridge").unwrap();
+        fs::write(&symbols, b"cartridge symbols").unwrap();
+        let temporary = tempfile::tempdir_in(root.path()).unwrap();
+        let frozen = artifacts::freeze_cartridge(&source, temporary.path()).unwrap();
+        fs::write(&source, b"launcher-phase library").unwrap();
+        fs::write(&symbols, b"launcher symbols").unwrap();
+        let staged = temporary.path().join("symbols");
+        artifacts::stage_symbols(&staged, frozen.symbols.as_deref(), &symbols).unwrap();
+        let published = root.path().join("windows-symbols");
+        artifacts::publish_symbols(&staged, &published).unwrap();
+        assert_eq!(fs::read(frozen.image).unwrap(), b"selected cartridge");
+        assert_eq!(
+            fs::read(published.join("cartridge/application.pdb")).unwrap(),
+            b"cartridge symbols"
+        );
+        assert_eq!(
+            fs::read(published.join("launcher/application.pdb")).unwrap(),
+            b"launcher symbols"
+        );
+    }
+
+    #[test]
+    fn absent_optional_pdbs_remove_stale_published_symbols() {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("application.dll");
+        fs::write(&source, b"valid cartridge without symbols").unwrap();
+        let temporary = tempfile::tempdir_in(root.path()).unwrap();
+        let frozen = artifacts::freeze_cartridge(&source, temporary.path()).unwrap();
+        assert!(frozen.symbols.is_none());
+        let published = root.path().join("windows-symbols");
+        fs::create_dir_all(published.join("cartridge")).unwrap();
+        fs::write(published.join("cartridge/application.pdb"), b"stale").unwrap();
+        let staged = temporary.path().join("symbols");
+        artifacts::stage_symbols(&staged, None, &source.with_extension("pdb")).unwrap();
+        artifacts::publish_symbols(&staged, &published).unwrap();
+        assert_eq!(fs::read_dir(published).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn missing_images_and_unreadable_present_pdbs_fail() {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("application.dll");
+        let temporary = tempfile::tempdir_in(root.path()).unwrap();
+        assert!(artifacts::freeze_cartridge(&source, temporary.path()).is_err());
+        fs::write(&source, b"cartridge").unwrap();
+        fs::create_dir(source.with_extension("pdb")).unwrap();
+        assert!(artifacts::freeze_cartridge(&source, temporary.path()).is_err());
+        assert!(artifacts::stage_symbols(
+            &temporary.path().join("symbols"),
+            None,
+            &source.with_extension("pdb")
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn captured_pdb_disappearance_does_not_publish_a_partial_symbol_set() {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("application.dll");
+        fs::write(&source, b"cartridge").unwrap();
+        fs::write(source.with_extension("pdb"), b"symbols").unwrap();
+        let temporary = tempfile::tempdir_in(root.path()).unwrap();
+        let frozen = artifacts::freeze_cartridge(&source, temporary.path()).unwrap();
+        fs::remove_file(frozen.symbols.as_ref().unwrap()).unwrap();
+        let staged = temporary.path().join("symbols");
+        assert!(artifacts::stage_symbols(
+            &staged,
+            frozen.symbols.as_deref(),
+            &source.with_extension("pdb")
+        )
+        .is_err());
+        assert!(temporary.path().exists());
+        let temporary_path = temporary.path().to_owned();
+        drop(temporary);
+        assert!(!temporary_path.exists());
+    }
+
+    #[test]
+    fn missing_staged_symbols_preserve_the_previous_diagnostic_directory() {
+        let root = tempfile::tempdir().unwrap();
+        let published = root.path().join("windows-symbols");
+        fs::create_dir(&published).unwrap();
+        fs::write(published.join("previous.pdb"), b"previous build").unwrap();
+        assert!(artifacts::publish_symbols(&root.path().join("missing"), &published).is_err());
+        assert_eq!(
+            fs::read(published.join("previous.pdb")).unwrap(),
+            b"previous build"
+        );
     }
 }

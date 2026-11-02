@@ -25,9 +25,27 @@ the default cases compile the baked path even when using Cargo's debug profile.
 The widget's macOS, Windows, and Linux fields must follow the compilation target;
 none may leak from the build workstation into a wasm manifest. This qualifies
 source configuration and generated descriptors, not native Windows/Linux hosting.
-On macOS, a C ABI probe loads the generated dylib, rejects missing/unknown root
-names, creates two separate engines, and checks that each selected initializer
-runs once even though their component definitions overlap.
+The widget library also declares a runnable program with a private initializer.
+A native C ABI probe loads the generated library and reads the production launch
+recipe through a fixture-only observer. It resolves the five exact program export
+names, checks the ABI and content identity, and rejects generic aliases. It then
+rejects missing/unknown root names, creates two separate engines, and checks that
+each selected initializer runs once while the reused widget program's initializer
+stays untouched. Each probe runs in a separate process. This exercises the macOS
+or Windows/Linux C ABI without creating a window or initializing a GPU.
+
+For just the native export regression, pass `--native-exports-only`. This builds
+and probes debug baked, debug designtime, and release baked libraries. The full
+verifier also probes a release library after its configuration tests.
+Both modes repeat debug and release native probes with the dependency using the older
+`#[main]`/`#[init]` declarations used by the website's embedded examples; the
+original fixture source is restored in a `finally` block.
+Use `--legacy-exports-only` for just the modern debug baseline and those two
+compatibility probes.
+Pass `--macos-host-sdk PATH` to additionally prepare and close sessions through an
+already-built production macOS host SDK. The probe checks selected-root initialization,
+stale program rejection, absent generic aliases, and recovery after bad metadata.
+This is still a headless initialization check, not rendering qualification.
 The source-edit case restores its fixture file in a `finally` block.
 
 A temporary external-workspace case gives the component library an unrelated
@@ -64,7 +82,18 @@ predicate answers are cached within that compilation unit. One deterministic
 active runnable site emits the shared program catalog and ABI exports; repeated
 roots share immutable definitions. Disabled source files are never opened.
 
-This is a compiler acceptance fixture, not a rendering or native-launch test.
+The optional `standalone` binary selects `crate::Shell` through the ordinary
+`init_with!` API. It supports a full native packaging check without changing the
+headless verifier's default features. For example, with the CLI built from the
+same checkout:
+
+```sh
+pax-cli build --path pax-codegen/tests/fixtures/cfg-handoff/app --target ios
+```
+
+That command builds an iOS simulator application; it does not launch a simulator.
+The automated verifier remains a compiler and initialization acceptance test,
+not rendering qualification.
 Arbitrary Rust macros that generate component declarations, `include!`, and
 `#[path]` on inline modules are not supported by the source scanner. Multiple
 versions of a component dependency and compiler source-path remapping need

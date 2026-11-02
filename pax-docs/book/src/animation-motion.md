@@ -479,6 +479,21 @@ request to leave. Time-based lifecycle transitions finish on their millisecond
 clock even when rendering delivers fewer frames; frame-based transitions wait
 for the declared number of runtime ticks.
 
+With a literal duration, lifecycle completion follows the playback clock. A `1000ms` exit finishes on
+the first runtime tick at or after one elapsed second; it does not also require
+60 runtime ticks. A frame-based exit still waits for its authored tick count.
+If separate tracks use different clocks, the instance stays mounted until
+both finish. Mixed-unit markers within one track use that track's clock and the
+nominal conversion described above. A literal duration bounds playback and
+completion even when a keyframe is placed beyond that duration. A track's own
+duration replaces the block default for both playback and completion.
+
+Expression-based lifecycle durations currently retain additional completion
+gates from non-percentage markers. They can keep an instance mounted after its
+playback ends, particularly when the expression and markers use different
+units. Prefer percentage markers with dynamic durations, and keep those
+expressions valid; unresolved values retain the existing fallback behavior.
+
 The runtime enforces a five-second exit timeout to avoid retaining a node
 indefinitely. An exit that exceeds that limit can be truncated with a warning.
 Keep lifecycle exits short; use ordinary playback for a longer presentation.

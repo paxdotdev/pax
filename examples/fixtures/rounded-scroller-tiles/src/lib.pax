@@ -16,7 +16,7 @@
                 style={
                     font: {
                         family: "Space Grotesk"
-                        url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap"
+                        url: "assets/fonts/SpaceGrotesk.ttf"
                         weight: 600
                     }
                     font_size: 28px
@@ -36,7 +36,7 @@
                 style={
                     font: {
                         family: "Space Grotesk"
-                        url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap"
+                        url: "assets/fonts/SpaceGrotesk.ttf"
                     }
                     font_size: 15px
                     fill: rgba(170, 182, 198, 255)
@@ -101,7 +101,7 @@
                                             style={
                                                 font: {
                                                     family: "Space Grotesk"
-                                                    url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap"
+                                                    url: "assets/fonts/SpaceGrotesk.ttf"
                                                     weight: 500
                                                 }
                                                 font_size: 13px
@@ -151,7 +151,7 @@
                                             style={
                                                 font: {
                                                     family: "Space Grotesk"
-                                                    url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap"
+                                                    url: "assets/fonts/SpaceGrotesk.ttf"
                                                     weight: 500
                                                 }
                                                 font_size: 13px
@@ -201,7 +201,7 @@
                                             style={
                                                 font: {
                                                     family: "Space Grotesk"
-                                                    url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap"
+                                                    url: "assets/fonts/SpaceGrotesk.ttf"
                                                     weight: 500
                                                 }
                                                 font_size: 13px
@@ -261,7 +261,7 @@
                                             style={
                                                 font: {
                                                     family: "Space Grotesk"
-                                                    url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap"
+                                                    url: "assets/fonts/SpaceGrotesk.ttf"
                                                     weight: 500
                                                 }
                                                 font_size: 13px
@@ -311,7 +311,7 @@
                                             style={
                                                 font: {
                                                     family: "Space Grotesk"
-                                                    url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap"
+                                                    url: "assets/fonts/SpaceGrotesk.ttf"
                                                     weight: 500
                                                 }
                                                 font_size: 13px
@@ -361,7 +361,7 @@
                                         style={
                                             font: {
                                                 family: "Space Grotesk"
-                                                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap"
+                                                url: "assets/fonts/SpaceGrotesk.ttf"
                                                 weight: 500
                                             }
                                             font_size: 13px

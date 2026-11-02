@@ -1,6 +1,7 @@
 //! WinUI loads fonts through application resource URIs. Cargo launchers extract
 //! their embedded font inventory beside the executable; packaged apps already
-//! carry those files. Cache files are content-addressed and never overwritten.
+//! carry those files. Font license notices supplied beside the fonts travel in
+//! the same inventory. Cache files are content-addressed and never overwritten.
 use crate::Error;
 use sha2::{Digest, Sha256};
 use std::{

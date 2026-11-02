@@ -17,6 +17,7 @@ pax_kit::runnable! { root: crate::Example }
 #[file("lib.pax")]
 pub struct Example {
     pub ticks: Property<u64>,
+    pub paused: Property<bool>,
     pub callsign: Property<String>,
     pub selected_mode: Property<u32>,
     pub spectrum_band: Property<u32>,
@@ -112,10 +113,6 @@ impl Example {
     }
 
     pub fn handle_pre_render(&mut self, _ctx: &NodeContext) {
-        let ticks = self.ticks.get() + 1;
-        self.ticks.set(ticks);
-
-        let t = ticks as f64 / 60.0;
         let group_opacity = self.beam_gain.get().clamp(0.10, 1.0);
 
         self.scene_opacity.set_if_neq(group_opacity);
@@ -124,6 +121,14 @@ impl Example {
         self.mask_panel_opacity.set_if_neq(group_opacity);
         self.lattice_left_opacity.set_if_neq(group_opacity);
         self.lattice_right_opacity.set_if_neq(group_opacity);
+        // Freeze animation time while preserving native input and frame delivery.
+        // This also makes animated versus stable-scene resource checks repeatable.
+        if self.paused.get() {
+            return;
+        }
+        let ticks = self.ticks.get() + 1;
+        self.ticks.set(ticks);
+        let t = ticks as f64 / 60.0;
         self.halo_opacity.set(0.46 + 0.18 * wave(t * 0.43 + 2.0));
 
         self.orbit_a.set((t * 0.37).sin());
@@ -162,6 +167,10 @@ impl Example {
 
     pub fn increment_engage(&mut self, _ctx: &NodeContext, _args: Event<ButtonClick>) {
         self.engage_count.set(self.engage_count.get() + 1);
+    }
+
+    pub fn toggle_animation(&mut self, _ctx: &NodeContext, _args: Event<ButtonClick>) {
+        self.paused.set(!self.paused.get());
     }
 
     pub fn update_callsign(&mut self, _ctx: &NodeContext, args: Event<TextboxChange>) {

@@ -40,6 +40,12 @@ Whether this renderer belongs to the entry's current physical surface generation
 
 Create a renderer wrapper with its current tile geometry.
 
+##### `publication_revision`
+<pre><code class="api-signature language-rust ignore">pub fn publication_revision(&amp;self) -&gt; u64</code></pre>
+
+Submission revision for native offscreen publication. Zero means no
+retained scene has been flushed into this backing yet.
+
 ##### `renderer_mut`
 <pre><code class="api-signature language-rust ignore">pub fn renderer_mut(&amp;mut self) -&gt; &amp;mut <a href="../../../../api/internal/pax-gpu/render_context.md#wgpurenderer">WgpuRenderer</a>&lt;&#39;static&gt;</code></pre>
 
@@ -84,6 +90,15 @@ Runtime `RenderContext` implementation backed by `pax-gpu`/wgpu.
 <pre><code class="api-signature language-rust ignore">pub fn new(layer_factory: impl Fn(usize, <a href="../../../../api/internal/pax-runtime/engine/pax_gpu_render_context.md#layercreationrequest">LayerCreationRequest</a>) -&gt; Pin&lt;Box&lt;dyn Future&gt;&gt; + &#39;static) -&gt; Self</code></pre>
 
 Create a renderer that lazily asks the chassis for layer backends.
+
+##### `visit_ready_surfaces`
+<pre><code class="api-signature language-rust ignore">pub fn visit_ready_surfaces(&amp;self, visit: impl FnMut(usize, &amp;str, &amp;str, u64, &amp;<a href="../../../../api/internal/pax-gpu/render_context.md#wgpurenderer">WgpuRenderer</a>&lt;&#39;static&gt;))</code></pre>
+
+Visits initialized physical surfaces for native export after rendering.
+
+Call on the UI owner between render operations. The callback must not
+reenter this renderer. Mutable output textures must be copied on the
+same device queue before the next render; a handle is not a snapshot.
 
 ##### `with_layer_initialization_priority`
 <pre><code class="api-signature language-rust ignore">pub fn with_layer_initialization_priority(self, priority: impl Fn(usize) -&gt; i32 + &#39;static) -&gt; Self</code></pre>

@@ -1,0 +1,21 @@
+<Button x=24px y=24px width=150px height=44px label="Absolute" @button_click=self.absolute/>
+<Button x=188px y=24px width=150px height=44px label="Query" @button_click=self.query/>
+<Button x=352px y=24px width=150px height=44px label="Sibling" @button_click=self.sibling/>
+<Button x=516px y=24px width=150px height=44px label="Parent" @button_click=self.parent/>
+<Button x=680px y=24px width=150px height=44px label="Unicode" @button_click=self.unicode/>
+<Button x=24px y=84px width=150px height=44px label="Fragment" @button_click=self.fragment/>
+<Link x=188px y=84px width=150px height=44px url="/">
+    <Text width=100% height=100% text="Home link" style={font_size: 18px, fill: rgb(0, 72, 130), underline: true}/>
+</Link>
+<Group x=24px y=160px width={100% - 48px} height=220px>
+    <Router>
+        <Route default=true>
+            <RouteStatus width=100% height=100%/>
+        </Route>
+    </Router>
+</Group>
+<Text x=24px y=400px width={100% - 48px} text="Default Roboto: café, Ω, native offline text. @@@@@@@@" style={font_size: 26px, fill: BLACK}/>
+<Text x=24px y=450px width={100% - 48px} text="Default bold weight 700 @@@@@@@@" style={font: {weight: 700}, font_size: 26px, fill: BLACK}/>
+<Text x=24px y=500px width={100% - 48px} text="Default italic face @@@@@@@@" style={font: {style: FontStyle::Italic}, font_size: 26px, fill: BLACK}/>
+<Text x=24px y=580px width={100% - 48px} text="Routes update in place. Relative links use the current native location." style={font_size: 18px, fill: BLACK}/>
+<Rectangle width=100% height=100% fill=WHITE/>

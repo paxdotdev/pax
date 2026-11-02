@@ -4,7 +4,7 @@
             selectable=false style={
                 font: {
                     family: "Manrope"
-                    url: "/assets/fonts/Manrope.ttf"
+                    url: "assets/fonts/Manrope.ttf"
                 }
                 font_size: 12px
                 fill: {SiteTheme::paper()}

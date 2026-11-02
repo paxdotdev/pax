@@ -699,7 +699,7 @@
             style: {
                 font: {
                     family: "Fraunces"
-                    url: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,850&display=swap"
+                    url: "assets/fonts/Fraunces.ttf"
                     weight: 700
                 },
                 font_size: 46px,
@@ -715,7 +715,7 @@
             style: {
                 font: {
                     family: "Fraunces"
-                    url: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,650&display=swap"
+                    url: "assets/fonts/Fraunces.ttf"
                 },
                 font_size: 18px,
                 fill: rgba(67, 75, 58, 255),
@@ -730,7 +730,7 @@
             style: {
                 font: {
                     family: "Azeret Mono"
-                    url: "https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@500;700&display=swap"
+                    url: "assets/fonts/AzeretMono.ttf"
                     weight: 700
                 },
                 font_size: 12px,
@@ -746,7 +746,7 @@
             style: {
                 font: {
                     family: "Azeret Mono"
-                    url: "https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@500;700&display=swap"
+                    url: "assets/fonts/AzeretMono.ttf"
                     weight: 700
                 },
                 font_size: 12px,
@@ -762,7 +762,7 @@
             style: {
                 font: {
                     family: "Azeret Mono"
-                    url: "https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;600&display=swap"
+                    url: "assets/fonts/AzeretMono.ttf"
                 },
                 font_size: 11px,
                 fill: rgba(67, 75, 58, 255),
@@ -777,7 +777,7 @@
             style: {
                 font: {
                     family: "Fraunces"
-                    url: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,650;9..144,800&display=swap"
+                    url: "assets/fonts/Fraunces.ttf"
                     weight: 700
                 },
                 font_size: 28px,
@@ -793,7 +793,7 @@
             style: {
                 font: {
                     family: "Fraunces"
-                    url: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,650&display=swap"
+                    url: "assets/fonts/Fraunces.ttf"
                 },
                 font_size: 15px,
                 fill: rgba(67, 75, 58, 255),
@@ -808,7 +808,7 @@
             style: {
                 font: {
                     family: "Azeret Mono"
-                    url: "https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@700;800&display=swap"
+                    url: "assets/fonts/AzeretMono.ttf"
                     weight: 700
                 },
                 font_size: 18px,
@@ -901,7 +901,7 @@
             style: {
                 font: {
                     family: "Azeret Mono"
-                    url: "https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@700;800&display=swap"
+                    url: "assets/fonts/AzeretMono.ttf"
                     weight: 700
                 },
                 font_size: 11px,
@@ -924,7 +924,7 @@
             style: {
                 font: {
                     family: "Azeret Mono"
-                    url: "https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@700;800&display=swap"
+                    url: "assets/fonts/AzeretMono.ttf"
                     weight: 700
                 },
                 font_size: 13px,
@@ -950,7 +950,7 @@
             style: {
                 font: {
                     family: "Azeret Mono"
-                    url: "https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@500;700&display=swap"
+                    url: "assets/fonts/AzeretMono.ttf"
                 },
                 font_size: 14px,
                 fill: rgba(35, 39, 31, 255),
@@ -971,7 +971,7 @@
             style: {
                 font: {
                     family: "Azeret Mono"
-                    url: "https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@600;800&display=swap"
+                    url: "assets/fonts/AzeretMono.ttf"
                     weight: 700
                 },
                 font_size: 13px,
@@ -1003,7 +1003,7 @@
             style: {
                 font: {
                     family: "Azeret Mono"
-                    url: "https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@500;700&display=swap"
+                    url: "assets/fonts/AzeretMono.ttf"
                     weight: 700
                 },
                 font_size: 13px,

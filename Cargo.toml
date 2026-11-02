@@ -233,6 +233,15 @@ opt-level = 0
 [profile.dev.package.cuboid-router]
 opt-level = 0
 
+[profile.dev.package.native-scroll-snap]
+opt-level = 0
+
+[profile.dev.package.native-text-style]
+opt-level = 0
+
+[profile.dev.package.native-navigation]
+opt-level = 0
+
 [profile.release]
 lto = true
 opt-level = "z" 
@@ -247,6 +256,9 @@ spatial-workbench = { path = "examples/fixtures/spatial-workbench", default-feat
 logo-radiance = { path = "examples/fixtures/logo-radiance", default-features = false }
 light-space = { path = "examples/fixtures/light-space", default-features = false }
 led-oscilloscope = { path = "examples/led-oscilloscope", default-features = false }
+native-navigation = { path = "examples/fixtures/native-navigation", default-features = false }
+native-text-style = { path = "examples/fixtures/native-text-style", default-features = false }
+native-scroll-snap = { path = "examples/fixtures/native-scroll-snap", default-features = false }
 shader-studio = { path = "examples/fixtures/shader-studio", default-features = false }
 pax-kit = { path = "pax-kit", features = ["host", "designtime"] }
 # Workspace tests also select the web chassis directly, outside pax-engine's
@@ -495,3 +507,15 @@ path = "examples/fixtures/cuboid-router.rs"
 [[example]]
 name = "light-space"
 path = "examples/fixtures/light-space.rs"
+
+[[example]]
+name = "native-scroll-snap"
+path = "examples/fixtures/native-scroll-snap.rs"
+
+[[example]]
+name = "native-text-style"
+path = "examples/fixtures/native-text-style.rs"
+
+[[example]]
+name = "native-navigation"
+path = "examples/fixtures/native-navigation.rs"

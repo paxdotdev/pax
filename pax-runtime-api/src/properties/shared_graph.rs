@@ -34,6 +34,9 @@ impl GraphInbox {
             }
             let wake = state.pending.is_empty() && state.retired.is_empty();
             state.retired.insert(id);
+            if state.pending.insert(id) {
+                state.order.push_back(id);
+            }
             wake
         };
         if wake {
@@ -71,6 +74,7 @@ impl GraphInbox {
         let mut state = lock(&self.state);
         state.attached.remove(&id);
         state.pending.remove(&id);
+        state.retired.remove(&id);
         state.order.retain(|queued| *queued != id);
     }
 }
@@ -331,6 +335,20 @@ struct GraphInner {
     closed: Cell<bool>,
     frame_clock: RefCell<Option<LocalProperty<u64>>>,
     millis_clock: RefCell<Option<LocalProperty<u64>>>,
+    memory_diagnostic_turn: Option<Cell<u64>>,
+}
+
+fn memory_diagnostics_enabled() -> bool {
+    #[cfg(target_arch = "wasm32")]
+    {
+        false
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        *ENABLED
+            .get_or_init(|| std::env::var("PAX_PROPERTY_MEMORY_DIAGNOSTICS").as_deref() == Ok("1"))
+    }
 }
 
 impl Drop for GraphInner {
@@ -374,6 +392,7 @@ impl PropertyGraph {
                 closed: Cell::new(false),
                 frame_clock: RefCell::new(None),
                 millis_clock: RefCell::new(None),
+                memory_diagnostic_turn: memory_diagnostics_enabled().then(|| Cell::new(0)),
             }),
         }
     }
@@ -571,6 +590,9 @@ impl PropertyGraph {
 
     /// Imports at most `limit` queued identities in FIFO order and requests a
     /// further host turn if work remains. Repeated writes occupy one slot.
+    /// Final-owner notifications use the same budget and retire local bindings
+    /// on this thread; only imported values contribute to the return count.
+    /// Use [`Self::collect`] to drain all pending lifetime notifications explicitly.
     pub fn import_batch(&self, limit: usize) -> usize {
         self.import_batch_with_observer(limit, |_| {})
     }
@@ -593,14 +615,15 @@ impl PropertyGraph {
             let pending: Vec<_> = state.order.drain(..count).collect();
             for id in &pending {
                 state.pending.remove(id);
+                state.retired.remove(id);
             }
             pending
         };
         let actions: Vec<_> = {
             let attachments = self.inner.attachments.borrow();
             pending
-                .into_iter()
-                .filter_map(|id| attachments.get(&id)?.prepare_import())
+                .iter()
+                .filter_map(|id| attachments.get(id)?.prepare_import())
                 .collect()
         };
         let count = actions.len();
@@ -608,12 +631,56 @@ impl PropertyGraph {
             action();
         }
         completed("property_import");
-        self.collect();
+        // Publications and lifetime notifications share the finite FIFO budget.
+        // Check only this batch, including dormant bindings notified by local drops.
+        let dead = pending
+            .into_iter()
+            .filter(|id| {
+                if let Some(entry) = self.inner.attachments.borrow().get(id) {
+                    return !entry.live();
+                }
+                self.inner
+                    .dormant
+                    .borrow()
+                    .get(id)
+                    .is_some_and(|entry| !entry.live())
+            })
+            .collect();
+        self.retire(dead);
+        self.report_memory_diagnostics();
         completed("property_cleanup");
         if self.has_pending() {
             self.inner.inbox.wake();
         }
         count
+    }
+
+    fn report_memory_diagnostics(&self) {
+        let Some(turn) = &self.inner.memory_diagnostic_turn else {
+            return;
+        };
+        let next = turn.get().saturating_add(1);
+        turn.set(next);
+        if next != 1 && next % 120 != 0 {
+            return;
+        }
+        let (attached, pending, queued, inbox_capacity) = {
+            let state = lock(&self.inner.inbox.state);
+            (
+                state.attached.len(),
+                state.pending.len(),
+                state.order.len(),
+                state.order.capacity(),
+            )
+        };
+        // The local table belongs to the thread, so its count repeats when
+        // several graphs share that thread. Do not sum it across graph IDs.
+        let thread_properties = PROPERTY_TABLE.with(|table| table.total_properties_count());
+        println!("[PaxPropertyMemory] graph={} import_turns={} active={} dormant={} owner_entries={} scopes={} attached={} pending={} queued={} inbox_capacity={} thread_properties={}",
+            self.inner.id, next, self.inner.attachments.borrow().len(),
+            self.inner.dormant.borrow().len(), self.inner.owners.borrow().len(),
+            self.inner.scopes.borrow().len(), attached, pending, queued, inbox_capacity,
+            thread_properties);
     }
 
     /// Releases bindings notified by shared-owner or suspended-local destruction.
@@ -636,6 +703,10 @@ impl PropertyGraph {
                     .is_some_and(|entry| !entry.live())
             })
             .collect();
+        self.retire(dead);
+    }
+
+    fn retire(&self, dead: Vec<u64>) {
         let retired: Vec<_> = {
             let mut attachments = self.inner.attachments.borrow_mut();
             dead.into_iter()

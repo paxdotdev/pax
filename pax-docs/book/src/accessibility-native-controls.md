@@ -14,7 +14,7 @@ This chapter builds on [Properties](state-properties.md) and
 [Event Handling](event-handling-rust.md). It starts with a small form, then
 covers keyboard interaction, accessibility, and photo selection. The
 [current support](#current-support) section identifies differences to check
-when shipping on web, macOS, iOS, or iPadOS.
+when shipping on web, Apple, or the alpha Windows/Linux hosts.
 
 <a id="native-controls"></a>
 
@@ -155,6 +155,14 @@ control-specific bindings; ordinary pointer events are covered in
 `selected_id` is a zero-based **index into `options`**, despite its name. The
 first option is index `0`. Keep the index valid when replacing or reordering
 the options; map it to your application's own identifier in Rust when needed.
+On web, replacing options preserves the requested index even when the index
+itself has not changed. An empty list or an out-of-range index shows no selected
+option; refilling the list restores that index if it becomes valid again.
+
+Multiple Sliders can bind to the same property, including Sliders inside a
+repeated template. Native input updates their peers; synchronizing those peers
+does not emit additional `@slider_change` events. A handler can replace an
+incoming value, and the originating native control receives that correction.
 
 On both web and Apple chassis, native input updates the relevant control
 property before calling its TextboxInput, CheckboxChange, or SliderChange
@@ -222,7 +230,7 @@ empty control. Then place it in the template:
 <ComboBox width=240px height=36px
     options=["Alpha", "Beta", "Gamma"]
     text=bind:self.query selected=bind:self.choice
-    background=WHITE stroke={color: rgb(155, 170, 153), width: 1px}
+    background=WHITE stroke={paint: rgb(155, 170, 153), width: 1px}
     style={font_size: 16px, fill: rgb(36, 54, 47)} />
 ```
 
@@ -293,8 +301,9 @@ tab-order property. Changes to element order, conditional content, or
 compositing can therefore affect the path through the form. Walk that path
 with a keyboard in the actual application.
 
-While a native element has focus on web, the chassis leaves its keyboard
-input with that element. A component's `@key_down` is not a text-entry hook
+On web and the alpha Windows/Linux hosts, a focused native control keeps
+its keyboard input instead of also dispatching canvas shortcuts. A component's
+`@key_down` is not a text-entry hook
 or a way to make a drawn widget focusable. See
 [Keyboard events](event-handling-rust.md#keyboard-delivery) for the app-level
 event boundary.
@@ -471,14 +480,56 @@ pax-cli run --path examples/fixtures/photo-picker --target web
 
 ## Current support
 
-The experimental Windows and Linux hosts initially provide plain Text,
-Textbox, Button, Checkbox, Frame, Scroller, and EventBlocker. They use real
+The alpha Windows and Linux hosts provide plain Text,
+Textbox, Button, Checkbox, Slider, Dropdown, RadioList, Frame, Scroller, and
+EventBlocker. They use real
 WinUI or GTK controls; styling and rich-text capabilities remain narrower than
 the web/Apple paths described in this chapter. Other native control families
 report unsupported errors. Do not infer full input-method, touch, screen-reader,
-or keyboard-navigation qualification from basic editing and click tests. Use
-explicit local or bundled [fonts](text-fonts-images.md#fonts-on-experimental-desktop-hosts)
-and follow the [desktop prerequisites](targets-build-deploy.md#experimental-windows-and-linux-desktop).
+or keyboard-navigation qualification from basic editing and click tests. The
+default Roboto font is packaged for offline use; other fonts need a system
+family or a bundled file. See [desktop fonts](text-fonts-images.md#fonts-on-experimental-desktop-hosts)
+and the [desktop prerequisites](targets-build-deploy.md#experimental-windows-and-linux-desktop).
+Desktop Sliders require finite `min <= max`, a finite value, and a positive
+finite step with a representable range/step quotient. Programmatic values are
+clamped to the range without snapping to the step grid or generating input
+events. Native user changes snap to a grid anchored at `min`. Keep authored
+values on that grid when matching web, whose native range element can sanitize
+off-grid values. Desktop Dropdown and RadioList preserve the requested index
+across option replacement; an invalid index or an empty list has no native
+selection and does not generate a sentinel selection event.
+Dropdown popups are separate native UI surfaces. A correctly transformed or
+masked closed control does not establish popup placement or clipping; test
+those interactions separately on the intended desktop.
+The Windows host applies Button `color`, `hover_color`, `outline_stroke_color`,
+and `outline_stroke_width` to the genuine WinUI control. Hover and pressed states
+both use `hover_color`; reactive changes update the existing native brushes.
+This does not establish parity for every native control's visual states.
+The Linux host applies authored Button background, hover/pressed color, border
+and radius through styles scoped to the genuine GTK control. Textbox applies
+its background, border, focus outline and radius to single-line and multiline
+editors. Reactive changes retain the editor and its content. Native focus and
+input handling remain in GTK. Check contrast and state appearance on the
+intended desktop; these paths do not establish visual parity for every control.
+See [desktop text styling](text-fonts-images.md#text-styling-on-experimental-desktop-hosts)
+for font, underline and alignment support by control type.
+For enlarged text, leave the dimensions that should grow unspecified.
+The desktop font guide describes live remeasurement on Windows and Linux,
+the settings paths tested, and the limits of explicitly fixed dimensions.
+The Linux fixture has passed real IBus/libpinyin composition, commit/cancel,
+Unicode selection, and external AT-SPI text/button checks on the qualified
+Ubuntu/NVIDIA configuration, including its GTK 4.22 Flatpak package. This
+coverage does not establish other input engines or screen-reader workflows.
+On Windows Server 2022, Microsoft Japanese IME checks cover real preedit,
+candidate selection, commit/cancel, Unicode selection, and candidate positioning
+after translating, rotating, or scrolling editors inside nested scrollers.
+Closing during active composition also passes the resource-retirement check.
+Composition during ongoing transforms, other Windows versions/input engines,
+and screen-reader workflows remain unqualified.
+On the qualified Server image, native UI Automation COM clients read selected
+editor and selectable Text content successfully. The managed PowerShell text
+range client crashes during equivalent readback while the app remains running;
+this limits that automation path and does not establish screen-reader support.
 Translucent vectors overlapping native controls also have unresolved
 [desktop blending limits](targets-build-deploy.md#current-desktop-limits).
 
@@ -495,6 +546,12 @@ Pax API does not make every platform detail identical:
   limits described above.
 - Accessibility remains a partial foundation. Test required keyboard and
   assistive-technology behavior on each shipping target.
+
+The [`native-controls` fixture](https://github.com/paxdotdev/pax/blob/main/examples/fixtures/native-controls/README.md)
+exercises shared slider values, dynamic option lists, programmatic range changes,
+transformed controls, and a rounded Scroller without a clipping Frame ancestor.
+Use it alongside larger scenes; successful control bindings do not establish
+popup compositing, scrolling latency, or screen-reader workflows.
 
 ## Read more
 

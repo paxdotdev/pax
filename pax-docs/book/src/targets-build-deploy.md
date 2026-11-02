@@ -6,8 +6,8 @@ A running development project is the starting point. To put it in someone
 else's hands, choose a target, build its artifacts, and check those artifacts
 in the environment where people will use them.
 
-Pax targets web, macOS, iOS, and iPadOS. Web releases can be served as static
-files. macOS has a release build path; distribution adds Apple's signing and
+Pax targets web, macOS, iOS, iPadOS, and alpha Windows/Linux desktop. Web
+releases can be served as static files. macOS has a release build path; distribution adds Apple's signing and
 packaging steps. iOS and iPadOS support debug and release builds, including
 local simulator and connected-device runs. [Apple distribution](#apple-distribution)
 requires additional signing and delivery steps.
@@ -64,10 +64,10 @@ The target is where the application runs. The workstation is where you compile i
 | macOS application | `macos` | macOS | Rust, full Xcode, and the selected Apple Rust targets |
 | iPhone application | `ios` | macOS | Rust, full Xcode, iOS SDK/simulator, and the selected Apple Rust target |
 | iPad application | `ipados` | macOS | The same Apple toolchain, with an iPad simulator or device |
-| Experimental Windows desktop | `windows` | Windows | Rust MSVC target, Visual Studio C++ tools, Windows SDK, Windows App Runtime 1.8, compatible DX12 GPU |
-| Experimental Linux desktop | `linux` | Linux | Rust GNU target, GTK 4.14+, EGL/Vulkan development/runtime dependencies, compatible GPU/driver |
+| Windows desktop (alpha) | `windows` | Windows | Rust MSVC target, Visual Studio C++ tools, Windows SDK, Windows App Runtime 1.8, compatible DX12 GPU |
+| Linux desktop (alpha) | `linux` | Linux | Rust GNU target, GTK 4.14+, EGL/Vulkan development/runtime dependencies, compatible GPU/driver |
 
-`ipad` is also accepted as an alias for `ipados`. The experimental desktop
+`ipad` is also accepted as an alias for `ipados`. The alpha desktop
 targets require building on the corresponding operating system; their native
 packager does not cross-compile from macOS. See [workstation setup](getting-started.md#prepare-your-workstation)
 for installation commands and [Apple preparation](#prepare-the-apple-toolchain)
@@ -165,7 +165,9 @@ cfgs, features, and profile, then reads that manifest to package routes and asse
 Apple packaging obtains its manifest during a target `cargo build` and reuses
 the compiled library in its platform build. Neither needs a separate
 `cargo check` compilation to extract the manifest.
-If several standalone binaries exist, set `default-run`.
+If several standalone binaries exist, set `default-run` to one of them. A sole
+standalone binary is selected even when Cargo's `default-run` names a separate
+development wrapper; ordinary `cargo run` keeps its existing default.
 A host package may select a separate workspace UI library
 through `[package.metadata.pax.cartridge]`; see
 [workspace cartridge selection](components-composition.md#use-a-separate-ui-package).
@@ -192,7 +194,7 @@ The actual application `main` runs on all three Apple targets, including iOS and
 iPadOS. `run` hands control to SwiftUI and normally never returns on mobile. Web
 builds compile the UI library and JavaScript explicitly invokes its `init_web`;
 importing the module does not mount it. Android remains unsupported. Windows and
-Linux use experimental desktop hosts with the limits below.
+Linux use alpha desktop hosts with the limits below.
 
 On macOS, `init_with!(InitOptions::default())?.run_with(WindowOptions { ... })`
 accepts window geometry and title. The function forms `pax_kit::init()` and
@@ -218,6 +220,26 @@ A runnable library can also supply components to another runnable library.
 Reusing its components does not mount its application or call its initializer.
 For web builds, Pax packaging exposes the selected cartridge as `init_web`;
 dependency entrypoints remain distinct even when Cargo features are shared.
+
+Native builds also give each runnable library distinct program entrypoints.
+Pax derives their linker names from Cargo's full package identity and library
+target, and passes the selected names to the host automatically. Keep the same
+application package, `pax-kit` dependency, `main`, and `init!`/`init_with!` calls;
+reusing another runnable library requires no launcher crate or library edits.
+Dependency aliases do not choose which program runs.
+
+These generated symbols are an internal linking contract. Rebuild the launcher,
+UI library, and native host together when updating Pax; old generic exports such
+as `pax_init_entry` are no longer emitted. Within one Cargo library identity,
+export names remain stable across code edits and target architectures. The content identity
+still detects stale direct-Cargo cartridges. Packaged hosts carry their selected
+names with the application, including generated C/Swift bindings on Apple.
+
+All linked programs still need one compatible Pax runtime. Distinct entrypoints
+do not make incompatible runtime versions interoperable or remove the current
+single-active-native-mount limit. Multiple runnable libraries can also retain
+additional code and program data; measure the resulting application size and
+startup cost for substantial embedded examples.
 
 ### Mount in an existing application
 
@@ -340,7 +362,7 @@ In the repository, use `cargo run -p increment` or `cargo run --example incremen
 The package form compiles fewer unrelated example dependencies. Application
 arguments follow Cargo's `--`; Pax initialization does not intercept them.
 Native Linux and Windows use the separate
-[experimental desktop workflow](#experimental-windows-and-linux-desktop),
+[alpha desktop workflow](#experimental-windows-and-linux-desktop),
 including its target-specific prerequisites and direct Cargo build steps.
 
 For a development session with template reload, serving, or simulator deployment:
@@ -723,14 +745,23 @@ as well as a fresh load. A versioned asset layout can keep old and new clients
 from fetching incompatible files; it requires an explicit URL/hosting plan,
 since Pax does not automatically hash all of these filenames.
 
-## Experimental Windows and Linux desktop
+<a id="experimental-windows-and-linux-desktop"></a>
+
+## Windows and Linux desktop (alpha)
 
 These hosts connect the same Pax engine and cartridge to real WinUI 3 controls
 on Windows and GTK 4 controls on Linux. Vector layers use GPU exports and native
 composition; native editors remain operating-system controls. Neither host has
-a CPU presentation fallback. Treat them as experimental: the initial acceptance
-environment is Windows Server 2022 and Ubuntu 24.04/NVIDIA Xorg, not a claim of
-Windows 10/11, every Linux driver, Wayland, or ARM64 qualification.
+a CPU presentation fallback. These targets are alpha: broadly usable for early
+application development on the qualified configurations, with the limits below.
+Debug and baked Release application acceptance covers Windows Server 2022 and
+Ubuntu 24.04 on NVIDIA T4 hardware, including ordinary CLI-created projects and
+relocated package launches without access to the source/build tree. Linux also has
+a bounded native Wayland check under headless Weston, alongside the interactive
+Xorg checks. These results do not establish Windows 10/11, physical Wayland
+desktops, every Linux driver, or ARM64 qualification. Windows checks include
+fresh launches at 100% and 125% display scale (96 and 120 DPI); live transitions
+between monitors with different DPI remain unqualified.
 
 Use an ordinary Rust launcher and library as shown in
 [Entry and mounting](#entry-and-mounting). The repository's
@@ -748,13 +779,19 @@ hardware adapter and D3D11On12/composition support are required; WARP is not
 selected as a fallback. Installing a newer, separate Windows App Runtime major
 version alone does not supply the required 1.8 framework.
 
+A receiving Windows machine also needs compatible Visual C++ x64 runtime
+libraries. The copied Release fixture passed under a fresh non-admin account
+on the qualified Server image with Windows App Runtime 1.8 and Visual C++
+14.44.35211 already installed, with build-tool environment variables removed.
+This establishes a fresh-user launch, not a clean-machine installer workflow.
+
 On Ubuntu 24.04, install the development dependencies:
 
 ```sh
 sudo apt install build-essential pkg-config libssl-dev libgtk-4-dev \
   libepoxy-dev libjson-glib-dev libfontconfig1-dev libvulkan1
 pkg-config --atleast-version=4.14 gtk4
-pkg-config --modversion gtk4 epoxy json-glib-1.0 fontconfig
+pkg-config --modversion gtk4 epoxy json-glib-1.0 fontconfig pangoft2
 ```
 
 GTK older than 4.14 is insufficient. The GPU/driver must support Vulkan DMA-BUF
@@ -762,6 +799,11 @@ exports, foreign queue ownership, and SYNC_FD synchronization, together with EGL
 native fences, DMA-BUF modifiers, and GLES external images. Installing the
 packages alone does not establish those capabilities. Use `GSK_RENDERER=ngl`;
 GTK 4.14's legacy `gl` renderer has a known import failure in this path.
+GTK 4.14.5 also consumes vertical wheel input over a nested horizontal-only
+scroller instead of letting the outer scroller handle it. For applications with
+that layout, use a newer GTK such as the optional GTK 4.22 runtime below. This
+limitation concerns native input routing, independently of GPU rendering.
+
 `PAX_GPU_DEVICE_UUID` can select an exact Vulkan device with 32 hexadecimal
 digits. Unsupported hardware fails explicitly.
 
@@ -781,6 +823,25 @@ ordered asset directories, and `pax-app.json` are placed in
 `.pax/build/<debug-or-release>/<windows-or-linux>/`. Keep the complete directory
 together when moving it. Packages do not include an installer, signing, the
 Windows App Runtime, or Linux system libraries.
+
+Windows Release packages omit native SDK debug symbols and linker intermediates
+(`.pdb`, `.ilk`, `.exp`, `.lib`, and `.obj`). These remain in the SDK directory
+for debugging or relinking. Runtime DLLs and their resource files stay in the
+package; Debug packages retain the full SDK contents.
+
+For Windows projects whose launcher and UI library share one Cargo package,
+the CLI preserves the selected cartridge before building the launcher. Available
+application PDBs are kept beside the runtime package in
+`.pax/build/<debug-or-release>/windows-symbols/cartridge/` and `launcher/`.
+These separate directories preserve both symbol files when Cargo gives them
+the same filename. Add both directories to your debugger's symbol search path.
+A successful build replaces the diagnostic directory, removing previously
+published symbol files whose corresponding PDB output is absent.
+PDBs are optional and are not added to the runtime package. This preservation
+does not yet apply to a separately packaged cartridge or direct Cargo builds;
+Cargo's same-name output warning may still appear. Useful private function and
+line diagnostics require a profile that retains debug information; preserving
+a stripped Release PDB alone does not restore that information.
 
 `PAX_HOST_SDK_DIR` selects an explicitly prebuilt native SDK directory for Cargo
 and CLI packaging. Match its platform, architecture, and Debug/Release profile.
@@ -811,31 +872,184 @@ setup does not replace these declarations. The repository's
 `pax-compiler/files/windows-launcher.manifest` is only a compatibility/DPI
 fragment for merging, not a complete application manifest.
 
+#### Optional GTK 4.22 runtime package
+
+The repository's `scripts/package-linux-flatpak.py` wraps an existing **x86_64
+Linux Release package** in a local Flatpak bundle using GNOME Platform 50. Run
+the helper on Linux with Python 3.11 or later and Flatpak installed. This
+lets the application use GTK 4.22 without replacing the distribution's GTK.
+It does not rebuild the Rust application or download an SDK. The ordinary
+system-library package remains available. This wrapper is experimental: the
+generated fixture bundle passed native controls, assets, keyboard, IBus/AT-SPI,
+scrolling, resize, and resource-retirement checks on Ubuntu 24.04/NVIDIA T4 with
+GTK 4.22.5. Its native Wayland GPU path also passed under headless Weston;
+physical Wayland input and other distributions/drivers remain unqualified.
+
+Install Flatpak and the appropriate desktop portal through your distribution,
+then install the signed runtime for your user:
+
+```sh
+flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+flatpak install --user flathub org.gnome.Platform//50
+flatpak info --user --show-commit org.gnome.Platform/x86_64/50
+```
+
+Graphics extensions must match the host driver. Flatpak supplies the runtime's
+userspace libraries; it cannot supply a missing kernel GPU capability. The
+October 16, 2026 T4 pilot used GTK 4.22.5 with the matching NVIDIA extension.
+Its cold Flatpak installation occupied about **3.4 GB**, including automatically
+selected graphics and codec extensions, alongside a 19 MB application payload.
+Existing Flatpak applications can share these dependencies. This measurement
+does not establish the footprint on other drivers or distributions.
+
+Record the installed runtime checksum above and review it as part of application
+qualification. Pass that expected checksum when packaging; a different installed
+runtime makes the helper fail before producing output. For example, with the
+October 18 pilot's qualified checksum and a fixed application-build timestamp:
+
+```sh
+python3 scripts/package-linux-flatpak.py \
+  --package examples/fixtures/native-desktop-smoke/.pax/build/release/linux \
+  --launcher native-desktop-smoke \
+  --app-id org.paxlang.NativeDesktopSmoke \
+  --runtime-commit 7e410fa0d429fcc34f2ddd0d9b6224f1435d8640fb9759801db4f02700542353 \
+  --timestamp 1792141200 \
+  --output /tmp/pax-flatpak-package
+flatpak install --user /tmp/pax-flatpak-package/org.paxlang.NativeDesktopSmoke.flatpak
+flatpak run --branch=pilot org.paxlang.NativeDesktopSmoke
+```
+
+The helper exports the `pilot` branch; select it explicitly when launching or
+inspecting an installation that also has another branch of the same app.
+
+Use a fresh output directory. It contains the bundle, local repository, input
+hashes, runtime provenance, application commit, and bundle checksum. The helper
+never installs or publishes the bundle. Compare `appCommit` in `result.json` to
+identify the exported application contents. Two pilot builds produced identical
+application commits and input inventories, but different bundle checksums because
+the bundle container includes its creation time. Byte-identical bundle
+reproduction, reproducible source builds, and a signed distribution channel are
+not established.
+
+The runtime checksum records the packaging environment. Flatpak applications
+depend on a runtime **branch**, so installed runtime updates still require
+regression testing; the bundle does not freeze GTK to that checksum.
+Installing a local bundle can also update its runtime dependencies. For a
+qualification run against an already installed runtime and graphics extensions,
+add `--no-deps --no-related` to `flatpak install` and record the runtime checksum
+again before testing. Those options do not install missing dependencies.
+
+The wrapper grants GPU, IPC, Wayland, and fallback X11 access. It grants no
+network, home-directory, or general session-bus access. Applications needing
+additional resources require an explicit permission and portal design. The
+existing native-host, GPU, and composition limits still apply.
+
 ### Current desktop limits
 
-Start with plain Text, Textbox, Button, Checkbox, Frame, and Scroller. Additional
+Start with plain Text, Textbox, Button, Checkbox, Slider, Dropdown, RadioList,
+Frame, Scroller, and EventBlocker. Additional
 control families and rich text behavior do not have full parity; see
 [native-control support](accessibility-native-controls.md#current-support).
-Use explicit system font families or bundled font files, including on buttons
-and editors. The default remote Roboto source is not supported by these hosts;
-see [desktop fonts](text-fonts-images.md#fonts-on-experimental-desktop-hosts).
+The default Roboto font is bundled for offline text and controls. Other fonts
+must use explicit system families or bundled files; general remote font sources
+are not supported. See
+[desktop fonts](text-fonts-images.md#fonts-on-experimental-desktop-hosts).
 
-Translucent vectors overlapping native controls do not yet have qualified color
-fidelity. On Linux, foreground colors are attenuated twice over native controls,
-making them appear too faint. Windows uses the same GPU-underlay/native-mask
-arrangement and remains unqualified for this case. Opaque occlusion and native
-input checks do not establish correct fractional blending.
+Windows queues image bursts beyond eight active decoders while retaining its
+32 MiB decoded-pixel limit per image. Linux image decoding currently runs on
+the GTK thread. See [image loading](text-fonts-images.md#image-sources) for the
+loading and memory boundaries when building image-heavy scenes.
+
+Canvas keyboard events and native editor input follow separate focus paths.
+See [keyboard delivery](event-handling-rust.md#keyboard-delivery) for shortcuts,
+default prevention, and the boundary with platform text entry.
+
+Windows services native input, resize, and normal close between runtime frames
+even during continuous property publication. Property wakeups are coalesced
+behind native UI work so they cannot form an uninterrupted chain of frame
+callbacks. An expensive runtime frame can still delay interaction; this
+scheduling behavior does not establish a frame-rate guarantee.
+
+Windows represents finite negative native viewport or scroller-content dimensions
+as zero-sized native regions. Linux also normalizes negative scroller-content
+dimensions to an empty native box, at least as large as its nonnegative viewport.
+A responsive expression such as `{100% - 28px}`
+can temporarily become negative when its parent collapses; the native region
+expands again when the computed size becomes positive. This adaptation does not
+rewrite the application's properties. Nonfinite scroller-content sizes remain
+errors; Linux also rejects extents that exceed GTK's integer dimension range.
+
+Windows Scroller uses an experimental WinUI `ScrollViewer` adapter. It forwards
+raw mouse-wheel input to Pax before native defaults and retains the original
+native event when an axis with no travel declines it, so a vertical ancestor
+can handle input over a horizontal-only child. Native mandatory snapping uses
+`IScrollSnapPointsInfo`; no ancestor offsets are changed manually. Server 2022/T4
+checks cover native axis routing, snapping, masking, clipping, retained placement,
+rich text, and default prevention in visible and captured native controls.
+Ordinary Debug and default baked Release Rust-callback wheel fixtures each
+passed 121 assertions across 14 cases with 30 native observations and normal
+retirement. Both used the ordinary CLI and automatic SDK without an override,
+including the DX12 cache-budget and startup-subtiming changes. Fresh snapping
+fixtures on that same core passed 36 checks each in ordinary Debug
+and workspace-default baked Release (opt-level `z`, LTO on, one codegen unit),
+using the ordinary CLI and automatic embedded SDK without an override.
+
+The October 26 CLI Release website checks cover embedded demos, all 72 exact
+source occurrences in six ordered drawers, and local-route retirement and
+return-home wheel response. The package with the D3D12 cache allocation-budget
+correction and startup reconciliation diagnostics qualified that scope across
+two runs: an interrupted combined run and a successful resource-section/route
+replay. Exact source occurrence union and normal retirement were audited; this
+is aggregate coverage, not a single uninterrupted pass. The earlier package
+passed a single 1,213-check combined matrix. Both used the standalone opt-level
+`3`, LTO-off, 16-codegen-unit profile and automatic SDK without an override.
+Separate earlier-package checks cover native text selection and clipboard copy,
+code scrolling, responsive resize, and timed traversal. Optional extended demo
+interactions and exhaustive whole-website behavior remain outside these matrices.
+The [Windows probe guide](https://github.com/paxdotdev/pax/blob/main/tests/src/native-platform-probes/windows/README.md#website-acceptance-workload)
+records exact package provenance, profiles, scope and measurement limits.
+A nonempty inner viewport currently consumes same-axis wheel input at its start
+or end; reversing direction scrolls that inner viewport again. Precision touchpads,
+touchscreens, open native popups, and Windows client versions still need
+qualification. See [wheel and movement limits](scrolling-viewports.md#position-versus-scroll-events)
+and [native-mask coverage](compositing-effects.md#coverage-has-limits).
+
+These hosts retain the alpha-only punch-through approximation used by the
+web and Apple chassis. Translucent vectors overlapping native controls can be
+attenuated twice, making their colors appear too faint or revealing the wrong
+background contribution. This is a known limitation of the initial desktop
+targets; opaque occlusion and native input checks do not establish exact
+fractional blending. See [coverage limits](compositing-effects.md#coverage-has-limits)
+for a concrete color example and guidance on avoiding affected overlaps.
 
 Both hosts bound export storage and apply backpressure while retained frames
-are in use. Device loss is not recovered automatically. If the Linux driver
+are in use. Scroller vector tiles acquire GPU backing only near the window and
+their ancestor clips, with a 384-pixel warm margin. Leaving that region releases
+the backing surfaces; returning recreates and repaints them. This does not
+unmount native controls or application state. Layers with content that escapes
+its scroller's clip domain retain their ordinary tile plan conservatively, so
+this optimization does not guarantee a fixed total surface count for every scene.
+Device loss is not recovered automatically. If the Linux driver
 cannot prove that a GPU operation completed, cleanup can remain pending while
 its resources stay retained. Linux's
 logical texture quotas do not establish a strict physical-driver-memory bound
-for outstanding GTK compositor reads. Validate sustained animation, resize,
+for outstanding GTK compositor reads. The shared renderer budgets its CPU
+geometry history by retained allocation capacity, including unused reserved
+space. This cache budget is not a limit on total process memory: visible-node
+geometry, allocator and driver pools, and screenshot capture have separate
+costs. For sustained-memory qualification, compare animated, paused, and resumed
+intervals without screenshot readback, then test capture separately. See
+[native timing and memory measurement](how-pax-runs.md#native-render-phase-timings)
+for the measurement limits. Validate sustained animation, resize,
 shutdown, input methods, and accessibility with the drivers and operating
-systems intended for distribution. Windows currently supports a standalone
-window, not embedding through `mount`; GTK embedding requires its main thread
-and a compatible caller-owned container. Under prolonged Windows publication
+systems intended for distribution. The initial desktop workflow supports
+standalone windows. `pax_kit::Application::mount` remains Apple-only; the
+lower-level GTK mounting path has not been qualified. `Link` and
+`ctx.navigate_to` update the in-app location for current-target relative paths;
+absolute external URIs use the operating system's launcher. Native routing
+does not add a browser history stack or OS deep-link registration. See
+[native locations](routing.md#native-locations) for relative-path and encoding
+behavior. Under prolonged Windows publication
 backpressure, generic scene-pointer hit testing can observe newer runtime
 geometry than the displayed frame; native controls retain their stable event
 IDs. This input/presentation gap remains a qualification limit.

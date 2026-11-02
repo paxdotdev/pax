@@ -50,13 +50,15 @@ Optional override for whether autosize manages the `y` axis.
 Type: `Property`<`f64`>
 
 Corner radius for the scroller clipping region, in pixels.
+When clipping is enabled, pointer targeting follows the same rounded boundary.
 
 ##### `snap_positions_x`
 Type: `Property`<`Vec`<[`Size`](../../../api/pax-runtime-api/layout.md#size)>>
 
 Scroll snap anchors expressed in px/% along each axis.
-Web maps to CSS scroll-snap-type + scroll-snap-align; Apple chassis map these
-offsets to native scroll end-points while keeping engine scroll state authoritative.
+Web uses CSS snapping; Apple and Windows use native snapping. Linux preserves
+GTK momentum, then snaps after a guarded settling period. Actual native positions
+are mirrored back to the bound scroll offsets.
 
 ##### `snap_positions_y`
 Type: `Property`<`Vec`<[`Size`](../../../api/pax-runtime-api/layout.md#size)>>

@@ -34,3 +34,5 @@ designtime = []
 
 [dev-dependencies]
 tempfile = "3.9.0"
+# Validate generated Rust's unsafe export attributes without migrating the DSL parser.
+syn2 = { package = "syn", version = "2", features = ["full"] }

@@ -381,7 +381,7 @@
     }
     .gallery_eyebrow {
         style: TextStyle {
-            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Medium)
+            font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Medium)
             font_size: {self.compact ? 9px : 11px}
             fill: {SiteTheme::muted()}
             align_vertical: TextAlignVertical::Center
@@ -391,7 +391,7 @@
     }
     .gallery_title {
         style: TextStyle {
-            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::ExtraBold)
+            font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::ExtraBold)
             font_size: {self.compact ? 34px : 48px}
             fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Top
@@ -503,7 +503,11 @@
     }
     .poster_code {
         style: TextStyle {
-            font: "monospace"
+            font: Font::Web(
+                "IBM Plex Mono",
+                "assets/fonts/IBMPlexMono-Medium.ttf",
+                FontStyle::Normal,
+                FontWeight::Medium)
             font_size: 11px
             fill: rgba(252, 249, 242, 180)
             align_vertical: TextAlignVertical::Center
@@ -513,7 +517,7 @@
     }
     .poster_code_light {
         style: TextStyle {
-            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Medium)
+            font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Medium)
             font_size: 11px
             fill: rgba(255, 255, 255, 220)
             align_vertical: TextAlignVertical::Center
@@ -523,7 +527,7 @@
     }
     .poster_arrow {
         style: TextStyle {
-            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Medium)
+            font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Medium)
             font_size: 20px
             fill: rgb(225, 225, 220)
             align_vertical: TextAlignVertical::Center
@@ -533,7 +537,7 @@
     }
     .poster_type_large {
         style: TextStyle {
-            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::ExtraBold)
+            font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::ExtraBold)
             font_size: 46px
             fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Center
@@ -543,7 +547,7 @@
     }
     .poster_cursor {
         style: TextStyle {
-            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
+            font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
             font_size: 68px
             fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Center

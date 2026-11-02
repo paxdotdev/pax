@@ -390,6 +390,150 @@ fn opacity_scope_identity_survives_exit_rescue_and_retires_with_its_content() {
     assert!(root.children.get()[0].children.get().is_empty());
 }
 
+fn assert_compiled_exit_lifetime(
+    duration: pax_manifest::ValueDefinition,
+    marker: pax_manifest::TimelineMarker,
+    samples: impl IntoIterator<Item = (u128, bool)>,
+) {
+    use pax_manifest::{
+        ComponentDefinition, PaxManifest, SettingsBlockElement, TimelineBlockElement,
+        TimelineDefinition, TimelineKeyframe, TimelineSelectorBlockDefinition,
+        TimelineSelectorElement, TimelineTrackDefinition, TimelineTrackElement, Token, TypeId,
+        ValueDefinition,
+    };
+    let token = |value: &str| Token::new_without_location(value.into());
+    let id = TypeId::build_singleton("Card", Some("Card"));
+    let manifest = PaxManifest {
+        main_component_type_id: id.clone(),
+        components: std::collections::BTreeMap::from([(
+            id.clone(),
+            ComponentDefinition {
+                type_id: id.clone(),
+                is_main_component: true,
+                is_primitive: false,
+                is_struct_only_component: false,
+                module_path: "crate".into(),
+                primitive_instance_import_path: None,
+                template: None,
+                settings: Some(vec![SettingsBlockElement::Transition(
+                    token("out"),
+                    token("exit"),
+                )]),
+                timelines: vec![TimelineDefinition {
+                    name: Some(token("exit")),
+                    duration: Some(duration),
+                    elements: vec![TimelineBlockElement::SelectorBlock(
+                        token("self"),
+                        TimelineSelectorBlockDefinition {
+                            elements: vec![TimelineSelectorElement::Track(
+                                token("opacity"),
+                                TimelineTrackDefinition {
+                                    elements: vec![TimelineTrackElement::Keyframe(
+                                        TimelineKeyframe {
+                                            marker,
+                                            value: ValueDefinition::LiteralValue(
+                                                PaxValue::Numeric(0.into()),
+                                            ),
+                                            easing: None,
+                                        },
+                                    )],
+                                    ..Default::default()
+                                },
+                            )],
+                        },
+                    )],
+                    ..Default::default()
+                }],
+                route_branch: None,
+            },
+        )]),
+        type_table: Default::default(),
+        assets_dirs: vec![],
+        engine_import_path: "pax_engine".into(),
+    };
+    let manifest =
+        pax_manifest::binary::from_slice(&pax_manifest::binary::to_vec(&manifest).unwrap())
+            .unwrap();
+    let clock = Rc::new(Cell::new(0u128));
+    let clock_source = clock.clone();
+    let mut engine = PaxEngine::new_empty(
+        (320.0, 240.0),
+        Platform::Web,
+        OS::Mac,
+        Box::new(move || clock_source.get()),
+        Default::default(),
+    );
+    let visible = LocalProperty::new(true);
+    let mut card_args = args();
+    card_args.component_template = Some(RefCell::new(vec![Leaf::instantiate(args())]));
+    card_args.transition_config = manifest.get_component_transition_config(&id);
+    let mut conditional_args = args();
+    conditional_args.children = Some(RefCell::new(vec![ComponentInstance::instantiate(
+        card_args,
+    )]));
+    conditional_args.prototypical_properties = PropertiesInit::Factory(Box::new({
+        let visible = visible.clone();
+        move |_, node| {
+            node.is_none().then(|| {
+                Rc::new(RefCell::new(
+                    ConditionalProperties {
+                        boolean_expression: visible.clone(),
+                        conditional_branches: vec![],
+                    }
+                    .to_pax_any(),
+                ))
+            })
+        }
+    }));
+    let mut root_args = args();
+    root_args.component_template = Some(RefCell::new(vec![ConditionalInstance::instantiate(
+        conditional_args,
+    )]));
+    let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+    engine.tick();
+    let conditional = root.children.get()[0].clone();
+    assert_eq!(conditional.children.get().len(), 1);
+    visible.set(false);
+    engine.tick();
+    assert_eq!(
+        conditional.children.get().len(),
+        1,
+        "retain the exiting instance"
+    );
+    for (time, completed) in samples {
+        clock.set(time);
+        engine.tick();
+        assert_eq!(
+            conditional.children.get().is_empty(),
+            completed,
+            "at {time}ms"
+        );
+    }
+}
+
+#[test]
+fn compiled_wall_time_exit_retires_on_sparse_ticks_after_binary_roundtrip() {
+    assert_compiled_exit_lifetime(
+        pax_manifest::ValueDefinition::LiteralValue(PaxValue::Duration(Duration::Milliseconds(
+            1000.into(),
+        ))),
+        pax_manifest::TimelineMarker::Percent(100.0),
+        [(999, false), (1000, true)],
+    );
+}
+
+#[test]
+fn unresolved_dynamic_exit_preserves_marker_lifetime_after_binary_roundtrip() {
+    // An unresolved duration must not turn an existing 20-tick exit into the
+    // generic 100-tick fallback. The removal tick already advances the playhead
+    // once; these 19 additional ticks stay below the wall-time timeout.
+    assert_compiled_exit_lifetime(
+        pax_manifest::ValueDefinition::Identifier(pax_manifest::PaxIdentifier::new("missing")),
+        pax_manifest::TimelineMarker::Frame(20),
+        (1..=19).map(|tick| (tick, tick == 19)),
+    );
+}
+
 #[test]
 fn shared_worker_publication_changes_the_local_tree_and_survives_remount() {
     let mut engine = PaxEngine::new_empty(

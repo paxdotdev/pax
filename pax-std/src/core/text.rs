@@ -15,7 +15,9 @@ use pax_message::{
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 
 use_RefCell!();
-use std::{collections::HashMap, rc::Rc};
+use std::cell::Cell;
+use std::collections::HashMap;
+use std::rc::Rc;
 #[cfg(feature = "designtime")]
 use {
     kurbo::{RoundedRect, Shape},
@@ -75,7 +77,7 @@ impl Default for Text {
 // Runtime instance backing `<Text>`.
 pub struct TextInstance {
     base: BaseInstance,
-    measurement_state: RefCell<TextMeasurements>,
+    measurements: RefCell<TextMeasurements>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -94,56 +96,108 @@ struct TextMeasurementKey {
 
 #[derive(Default)]
 struct TextMeasurementState {
+    next_generation: u64,
     requested_key: Option<TextMeasurementKey>,
     pending_generation: Option<u64>,
 }
 
-// One template instance can back many expanded nodes (including repeats).
-// A response may only acknowledge the request for that particular node.
+thread_local! {
+    // A remount can keep an expanded ID while replacing its template instance.
+    // Tokens must therefore outlive both the node's cache and that instance.
+    // Expanded nodes are thread-confined, so a per-thread sequence is sufficient.
+    static TEXT_MEASUREMENT_GENERATION: Cell<u64> = const { Cell::new(0) };
+}
+
+// Repeats share a template instance, but each expanded native Text owns an
+// independent request sequence. Keep generations until unmount, even while
+// both dimensions are temporarily explicit, so late replies remain stale.
 #[derive(Default)]
 struct TextMeasurements {
-    next_generation: u64,
     nodes: HashMap<u32, TextMeasurementState>,
 }
 
 impl TextMeasurements {
-    fn request(
-        &mut self,
-        id: u32,
-        key: TextMeasurementKey,
-        has_current_measurement: bool,
-    ) -> Option<u64> {
-        let state = self.nodes.entry(id).or_default();
-        let key_changed = state.requested_key.as_ref() != Some(&key);
-        if key_changed || (!has_current_measurement && state.pending_generation.is_none()) {
-            self.next_generation = self.next_generation.wrapping_add(1).max(1);
+    fn request(&mut self, id: u32, key: TextMeasurementKey, measured: bool) -> Option<u64> {
+        self.nodes.entry(id).or_default().request(key, measured)
+    }
+
+    fn accept(&mut self, id: u32, generation: u64) -> bool {
+        self.nodes
+            .get_mut(&id)
+            .is_some_and(|state| state.accept(generation))
+    }
+
+    fn invalidate(&mut self, id: u32, generation: u64) -> bool {
+        self.nodes
+            .get_mut(&id)
+            .is_some_and(|state| state.invalidate(generation))
+    }
+
+    fn clear(&mut self, id: u32) {
+        if let Some(state) = self.nodes.get_mut(&id) {
+            state.requested_key = None;
+            state.pending_generation = None;
+        }
+    }
+}
+
+impl TextMeasurementState {
+    fn request(&mut self, key: TextMeasurementKey, has_current_measurement: bool) -> Option<u64> {
+        let key_changed = self.requested_key.as_ref() != Some(&key);
+        if key_changed || (!has_current_measurement && self.pending_generation.is_none()) {
+            self.next_generation = TEXT_MEASUREMENT_GENERATION.with(|counter| {
+                let next = counter
+                    .get()
+                    .checked_add(1)
+                    .expect("text measurement token exhausted");
+                counter.set(next);
+                next
+            });
             let generation = self.next_generation;
-            state.requested_key = Some(key);
-            state.pending_generation = Some(generation);
+            self.requested_key = Some(key);
+            self.pending_generation = Some(generation);
             Some(generation)
         } else {
             None
         }
     }
 
-    fn accept(&mut self, id: u32, generation: u64) -> bool {
-        let Some(state) = self.nodes.get_mut(&id) else {
-            return false;
-        };
-        if state.pending_generation != Some(generation) {
+    fn accept(&mut self, generation: u64) -> bool {
+        if self.pending_generation != Some(generation) {
             return false;
         }
-        state.pending_generation = None;
+        self.pending_generation = None;
+        true
+    }
+
+    fn invalidate(&mut self, generation: u64) -> bool {
+        if self.next_generation != generation || self.requested_key.is_none() {
+            return false;
+        }
+        // Keep the previous measured bounds until the replacement arrives, but
+        // reject any in-flight response measured with the old native metrics.
+        self.requested_key = None;
+        self.pending_generation = None;
         true
     }
 }
 
 impl TextInstance {
-    fn clear_measurement_request(&self, expanded_node: &Rc<ExpandedNode>) {
-        self.measurement_state
+    fn request_measurement_generation(
+        &self,
+        id: u32,
+        key: TextMeasurementKey,
+        has_current_measurement: bool,
+    ) -> Option<u64> {
+        self.measurements
             .borrow_mut()
-            .nodes
-            .remove(&expanded_node.id.to_u32());
+            .request(id, key, has_current_measurement)
+    }
+
+    fn clear_measurement_request(&self, expanded_node: &Rc<ExpandedNode>) {
+        self.measurements
+            .borrow_mut()
+            .clear(expanded_node.id.to_u32());
         if expanded_node.measured_size.get().is_some() {
             expanded_node.measured_size.set(None);
         }
@@ -156,13 +210,12 @@ impl TextInstance {
         width: f64,
         height: f64,
     ) {
-        if self
-            .measurement_state
-            .borrow_mut()
-            .accept(expanded_node.id.to_u32(), generation)
-        {
-            expanded_node.set_measured_size(width, height);
+        let mut measurements = self.measurements.borrow_mut();
+        if !measurements.accept(expanded_node.id.to_u32(), generation) {
+            return;
         }
+        drop(measurements);
+        expanded_node.set_measured_size(width, height);
     }
 }
 
@@ -190,7 +243,7 @@ impl InstanceNode for TextInstance {
                     is_slot: false,
                 },
             ),
-            measurement_state: RefCell::new(TextMeasurements::default()),
+            measurements: RefCell::new(TextMeasurements::default()),
         })
     }
 
@@ -340,7 +393,7 @@ impl InstanceNode for TextInstance {
                         height,
                     );
                     if let Some(measurement_key) = measurement_key {
-                        patch.measure_generation = instance.measurement_state.borrow_mut().request(
+                        patch.measure_generation = instance.request_measurement_generation(
                             id,
                             measurement_key,
                             expanded_node.measured_size.get().is_some(),
@@ -433,10 +486,10 @@ impl InstanceNode for TextInstance {
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.to_u32();
+        self.measurements.borrow_mut().nodes.remove(&id);
         expanded_node
             .changed_listener
             .replace_with(LocalProperty::default());
-        self.measurement_state.borrow_mut().nodes.remove(&id);
         context.enqueue_native_message(pax_message::NativeMessage::TextDelete(id));
     }
 
@@ -480,6 +533,16 @@ impl InstanceNode for TextInstance {
                 args.width,
                 args.height,
             );
+        } else if let pax_message::NativeInterrupt::TextMeasurementInvalidated(args) = interrupt {
+            if self
+                .measurements
+                .borrow_mut()
+                .invalidate(expanded_node.id.to_u32(), args.generation)
+            {
+                // Native metrics are outside the property graph. Schedule the
+                // normal patch evaluator even when authored bounds are unchanged.
+                expanded_node.changed_listener.invalidate();
+            }
         } else {
             log::warn!("text element was handed interrupt it doesn't use");
         }
@@ -488,6 +551,121 @@ impl InstanceNode for TextInstance {
 
 fn explicit_constraint_bits(value: f64) -> Option<u64> {
     (value >= 0.0).then_some(value.to_bits())
+}
+
+#[cfg(test)]
+mod measurement_tests {
+    use super::*;
+
+    fn key(content: &str) -> TextMeasurementKey {
+        text_measurement_key(
+            content.to_owned(),
+            false,
+            true,
+            false,
+            false,
+            true,
+            TextStyleMessage::default(),
+            TextStyleMessage::default(),
+            200.0,
+            -1.0,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn native_metric_change_remeasures_an_unchanged_authored_key() {
+        let mut state = TextMeasurementState::default();
+        let first = state.request(key("hello"), false).unwrap();
+        assert!(state.accept(first));
+        assert_eq!(state.request(key("hello"), true), None);
+        assert!(state.invalidate(first));
+        assert!(
+            !state.invalidate(first),
+            "coalesce duplicate native notifications"
+        );
+        let replacement = state.request(key("hello"), true).unwrap();
+        assert_ne!(replacement, first);
+        assert!(!state.accept(first));
+        assert!(state.accept(replacement));
+        assert!(!state.accept(replacement), "each response is accepted once");
+    }
+
+    #[test]
+    fn native_metric_change_rejects_an_already_in_flight_measurement() {
+        let mut state = TextMeasurementState::default();
+        let first = state.request(key("hello"), false).unwrap();
+        assert!(state.invalidate(first));
+        assert!(!state.accept(first));
+        let replacement = state.request(key("hello"), false).unwrap();
+        assert!(state.accept(replacement));
+    }
+
+    #[test]
+    fn stale_native_invalidation_cannot_cancel_a_new_content_request() {
+        let mut state = TextMeasurementState::default();
+        let first = state.request(key("hello"), false).unwrap();
+        let second = state.request(key("updated"), false).unwrap();
+        assert!(!state.invalidate(first));
+        assert!(!state.accept(first));
+        assert!(state.accept(second));
+    }
+
+    #[test]
+    fn fixed_dimensions_do_not_request_intrinsic_measurement() {
+        assert!(text_measurement_key(
+            "fixed".to_owned(),
+            false,
+            true,
+            false,
+            false,
+            true,
+            TextStyleMessage::default(),
+            TextStyleMessage::default(),
+            0.0,
+            30.0,
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn repeated_text_nodes_own_independent_measurement_sequences() {
+        let mut measurements = TextMeasurements::default();
+        let first = measurements.request(10, key("same"), false).unwrap();
+        let sibling = measurements.request(20, key("same"), false).unwrap();
+        assert!(measurements.accept(10, first));
+        assert!(measurements.accept(20, sibling));
+
+        assert!(measurements.invalidate(10, first));
+        assert!(measurements.invalidate(20, sibling));
+        let first = measurements.request(10, key("same"), true).unwrap();
+        let sibling = measurements.request(20, key("different"), true).unwrap();
+        // One sibling becoming fixed-size must not discard the other's request.
+        measurements.clear(10);
+        assert!(!measurements.accept(10, first));
+        assert!(measurements.accept(20, sibling));
+        let replacement = measurements.request(10, key("same"), true).unwrap();
+        assert_ne!(first, replacement);
+        assert!(!measurements.accept(10, first));
+        assert!(measurements.accept(10, replacement));
+
+        measurements.nodes.remove(&10);
+        assert!(!measurements.invalidate(10, replacement));
+        assert!(measurements.nodes.contains_key(&20));
+    }
+
+    #[test]
+    fn remounted_text_rejects_old_responses_even_when_its_template_is_replaced() {
+        let mut old_template = TextMeasurements::default();
+        let old = old_template.request(10, key("same"), false).unwrap();
+        old_template.nodes.remove(&10);
+        let mut new_template = TextMeasurements::default();
+        let replacement = new_template.request(10, key("same"), false).unwrap();
+        assert_ne!(old, replacement);
+        assert!(!new_template.accept(10, old));
+        assert!(!new_template.invalidate(10, old));
+        assert!(new_template.accept(10, replacement));
+    }
 }
 
 fn text_measurement_key(
@@ -714,6 +892,10 @@ impl PartialEq<TextStyleMessage> for TextStyle {
 /// URL, or use that family with the web asset URL in a shared declaration. The
 /// native Web-font loader itself does not resolve relative URLs into bundle
 /// resources. Browser-only aliases do not name the registered Apple family.
+/// Windows and Linux resolve Pax's built-in default Roboto source to the
+/// standard library's packaged normal/italic font files. Other remote sources
+/// require explicit local assets on those hosts; the default does not enable
+/// a general remote font loader.
 ///
 /// Font shorthand has no positional ("magic index") fields: named keys are
 /// canonical, and positional list/tuple forms are not accepted. Use the
@@ -728,9 +910,35 @@ pub enum Font {
 
 impl Default for Font {
     fn default() -> Self {
-        Self::Web("Roboto".to_string(),
-    "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap".to_string()
-                  , FontStyle::Normal, FontWeight::Normal)
+        Self::Web(
+            "Roboto".to_string(),
+            DEFAULT_FONT_URL.to_string(),
+            FontStyle::Normal,
+            FontWeight::Normal,
+        )
+    }
+}
+
+const DEFAULT_FONT_URL: &str = "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap";
+
+// Resolve at the native-message boundary, not while compiling the manifest:
+// a cartridge baked on another OS must retain the same default-font meaning.
+fn platform_font_url<'a>(family: &str, url: &'a str, style: &FontStyle) -> &'a str {
+    if cfg!(any(target_os = "windows", target_os = "linux")) {
+        desktop_font_url(family, url, style)
+    } else {
+        url
+    }
+}
+
+fn desktop_font_url<'a>(family: &str, url: &'a str, style: &FontStyle) -> &'a str {
+    if family == "Roboto" && url == DEFAULT_FONT_URL {
+        match style {
+            FontStyle::Normal => "pax-default-fonts/Roboto.ttf",
+            FontStyle::Italic | FontStyle::Oblique => "pax-default-fonts/Roboto-Italic.ttf",
+        }
+    } else {
+        url
     }
 }
 
@@ -974,6 +1182,46 @@ mod font_coercion_tests {
     }
 
     #[test]
+    fn desktop_default_font_resolves_both_faces_without_rewriting_custom_sources() {
+        for (style, expected) in [
+            (FontStyle::Normal, "pax-default-fonts/Roboto.ttf"),
+            (FontStyle::Italic, "pax-default-fonts/Roboto-Italic.ttf"),
+            (FontStyle::Oblique, "pax-default-fonts/Roboto-Italic.ttf"),
+        ] {
+            assert_eq!(
+                desktop_font_url("Roboto", DEFAULT_FONT_URL, &style),
+                expected
+            );
+            assert_eq!(
+                desktop_font_url("Other", DEFAULT_FONT_URL, &style),
+                DEFAULT_FONT_URL
+            );
+            assert_eq!(
+                desktop_font_url("Roboto", "fonts/custom.ttf", &style),
+                "fonts/custom.ttf"
+            );
+            assert_eq!(desktop_font_url("Roboto", "", &style), "");
+        }
+        for style in [FontStyle::Normal, FontStyle::Italic, FontStyle::Oblique] {
+            let font = Font::Web(
+                "Roboto".into(),
+                DEFAULT_FONT_URL.into(),
+                style,
+                FontWeight::Bold,
+            );
+            let patch = FontPatch::from(font.clone());
+            assert!(
+                font == patch,
+                "unchanged native font must not be patched again every frame"
+            );
+            let FontPatch::Web(patch) = patch else {
+                panic!("expected web font metadata")
+            };
+            assert!(patch.weight == Some(FontWeightMessage::Bold));
+        }
+    }
+
+    #[test]
     fn object_shorthand_supports_named_fields_and_defaults() {
         let family = "Inter";
         let url = "https://example.com/inter.css";
@@ -1165,12 +1413,15 @@ impl PartialEq<TextAlignVerticalMessage> for TextAlignVertical {
 impl From<Font> for FontPatch {
     fn from(font: Font) -> Self {
         match font {
-            Font::Web(family, url, style, weight) => FontPatch::Web(WebFontMessage {
-                family: Some(family),
-                url: Some(url),
-                style: Some(style.into()),
-                weight: Some(weight.into()),
-            }),
+            Font::Web(family, url, style, weight) => {
+                let url = platform_font_url(&family, &url, &style).to_owned();
+                FontPatch::Web(WebFontMessage {
+                    family: Some(family),
+                    url: Some(url),
+                    style: Some(style.into()),
+                    weight: Some(weight.into()),
+                })
+            }
         }
     }
 }
@@ -1194,7 +1445,10 @@ impl PartialEq<FontPatch> for Font {
                     .family
                     .as_ref()
                     .map_or(false, |f| f == family)
-                    && web_font_patch.url.as_ref().map_or(false, |u| u == url)
+                    && web_font_patch
+                        .url
+                        .as_ref()
+                        .map_or(false, |u| u == platform_font_url(family, url, style))
                     && web_font_patch.style.as_ref().map_or(false, |s| style.eq(s))
                     && web_font_patch
                         .weight

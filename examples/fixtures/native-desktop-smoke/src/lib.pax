@@ -1,6 +1,6 @@
 <Text class="system_text" x=24px y=20px width={100% - 112px} height=36px text={title} selectable=true/>
 <Text class="system_text" x=24px y=62px width=180px height=30px text={"Count: " + clicks}/>
-<Text class="bundled_font" x=220px y=62px width=360px height=30px text="Bundled Manrope: WWW iii 012345" selectable=true/>
+<Text class="bundled_font" x=220px y=62px width=360px height=30px text="Bundled Manrope: @@@@@@@@" selectable=true/>
 <Image x={100% - 76px} anchor_x=0% y=20px width=48px height=48px source="assets/smoke.png"/>
 <Button class="system_text" x=24px y=104px width=160px height=42px label="Increment" @button_click=self.increment/>
 <Checkbox x=202px y=112px width=26px height=26px checked=bind:checked/>
@@ -13,6 +13,12 @@
 </Frame>
 <Scroller x=24px y=304px width={100% - 48px} height={100% - 328px} scroll_height=820px>
     <Text class="system_text" x=16px y=16px width=350px height=30px text="Outer native scroller"/>
+    <Text class="diagnostic_text" x=380px y=16px width={100% - 396px} height=20px text={"Keys: down=" + key_down_count + " up=" + key_up_count + " press=" + key_press_count + " repeats=" + key_repeat_count}/>
+    <Text class="diagnostic_text" x=380px y=38px width={100% - 396px} height=20px text={last_key_down}/>
+    <Text class="diagnostic_text" x=380px y=60px width={100% - 396px} height=20px text={last_key_up}/>
+    <Text class="diagnostic_text" x=380px y=82px width={100% - 396px} height=20px text={last_key_press}/>
+    <Text class="diagnostic_text" x=380px y=104px width={100% - 396px} height=20px text={pointer_modifiers}/>
+    <Rectangle x=380px y=220px width={100% - 396px} height=44px fill={rgb(30, 137, 123)} @mouse_over=self.cursor_enter @mouse_out=self.cursor_leave/>
     <Scroller x=16px y=62px width=340px height=150px scroll_height=440px>
         <Textbox class="system_text" x=12px y=12px width=300px height=42px text=bind:input/>
         <Text class="system_text" x=12px y=330px width=300px height=30px text="Inner scroll destination"/>
@@ -25,10 +31,17 @@
 <Rectangle width=100% height=100% fill=WHITE/>
 
 @settings {
+    @key_down: key_down
+    @key_up: key_up
+    @key_press: key_press
+    @mouse_down: mouse_down
     .system_text {
         style: { font: { family: "Arial" url: "" } font_size: 18px fill: BLACK }
     }
     .bundled_font {
         style: { font: { family: "Manrope" url: "assets/fonts/Manrope.ttf" } font_size: 18px fill: BLACK }
+    }
+    .diagnostic_text {
+        style: { font: { family: "Arial" url: "" } font_size: 12px fill: BLACK }
     }
 }

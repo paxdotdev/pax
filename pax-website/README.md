@@ -50,6 +50,45 @@ To preview the same hero on Apple targets, run one of these commands:
 Stop the previous CLI preview before switching targets: one project shares its
 generated cartridge and interface staging directory across targets.
 
+## Native desktop robustness workload
+
+The complete website is the application-level acceptance workload for the alpha
+Windows and Linux hosts. Build on the corresponding operating system:
+
+```sh
+pax-cli build --path pax-website --target linux --release
+pax-cli build --path pax-website --target windows --release
+```
+
+Use this checkout's CLI and keep each complete `.pax/build/release/<target>/`
+directory together. The optional `standalone` feature enables `bin/native.rs`,
+which initializes the website directly through `pax-kit`. Native CLI builds
+select this binary; Cargo's default `run` binary remains the development wrapper.
+A successful build is not full-site acceptance. Qualification
+includes the rotating hero and native text, wide/narrow resizing, every page
+section, source drawers and selection, calculator controls, embedded/full-screen
+Paxflix, gallery motion, and independent parent/nested scrolling. Source drawers
+require selectable styled code; replacing them with plain text would not qualify
+the intended experience. The desktop cartridge normalizes that markup into styled
+runs for the native host; both parts of the package must support the
+[desktop rich-text subset](../pax-docs/book/src/text-fonts-images.md#markdown-content).
+
+The website and its runnable calculator/Paxflix dependencies use automatic
+[package-qualified native exports](../pax-docs/book/src/targets-build-deploy.md#entry-and-mounting).
+The embedded examples remain in the workload; native packaging selects the
+website's entry points without changing those libraries.
+
+Measure process startup separately from compilation, then stationary animation,
+first traversal and repeat traversal at a recorded viewport size. Paxflix retains
+visited rows, and the gallery retains its largest valid projection window, so
+first-visit allocation growth needs a repeat traversal before interpreting it as
+a leak. Record CPU time, host timing, memory and normal shutdown independently;
+remote-desktop stream FPS is not application presentation FPS. The
+[Linux probe](../tests/src/native-platform-probes/linux/README.md#website-application-workload)
+records this initial baseline. The focused native-control, IME and snapping
+fixtures remain necessary: the website's gallery cards illustrate some features
+without exercising their underlying platform integration.
+
 Debug and release outputs live in `.pax/build/debug/web/` and
 `.pax/build/release/web/` beneath this directory. Generated `.pax/`, `target/`,
 `Cargo.lock`, AI-primer HTML, and staged blog previews stay untracked.
@@ -532,7 +571,9 @@ are website-local constants in `src/acrostic.rs`, not a general text-rendering A
 The private offline extractor in `tools/trace-hero` uses HarfRust + Skrifa to
 shape each complete phrase before splitting it into clusters. It is a standalone
 tool, outside the library workspace and the website's dependency graph (including
-tests). Ordinary website builds run no tracing step and embed no font bytes.
+tests). Ordinary website builds run no tracing step; the generated outline data
+contains paths, not font bytes. Native text still uses the
+[bundled font assets](assets/fonts/README.md).
 
 From the monorepo root, explicitly regenerate after changing the font, weight,
 or the phrase list in `tools/trace-hero/src/main.rs`:

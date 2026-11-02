@@ -28,6 +28,11 @@ pollster = "0.4.0"
 flexbuffers = "2.0.0"
 wgpu = { version = "28.0.0", default-features = false, features = ["std", "parking_lot"] }
 
+[target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
+pulldown-cmark = { version = "0.13", default-features = false }
+quick-xml = "0.42"
+html-escape = "0.2.15"
+
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 piet-coregraphics = "0.7.0"
 # Keep this aligned with piet-coregraphics.

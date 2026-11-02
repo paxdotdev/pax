@@ -93,7 +93,7 @@ fn shared_image_textures_bounded_residency_survives_last_tile_retirement() {
     let layer_a = MetalLayer::new();
     let layer_b = MetalLayer::new();
     let (a, context) = backend(&layer_a, None);
-    *context.image_textures.borrow_mut() = ImageTextureCache::with_retention_budget(4);
+    *context.image_textures.borrow_mut() = ImageTextureCache::with_retention_budget(true, 4);
     let mut a = WgpuRenderer::new(a);
     draw(&mut a, 1, [255, 0, 0, 255], 0.0, 1.0, false);
     assert_eq!(
@@ -112,7 +112,7 @@ fn shared_image_textures_bounded_residency_survives_last_tile_retirement() {
     assert!(pixel(&frame, 8)[3].abs_diff(128) <= 1);
     assert_eq!(pixel(&frame, 1), &[0, 0, 0, 0]);
     drop(b);
-    *context.image_textures.borrow_mut() = ImageTextureCache::with_retention_budget(0);
+    *context.image_textures.borrow_mut() = ImageTextureCache::with_retention_budget(true, 0);
     assert_eq!(context.image_textures.borrow().live_count(), 0);
 }
 
@@ -122,7 +122,7 @@ fn shared_image_textures_residency_eviction_preserves_active_versions() {
     let layer_a = MetalLayer::new();
     let layer_b = MetalLayer::new();
     let (a, context) = backend(&layer_a, None);
-    *context.image_textures.borrow_mut() = ImageTextureCache::with_retention_budget(4);
+    *context.image_textures.borrow_mut() = ImageTextureCache::with_retention_budget(true, 4);
     let (b, _) = backend(&layer_b, Some(context.clone()));
     let mut a = WgpuRenderer::new(a);
     let mut b = WgpuRenderer::new(b);
@@ -149,7 +149,7 @@ fn shared_image_textures_residency_eviction_preserves_active_versions() {
 fn shared_image_textures_residency_lru_dimensions_and_oversize() {
     let layer = MetalLayer::new();
     let (backend, context) = backend(&layer, None);
-    *context.image_textures.borrow_mut() = ImageTextureCache::with_retention_budget(8);
+    *context.image_textures.borrow_mut() = ImageTextureCache::with_retention_budget(true, 8);
     let request = |key: &str, version: u64, width: u32| {
         let (binding, uploaded) = backend.create_cached_texture(
             key,
@@ -183,7 +183,7 @@ fn shared_image_textures_residency_lru_dimensions_and_oversize() {
 fn shared_image_textures_residency_caps_small_image_metadata() {
     let layer = MetalLayer::new();
     let (backend, context) = backend(&layer, None);
-    *context.image_textures.borrow_mut() = ImageTextureCache::with_retention_budget(4096);
+    *context.image_textures.borrow_mut() = ImageTextureCache::with_retention_budget(true, 4096);
     for id in 0..513 {
         let (binding, uploaded) = backend.create_cached_texture(&id.to_string(), 1, &[0; 4], 1, 1);
         assert!(uploaded);
@@ -256,6 +256,122 @@ fn shared_context_resources_survive_surface_resize_and_remain_device_local() {
     renderer.set_viewport(128.0, 96.0, [0.5, 0.5]);
     assert_eq!(renderer.size(), (128.0, 96.0));
     assert_eq!(renderer.surface_size(), (64, 48));
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shared_image_textures_preserve_encoded_colors_across_target_formats() {
+    check_shared_image_encodings(false);
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shared_image_textures_without_alternate_views_preserve_encodings_and_lifetime() {
+    check_shared_image_encodings(true);
+}
+
+fn check_shared_image_encodings(force_no_view_formats: bool) {
+    let layer = MetalLayer::new();
+    let (_, context) = backend(&layer, None);
+    if force_no_view_formats {
+        assert!(context
+            .adapter
+            .get_downlevel_capabilities()
+            .flags
+            .contains(wgpu::DownlevelFlags::VIEW_FORMATS));
+        // Exercise the downlevel allocation policy on a modern adapter, including
+        // differently encoded targets sharing the same image identity/version.
+        *context.image_textures.borrow_mut() = ImageTextureCache::new(false);
+    }
+    let device = context.device.clone();
+    let mut renderers = Vec::new();
+    for format in [
+        TextureFormat::Bgra8Unorm,
+        TextureFormat::Rgba8Unorm,
+        TextureFormat::Bgra8UnormSrgb,
+        TextureFormat::Rgba8UnormSrgb,
+    ] {
+        let backend = RenderBackend::new_for_target(
+            RenderTarget::Texture(None),
+            wgpu::SurfaceCapabilities {
+                formats: vec![format],
+                present_modes: vec![],
+                alpha_modes: vec![CompositeAlphaMode::PreMultiplied],
+                usages: TextureUsages::RENDER_ATTACHMENT
+                    | TextureUsages::COPY_SRC
+                    | TextureUsages::TEXTURE_BINDING,
+            },
+            context.clone(),
+            RenderConfig::new(true, 32, 32, [1.0, 1.0]),
+        )
+        .expect("offscreen color target");
+        let mut renderer = WgpuRenderer::new(backend);
+        draw(&mut renderer, 1, [30, 120, 220, 255], 0.0, 1.0, false);
+        let churn = renderer.take_resource_churn_stats();
+        let needs_upload = renderers.is_empty()
+            || (force_no_view_formats && format == TextureFormat::Bgra8UnormSrgb);
+        assert_eq!(
+            churn.texture_creates,
+            u64::from(needs_upload),
+            "upload only for a new required encoding: {format:?}"
+        );
+        assert_eq!(churn.texture_cache_hits, u64::from(!needs_upload));
+        assert_eq!(churn.texture_upload_bytes, 4 * u64::from(needs_upload));
+        let frame = capture(&mut renderer, &device);
+        for (actual, expected) in pixel(&frame, 8).iter().zip([30u8, 120, 220, 255]) {
+            assert!(
+                actual.abs_diff(expected) <= 1,
+                "{format:?}: {:?}",
+                pixel(&frame, 8)
+            );
+        }
+        // Native compositor outputs use byte-premultiplied encoded colors. An
+        // sRGB attachment encodes after blending, so only check opacity here on
+        // the UNORM outputs admitted by the native composition API.
+        if !format.is_srgb() {
+            draw(&mut renderer, 1, [30, 120, 220, 255], 0.0, 0.5, false);
+            let frame = capture(&mut renderer, &device);
+            for (actual, expected) in pixel(&frame, 8).iter().zip([15u8, 60, 110, 128]) {
+                assert!(
+                    actual.abs_diff(expected) <= 1,
+                    "{format:?} opacity: {:?}",
+                    pixel(&frame, 8)
+                );
+            }
+        }
+        renderers.push(renderer);
+        assert_eq!(
+            context.image_textures.borrow().live_count(),
+            if force_no_view_formats && format.is_srgb() {
+                2
+            } else {
+                1
+            }
+        );
+    }
+    drop(renderers.pop());
+    assert_eq!(
+        context.image_textures.borrow().live_count(),
+        if force_no_view_formats { 2 } else { 1 }
+    );
+    drop(renderers.pop());
+    assert_eq!(
+        context.image_textures.borrow().live_count(),
+        1,
+        "last sRGB owner released"
+    );
+    drop(renderers.pop());
+    assert_eq!(
+        context.image_textures.borrow().live_count(),
+        1,
+        "UNORM sibling still owns its image"
+    );
+    drop(renderers);
+    assert_eq!(
+        context.image_textures.borrow().live_count(),
+        0,
+        "cache metadata must not own image storage"
+    );
 }
 
 #[test]

@@ -13,7 +13,7 @@
                 <Text class="editorial_title" width=100%>{"Made for makers."}</Text>
                 <Text class="editorial_lead" width=100% markdown=true
                     _style_link={
-                        font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
+                        font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
                         font_size: {@viewport.width < 760 ? 19px : 23px}
                         fill: {SiteTheme::paper()}
                         align_vertical: TextAlignVertical::Top

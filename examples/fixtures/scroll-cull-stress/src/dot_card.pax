@@ -22,7 +22,7 @@
         style={
             font: {
                 family: "Inter"
-                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+                url: "assets/fonts/Inter.ttf"
             }
             font_size: 12px
             fill: rgba(130, 124, 116, 255)

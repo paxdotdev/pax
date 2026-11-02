@@ -1,5 +1,6 @@
 //! Shared retained subtree surfaces for opacity composition and detached alpha sources. Scratch
-//! attachments use the active capture domain; retained textures store only intersecting bounds.
+//! attachments use the active capture domain; retained textures store intersecting bounds with
+//! bounded spare capacity for opacity captures whose physical bounds animate.
 use super::*;
 use bytemuck::Zeroable;
 use wgpu::util::DeviceExt;
@@ -29,7 +30,10 @@ impl CaptureKey {
             Self::EffectSource(_) => true,
             Self::Opacity(..) => false,
             #[cfg(feature = "3d")]
-            Self::Presentation(..) | Self::SpatialGroup(..) | Self::SpatialOpacity(..) | Self::SpatialVisibility(..) => false,
+            Self::Presentation(..)
+            | Self::SpatialGroup(..)
+            | Self::SpatialOpacity(..)
+            | Self::SpatialVisibility(..) => false,
         }
     }
 }
@@ -40,6 +44,33 @@ enum CaptureBlend {
     Replace,
     #[cfg(feature = "3d")]
     Add,
+}
+
+fn capture_texture_size(
+    key: CaptureKey,
+    current: Option<(u32, u32)>,
+    required: (u32, u32),
+    domain: (u32, u32),
+) -> (u32, u32) {
+    if !matches!(key, CaptureKey::Opacity(..)) {
+        // Alpha/effect consumers sample the entire texture as their logical source.
+        return required;
+    }
+    if let Some((width, height)) = current {
+        if width >= required.0
+            && height >= required.1
+            && u64::from(width) * u64::from(height)
+                <= (u64::from(required.0) * u64::from(required.1)).saturating_mul(2)
+        {
+            return (width, height);
+        }
+    }
+    // A little headroom absorbs pixel-sized changes in rotated bounds. Recompute both axes
+    // from the current rect on growth or substantial shrink: independent lifetime maxima
+    // would retain a large square after alternating wide/thin and narrow/tall content.
+    // Every live opacity allocation stays within twice its current logical area.
+    let grow = |size: u32, limit: u32| size.saturating_add(size / 8).min(limit);
+    (grow(required.0, domain.0), grow(required.1, domain.1))
 }
 
 struct CachedGroup {
@@ -103,6 +134,21 @@ impl RetainedSurfaces {
             stencil.retain_cached_resources(signatures, ids);
         }
     }
+
+    pub(super) fn memory_totals(&self) -> (TextureMemory, TextureMemory, usize) {
+        let mut groups = TextureMemory::default();
+        for group in self.groups.values() {
+            groups.add(&group.texture);
+        }
+        let mut scratch = TextureMemory::default();
+        for target in self.scratch.iter().chain(&self.stack) {
+            scratch.add(&target.texture);
+            if let Some(msaa) = &target.multisampled_target {
+                scratch.add(&msaa._texture);
+            }
+        }
+        (groups, scratch, self.stack.len())
+    }
     #[cfg(feature = "shaders")]
     pub(super) fn effect_source(
         &self,
@@ -165,7 +211,8 @@ impl RetainedSurfaces {
             bind_group_layouts: &[&layout],
             immediate_size: 0,
         });
-        let make_pipeline = |blend| device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let make_pipeline = |blend| {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Retained surface pipeline"), layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader, entry_point: Some("vs_main"), compilation_options: Default::default(),
@@ -186,19 +233,30 @@ impl RetainedSurfaces {
             primitive: wgpu::PrimitiveState::default(), depth_stencil: None,
             multisample: wgpu::MultisampleState { count: backend.sample_count, ..Default::default() },
             multiview_mask: None, cache: None,
-        });
+        })
+        };
         let pipeline = make_pipeline(Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING));
         #[cfg(feature = "3d")]
         let replacement_pipeline = make_pipeline(None);
         #[cfg(feature = "3d")]
         let additive_pipeline = make_pipeline(Some(wgpu::BlendState {
-            color: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::One,
-                dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add },
-            alpha: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::One,
-                dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add },
+            color: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::One,
+                dst_factor: wgpu::BlendFactor::One,
+                operation: wgpu::BlendOperation::Add,
+            },
+            alpha: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::One,
+                dst_factor: wgpu::BlendFactor::One,
+                operation: wgpu::BlendOperation::Add,
+            },
         }));
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Retained surface sampler"),
+            // Preserve the original default nearest sampling. A logical crop can end before
+            // spare capacity; nearest sampling never blends in untouched padding texels.
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
         });
         Self {
@@ -375,6 +433,9 @@ impl RenderBackend<'_> {
                     .swap_remove(index)
             })
             .unwrap_or_else(|| {
+                if let Some(diagnostics) = &mut self.memory_diagnostics {
+                    diagnostics.scratch_allocations += 1 + u64::from(self.sample_count > 1);
+                }
                 let texture = self.device.create_texture(&wgpu::TextureDescriptor {
                     label: Some("Capture scratch tile"),
                     size: wgpu::Extent3d {
@@ -459,26 +520,36 @@ impl RenderBackend<'_> {
         // Capture is the consumer boundary for opacity, mask, and effect
         // sources. Resolve the popped child, not the newly exposed parent.
         scratch.resolve_color(&mut encoder);
-        // Opacity capacity follows the physical capture domain; shader source capacity
-        // follows the bounded hysteresis policy below. Alpha sources stay exact.
-        let opacity = match key {
-            CaptureKey::Opacity(..) => true,
-            #[cfg(feature = "3d")]
-            CaptureKey::SpatialGroup(..) | CaptureKey::SpatialOpacity(..) | CaptureKey::SpatialVisibility(..) => true,
-            _ => false,
-        };
-        let size = if opacity {
-            let previous = surfaces.groups.get(&key);
+        let current_size = surfaces
+            .groups
+            .get(&key)
+            .map(|g| (g.texture.width(), g.texture.height()));
+        let size = capture_texture_size(
+            key,
+            current_size,
+            (rect.2, rect.3),
+            (self.surface_config.width, self.surface_config.height),
+        );
+        #[cfg(feature = "3d")]
+        let size = if matches!(
+            key,
+            CaptureKey::SpatialGroup(..)
+                | CaptureKey::SpatialOpacity(..)
+                | CaptureKey::SpatialVisibility(..)
+        ) {
+            let previous = current_size.unwrap_or_default();
             (
-                rect.2.next_multiple_of(64)
-                    .min(self.surface_config.width)
-                    .max(previous.map_or(0, |g| g.texture.width())),
-                rect.3.next_multiple_of(64)
-                    .min(self.surface_config.height)
-                    .max(previous.map_or(0, |g| g.texture.height())),
+                rect.2
+                    .next_multiple_of(64)
+                    .max(previous.0)
+                    .min(self.surface_config.width),
+                rect.3
+                    .next_multiple_of(64)
+                    .max(previous.1)
+                    .min(self.surface_config.height),
             )
         } else {
-            (rect.2, rect.3)
+            size
         };
         #[cfg(feature = "shaders")]
         let size = if matches!(key, CaptureKey::EffectSource(_)) {
@@ -504,11 +575,11 @@ impl RenderBackend<'_> {
             size
         };
         // Moving a capture changes its copy/composite origin, not its storage size.
-        if surfaces
-            .groups
-            .get(&key)
-            .is_none_or(|g| g.texture.width() != size.0 || g.texture.height() != size.1)
-        {
+        if current_size != Some(size) {
+            if let Some(diagnostics) = &mut self.memory_diagnostics {
+                diagnostics.capture_allocations += 1;
+                diagnostics.capture_replacements += u64::from(surfaces.groups.contains_key(&key));
+            }
             let texture = self.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some(&format!("Retained subtree {key:?}")),
                 size: wgpu::Extent3d {
@@ -608,7 +679,15 @@ impl RenderBackend<'_> {
     // premultiplied colors/alphas sum; source-over would attenuate the backdrop twice.
     #[cfg(feature = "3d")]
     pub(crate) fn draw_capture_weighted(&mut self, key: CaptureKey, weight: f32, first: bool) {
-        self.draw_capture_blend(key, weight, if first { CaptureBlend::Replace } else { CaptureBlend::Add });
+        self.draw_capture_blend(
+            key,
+            weight,
+            if first {
+                CaptureBlend::Replace
+            } else {
+                CaptureBlend::Add
+            },
+        );
     }
 
     fn draw_capture_blend(&mut self, key: CaptureKey, opacity: f32, mode: CaptureBlend) {
@@ -711,8 +790,12 @@ impl RenderBackend<'_> {
 
     #[cfg(feature = "3d")]
     pub(crate) fn spatial_fade_capture_count(&self) -> usize {
-        self.retained_surfaces.as_ref().map_or(0, |s| s.groups.keys()
-            .filter(|key| matches!(key, CaptureKey::SpatialVisibility(..))).count())
+        self.retained_surfaces.as_ref().map_or(0, |s| {
+            s.groups
+                .keys()
+                .filter(|key| matches!(key, CaptureKey::SpatialVisibility(..)))
+                .count()
+        })
     }
 
     pub(crate) fn capture_texture_for_test(&self, key: CaptureKey) -> Texture {
@@ -728,5 +811,56 @@ impl RenderBackend<'_> {
                 .filter(|key| key.uses_source_domain())
                 .count()
         })
+    }
+}
+
+#[cfg(test)]
+mod capacity_tests {
+    use super::*;
+
+    #[test]
+    fn opacity_capacity_reuses_jitter_and_reclaims_aspect_changes() {
+        let key = CaptureKey::Opacity(1, 2);
+        let domain = (1024, 768);
+        let first = capture_texture_size(key, None, (256, 128), domain);
+        assert_eq!(first, (288, 144));
+        for required in [(257, 129), (260, 132), (240, 120), (256, 128)] {
+            assert_eq!(
+                capture_texture_size(key, Some(first), required, domain),
+                first
+            );
+        }
+        let mut current = Some(first);
+        for required in [(800, 16), (16, 700), (800, 16), (64, 64), (8, 8), (1, 1)] {
+            let capacity = capture_texture_size(key, current, required, domain);
+            assert!(capacity.0 >= required.0 && capacity.1 >= required.1);
+            assert!(capacity.0 <= domain.0 && capacity.1 <= domain.1);
+            assert!(
+                u64::from(capacity.0) * u64::from(capacity.1)
+                    <= 2 * u64::from(required.0) * u64::from(required.1)
+            );
+            current = Some(capacity);
+        }
+        assert_eq!(
+            current,
+            Some((1, 1)),
+            "substantial shrink releases capacity"
+        );
+        assert_eq!(capture_texture_size(key, None, domain, domain), domain);
+    }
+
+    #[test]
+    fn source_capture_capacity_remains_exact() {
+        let mut keys = vec![CaptureKey::Alpha(7)];
+        #[cfg(feature = "shaders")]
+        keys.push(CaptureKey::EffectSource(9));
+        for key in keys.drain(..) {
+            for required in [(63, 25), (64, 24), (1, 1)] {
+                assert_eq!(
+                    capture_texture_size(key, Some((128, 128)), required, (512, 512)),
+                    required
+                );
+            }
+        }
     }
 }

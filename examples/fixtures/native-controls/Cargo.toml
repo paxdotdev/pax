@@ -1,0 +1,24 @@
+[package]
+name = "native-controls"
+version = "0.39.1"
+edition = "2021"
+publish = false
+default-run = "native-controls"
+
+[package.metadata.pax]
+title = "Pax native controls"
+
+[dependencies]
+pax-kit = { path = "../../../pax-kit", version = "0.39.1" }
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "native-controls"
+required-features = ["standalone"]

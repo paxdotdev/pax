@@ -8,6 +8,8 @@ use pax_gpu::render_backend::SharedGpuContext;
 use serde::{Deserialize, Serialize};
 
 mod session;
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+mod rich_text;
 pub use session::*;
 
 /// One host-selected physical tile and backing generation.
