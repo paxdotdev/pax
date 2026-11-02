@@ -310,4 +310,3 @@ test('profile aggregates survive ring overflow and have bounded residency', () =
     h.trace.dispose();
     assert.equal(h.trace.profilePhases.size, 0);
 });
-

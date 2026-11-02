@@ -88,5 +88,3 @@ fn apply_lighting(
         + material.emissive.rgb * material.emissive.a;
     return vec4<f32>(lit_rgb, color.a);
 }
-
-
