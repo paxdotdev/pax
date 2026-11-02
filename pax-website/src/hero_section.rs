@@ -1,4 +1,4 @@
-use crate::{site_shell::LogoNavigation, RotatingHeadline, SiteLogo, SiteTheme};
+use crate::{site_shell::LogoNavigation, GlassAction, RotatingHeadline, SiteLogo, SiteTheme};
 use pax_kit::*;
 
 #[pax]
@@ -28,6 +28,7 @@ pub struct HeroSection {
     pub _startup_deadline_ms: Property<f64>,
     pub _logo_started: Property<bool>,
     pub scroll_y: Property<f64>,
+    pub exit_progress: Property<f64>,
 }
 
 impl HeroSection {

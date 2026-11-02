@@ -58,7 +58,7 @@
                 <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
                     category="RENDERING" title="Vector Materials"
                     summary="Give vector fills authored matte, glossy, metallic, emissive, or coefficient-based light response on WGPU and WebGPU renderers."
-                    proof="AUTHORED SURFACES" docs_label="MATERIAL API"
+                    proof="SURFACE RESPONSE / ILLUSTRATED" docs_label="MATERIAL API"
                     docs_url="https://docs.pax.dev/api/pax-runtime-api/drawing.html#material">
                     <FeatureStudy width=100% height=100% kind="materials"/>
                 </FeatureCard>
@@ -157,7 +157,7 @@
                 <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
                     category="RENDERING" title="Scoped Lighting"
                     summary="Use LightFrame to keep authored lights inside a reusable component's layer, preventing repeated lit controls from illuminating their neighbors."
-                    proof="COMPONENT LIGHT BOUNDARY" docs_label="LIGHTING API"
+                    proof="LIGHT BOUNDARIES / ILLUSTRATED" docs_label="LIGHTING API"
                     docs_url="https://docs.pax.dev/api/pax-std/drawing/lighting.html">
                     <FeatureStudy width=100% height=100% kind="lighting"/>
                 </FeatureCard>
@@ -374,10 +374,10 @@
     @mount: handle_mount
     @pre_render: handle_pre_render
     .gallery_bg {
-        fill: {SiteTheme::ink()}
+        fill: {paint: {SiteTheme::ink()}, material: {Material::unlit()}}
     }
     .gallery_rule {
-        fill: rgba(252, 249, 242, 32)
+        fill: {paint: rgba(252, 249, 242, 32), material: {Material::unlit()}}
     }
     .gallery_eyebrow {
         style: TextStyle {
@@ -404,95 +404,102 @@
         height: 100%
     }
     .poster_panel {
-        fill: {SiteTheme::surface()}
+        fill: {paint: {SiteTheme::surface()}, material: {Material::unlit()}}
         stroke: Stroke {
+            material: {Material::unlit()}
             paint: rgba(252, 249, 242, 58)
             width: 1px
         }
         corner_radius: 0.0
     }
     .poster_panel_accent {
-        fill: rgb(90, 90, 90)
+        fill: {paint: rgb(90, 90, 90), material: {Material::unlit()}}
         corner_radius: 0.0
     }
     .poster_native {
-        fill: {SiteTheme::surface()}
+        fill: {paint: {SiteTheme::surface()}, material: {Material::unlit()}}
         stroke: Stroke {
+            material: {Material::unlit()}
             paint: rgba(220, 220, 220, 130)
             width: 2px
         }
         corner_radius: 6.0
     }
     .poster_phone {
-        fill: {SiteTheme::surface()}
+        fill: {paint: {SiteTheme::surface()}, material: {Material::unlit()}}
         stroke: Stroke {
+            material: {Material::unlit()}
             paint: {SiteTheme::raised()}
             width: 2px
         }
         corner_radius: 9.0
     }
     .poster_outline {
-        fill: TRANSPARENT
+        fill: {paint: TRANSPARENT, material: {Material::unlit()}}
         stroke: Stroke {
+            material: {Material::unlit()}
             paint: rgba(220, 220, 220, 118)
             width: 1px
         }
         corner_radius: 4.0
     }
     .poster_code_panel {
-        fill: {SiteTheme::ink()}
+        fill: {paint: {SiteTheme::ink()}, material: {Material::unlit()}}
         corner_radius: 0.0
     }
     .poster_track {
-        fill: rgba(220, 220, 220, 72)
+        fill: {paint: rgba(220, 220, 220, 72), material: {Material::unlit()}}
     }
     .poster_axis {
-        fill: rgba(220, 220, 220, 78)
+        fill: {paint: rgba(220, 220, 220, 78), material: {Material::unlit()}}
     }
     .poster_signal {
-        fill: rgb(225, 225, 220)
+        fill: {paint: rgb(225, 225, 220), material: {Material::unlit()}}
     }
     .poster_code_line {
-        fill: rgba(252, 249, 242, 88)
+        fill: {paint: rgba(252, 249, 242, 88), material: {Material::unlit()}}
         corner_radius: 4.0
     }
     .poster_code_line_light {
-        fill: rgba(255, 255, 255, 155)
+        fill: {paint: rgba(255, 255, 255, 155), material: {Material::unlit()}}
         corner_radius: 3.0
     }
     .poster_code_line_signal {
-        fill: rgb(220, 220, 220)
+        fill: {paint: rgb(220, 220, 220), material: {Material::unlit()}}
         corner_radius: 3.0
     }
     .poster_orbit {
-        fill: TRANSPARENT
+        fill: {paint: TRANSPARENT, material: {Material::unlit()}}
         stroke: Stroke {
+            material: {Material::unlit()}
             paint: rgba(220, 220, 220, 118)
             width: 1px
         }
     }
     .poster_dot {
-        fill: rgb(225, 225, 220)
+        fill: {paint: rgb(225, 225, 220), material: {Material::unlit()}}
     }
     .poster_dot_alt {
-        fill: {SiteTheme::surface()}
+        fill: {paint: {SiteTheme::surface()}, material: {Material::unlit()}}
         stroke: Stroke {
+            material: {Material::unlit()}
             paint: rgb(225, 225, 220)
             width: 2px
         }
     }
     .poster_crosshair {
-        fill: rgba(255, 255, 255, 120)
+        fill: {paint: rgba(255, 255, 255, 120), material: {Material::unlit()}}
         stroke: Stroke {
+            material: {Material::unlit()}
             paint: rgb(225, 225, 220)
             width: 2px
         }
     }
     .poster_mountain {
-        fill: rgba(220, 220, 220, 130)
+        fill: {paint: rgba(220, 220, 220, 130), material: {Material::unlit()}}
     }
     .poster_mountain_alt {
-        fill: rgba(160, 160, 160, 120)
+        fill: {paint: rgba(160, 160, 160, 120), material: {Material::unlit()}}
     }
     .poster_code {
         style: TextStyle {

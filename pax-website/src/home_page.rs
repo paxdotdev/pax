@@ -7,6 +7,11 @@ use pax_kit::*;
 #[file("home_page.pax")]
 pub struct HomePage {
     pub scroll_y: Property<f64>,
+    pub hero_span: Property<f64>,
+    pub runtime_span: Property<f64>,
+    pub hero_exit: Property<f64>,
+    pub runtime_progress: Property<f64>,
+    pub framework_progress: Property<f64>,
     pub hero_source_open: Property<bool>,
     pub source_overlay_open: Property<bool>,
     pub source_sheets_mounted: Property<usize>,
@@ -40,6 +45,46 @@ pub struct HomePage {
 
 impl HomePage {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
+        let viewport = ctx.bounds_self.clone();
+        let scroll = self.scroll_y.local();
+        let hero = self.hero_height.local();
+        let runtime = self.runtime_height.local();
+        let framework = self.framework_height.local();
+        let deps = [
+            viewport.untyped(),
+            scroll.untyped(),
+            hero.untyped(),
+            runtime.untyped(),
+            framework.untyped(),
+        ];
+        let hero_span = self.hero_span.local();
+        let runtime_span = self.runtime_span.local();
+        let hero_exit = self.hero_exit.local();
+        let runtime_progress = self.runtime_progress.local();
+        let framework_progress = self.framework_progress.local();
+        let update_story = move || {
+            let story = crate::scroll_story::OpeningStory::sample(
+                scroll.get(),
+                viewport.get(),
+                hero.get(),
+                runtime.get(),
+            );
+            hero_span.set_if_neq(story.hero_span);
+            runtime_span.set_if_neq(story.runtime_span);
+            hero_exit.set_if_neq(story.hero_exit);
+            runtime_progress.set_if_neq(story.runtime_progress);
+            // Match the fixed section footprints in home_page.pax, not the
+            // transformed device bounds. Motion must not change scroll extent.
+            let framework_top = story.hero_span + story.runtime_span;
+            framework_progress.set_if_neq(crate::scroll_story::section_progress(
+                scroll.get(),
+                viewport.get().1,
+                framework_top,
+                framework.get().max(640.0),
+            ));
+        };
+        update_story();
+        ctx.subscribe(&deps, update_story);
         self.source_light.set(true);
         let bounds = ctx.bounds_self.clone();
         let compact = self.compact_sources.local();
@@ -74,6 +119,22 @@ impl HomePage {
             label: "src/home_page.pax".into(),
             language: "pax".into(),
             code: include_str!("home_page.pax").into(),
+        });
+        hero_sources.extend(section_sources(
+            "src/glass_action.pax",
+            include_str!("glass_action.pax"),
+            "src/glass_action.rs",
+            include_str!("glass_action.rs"),
+        ));
+        hero_sources.push(ExampleSource {
+            label: "src/site_theme.rs".into(),
+            language: "rust".into(),
+            code: include_str!("site_theme.rs").into(),
+        });
+        hero_sources.push(ExampleSource {
+            label: "src/scroll_story.rs".into(),
+            language: "rust".into(),
+            code: include_str!("scroll_story.rs").into(),
         });
         // include_str! is relative to this source file, not the build's cwd.
         hero_sources.extend(section_sources(
@@ -199,41 +260,35 @@ impl HomePage {
             });
         }
         self.open_source_sources.set(open_source_sources);
-        let mut resource_sources = section_sources(
+        self.resource_sources.set(section_sources(
             "src/resource_section.pax",
             include_str!("resource_section.pax"),
             "src/resource_section.rs",
             include_str!("resource_section.rs"),
-        );
-        resource_sources.extend(section_sources(
+        ));
+        let mut calculator_sources = section_sources(
             "src/calculator_preview.pax",
             include_str!("calculator_preview.pax"),
             "src/calculator_preview.rs",
             include_str!("calculator_preview.rs"),
-        ));
-        resource_sources.extend(section_sources(
+        );
+        calculator_sources.extend(section_sources(
             "src/calculator_page.pax",
             include_str!("calculator_page.pax"),
             "src/route_pages.rs",
             include_str!("route_pages.rs"),
         ));
-        resource_sources.extend(section_sources(
+        calculator_sources.extend(section_sources(
             "calculator/src/lib.pax",
             include_str!("../../examples/calculator/src/lib.pax"),
             "calculator/src/lib.rs",
             include_str!("../../examples/calculator/src/lib.rs"),
         ));
-        resource_sources.extend(section_sources(
+        calculator_sources.extend(section_sources(
             "calculator/src/key.pax",
             include_str!("../../examples/calculator/src/key.pax"),
             "calculator/src/key.rs",
             include_str!("../../examples/calculator/src/key.rs"),
-        ));
-        resource_sources.extend(section_sources(
-            "src/device_frame.pax",
-            include_str!("device_frame.pax"),
-            "src/device_frame.rs",
-            include_str!("device_frame.rs"),
         ));
         for (label, code) in [
             (
@@ -253,13 +308,12 @@ impl HomePage {
                 include_str!("../../examples/calculator/src/layout.rs"),
             ),
         ] {
-            resource_sources.push(ExampleSource {
+            calculator_sources.push(ExampleSource {
                 label: label.into(),
                 language: "rust".into(),
                 code: code.into(),
             });
         }
-        self.resource_sources.set(resource_sources);
         self.framework_sources.set(section_sources(
             "framework_section.pax",
             include_str!("framework_section.pax"),
@@ -267,6 +321,18 @@ impl HomePage {
             include_str!("framework_section.rs"),
         ));
         self.framework_sources.update(|files| {
+            files.extend(section_sources(
+                "src/screenshot_study.pax",
+                include_str!("screenshot_study.pax"),
+                "src/screenshot_study.rs",
+                include_str!("screenshot_study.rs"),
+            ));
+            files.extend(section_sources(
+                "space-game/src/lib.pax",
+                include_str!("../../examples/fixtures/space-game/src/lib.pax"),
+                "space-game/src/lib.rs",
+                include_str!("../../examples/fixtures/space-game/src/lib.rs"),
+            ));
             for (label, code) in [
                 (
                     "led-oscilloscope/lib.pax",
@@ -424,6 +490,7 @@ impl HomePage {
                 code: code.into(),
             });
         }
+        runtime_sources.extend(calculator_sources);
         self.runtime_sources.set(runtime_sources);
         self.feature_gallery_sources.set(vec![
             ExampleSource {

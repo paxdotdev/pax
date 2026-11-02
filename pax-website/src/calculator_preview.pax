@@ -10,7 +10,7 @@
                 fill: {SiteTheme::paper()}
                 align_horizontal: TextAlignHorizontal::Center
                 align_vertical: TextAlignVertical::Center
-            }>{self.compact ? "TRY THE CALCULATOR  ↗" : "OPEN CALCULATOR FULL SCREEN  ↗"}</Text>
+            }>TRY THE CALCULATOR  ↗</Text>
         <Rectangle width=100% height=100% fill={SiteTheme::surface()} stroke={
             paint: {SiteTheme::rule()}
             width: 1px
@@ -27,19 +27,21 @@
             </Group>
         } else {
             <Group x={(self.stage_x)px} anchor=0% width=880px height=900px scale={(self.stage_scale)%} layout_role=LayoutRole::Breakout>
-                <Group x=440px y=450px anchor=50% width=390px height=844px>
-                    <DeviceFrame width=100% height=100% kind="phone" edge_to_edge=true>
-                        <Calculator width=100% height=100% embedded=true safe_top=48 safe_bottom=24 disable_keyboard=true paused=false/>
-                    </DeviceFrame>
+                <Group id=front_phone x=440px y=450px anchor=50% width=390px height=844px>
+                    <Link width=100% height=100% url="/calculator/" target=Target::Current>
+                        <DeviceFrame width=100% height=100% kind="phone" edge_to_edge=true>
+                            <NativeImage width=100% height=100% url="assets/calculator/phone.jpg" fit=ImageFit::Paint/>
+                        </DeviceFrame>
+                    </Link>
                 </Group>
-                <Group x=225px y=425px anchor=50% width=560px height=792px scale=62% rotate=-9deg>
+                <Group id=window_wing x=225px y=425px anchor=50% width=560px height=792px scale=62% rotate=-9deg>
                     <Link width=100% height=100% url="/calculator/" target=Target::Current>
                         <DeviceFrame width=100% height=100% kind="window">
                             <NativeImage width=100% height=100% url="assets/calculator/macos.jpg" fit=ImageFit::Paint/>
                         </DeviceFrame>
                     </Link>
                 </Group>
-                <Group x=675px y=430px anchor=50% width=850px height=1226px scale=36% rotate=8deg>
+                <Group id=tablet_wing x=675px y=430px anchor=50% width=850px height=1226px scale=36% rotate=8deg>
                     <Link width=100% height=100% url="/calculator/" target=Target::Current>
                         <DeviceFrame width=100% height=100% kind="tablet" edge_to_edge=true>
                             <NativeImage width=100% height=100% url="assets/calculator/tablet.jpg" fit=ImageFit::Paint/>
@@ -53,4 +55,22 @@
 
 @settings {
     @mount: mount
+}
+
+@timeline arrival {
+    duration: 100,
+    playhead: {self.scene_progress},
+    loop: false,
+    #front_phone {
+        y: { 0%: 480px, OutQuad, 38%: 450px, Linear, 76%: 450px, InQuad, 100%: 420px, }
+        rotate: { 0%: -3deg, OutQuad, 38%: 0deg, Linear, 76%: 0deg, InQuad, 100%: 2deg, }
+    }
+    #window_wing {
+        x: { 0%: 300px, OutQuad, 42%: 225px, Linear, 76%: 225px, InQuad, 100%: 265px, }
+        rotate: { 0%: -3deg, OutQuad, 42%: -9deg, Linear, 76%: -9deg, InQuad, 100%: -12deg, }
+    }
+    #tablet_wing {
+        x: { 0%: 595px, OutQuad, 46%: 675px, Linear, 76%: 675px, InQuad, 100%: 625px, }
+        rotate: { 0%: 2deg, OutQuad, 46%: 8deg, Linear, 76%: 8deg, InQuad, 100%: 11deg, }
+    }
 }

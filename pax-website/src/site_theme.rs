@@ -42,6 +42,72 @@ impl SiteTheme {
     pub fn violet() -> Color {
         Self::pink()
     }
+
+    /// Milky, diffuse polish; broad reflections keep dark lettering readable.
+    pub fn opal() -> Material {
+        Material::custom(MaterialParams {
+            ambient: Property::new(0.94),
+            diffuse: Property::new(0.10),
+            specular: Property::new(0.14),
+            roughness: Property::new(0.78),
+            metallic: Property::new(0.0),
+            ..Default::default()
+        })
+    }
+
+    /// Crystalline black surface: quiet diffuse response and a narrow bright glint.
+    pub fn obsidian() -> Material {
+        Material::custom(MaterialParams {
+            ambient: Property::new(0.65),
+            diffuse: Property::new(0.08),
+            specular: Property::new(3.8),
+            roughness: Property::new(0.025),
+            metallic: Property::new(0.0),
+            ..Default::default()
+        })
+    }
+
+    /// Quiet milky depth beneath the broad strip reflection; no outlined rim.
+    pub fn opal_paint() -> Paint {
+        polished_paint([
+            (0.0, (248, 246, 240)),
+            (0.35, (239, 240, 237)),
+            (0.60, (231, 234, 233)),
+            (0.86, (237, 237, 231)),
+            (1.0, (245, 242, 236)),
+        ])
+    }
+
+    /// Subtle cut planes beneath the real strip reflection, not a chrome bevel.
+    /// This remains opaque paint; edge refraction is intentionally separate.
+    pub fn obsidian_paint() -> Paint {
+        polished_paint([
+            (0.0, (43, 47, 54)),
+            (0.43, (31, 35, 42)),
+            (0.44, (23, 26, 32)),
+            (0.85, (28, 32, 39)),
+            (1.0, (36, 40, 47)),
+        ])
+    }
+}
+
+fn polished_paint(stops: [(f64, (u8, u8, u8)); 5]) -> Paint {
+    Paint::LinearGradient(LinearGradient {
+        start: (Size::Percent(0.0.into()), Size::Percent(0.0.into())),
+        end: (Size::Percent(0.0.into()), Size::Percent(100.0.into())),
+        stops: stops
+            .into_iter()
+            .map(|(position, (r, g, b))| GradientStop {
+                position: Size::Percent((position * 100.0).into()),
+                color: Color::from_rgba_0_1([
+                    r as f64 / 255.0,
+                    g as f64 / 255.0,
+                    b as f64 / 255.0,
+                    1.0,
+                ]),
+            })
+            .collect(),
+    })
 }
 
 #[cfg(test)]

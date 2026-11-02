@@ -322,7 +322,7 @@ Resolved light contribution for one logical canvas layer.
 ##### `shape`
 Type: [`LightShape`](../../api/pax-runtime-api/drawing.md#lightshape)
 
-Positional or directional light shape.
+Point, directional, or finite strip light shape.
 
 ##### `position`
 Type: `Vector3`
@@ -349,7 +349,7 @@ Light intensity.
 ##### `radius`
 Type: `f64`
 
-Point light radius in logical pixels.
+Point/strip light attenuation radius in logical pixels.
 
 ##### `enabled`
 Type: `bool`
@@ -493,6 +493,9 @@ A positional light with radius-based attenuation.
 
 ##### `Directional`
 A light with direction but no position or attenuation.
+
+##### `Strip`
+A finite line emitter centered at its position, spanning its half extent.
 
 ---
 

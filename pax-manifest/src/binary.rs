@@ -1098,6 +1098,65 @@ mod tests {
     use pax_runtime_api::{Color, Numeric, PaxValue, Size};
 
     #[test]
+    fn strip_light_shape_survives_manifest_program_ir_and_rust_baking() {
+        use pax_runtime_api::{CoercionRules, LightShape, ToPaxValue};
+        let type_id = TypeId::build_singleton(
+            "pax_std::drawing::lighting::LightSource",
+            Some("LightSource"),
+        );
+        let mut template = ComponentTemplate::new(type_id.clone(), None);
+        let mut node = TemplateNodeDefinition::default();
+        node.type_id = type_id.clone();
+        node.settings = Some(vec![SettingElement::Setting(
+            Token::new_without_location("shape".into()),
+            ValueDefinition::LiteralValue(LightShape::Strip.to_pax_value()),
+        )]);
+        template.add(node);
+        let manifest = PaxManifest {
+            main_component_type_id: type_id.clone(),
+            engine_import_path: "pax_kit::pax_engine".into(),
+            type_table: TypeTable::default(),
+            assets_dirs: vec![],
+            components: BTreeMap::from([(
+                type_id.clone(),
+                ComponentDefinition {
+                    type_id: type_id.clone(),
+                    is_main_component: true,
+                    is_primitive: false,
+                    is_struct_only_component: false,
+                    module_path: "crate".into(),
+                    primitive_instance_import_path: None,
+                    template: Some(template),
+                    settings: None,
+                    timelines: vec![],
+                    route_branch: None,
+                },
+            )]),
+        };
+        let decoded = from_slice(&to_vec(&manifest).unwrap()).unwrap();
+        let ir = crate::program_ir::ProgramIR::from_manifest(&decoded);
+        let ir =
+            crate::program_ir::binary::from_slice(&crate::program_ir::binary::to_vec(&ir).unwrap())
+                .unwrap();
+        let template = ir.components[&type_id].template.as_ref().unwrap();
+        let node = template.get_node(&template.get_root()[0]).unwrap();
+        let SettingElement::Setting(_, ValueDefinition::LiteralValue(value)) =
+            &node.settings.as_ref().unwrap()[0]
+        else {
+            panic!("lost strip shape")
+        };
+        assert_eq!(
+            LightShape::try_coerce(value.clone()).unwrap(),
+            LightShape::Strip
+        );
+        #[cfg(feature = "compiler")]
+        {
+            let rust = crate::rust_manifest::to_rust_expression(&decoded);
+            assert!(rust.contains("LightShape") && rust.contains("Strip"));
+        }
+    }
+
+    #[test]
     fn binary_manifest_round_trips_template_maps_without_json_keys() {
         let type_id = TypeId::build_singleton("crate::App", Some("App"));
         let mut template = ComponentTemplate::new(type_id.clone(), Some("src/lib.pax".to_string()));

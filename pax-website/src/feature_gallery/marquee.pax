@@ -8,7 +8,7 @@
                 </Group>
             }
         </ScrollerHost>
-        <Rectangle width=100% height=100% fill=TRANSPARENT/>
+        <Rectangle width=100% height=100% fill=[]/>
     </Frame>
 </Group>
 

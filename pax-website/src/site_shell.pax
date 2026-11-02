@@ -1,17 +1,27 @@
 <Group width=100% height=100%>
+    // Fixed in the full viewport, outside safe-area insets and the scroller.
+    // The strip endpoints are (0, 100% height) and (100% width, 33% height).
+    <StripLight id=viewport_strip x=50% y=66.5% anchor=50% width={(self.strip_length)px} height=1px
+        rotate={(self.strip_angle)rad} z=58px radius=360px intensity=1.4 color=WHITE/>
+    // The pointer light remains independent of the stationary strip.
+    <LightSource x={self.pointer_light_active ? (self.pointer_light_x)px : 65%}
+        y={self.pointer_light_active ? (self.pointer_light_y)px : 25%} anchor=50% width=1px height=1px
+        z=95px radius=480px intensity=0.9 color=WHITE/>
+    <AmbientLight intensity=1.0 color=WHITE/>
     <DynamicIslandSpacer inset=bind:self.safe_top/>
     <DynamicIslandSpacer edge=SafeAreaEdge::Bottom inset=bind:self.safe_bottom/>
     <DynamicIslandSpacer edge=SafeAreaEdge::Left inset=bind:self.safe_left/>
     <DynamicIslandSpacer edge=SafeAreaEdge::Right inset=bind:self.safe_right/>
     ///#ignore
     <Overlay>
-        <Group id=site_nav x={(self.safe_left)px} y={(self.safe_top)px}
+        <Group id=site_nav x={(self.safe_left)px} anchor_y=0px
+            y={(self.safe_top - (1 - self.nav_reveal) * (self.safe_top + (self.compact ? 64 : 80)))px}
             width={100% - (self.safe_left + self.safe_right)px} height={self.compact ? 64px : 80px}>
             <Group id=logo_container x={self.compact ? 18px : 38px} y={self.compact ? 8px : 12px}
                 width={self.compact ? 95.26px : 111.13px} height={self.compact ? 48px : 56px}
-                opacity={self.hide_nav ? 0 : 1} _raycastable={!self.hide_nav}/>
-            if !self.hide_nav && self.nav_alpha > 0.001 {
-                <Group width=100% height=100% opacity={self.nav_alpha}>
+                _raycastable={!self.hide_nav}/>
+            if !self.hide_nav && self.nav_reveal > 0.001 {
+                <Group width=100% height=100%>
                     if !self.has_hero {
                         <NavLogo x={self.compact ? 18px : 38px} y=50% anchor_x=0px anchor_y=50% width=920.72px height=463.95px
                             scale={((self.compact ? 64 : 80) / 920.72 * 100)%} layout_role=LayoutRole::Breakout/>
@@ -52,14 +62,17 @@
             slot()
         </Group>
     </Group>
-    <Rectangle fill={SiteTheme::ink()} width=100% height=100%/>
+    <Rectangle fill={paint: {SiteTheme::ink()}, material: {Material::unlit()}} width=100% height=100%/>
 </Group>
 
 @settings {
     @mount: handle_mount
     @pre_render: handle_pre_render
+    @mouse_move: move_pointer_light
+    @touch_start: touch_pointer_light
+    @touch_move: drag_pointer_light
     .shell_nav_bg {
-        fill: {SiteTheme::ink()}
+        fill: {paint: {SiteTheme::ink()}, material: {Material::unlit()}}
     }
     .nav_link {
         style: TextStyle {

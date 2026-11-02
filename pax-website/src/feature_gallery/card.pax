@@ -2,7 +2,7 @@
     @touch_start=self.pause_marquee_for_touch @touch_end=self.resume_marquee_for_touch
     @touch_cancel=self.cancel_marquee_touch>
     <Link width=100% height=100% url={self.docs_url} target=Target::New>
-        <Rectangle width=100% height=100% fill=TRANSPARENT/>
+        <Rectangle width=100% height=100% fill=[]/>
     </Link>
     ///#ignore
     <Frame x=16px y=16px width={100% - 32px} height=174px>
@@ -26,16 +26,18 @@
     @mount: measure_artboard
     @pre_render: measure_artboard
     .feature_card_surface {
-        fill: {SiteTheme::surface()}
+        fill: {paint: {SiteTheme::surface()}, material: {Material::unlit()}}
         stroke: Stroke {
+            material: {Material::unlit()}
             paint: rgba(252, 249, 242, 42)
             width: 1px
         }
         corner_radius: 0.0
     }
     .feature_media_surface {
-        fill: {SiteTheme::raised()}
+        fill: {paint: {SiteTheme::raised()}, material: {Material::unlit()}}
         stroke: Stroke {
+            material: {Material::unlit()}
             paint: rgba(252, 249, 242, 28)
             width: 1px
         }

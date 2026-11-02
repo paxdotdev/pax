@@ -99,8 +99,13 @@ impl InstanceNode for Probe {
     }
     fn resolve_effect_clip_path(&self, node: &ExpandedNode) -> Option<BezPath> {
         matches!(self.kind, Kind::Clip | Kind::Scroller).then(|| {
+            let bounds = if matches!(self.kind, Kind::Scroller) {
+                node.transform_and_bounds.get().bounds
+            } else {
+                (60., 60.)
+            };
             Affine::from(node.transform_and_bounds.get().transform)
-                * kurbo::RoundedRect::new(0., 0., 60., 60., 8.).to_path(0.1)
+                * kurbo::RoundedRect::new(0., 0., bounds.0, bounds.1, 8.).to_path(0.1)
         })
     }
 }
@@ -232,6 +237,7 @@ fn assert_full_rebuild_matches(root: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
                 (
                     n.occlusion.get(),
                     n.native_mask_hash.get(),
+                    n.presentation_cache_hash.get(),
                     record.clips.clone(),
                     record.render_layer_id,
                 ),
@@ -246,12 +252,17 @@ fn assert_full_rebuild_matches(root: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
         expected.len(),
         "local reconciliation must neither drop nor retain extra nodes"
     );
-    for (id, (order, mask, clips, layer)) in expected {
+    for (id, (order, mask, presentation, clips, layer)) in expected {
         let n = ctx
             .get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id))
             .unwrap();
         assert_eq!(n.occlusion.get(), order, "order for {id}");
         assert_eq!(n.native_mask_hash.get(), mask, "mask for {id}");
+        assert_eq!(
+            n.presentation_cache_hash.get(),
+            presentation,
+            "presentation for {id}"
+        );
         let state = ctx.occlusion_state.borrow();
         assert_eq!(state.records[&id].clips, clips, "clip lineage for {id}");
         assert_eq!(state.records[&id].render_layer_id, layer, "layer for {id}");
@@ -327,6 +338,180 @@ fn shared_scroll_motion_preserves_masks_without_evaluating_them() {
             .any(|m| matches!(m, pax_message::NativeMessage::NativeMaskUpdate(_))));
         assert_full_rebuild_matches(&root, &ctx);
         clear(&ctx);
+    }
+}
+
+#[test]
+fn moving_and_resizing_nested_scrollers_reconcile_only_the_affected_branch() {
+    let (ctx, root) = mount(
+        (0..8)
+            .map(|_| {
+                probe(
+                    Kind::Scroller,
+                    vec![probe(
+                        Kind::Scroller,
+                        vec![
+                            probe(Kind::Clip, vec![probe(Kind::Canvas, vec![])]),
+                            probe(Kind::Native, vec![]),
+                        ],
+                    )],
+                )
+            })
+            .collect(),
+    );
+    let outer = root.children.get()[0].children.get()[0].clone();
+    let inner = outer.children.get()[0].clone();
+    scroll_surface(&ctx, &outer, 11.25);
+    scroll_surface(&ctx, &inner, 4.5);
+    settle(&root, &ctx);
+    for (x, width, scale, angle) in [
+        (20., 180., 0.7, 17.),
+        (90., 100., 1.2, -9.),
+        (0., 300., 1., 0.),
+    ] {
+        let before = ctx.occlusion_stats();
+        {
+            let p = outer.get_common_properties();
+            let p = p.borrow();
+            p.x.set(Some(Size::Pixels(x.into())));
+            p.width.set(Some(Size::Pixels(width.into())));
+            p.scale_x.set(Some(Size::Percent((scale * 100.).into())));
+            p.scale_y.set(Some(Size::Percent((scale * 100.).into())));
+            p.rotate
+                .set(Some(pax_runtime_api::Rotation::Degrees(angle.into())));
+        }
+        settle(&root, &ctx);
+        let after = ctx.occlusion_stats();
+        assert_eq!(
+            after.rebuilds, before.rebuilds,
+            "stable scroller ownership must not rebuild"
+        );
+        assert_eq!(after.topology_nodes_visited, before.topology_nodes_visited);
+        assert!(after.records_updated - before.records_updated <= 5);
+        assert_full_rebuild_matches(&root, &ctx);
+    }
+}
+
+#[test]
+fn scroller_extents_do_not_rebuild_coverage_but_clip_policy_does() {
+    let (ctx, root) = mount(vec![probe(
+        Kind::Scroller,
+        vec![probe(Kind::Canvas, vec![]), probe(Kind::Native, vec![])],
+    )]);
+    let scroller = root.children.get()[0].children.get()[0].clone();
+    scroll_surface(&ctx, &scroller, 0.);
+    settle(&root, &ctx);
+    let before = ctx.occlusion_stats();
+    assert_eq!(
+        ctx.set_scroller_surface_state(
+            scroller.id.to_u32(),
+            crate::ScrollerSurfaceState {
+                viewport_width: 120.,
+                viewport_height: 90.,
+                content_width: 240.,
+                content_height: 1800.,
+                clip_content: true,
+                ..Default::default()
+            }
+        ),
+        crate::ScrollerSurfaceStateChange::Geometry
+    );
+    settle(&root, &ctx);
+    let after = ctx.occlusion_stats();
+    assert_eq!(after.rebuilds, before.rebuilds);
+    assert_eq!(
+        after.structural_reconciliations,
+        before.structural_reconciliations
+    );
+    assert_eq!(after.records_updated, before.records_updated);
+    assert_eq!(after.masks_evaluated, before.masks_evaluated);
+    assert_full_rebuild_matches(&root, &ctx);
+    assert_eq!(
+        ctx.set_scroller_surface_state(
+            scroller.id.to_u32(),
+            crate::ScrollerSurfaceState {
+                clip_content: false,
+                ..Default::default()
+            }
+        ),
+        crate::ScrollerSurfaceStateChange::Structural
+    );
+}
+
+#[test]
+fn singular_and_shared_layer_scroller_geometry_keeps_the_full_fallback() {
+    let (ctx, root) = mount(vec![probe(
+        Kind::Scroller,
+        vec![probe(Kind::Canvas, vec![]), probe(Kind::Native, vec![])],
+    )]);
+    let scroller = root.children.get()[0].children.get()[0].clone();
+    scroll_surface(&ctx, &scroller, 0.);
+    settle(&root, &ctx);
+    for scale in [0., 100.] {
+        let before = ctx.occlusion_stats();
+        scroller
+            .get_common_properties()
+            .borrow()
+            .scale_x
+            .set(Some(Size::Percent(scale.into())));
+        settle(&root, &ctx);
+        assert!(ctx.occlusion_stats().rebuilds > before.rebuilds);
+        assert_full_rebuild_matches(&root, &ctx);
+    }
+    ctx.globals()
+        .browser_allows_scroller_vector_layers
+        .set(false);
+    ctx.mark_occlusion_dirty();
+    settle(&root, &ctx);
+    let before = ctx.occlusion_stats();
+    scroller
+        .get_common_properties()
+        .borrow()
+        .x
+        .set(Some(Size::Pixels(25.0.into())));
+    settle(&root, &ctx);
+    assert!(ctx.occlusion_stats().rebuilds > before.rebuilds);
+    assert_full_rebuild_matches(&root, &ctx);
+}
+
+#[test]
+fn isolated_scroller_clip_resize_preserves_content_local_masks() {
+    let (ctx, root) = mount(vec![probe(
+        Kind::Scroller,
+        vec![
+            probe(Kind::Clip, vec![probe(Kind::Canvas, vec![])]),
+            probe(Kind::Native, vec![]),
+        ],
+    )]);
+    let scroller = root.children.get()[0].children.get()[0].clone();
+    for child in scroller.children.get() {
+        child
+            .get_common_properties()
+            .borrow()
+            .width
+            .set(Some(Size::Pixels(80.0.into())));
+        child
+            .get_common_properties()
+            .borrow()
+            .height
+            .set(Some(Size::Pixels(80.0.into())));
+    }
+    scroll_surface(&ctx, &scroller, 0.);
+    settle(&root, &ctx);
+    let mask = scroller.children.get()[1].native_mask_hash.get();
+    for width in [20., 120., 300.] {
+        let before = ctx.occlusion_stats();
+        scroller
+            .get_common_properties()
+            .borrow()
+            .width
+            .set(Some(Size::Pixels(width.into())));
+        settle(&root, &ctx);
+        let after = ctx.occlusion_stats();
+        assert_eq!(after.rebuilds, before.rebuilds);
+        assert_eq!(after.records_updated - before.records_updated, 4);
+        assert_eq!(scroller.children.get()[1].native_mask_hash.get(), mask);
+        assert_full_rebuild_matches(&root, &ctx);
     }
 }
 

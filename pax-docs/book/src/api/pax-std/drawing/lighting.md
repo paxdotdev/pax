@@ -58,7 +58,8 @@ Point-light attenuation radius in world pixels; ancestor scale does not resize i
 ##### `shape`
 Type: `Property`<[`LightShape`](../../../api/pax-runtime-api/drawing.md#lightshape)>
 
-Positional or directional light shape.
+Light shape. A strip spans the local width through the center of this node;
+rotate/scale the node to orient/resize it. Height does not set emitter thickness.
 
 ##### `direction`
 Type: `Property`<`Vector3`>
@@ -69,3 +70,41 @@ Local direction for directional lights, transformed with the light's ancestors.
 Type: `Property`<`bool`>
 
 Whether this light contributes to the scene.
+
+---
+
+### `StripLight`
+A finite line light. Its width sets length, its center sets position, and
+`rotate` sets its angle. The emitter is non-rendering and uses one light slot.
+
+Uses the GPU renderer's continuous nearest-point line-light model, not a
+sampled row of point lights or physically integrated area illumination.
+Rougher materials soften its band; glossy materials give a tighter reflection.
+Height is only a layout box, not emitter thickness. Zero width behaves as a point.
+Like LightSource, it respects LightFrame scope; CPU/native-text lighting is unsupported.
+
+#### Properties
+##### `color`
+Type: `Property`<[`Color`](../../../api/pax-runtime-api/color.md#color)>
+
+Emitted light color.
+
+##### `intensity`
+Type: `Property`<`f64`>
+
+Brightness multiplier; independent of strip length.
+
+##### `radius`
+Type: `Property`<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
+
+Attenuation distance from the closest point on the strip, in pixels.
+
+##### `z`
+Type: `Property`<[`Depth`](../../../api/pax-runtime-api/drawing.md#depth)>
+
+Depth above the 2D scene, in pixels.
+
+##### `enabled`
+Type: `Property`<`bool`>
+
+Whether this emitter contributes, without unmounting it.

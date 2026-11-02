@@ -1,8 +1,8 @@
 # Calculator device captures
 
-The rear devices and compact phone preview use captures of the canonical
-`examples/calculator` component. The foreground phone on wide layouts is live;
-the images do not create additional calculator trees. All three captures show
+All homepage devices use captures of the canonical
+`examples/calculator` component; no calculator trees mount on the homepage.
+All three captures show
 the initial polar graph, not a separate mockup or duplicated implementation.
 
 Use `NativeImage` to preserve the captures' color and aspect ratio, as in the

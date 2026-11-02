@@ -700,6 +700,31 @@ ancestor depth and rotation. Rust code that accessed `LightSource::z` should
 set the node's common `z` instead. This does not yet add transformed surface
 normals or depth-aware shading: vector materials still shade a flat raster
 surface in the current lighting backend.
+For a continuous band of light, use `StripLight` from `pax-std`:
+
+```pax
+<LightFrame width=320px height=100px>
+    <StripLight x=50% y=50% width=260px height=1px rotate=-60deg
+        z=58px radius=360px intensity=1.4 color=WHITE/>
+    <Rectangle width=100% height=100% corner_radius=16
+        fill={paint: rgb(35, 39, 46), material: {Material::glossy(0.8)}}/>
+</LightFrame>
+```
+
+The strip runs along its local x-axis: `width` sets its length, its center sets
+position, and `rotate` sets orientation (`-60deg` is 30 degrees clockwise from
+vertical). Ancestor rotation and scaling transform both endpoints, including
+across native scrollers. Animate its position or bind it to scroll progress to
+move the reflection over a surface. Rougher materials soften the specular band;
+smoother materials tighten it. Like other lights, the emitter itself is invisible.
+
+This is a finite, continuous **nearest-point line-light model**: each surface
+point receives light from the closest point on the segment. It uses one direct
+light slot, not a row of point lights. Intensity is independent of strip length;
+this is not physically integrated area illumination. `height` is a layout box,
+not emitter thickness. A zero-length strip behaves as a point light. The same
+behavior is available through `LightSource shape=LightShape::Strip`; use
+`LightSource` when switching shapes dynamically.
 
 Each fill and stroke layer has its own material; the default is matte. `Material::glossy(...)` and
 `Material::metallic(...)` adjust the response; `Material::unlit()` preserves
@@ -747,7 +772,11 @@ If you maintain a custom Rust lighting primitive, implement
 `InstanceNode::has_scene_lighting()` as `true` alongside
 `resolve_scene_light` or `resolve_scene_ambient_light`. This capability hook
 must stay true while the primitive is disabled or returns `None`; it describes
-its role, not its current contribution.
+its role, not its current contribution. Existing `.pax` lighting templates
+need no changes.
+Rust code constructing `SceneLight` directly must supply `half_extent` (or use
+`..Default::default()`). Use zero for point/directional lights; for strips, it is
+the canvas-space vector from the center to one endpoint.
 For value changes, call `RuntimeContext::mark_scene_lighting_dirty()` to schedule
 lighting resolution without requesting a full canvas redraw. Structural changes
 still use the runtime's normal scene invalidation.

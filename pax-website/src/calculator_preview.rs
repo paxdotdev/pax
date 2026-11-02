@@ -1,9 +1,7 @@
 use crate::{DeviceFrame, SiteTheme};
-use calculator::Calculator;
 use pax_kit::*;
 
-/// A live phone with captured window/tablet wings, or a mobile full-screen link.
-/// The desktop calculator mounts and updates with the page, including offscreen.
+/// A captured phone, window, and tablet; each opens the standalone calculator.
 #[pax]
 #[file("calculator_preview.pax")]
 pub struct CalculatorPreview {
@@ -13,6 +11,7 @@ pub struct CalculatorPreview {
     pub stage_scale: Property<f64>,
     pub stage_x: Property<f64>,
     pub devices_height: Property<f64>,
+    pub scene_progress: Property<f64>,
 }
 
 impl CalculatorPreview {
@@ -26,7 +25,7 @@ impl CalculatorPreview {
         let height = self.devices_height.local();
         let content_height = self.content_height.local();
         let update = move || {
-            // The footer's column breakpoint controls the mode, not the narrower
+            // The showcase row's breakpoint controls the mode, not the narrower
             // preview column's width. Desktop therefore retains the whole fanout.
             let layout = DeviceLayout::new(bounds.get().0, compact.get());
             scale.set_if_neq(layout.scale * 100.0);
@@ -73,11 +72,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn calculator_mount_and_updates_have_no_visibility_gate() {
+    fn homepage_never_mounts_a_calculator_and_each_capture_is_linked() {
         let template = include_str!("calculator_preview.pax");
-        assert!(!template.contains("if self.loaded"));
-        assert!(!template.contains("@viewport_proximity"));
-        assert!(template.contains("paused=false"));
+        assert!(!template.contains("<Calculator"));
+        assert_eq!(template.matches("url=\"/calculator/\"").count(), 5);
+        assert!(template.contains("#front_phone"));
     }
 
     #[test]

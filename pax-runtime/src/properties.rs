@@ -76,7 +76,7 @@ fn transform_scene_light_for_layer(
     source_scroll: [f64; 3],
     target_scroll: [f64; 3],
 ) -> SceneLight {
-    if matches!(light.shape, LightShape::Point) {
+    if matches!(light.shape, LightShape::Point | LightShape::Strip) {
         light.position.x += source_scroll[0] - target_scroll[0];
         light.position.y += source_scroll[1] - target_scroll[1];
         light.position.z += source_scroll[2] - target_scroll[2];
@@ -188,8 +188,13 @@ pub struct ScrollerSurfaceState {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// Coarse classification of changes to a native or browser-owned scroller surface.
 pub enum ScrollerSurfaceStateChange {
+    /// No surface or presentation state changed.
     Unchanged,
+    /// Only the content origin or sampled scroll offsets changed.
     ScrollOnly,
+    /// Viewport/content extents changed without changing clipping ownership.
+    Geometry,
+    /// A surface was introduced or its clipping policy changed.
     Structural,
 }
 
@@ -198,12 +203,11 @@ impl ScrollerSurfaceState {
         (lhs - rhs).abs() <= 1e-4
     }
 
-    fn structural_eq(&self, other: &Self) -> bool {
+    fn geometry_eq(&self, other: &Self) -> bool {
         Self::close_enough(self.viewport_width, other.viewport_width)
             && Self::close_enough(self.viewport_height, other.viewport_height)
             && Self::close_enough(self.content_width, other.content_width)
             && Self::close_enough(self.content_height, other.content_height)
-            && self.clip_content == other.clip_content
     }
 
     fn scroll_eq(&self, other: &Self) -> bool {
@@ -845,12 +849,16 @@ impl RuntimeContext {
         let change = {
             let mut states = borrow_mut!(self.scroller_surface_states);
             let change = match states.get(&id) {
-                Some(previous) if previous.structural_eq(&state) && previous.scroll_eq(&state) => {
+                Some(previous) if previous.clip_content != state.clip_content => {
+                    ScrollerSurfaceStateChange::Structural
+                }
+                Some(previous) if !previous.geometry_eq(&state) => {
+                    ScrollerSurfaceStateChange::Geometry
+                }
+                Some(previous) if previous.scroll_eq(&state) => {
                     ScrollerSurfaceStateChange::Unchanged
                 }
-                Some(previous) if previous.structural_eq(&state) => {
-                    ScrollerSurfaceStateChange::ScrollOnly
-                }
+                Some(_) => ScrollerSurfaceStateChange::ScrollOnly,
                 _ => ScrollerSurfaceStateChange::Structural,
             };
             if change != ScrollerSurfaceStateChange::Unchanged {
@@ -861,7 +869,9 @@ impl RuntimeContext {
 
         match change {
             ScrollerSurfaceStateChange::Unchanged => {}
-            ScrollerSurfaceStateChange::ScrollOnly => {
+            ScrollerSurfaceStateChange::ScrollOnly | ScrollerSurfaceStateChange::Geometry => {
+                // Extents affect viewport presentation and canvas residency, not
+                // layer ownership. Actual node/clip geometry has its own dirty listener.
                 self.mark_occlusion_presentation_dirty(id);
                 self.invalidate_viewport_presentation();
                 self.mark_layer_canvas_plans_dirty();
@@ -3412,6 +3422,33 @@ mod light_scope_tests {
     fn root_lights_reach_every_frame_ancestry() {
         let ancestry = HashSet::from([ExpandedNodeIdentifier(10), ExpandedNodeIdentifier(20)]);
         assert!(light_reaches_frame_ancestry(None, &ancestry));
+    }
+
+    #[test]
+    fn strip_light_layer_transform_preserves_both_endpoints() {
+        let light = SceneLight {
+            shape: LightShape::Strip,
+            position: pax_runtime_api::Vector3::new(20., 30., 80.),
+            half_extent: pax_runtime_api::Vector3::new(45., -60., 0.),
+            ..Default::default()
+        };
+        let source = [100., -50., 20.];
+        let target = [-12., 300., 5.];
+        let resolved = transform_scene_light_for_layer(light.clone(), source, target);
+        for sign in [-1., 1.] {
+            let expected = Point::new(
+                light.position.x + sign * light.half_extent.x + source[0] - target[0],
+                light.position.y + sign * light.half_extent.y + source[1] - target[1],
+            );
+            assert!(
+                (resolved.position.x + sign * resolved.half_extent.x - expected.x).abs() < 1e-9
+            );
+            assert!(
+                (resolved.position.y + sign * resolved.half_extent.y - expected.y).abs() < 1e-9
+            );
+        }
+        assert_eq!(resolved.position.z, 95.);
+        assert_eq!(resolved.half_extent, light.half_extent);
     }
 
     #[test]

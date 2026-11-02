@@ -457,6 +457,8 @@ pub enum LightShape {
     Point,
     /// A light with direction but no position or attenuation.
     Directional,
+    /// A finite line emitter centered at its position, spanning its half extent.
+    Strip,
 }
 
 impl Interpolatable for LightShape {}
@@ -784,19 +786,23 @@ impl HelperFunctions for SceneAmbientLight {}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub struct SceneLight {
-    /// Positional or directional light shape.
+    /// Point, directional, or finite strip light shape.
     pub shape: LightShape,
-    /// Position in unprojected world pixels for point lights. Contributors supply
+    /// Center in unprojected world pixels for point and strip lights. Contributors supply
     /// the unscrolled world position; collected layer lighting adjusts source
     /// minus target scroll displacement while retaining world axes.
     pub position: Vector3,
+    /// Vector from the center to one endpoint of a strip, in unprojected world axes.
+    /// Ignored by other shapes. A zero extent makes a strip behave as a point.
+    #[serde(default)]
+    pub half_extent: Vector3,
     /// Direction in unprojected world axes for directional lights.
     pub direction: Vector3,
     /// Light color.
     pub color: Color,
     /// Light intensity.
     pub intensity: f64,
-    /// Point light radius in logical pixels.
+    /// Point/strip light attenuation radius in logical pixels.
     pub radius: f64,
     /// Whether this light contributes.
     pub enabled: bool,
@@ -807,6 +813,7 @@ impl Default for SceneLight {
         Self {
             shape: LightShape::Point,
             position: Vector3::default(),
+            half_extent: Vector3::default(),
             direction: Vector3::new(0.0, 0.0, -1.0),
             color: Color::WHITE,
             intensity: 1.0,
@@ -821,6 +828,7 @@ impl Interpolatable for SceneLight {
         Self {
             shape: if t < 1.0 { self.shape } else { other.shape },
             position: self.position.interpolate(&other.position, t),
+            half_extent: self.half_extent.interpolate(&other.half_extent, t),
             direction: self.direction.interpolate(&other.direction, t),
             color: self.color.interpolate(&other.color, t),
             intensity: self.intensity.interpolate(&other.intensity, t),

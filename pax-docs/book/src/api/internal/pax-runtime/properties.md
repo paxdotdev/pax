@@ -507,5 +507,13 @@ Coarse classification of changes to a native or browser-owned scroller surface.
 
 #### Variants
 ##### `Unchanged`
+No surface or presentation state changed.
+
 ##### `ScrollOnly`
+Only the content origin or sampled scroll offsets changed.
+
+##### `Geometry`
+Viewport/content extents changed without changing clipping ownership.
+
 ##### `Structural`
+A surface was introduced or its clipping policy changed.

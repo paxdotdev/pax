@@ -1,35 +1,43 @@
-<Group width=100% height=100% @mouse_down=self.on_resize_mouse_down @mouse_move=self.on_resize_mouse_move
-    @mouse_up=self.on_resize_mouse_up>
+<Group width=100% height=100% @mouse_move=self.on_resize_mouse_move @mouse_up=self.on_resize_mouse_up>
     if self._is_resizing_drawer {
         <Group width=100% height=100% @mouse_move=self.on_resize_mouse_move @mouse_up=self.on_resize_mouse_up>
             <Rectangle fill=TRANSPARENT width=100% height=100% @mouse_move=self.on_resize_mouse_move @mouse_up=self.on_resize_mouse_up/>
         </Group>
     }
+    // The handle follows the drawer's leading edge, not the preview's layout
+    // reservation. Full-screen presentations keep it inside the viewport.
+    if self.inline_source_viewer || !self.drawer_open {
+        <ExampleSourceToggle x={self.inline_source_viewer && !self._compact_drawer ? (100% - (self._drawer_width_px * self._drawer_progress)px) : 100%}
+            y={self.inline_source_viewer && self._compact_drawer && self.drawer_open ? 0px : 24px}
+            width={self.drawer_open ? 28px : 112px}
+            height={self.inline_source_viewer && self._compact_drawer && self.drawer_open ? 24px : 34px} open=bind:self.drawer_open/>
+    }
     if self.inline_source_viewer && !self._compact_drawer && (self.drawer_open || self._drawer_progress > 0.001) {
         <Group x={100% - (self._drawer_width_px * self._drawer_progress)px} y=0px width=18px height=100% anchor_x=50% anchor_y=0%>
-            <Rectangle fill=WHITE corner_radius=2 x=50% y=0px width=4px height=100% anchor_x=50% @mouse_down=self.on_split_mouse_down
+            <Rectangle fill=@gradient {
+                linear: {
+                    start: [0%, 50%],
+                    end: [100%, 50%],
+                },
+                0%: rgb(84, 87, 91),
+                35%: rgb(180, 184, 188),
+                50%: rgb(224, 226, 228),
+                70%: rgb(152, 156, 161),
+                100%: rgb(76, 79, 83),
+            }
+                corner_radius=0 x=50% y=0px width=4px height=100% anchor_x=50% @mouse_down=self.on_split_mouse_down
                 @mouse_over=self.on_resize_mouse_over @mouse_out=self.on_resize_mouse_out/>
             <Rectangle fill=TRANSPARENT width=100% height=100% @mouse_down=self.on_split_mouse_down @mouse_over=self.on_resize_mouse_over
                 @mouse_out=self.on_resize_mouse_out/>
         </Group>
     }
-    if !self.drawer_open && (!self.inline_source_viewer || self._drawer_progress <= 0.001) {
-        <Group x={100% - 24px} y=24px width=112px height=34px @click=self.toggle_drawer>
-            <Text class="example_host_button_label" x=50% y=50% width={100% - 18px} height=18px selectable=false>View Source</Text>
-            <Rectangle fill=BLACK stroke={
-                paint: WHITE
-                width: 3px
-            } corner_radius=9 width=100% height=100%/>
-        </Group>
-    }
     if self.inline_source_viewer && (self.drawer_open || self._drawer_progress > 0.001) {
         <ExampleSourceViewer x={100% - (self._drawer_width_px * self._drawer_progress)px} y=0px width={(self._drawer_width_px)px} height=100%
             anchor_x=0% anchor_y=0% title={self.title} sources={self.sources} selected_source=bind:self.selected_source
-            open=bind:self.drawer_open source_light_mode=bind:self.source_light_mode/>
+            open=bind:self.drawer_open source_light_mode=bind:self.source_light_mode show_close_tab=false/>
     }
     if !(self.inline_source_viewer && self._compact_drawer && (self.drawer_open || self._drawer_progress > 0.001)) {
-        <Group x=0px y=0px width={self.inline_source_viewer ? (100% - (self._drawer_width_px * self._drawer_progress)px) : 100%}
-            height=100% anchor_x=0% anchor_y=0%>
+        <Group x=0px y=0px width={100% - (self._preview_reserved_width_px)px} height=100% anchor_x=0% anchor_y=0%>
             slot()
         </Group>
     }
@@ -38,18 +46,4 @@
 @settings {
     @mount: on_mount
     @pre_render: on_pre_render
-    .example_host_button_label {
-        style: {
-            font: {
-                family: "Manrope"
-                url: "/assets/fonts/Manrope.ttf"
-                weight: 600
-            }
-            font_size: 12px
-            fill: WHITE
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Center
-            align_multiline: TextAlignHorizontal::Center
-        }
-    }
 }

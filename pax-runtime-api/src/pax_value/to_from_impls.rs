@@ -347,6 +347,7 @@ impl ToPaxValue for LightShape {
         let variant = match self {
             LightShape::Point => "Point",
             LightShape::Directional => "Directional",
+            LightShape::Strip => "Strip",
         };
         PaxValue::Enum(Box::new((
             "LightShape".to_string(),
@@ -441,6 +442,7 @@ impl ToPaxValue for SceneLight {
             vec![
                 ("shape".to_string(), self.shape.to_pax_value()),
                 ("position".to_string(), self.position.to_pax_value()),
+                ("half_extent".to_string(), self.half_extent.to_pax_value()),
                 ("direction".to_string(), self.direction.to_pax_value()),
                 ("color".to_string(), self.color.to_pax_value()),
                 ("intensity".to_string(), self.intensity.to_pax_value()),

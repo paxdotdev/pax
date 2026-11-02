@@ -1,21 +1,26 @@
 if game_state == "PLAYING" {
-    <Text x=10px y=10px style={
+    <Text x=10px y=10px width=160px text={"Score: " + score} style={
         fill: WHITE
-    }>{"Score: " + score}</Text>
+    } selectable=false/>
+    // A continuous hit surface keeps touch capture stable between moving sprites.
+    <Rectangle width=100% height=100% fill=TRANSPARENT/>
 } else if game_state == "GAME_OVER" {
-    <Text y=25% height=25% width=100% id=game_over>GAME OVER</Text>
-    <Text y=50% height=25% width=100% id=game_over_score>{"Score: " + score}</Text>
-    <Button x=50% y=65% width=180px height=44px
-        color=rgb(245, 240, 244) hover_color=WHITE
-        style={
-            font: { family: "Times New Roman", weight: 700 }
-            font_size: 20px
-            fill: rgb(55, 10, 24)
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Center
-            align_multiline: TextAlignHorizontal::Center
-        }
-        @button_click=self.play_again>Play Again</Button>
+    <Stacker x=50% y=50% width={100% - 32px} autosize=true gutter=16px>
+        <Text width=100% text="GAME OVER" id=game_over selectable=false/>
+        <Text width=100% text={"Score: " + score} id=game_over_score selectable=false/>
+        <Group width=100% height=44px>
+            <Button x=50% width=180px height=44px label="Play Again"
+                color=rgb(245, 240, 244) hover_color=WHITE
+                style={
+                    font: { family: "Times New Roman", weight: 700 }
+                    font_size: 20px
+                    fill: rgb(55, 10, 24)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Center
+                    align_multiline: TextAlignHorizontal::Center
+                }/>
+        </Group>
+    </Stacker>
     <Rectangle fill=rgba(255, 0, 50, 50)/>
 }
 <Group scale=200% width=50% height=50%>
@@ -43,13 +48,19 @@ if game_state == "PLAYING" {
     @tick: tick
     @key_down: key_down
     @key_up: key_up
+    @touch_start: touch_start
+    @touch_move: touch_move
+    @touch_end: touch_end
+    @touch_cancel: touch_cancel
+    // Component scope gives restart the game bounds, not the Button's layout cell.
+    @button_click: play_again
     #game_over {
         style: {
             font: {
                 family: "Times New Roman"
                 weight: 700
             }
-            font_size: 100px
+            font_size: {(100 * self.game_over_scale)px}
             fill: WHITE
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
@@ -62,7 +73,7 @@ if game_state == "PLAYING" {
                 family: "Times New Roman"
                 weight: 700
             }
-            font_size: 64px
+            font_size: {(64 * self.game_over_scale)px}
             fill: WHITE
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center

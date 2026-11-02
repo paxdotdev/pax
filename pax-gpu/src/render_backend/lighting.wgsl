@@ -63,8 +63,19 @@ fn apply_lighting(
         let light = scene_lighting.lights[i];
         var light_dir: vec3<f32>;
         var attenuation = 1.0;
-        if light.params.x < 0.5 {
-            let to_light = light.position.xyz - surface_position;
+        if light.params.x < 0.5 || light.params.x > 1.5 {
+            var emitter_position = light.position.xyz;
+            if light.params.x > 1.5 {
+                // A continuous finite segment in world space, using one light slot.
+                // Zero length reduces to a point; translation never alters its extent.
+                let extent = light.direction.xyz;
+                let extent_squared = dot(extent, extent);
+                if extent_squared > 0.000001 {
+                    let along = clamp(dot(surface_position - emitter_position, extent) / extent_squared, -1.0, 1.0);
+                    emitter_position += extent * along;
+                }
+            }
+            let to_light = emitter_position - surface_position;
             let distance = max(length(to_light), 0.0001);
             let radius = max(light.params.y, 0.0001);
             let falloff = max(1.0 - distance / radius, 0.0);

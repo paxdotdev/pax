@@ -38,7 +38,7 @@ impl FeatureStudy {
     }
 
     pub fn tick(&mut self, ctx: &NodeContext) {
-        if !self._visible.get() || self.kind.get() == "caps" {
+        if !self._visible.get() || matches!(self.kind.get().as_str(), "caps" | "materials") {
             return;
         }
         let now = ctx.elapsed_time_millis() as f64;
@@ -97,6 +97,24 @@ fn study_progress(phase: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn carousel_has_no_live_lighting_or_lit_materials() {
+        for template in [
+            include_str!("studies.pax"),
+            include_str!("gallery.pax"),
+            include_str!("card.pax"),
+            include_str!("paint_demo.pax"),
+            include_str!("marquee.pax"),
+        ] {
+            assert!(!template.contains("<LightSource"));
+            assert!(!template.contains("<StripLight"));
+            assert!(!template.contains("<AmbientLight"));
+            for material in template.split("Material::").skip(1) {
+                assert!(material.starts_with("unlit()"));
+            }
+        }
+    }
 
     #[test]
     fn every_authored_study_has_a_rendering_branch() {

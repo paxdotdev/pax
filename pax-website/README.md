@@ -46,17 +46,55 @@ Debug and release outputs live in `.pax/build/debug/web/` and
 `Cargo.lock`, AI-primer HTML, and staged blog previews stay untracked.
 
 The hero uses `AnimatedPaxLogo` from `pax-std` through the `pax_kit` re-export.
-Its website-local `SiteLogo` wrapper fits that artwork into either its hero home
-or the navigation's smaller container. View Source includes the wrapper,
-navigation, and canonical files in `pax-std/src/drawing/pax_logo/`.
-The homepage scroller fills the safe area without a reserved nav gap. The hero
-retains its 24px top inset and compact spacing beside View Source. The nav's
-controls and background fade in over 500ms when the logo docks, and out over
-450ms when it returns; the travelling logo stays visible independently of that
-fade. Fully hidden controls are unmounted. Source inspection hides the nav,
-and the standalone Paxflix route has no site shell. Other routes retain their
-nav-sized content inset and static nav logo. The nav remains borderless;
-foreground surface ordering for a future soft edge is tracked in
+View Source includes the canonical files in `pax-std/src/drawing/pax_logo/`.
+The animated hero logo remains inside the native page scroller, with its own
+playhead and click replay. `LogoHome` measures its bounds; explicit bindings
+carry its bottom edge and the observed page scroll offset into `SiteShell`.
+The entire nav—static logo, links, CTA, and background—shares one slide playhead.
+Its separate `StaticPaxLogo` uses the animation's settled geometry without mounting
+animation timelines or masks when the nav first appears. The opaque nav slides
+down from above the viewport over 500ms once the hero logo is 128px past its
+bottom edge, and slides back up over 450ms when that clearance returns to 96px.
+Its hidden offset includes the top safe-area inset. Both slides ease gently
+at their start and finish, without group opacity or translucent compositing.
+Hysteresis prevents
+small scroll reversals from repeatedly restarting the slide. The nav instance
+does not follow the hero's position or scale. The homepage scroller fills
+the safe area from the start, with no reserved nav gap or scroll-driven reflow.
+On desktop the hero logo aligns with the headline's visible cap height; on narrow
+screens it sits above the headline and leaves room for View Source. Fully hidden nav contents are unmounted, so
+invisible links cannot intercept input. Hero source inspection hides the nav;
+the standalone Paxflix route has no site shell. Other routes without a hero
+retain a nav-sized content inset and show it directly.
+This replaces the frame-sampled moving-overlay prototype, which
+showed visible jumps while following native scrolling.
+
+The opening sequence uses the outer native scroller as a shared clock.
+`scroll_story.rs` maps its offset into overlapping chapter-local clocks for the
+hero, the paired Paxflix/calculator showcase, and creative examples. The hero starts fully composed;
+its logo and heading separate slightly on departure, while screenshot-backed
+device frames assemble, hold their poses, and depart. Named component timelines sample those ranges in either
+scroll direction. Measured content and viewport minima determine section heights,
+with additional breathing room capped so tall screens do not introduce empty
+screenfuls. Animated child transforms do not change those heights. This first slice
+does not pin scenes. On compact layouts the Paxflix and calculator fanouts each
+become a single screenshot link, while the creative studies stack vertically.
+
+`GlassAction` shares opal/obsidian paint and material helpers, with 5⅓px corners, from
+`SiteTheme`, without outline strokes. `SiteShell` owns one stationary `StripLight`
+from `(0, 100% viewport height)` to `(100% viewport width, 33% viewport height)`, outside the scroller
+and safe-area insets. Its length and angle respond only to viewport resizing;
+scrolling surfaces move underneath it. Opal has a soft response; obsidian has a
+narrow specular response. Buttons do not own lights or a separate lighting clock.
+`SiteShell` also adds a viewport-space point light following mouse movement and touch
+start/move, outside section light frames, without capturing input or cancelling
+native scrolling. A unit ambient contribution preserves ordinary matte paints;
+native labels stay unlit. Base paints remain visible on CPU renderers, but dynamic
+lighting requires the GPU backend. These are opaque glass-like surfaces, not
+refractive glass. The GitHub icon's official source is
+recorded alongside the asset in `assets/branding/`.
+The nav is borderless and has no gradient overlay. Foreground surface ordering
+for a future soft edge is tracked in
 [PAX-1041](https://linear.app/paxdev/issue/PAX-1041/support-independently-ordered-foreground-compositor-surfaces).
 Living Quilt remains independently runnable in `examples/living-quilt/`; neither
 it nor the `pax-logo` harness is a website dependency. Cargo dependency paths
@@ -122,7 +160,9 @@ Cargo metadata and rebuild; that query override then applies. Without the loader
 yielded startup can reveal the initial viewport and progressively present the
 remainder, with native text appearing before artwork. Keep the loader setting,
 startup mode, and viewport dimensions the same when comparing measurements;
-desktop layouts mount the full 21-shelf Paxflix catalogue. See
+the standalone Paxflix desktop route mounts the full 21-shelf catalogue.
+Homepage scrolling never mounts the four showcased apps; opening their routes
+mounts a single example. See
 [resumable startup](../pax-docs/book/src/how-pax-runs.md#experimental-resumable-startup-on-web).
 
 Ordinary URLs use cooperative rendering, passive wheel input, and feature-detected
@@ -166,6 +206,13 @@ position. Hover, touch, and manual-scroll pauses still apply independently.
 Manual horizontal scrolling stays available while the page moves, and resuming
 the march does not catch up for time spent paused.
 
+Carousel vector fills and outlines explicitly use `Material::unlit()`; empty
+hit surfaces have no paint. The material and scoped-lighting cards are labeled
+illustrations, using authored grayscale gradients and a moving position marker
+instead of live lights. This avoids lighting-dependent tile invalidation from
+the shell's strip/pointer lights and removes the cards' local light emitters;
+it does not eliminate the rail's animation, layout, or compositing work.
+
 The full-bleed rail fades into the page ink over twice each content gutter (12% on
 desktop, 48px below 760px). Two non-interactive `NativeImage` overlays reuse
 `assets/branding/carousel-edge-fade.svg`, mirrored on the right, outside the
@@ -190,7 +237,8 @@ as `/pax-favicon.ico`, independently of the legacy macOS app icon.
 
 ## Website and blog boundary
 
-The website declares `/blog`, `/ai`, `/ai.md`, `/paxflix`, and `/calculator` as `server_owned_prefixes`.
+The website declares `/blog`, `/ai`, `/ai.md`, `/paxflix`, `/calculator`,
+`/oscilloscope`, and `/space-game` as `server_owned_prefixes`.
 Navigating to these paths loads a server document instead of a Pax client route.
 The `/blog/*` Router placeholder must not be restored. `build.rs` generates
 `public/ai/index.html` from `public/ai.md` only when its contents change.
@@ -222,14 +270,15 @@ that separate snapshot with `python3 scripts/sync-docs-examples.py`.
 
 ## Paxflix showcase
 
-At a showcase width of 760px or more, the homepage mounts one live tablet demo
-with macOS and iPhone captures behind it. Below that width it shows only the
-tappable iPhone capture; a fresh mobile homepage mounts no Paxflix app. The
+At a showcase width of 760px or more, the homepage shows three linked captures:
+a tablet in front, with macOS and iPhone wings. Below that width it shows only the
+tappable iPhone capture. No homepage layout mounts Paxflix. The
 fixed device footprint scales with the section width, and sizing subscribes to
-reactive bounds so it settles during initial mounting. Crossing this breakpoint
-removes or creates the tablet session; ordinary scrolling keeps it mounted.
+reactive bounds so it settles during initial mounting. All three desktop frames
+have scroll-sampled arrival, hold, and departure poses. There are no hidden
+preview apps, screenshot polling, or deferred live mounts.
 
-Both the phone preview and the full-screen action open `/paxflix/`.
+Every device and the full-screen action open `/paxflix/`.
 The generated `/paxflix/index.html` is a standalone document entry into the
 website's demo route. Its server-owned navigation policy deliberately reloads
 the document so the demo participates in the configured yielded startup and
@@ -239,32 +288,49 @@ size. The old homepage modal, which created another app instance, is removed.
 Browser Back can restore or reload the homepage; the demo's Back to Pax link
 uses ordinary in-app navigation. Each new demo session starts with fresh state.
 
-The captures use `NativeImage` and live in `assets/paxflix/`; their README records their native origin
-and regeneration commands. Device switching is not implemented in this version.
+The captures use `NativeImage` and live in `assets/paxflix/`; their README records
+their native/browser origins and regeneration commands. Device switching is not
+implemented in this version.
 
 ## Calculator showcase
 
-The footer keeps its getting-started copy alongside a three-device fanout: a live,
+The native-and-web section pairs Paxflix with a calculator three-device fanout: a captured,
 upright phone in front, with a smaller tilted macOS-style window on the left and
 a tablet on the right. The window uses `DeviceFrame kind="window"`, with a dark
 title bar and traffic-light controls. Its narrow capture fills the content area
 without the calculator's wide-window background gutters.
-The desktop phone mounts and updates with the page, keeping its session while
-scrolling without an application-level visibility gate. The wings use
-`NativeImage`, not additional calculator instances.
+All three screens use `NativeImage`; none mounts a calculator. The frame poses
+respond to the shared runtime chapter clock without resizing their captured content.
 
-At the footer's single-column breakpoint (section width below 1000px), the fanout
-becomes one tappable phone capture. A fresh compact homepage mounts no calculator.
-Resizing across that breakpoint removes or creates the live phone session. The
+Above the section's 1000px breakpoint, the showcases sit side by side in a 62/38
+row. Below it, they stack and each fanout becomes one tappable phone capture.
+The section chooses both presentation modes, rather than each narrow column
+mistaking itself for a mobile viewport. Resizing only switches presentation. The
 fixed-aspect stage scales to its assigned column without stretching the devices.
 
 The compact preview, captured wings, and full-screen action open `/calculator/`.
 Like `/paxflix/`, this is a generated document entry with server-owned navigation:
 one live example, no homepage tree, and safe-area-aware full-screen layout with a
 Back to Pax link. Each new demo session starts with fresh calculator state.
-The footer's View Source includes both the showcase and full-screen wrapper;
+The runtime section's View Source includes both showcases and the calculator full-screen wrapper;
 application logic remains in the canonical `examples/calculator` Cargo dependency.
 Capture provenance and refresh commands live in `assets/calculator/README.md`.
+
+## Linked creative examples
+
+`/oscilloscope/` and `/space-game/` are generated document entries, with the same
+server-owned navigation policy as the other examples. They mount only the chosen
+app, provide View Source, and have a Back to Pax link. Their homepage captures
+live in `assets/playground/`; that directory's README describes how to refresh
+them. The website asset namespace symlinks Space Game's canonical sprite files,
+just as it does for Paxflix media.
+
+All four live examples still share the website's Wasm bundle. Screenshot-only
+presentation removes their homepage node trees, timers, nested scrollers, and
+rendering work; it does **not** split the initial download. Independent example
+bundles would be a separate packaging improvement. Returning to the homepage
+does not retain the abandoned example's application state, except where the
+browser itself restores a document from its back/forward cache.
 
 ## Typography
 

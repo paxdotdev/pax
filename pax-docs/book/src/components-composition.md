@@ -332,11 +332,32 @@ hosts keep independent selections. They do not need a local store for this
 direct parent/child connection. Callers can deliberately bind multiple hosts
 to the same selection property when synchronized selection is wanted.
 
-ExampleHost's source drawer has a moon/sun pill switch beside the close control.
-The title is top-aligned beside those controls and wraps as needed; the tabs and
-code pane follow its measured height. Filenames are shown in the tabs, without
-a duplicate subheading.
-It switches only the code pane between Solarized Light (the default) and
+ExampleHost's VIEW SOURCE tab attaches to the drawer's leading edge. Its white,
+stroke-free shape has semibold black lettering. Its inward arrow notch animates
+through a flat edge into a left-pointing tip when opened, reversing on close.
+The tip extends 8px beyond the tab's left bound, so leave that edge unclipped. The tab follows
+the drawer as it opens, closes, or resizes, shrinking to a compact
+× tab while open; there is no separate close button inside the header. The native
+tab button supports keyboard focus and activation.
+
+On desktop, the fixed-width drawer slides over the unchanged preview. After the
+opening animation reaches its endpoint, the host waits one UI tick and reserves
+the drawer's width in a single layout update. Closing restores the preview's
+full width before the drawer slides away. This avoids resizing responsive example
+content on every animation frame; the final reflow can still change the section's
+height. The delay is not a native/GPU presentation-readiness guarantee. Dragging
+the divider is available once the split settles and still resizes the preview
+live. Compact and separately mounted full-screen viewers do not reserve a
+side-by-side preview column.
+
+A smaller moon/sun pill
+switch aligns with the header's right gutter and the center of its first text line.
+The extra-bold title wraps as needed; the
+tabs and code pane follow its measured height. Filenames are shown in the tabs, without
+a duplicate subheading. The horizontally scrollable tab strip reserves space
+below the tabs for the platform scrollbar, keeping it clear of their click targets.
+That scrollbar lane shares the code pane's background. The switch changes only
+the code pane and its scrollbar lane between Solarized Light (the default) and
 Solarized Dark; the surrounding chrome stays black and white. Set
 `source_light_mode=false` on a host to start in Dark mode, or use
 `source_light_mode=bind:theme_light` when several hosts should deliberately share
@@ -349,6 +370,9 @@ across page reloads. The palettes use the
 their deliberately subdued comments, rather than a high-contrast variant.
 Only the selected source file is syntax-highlighted. Switching tabs or palettes
 prepares that file on demand instead of highlighting every hidden tab on open.
+The tabs and code surface fill the panel width, and the code surface reaches
+its bottom edge with square corners; the text inside retains reading padding.
+The divider has a narrow silver gradient grip with a wider invisible drag target.
 
 The inline drawer fills its host, which may be a short section inside a
 Scroller rather than the whole screen. To present source full-screen, mount
@@ -380,6 +404,10 @@ pointer input over the page; this is explicit composition, not a portal or a
 general keyboard-focus-trapping modal. Keep any fixed navigation below the
 viewer or hide it while source is open. Bindings preserve theme and selection
 when a responsive layout moves between inline and full-screen presentations.
+The standalone viewer supplies its own close tab at the top-right screen edge,
+above the header so it remains reachable in a full-screen presentation. Set
+`show_close_tab=false` only when supplying an external `ExampleSourceToggle`
+bound to the same open state (as the inline host does).
 To animate a full-screen viewer, wrap it in an ordinary component with
 [`@in` and `@out` timelines](animation-motion.md#structural-transitions).
 Move the viewer and its opaque backdrop together. If the underlying page must

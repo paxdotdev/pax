@@ -1372,12 +1372,16 @@ per-card proximity observers or per-shelf entrance scheduling subscriptions.
 The standalone default remains animated; image readiness is independent of this
 option. Toggling it changes only the animation helpers, not card lifetime.
 
-The website uses this quiet mode and mounts both instances (420 cards) with the
-page, sharing image resources in the same web app. Its calculator also mounts
-with the page; visibility still pauses recurring offscreen animation/work, not
-initial layout or mounting. Removing these application-level approach gates
-moves work to startup rather than eliminating it. This is not list virtualization
-or runtime lazy evaluation.
+The website uses this quiet mode for one live tablet instance in its wide-layout
+Paxflix showcase; neighboring devices use screenshots. An application-owned
+approach gate mounts the tablet ahead of its expected exposure, then retains it
+while scrolling so reversal preserves the session. All 210 cards still mount
+together. Compact layouts show a screenshot linking to the standalone demo
+instead of mounting the embedded app. Early mounting is not a GPU-readiness
+guarantee: fast scroll jumps can still expose resource preparation. The desktop
+calculator continues to mount with the page. Visibility pauses recurring
+offscreen animation/work independently of these mounting decisions. None of this
+is list virtualization or runtime lazy evaluation.
 
 ## Read more
 

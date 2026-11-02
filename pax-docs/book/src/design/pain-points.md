@@ -26,6 +26,20 @@ Last triaged: 2026-10-05 — [PAX-972](https://linear.app/paxdev/issue/PAX-972/p
   `/tmp/pax839-settlement-api-docs-retry.log`. The retry uses the real SDK;
   a supported targeted documentation workflow would avoid this unrelated cost.
 
+- 2026-11-02, homepage mount audit: simultaneous `pax-cli dev selector` calls
+  for different types can return another query's selector or fail with OS error
+  2. Expected independent responses. `pax-cli/src/dev.rs::handle_selector` names
+  request files only with millisecond time; same-millisecond CLI invocations
+  collide. Serial queries returned the correct results; use those until request
+  IDs include per-process uniqueness.
+
+- 2026-11-02, website screenshot refresh: `pax-cli dev look --path pax-website
+  --format jpeg --quality 0.92` timed out on the active `/paxflix/` web route,
+  although `dev selector Paxflix` returned the live node and the browser rendered
+  the scene normally. Expected a composed capture; used a browser screenshot
+  instead. Request `look-1793635042503` did not complete; the cause has not
+  been diagnosed.
+
 - 2026-10-29, website acrostic outlines: positioning vector letters at the
   font's cap height clipped rounded O/C overshoot in the top Frame row. Expected
   complete contours. The website now fits each decorative letter's full control
@@ -1622,3 +1636,106 @@ Coordinating lifecycle entry with native presentation readiness remains open.
   fallback typography. A changed `<base>` cannot relocate root-absolute URLs.
   Keep this subdirectory-deployment limitation separate from the Google test's
   failure to mount any native content; do not use this preview for typography QA.
+
+## 2026-10-31 — Native scrollbar covers short source tabs
+
+Clicking ExampleHost source tabs in macOS Chrome was unreliable near their
+bottom edge: the horizontal scrollbar occupied the same 30px strip as the
+tab hit targets. The viewer now uses 36px tabs with a separate 12px scrollbar
+lane. Chrome checks at desktop and 390px confirm bottom-edge selection,
+horizontal scrolling, and no vertical overflow in the tab strip. Evidence:
+`/tmp/pax-source-tabs-desktop.png` and `/tmp/pax-source-tabs-mobile.png`.
+The initial 20px lane was overly generous; reduced it to the web chassis's
+12px scrollbar track height (the visible thumb is narrower than its track).
+
+## 2026-11-01 — Dynamic Path geometry requires expression-array syntax
+
+While animating ExampleSourceToggle's notch, changing a point inside
+`elements=[...]` to `PathElement::Point((8 - 16 * self._open_progress)px, 50%)`
+failed formatting with `expected unit` at the multiplication. The intended
+reactive geometry works after wrapping the entire array as `elements={[...]}`.
+The diagnostic did not identify the surrounding literal-versus-expression context.
+
+## 2026-11-01 — Dev look sequence timed out during source-drawer opening
+
+`pax-cli dev look --path pax-website --duration-ms 5000 --period-ms 80
+--output-dir /tmp/pax-source-tab-morph-sequence --timeout-ms 15000` produced
+only `0000.png`, then timed out while opening ExampleHost's drawer in Chrome.
+Expected a multi-frame sequence. Direct browser screenshots and controls still
+worked; used those for endpoint/layout checks, without validating frame pacing.
+
+## 2026-11-01 — ExampleHost opening drove responsive layout every frame
+
+The preview width used `drawer_width * drawer_progress`, so opening the source
+drawer continuously changed the hero's font/logo sizes, text wrapping, and
+measured section height. Expected the slide to avoid reflowing the entire preview.
+ExampleHost now overlays the fixed-width drawer during motion and commits the
+preview reservation one UI tick after arrival; closing releases it once before
+sliding away. Browser samples caught the drawer at its final edge with the old
+text width, followed by one width change. Divider dragging and the 390px mobile
+sheet passed smoke checks. First-open source mounting/presentation work remains
+separate; no frame-rate improvement or GPU readiness fence is claimed.
+
+## 2026-11-01 — Sliding source scrollers still trigger full-scene occlusion work
+
+Profiled the website's desktop hero drawer at 1280×720 with
+`?pax_surface_trace&pax_scroll_perf`, using the inspector's DOM snapshot.
+Expected fixed-width overlay movement to avoid whole-page work. Initial and
+warm opens instead contained 219/224ms engine-frame callbacks, with repeated
+52–60ms `occlusion.coverage` passes; close peaked at 217ms. Rebuild diagnostics
+identify `scroll-container` and scroller-surface structural notifications
+(`properties.rs`, `set_scroller_surface_state`), including the outer page
+scroller when section height changes. Dirty scrollers currently force the
+full fallback in `engine/occlusion.rs`. Reactive property effects separately
+peaked at 82–91ms around the layout handoff; finer attribution is still needed.
+Recoloring the mounted code via the theme toggle did not reproduce these
+large stalls. Even closed-drawer frames sometimes spent 15–25ms in ordinary
+rendering. These are opt-in debug CPU timings, not GPU timings or release FPS.
+Raw captures: `/tmp/pax-drawer-{baseline,open,reopen,close,theme}-trace.json`.
+2026-11-02 follow-up: stable isolated-scroller geometry now uses localized
+reconciliation; dimension-only surface changes no longer request structure.
+Nested move/resize/rotate/scale tests compare masks, order, and presentation
+bounds against full reconciliation in debug and release. A 1280×720 debug
+drawer sample now spent roughly 1–4ms in coverage during sliding, but reopening
+still peaked at 173ms and closing at 152ms: mount/unmount still rebuilds, and
+layout handoff can dirty thousands of records. These remain separate targets,
+not a claim of smooth end-to-end drawer performance. Captures:
+`/tmp/pax-scroller-geometry-{reopen,close}.json`.
+
+## 2026-11-02 — Italic declaration does not turn upright font outlines into italics
+
+The website credit used `Font::Web("Manrope", "/assets/fonts/Manrope.ttf",
+FontStyle::Italic, FontWeight::Light)`. Expected a visibly italic credit;
+the browser registered that upright font file as an italic face and still drew
+upright letters. The asset has no italic outlines. The credit now uses a local
+sans-serif italic face (empty URL); a matching hosted italic file would also be
+appropriate. Verified visually in the 390px and desktop website previews.
+
+## 2026-11-02 — Native text can disappear after repeated responsive resizing
+
+In the website's debug web build, changed between narrow/mobile and wide desktop
+viewports, scrolled into Paxflix, then reset the viewport and returned to the
+hero. Expected all headline and body text to remain visible. A screenshot showed
+the animated vector adjective, buttons, and some lower copy, but omitted the
+native headline and opening paragraph. A clean reload restored the complete
+hero. This has not been isolated to the new choreography or to a preexisting
+compositor path; investigate alongside geometry/occlusion invalidation rather
+than claiming it is resolved by deferred demo mounting.
+
+Static follow-up: `InitialTextPresentation` gates first paint only, and native
+view detachment is macOS-only, so neither directly explains already-visible
+web text disappearing on resize. In the rebuilt site, resizing an open drawer
+1280×720 → 390×844, closing, then resizing to 1440×900 reproduced the
+100,000-evaluation reactive-drain warning; native text subsequently recovered.
+`RuntimeContext::drain_local_node_effects` defers excess work without blocking
+publication, and the engine drains effects again after occlusion reconciliation.
+Partially settled layout versus retained masks/clips is a plausible lead for
+transient loss, not an established explanation for loss lasting until reload.
+Next useful evidence is the missing leaf's DOM bounds, ancestor clips, mask,
+and pending-effect state captured while the failure is still visible.
+
+Strip-light integration follow-up: a clean website load at 688px reproduced
+ten drain-limit warnings before pointer interaction. Moving the new global
+point light with a mouse drag did not add warnings in that check. This does
+not isolate the startup cause, but distinguishes it from pointer-driven light
+updates. Logs: `/tmp/pax-strip-{clean,pointer}-log.txt`.

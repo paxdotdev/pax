@@ -18,12 +18,19 @@ then explore lifecycle and custom interactions. The final sections cover
 starting declaration and template are in Properties. Keep `use pax_kit::*;`
 in the Rust file.
 
-Space Game combines keyboard input with a running simulation. Use `w`, `a`,
-`s`, and `d` to move and Space to fire. In an embed, first click the game area
-so keyboard input reaches its document. After game-over, choose **Play Again**
-below the score to start a new round.
-Its source combines key state with
-tick-driven updates; the frame-based movement is specific to this example.
+Space Game combines keyboard and touch input with a running simulation. Use
+`w`, `a`, `s`, and `d` to move and Space to fire. In an embed, first click the
+game area so keyboard input reaches its document. On touch screens, hold a
+position to move steadily toward it; drag to change that target, and release to
+stop. Mobile devices fire automatically, even when no finger is held down. A
+first touch also enables automatic fire on hybrid devices. Only the first held
+finger steers; release or cancellation clears its target.
+
+After game-over, choose **Play Again** below the score to start a new round.
+The title and score use measured text inside an autosizing stack so narrow
+layouts can wrap without overlapping the restart button. The example combines
+input state with tick-driven updates; its frame-based movement is specific to
+this example.
 
 <pax-example
   path="space-game"

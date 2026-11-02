@@ -3765,14 +3765,16 @@ fn to_gpu_scene_lighting(lighting: &SceneLighting) -> GpuSceneLighting {
     let count = lighting.lights.len().min(MAX_SCENE_LIGHTS);
     out.meta[1] = count as u32;
     for (index, light) in lighting.lights.iter().take(count).enumerate() {
+        // Strip extent and directional orientation share a uniform slot;
+        // the shader discriminates them by shape. No per-strip buffer or draw.
+        let direction = if light.shape == LightShape::Strip {
+            light.half_extent
+        } else {
+            light.direction
+        };
         out.lights[index] = GpuSceneLight {
             position: [light.position[0], light.position[1], light.position[2], 0.0],
-            direction: [
-                light.direction[0],
-                light.direction[1],
-                light.direction[2],
-                0.0,
-            ],
+            direction: [direction[0], direction[1], direction[2], 0.0],
             color: [
                 light.color.rgba[0],
                 light.color.rgba[1],
@@ -3783,6 +3785,7 @@ fn to_gpu_scene_lighting(lighting: &SceneLighting) -> GpuSceneLighting {
                 match light.shape {
                     LightShape::Point => 0.0,
                     LightShape::Directional => 1.0,
+                    LightShape::Strip => 2.0,
                 },
                 light.radius.max(0.0),
                 0.0,
@@ -4419,6 +4422,7 @@ impl Default for Material {
 pub enum LightShape {
     Point,
     Directional,
+    Strip,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -4426,6 +4430,8 @@ pub enum LightShape {
 pub struct SceneLight {
     pub shape: LightShape,
     pub position: [f32; 3],
+    /// Vector from a strip's center to one endpoint; ignored for other shapes.
+    pub half_extent: [f32; 3],
     pub direction: [f32; 3],
     pub color: Color,
     pub intensity: f32,

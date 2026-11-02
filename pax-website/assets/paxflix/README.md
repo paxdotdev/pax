@@ -1,7 +1,7 @@
 # Paxflix device previews
 
-These are captures of the canonical `examples/paxflix` native application,
-not generated artwork or browser simulations. Captured on 2026-10-14 from
+These are captures of the canonical `examples/paxflix` application,
+not generated artwork. The native captures were made on 2026-10-14 from
 checkout `9be02e878` (the website/startup work did not change Paxflix source).
 
 - `macos.jpg`: macOS development host, catalog scrolled below the hero,
@@ -11,6 +11,9 @@ checkout `9be02e878` (the website/startup work did not change Paxflix source).
   `simctl io screenshot --type=jpeg` (1206×2622). Status bar was temporarily
   set to 9:41, full Wi-Fi and battery, then restored. The website adds the
   phone bezel and island.
+- `tablet.jpg`: website `/paxflix/` web route, captured on 2026-11-02 at a
+  tablet-sized viewport. Only the application content below the 52px route
+  header is retained; the website supplies the tablet bezel.
 
 Regenerate using this checkout's CLI and the actual native apps:
 
@@ -39,5 +42,7 @@ xcrun simctl status_bar DEVICE_UUID clear
 Inspect both captures before replacing the assets. Preserve their proportions;
 `NativeImage` displays the captures without canvas color conversion;
 `ImageFit::Paint` trims the small aspect-ratio difference inside the website's
-stylized shells. Keep the tablet live and the raster devices static: there is
-no background screenshot polling or hidden instance for either preview.
+stylized shells. All homepage devices are captures: there is no background
+screenshot polling or hidden instance. To refresh the tablet image, run the
+website, open `/paxflix/`, use an approximately 1024×871 CSS-pixel viewport,
+wait for artwork to load, and crop off the 52px route header.

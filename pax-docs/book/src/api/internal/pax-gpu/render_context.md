@@ -303,6 +303,11 @@ Type: [`LightShape`](../../../api/pax-runtime-api/drawing.md#lightshape)
 ##### `position`
 Type: [`f32`; 3]
 
+##### `half_extent`
+Type: [`f32`; 3]
+
+Vector from a strip's center to one endpoint; ignored for other shapes.
+
 ##### `direction`
 Type: [`f32`; 3]
 
@@ -616,6 +621,7 @@ Shape of a scene light.
 #### Variants
 ##### `Point`
 ##### `Directional`
+##### `Strip`
 ---
 
 ### `StrokeCap`

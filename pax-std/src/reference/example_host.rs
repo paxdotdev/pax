@@ -53,6 +53,9 @@ impl SourcePalette {
 ///
 /// `ExampleHost` renders every projected child with `slot()` and offers an
 /// optional source drawer driven by an explicit `sources` manifest.
+/// The desktop drawer slides over the preview, then reserves its width after
+/// the opening motion finishes. Closing restores the preview width before
+/// sliding away. A tab follows the drawer's leading edge and shows × while open.
 /// The code pane offers Solarized Light (default) and Dark through a moon/sun switch.
 /// Theme state is local to the host unless `source_light_mode` is explicitly bound.
 /// Set `inline_source_viewer=false` to present a separately mounted
@@ -84,6 +87,10 @@ pub struct ExampleHost {
     pub _drawer_progress: Property<f64>,
     // Private last observed public drawer state, used for external control sync.
     pub _drawer_target_open: Property<bool>,
+    // Layout reservation is deliberately independent of animated position.
+    pub _preview_reserved_width_px: Property<f64>,
+    // Remember arrival for one UI tick before committing the preview reflow.
+    pub _drawer_arrived: Property<bool>,
     // Private drag state for the source divider.
     pub _is_resizing_drawer: Property<bool>,
     // Private responsive mode where the source drawer replaces the preview.
@@ -102,6 +109,8 @@ impl Default for ExampleHost {
             _drawer_width_px: Property::new(DESKTOP_DRAWER_WIDTH_PX),
             _drawer_progress: Property::new(0.0),
             _drawer_target_open: Property::new(false),
+            _preview_reserved_width_px: Property::new(0.0),
+            _drawer_arrived: Property::new(false),
             _is_resizing_drawer: Property::new(false),
             _compact_drawer: Property::new(false),
         }
@@ -116,6 +125,17 @@ impl ExampleHost {
         self._drawer_progress
             .set(if drawer_open { 1.0 } else { 0.0 });
         self.clamp_drawer_to_host(ctx.bounds_self.get().0);
+        // An initially open host starts in its settled split layout.
+        let (arrived, reserved) = preview_layout_step(
+            drawer_open,
+            if drawer_open { 1.0 } else { 0.0 },
+            self.inline_source_viewer.get(),
+            self._compact_drawer.get(),
+            self._drawer_width_px.get(),
+            drawer_open,
+        );
+        self._drawer_arrived.set(arrived);
+        self._preview_reserved_width_px.set(reserved);
     }
 
     /// Keeps the animated drawer progress synchronized with external state writes.
@@ -124,22 +144,36 @@ impl ExampleHost {
         let drawer_open = self.drawer_open.get();
         if drawer_open != self._drawer_target_open.get() {
             self._drawer_target_open.set(drawer_open);
+            self._drawer_arrived.set(false);
+            self._preview_reserved_width_px.set_if_neq(0.0);
+            if self._is_resizing_drawer.get() {
+                self._is_resizing_drawer.set(false);
+                ctx.set_cursor(CursorStyle::Auto);
+            }
             self.animate_drawer_progress(drawer_open);
+        } else {
+            let (arrived, reserved) = preview_layout_step(
+                drawer_open,
+                self._drawer_progress.get(),
+                self.inline_source_viewer.get(),
+                self._compact_drawer.get(),
+                self._drawer_width_px.get(),
+                self._drawer_arrived.get(),
+            );
+            self._drawer_arrived.set_if_neq(arrived);
+            self._preview_reserved_width_px.set_if_neq(reserved);
         }
     }
 
     /// Toggles the source drawer.
     pub fn toggle_drawer(&mut self, _ctx: &NodeContext, _event: Event<Click>) {
-        let next_open = !self.drawer_open.get();
-        self.drawer_open.set(next_open);
-        self._drawer_target_open.set(next_open);
-        self.animate_drawer_progress(next_open);
+        // Route local and externally bound requests through the same lifecycle.
+        self.drawer_open.set(!self.drawer_open.get());
     }
 
     /// Starts dragging the source divider when pressed near the handle.
     pub fn on_resize_mouse_down(&mut self, ctx: &NodeContext, event: Event<MouseDown>) {
-        if !self.drawer_open.get() || !self.inline_source_viewer.get() || self._compact_drawer.get()
-        {
+        if !self.drawer_open.get() || self._preview_reserved_width_px.get() <= 0.0 {
             return;
         }
 
@@ -153,8 +187,7 @@ impl ExampleHost {
 
     /// Starts dragging from the explicit source divider hit target.
     pub fn on_split_mouse_down(&mut self, ctx: &NodeContext, _event: Event<MouseDown>) {
-        if !self.drawer_open.get() || !self.inline_source_viewer.get() || self._compact_drawer.get()
-        {
+        if !self.drawer_open.get() || self._preview_reserved_width_px.get() <= 0.0 {
             return;
         }
         self._is_resizing_drawer.set(true);
@@ -185,7 +218,13 @@ impl ExampleHost {
             return;
         }
         let max_drawer_width = (bounds.0 - MIN_PREVIEW_WIDTH_PX).max(MIN_DRAWER_WIDTH_PX);
-        let drawer_width = (bounds.0 - event.mouse.x).clamp(MIN_DRAWER_WIDTH_PX, max_drawer_width);
+        let local_x =
+            ctx.local_point(pax_engine::api::math::Point2::new(
+                event.mouse.x,
+                event.mouse.y,
+            ))
+            .x * bounds.0;
+        let drawer_width = (bounds.0 - local_x).clamp(MIN_DRAWER_WIDTH_PX, max_drawer_width);
         if (drawer_width - self._drawer_width_px.get()).abs() >= RESIZE_MIN_DELTA_PX {
             self._drawer_width_px.set(drawer_width);
         }
@@ -217,12 +256,32 @@ impl ExampleHost {
     }
 }
 
+// The first endpoint observation leaves a UI tick for the drawer to settle.
+// This is not a GPU/native presentation fence. No preview width depends on
+// an intermediate progress value, including when opening is interrupted.
+fn preview_layout_step(
+    open: bool,
+    progress: f64,
+    inline: bool,
+    compact: bool,
+    drawer_width: f64,
+    previously_arrived: bool,
+) -> (bool, f64) {
+    let arrived = open && inline && !compact && progress >= 1.0;
+    let reserved = if arrived && previously_arrived {
+        drawer_width
+    } else {
+        0.0
+    };
+    (arrived, reserved)
+}
+
 /// Reusable source panel with fixed black/white chrome and a Solarized code pane.
 ///
 /// It fills the bounds supplied by its caller, not the global viewport. For a
 /// full-screen presentation, mount it above (outside) the page Scroller and bind
 /// `open`, `selected_source`, and `source_light_mode` to the owning state. The
-/// caller controls mounting; the close control sets `open=false`.
+/// caller controls mounting; the page-edge close tab sets `open=false`.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[file("reference/example_source_viewer.pax")]
@@ -239,6 +298,9 @@ pub struct ExampleSourceViewer {
     pub open: Property<bool>,
     /// True (default) selects Solarized Light; false selects Dark. Chrome stays black/white.
     pub source_light_mode: Property<bool>,
+    /// Show the page-edge close tab (default true). Set false when the caller
+    /// already supplies a persistent `ExampleSourceToggle`, as `ExampleHost` does.
+    pub show_close_tab: Property<bool>,
     pub _title_height: Property<f64>,
     pub _active_source_markup: Property<String>,
 }
@@ -251,6 +313,7 @@ impl Default for ExampleSourceViewer {
             selected_source: Property::default(),
             open: Property::default(),
             source_light_mode: Property::new(true),
+            show_close_tab: Property::new(true),
             _title_height: Property::default(),
             _active_source_markup: Property::default(),
         }
@@ -293,6 +356,54 @@ impl ExampleSourceViewer {
 
     pub fn toggle_theme(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
         self.source_light_mode.set(!self.source_light_mode.get());
+    }
+}
+
+/// A page-edge source tab, bound to the owning viewer's open state.
+///
+/// Place at `x=100%`, with 112px width when closed and 28px when open, and 34px
+/// height. Its native button remains keyboard-operable in either state.
+/// The white tab morphs its inward notch into a left-pointing tip on opening,
+/// extending 8px beyond its left bound. Leave that edge unclipped.
+#[pax]
+#[engine_import_path("pax_engine")]
+#[file("reference/example_source_toggle.pax")]
+pub struct ExampleSourceToggle {
+    /// Two-way bind to the owning source viewer's open state.
+    pub open: Property<bool>,
+    // Animate a scalar, not PathElement commands (which interpolate discretely).
+    pub _open_progress: Property<f64>,
+    pub _target_open: Property<bool>,
+}
+
+impl ExampleSourceToggle {
+    pub fn on_mount(&mut self, _ctx: &NodeContext) {
+        // A separately mounted mobile viewer also unfolds its arrow on entry.
+        self.sync_open_state();
+    }
+
+    pub fn on_pre_render(&mut self, _ctx: &NodeContext) {
+        self.sync_open_state();
+    }
+
+    pub fn toggle(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
+        self.open.set(!self.open.get());
+    }
+
+    fn sync_open_state(&self) {
+        let open = self.open.get();
+        if open == self._target_open.get() {
+            return;
+        }
+        self._target_open.set(open);
+        let progress = self._open_progress.local();
+        // Reversals continue from the current shape rather than restarting it.
+        progress.cancel_transitions();
+        progress.ease_to(
+            if open { 1.0 } else { 0.0 },
+            Duration::Milliseconds(DRAWER_EASE_MS.into()),
+            EasingCurve::InOutQuad,
+        );
     }
 }
 
@@ -341,6 +452,71 @@ mod tests {
     #[test]
     fn compact_drawer_replaces_preview_at_narrow_widths() {
         assert_eq!(clamped_drawer_layout(390.0, 430.0), Some((true, 390.0)));
+    }
+
+    #[test]
+    fn standalone_source_viewer_provides_its_close_tab() {
+        assert!(ExampleSourceViewer::default().show_close_tab.get());
+    }
+
+    #[test]
+    fn opening_reserves_width_only_after_a_settled_endpoint_tick() {
+        let mut arrived = false;
+        for progress in [0.0, 0.1, 0.35, 0.8, 0.999, 1.0] {
+            let (next, reserved) = preview_layout_step(true, progress, true, false, 430.0, arrived);
+            assert_eq!(reserved, 0.0, "preview reflowed at {progress}");
+            arrived = next;
+        }
+        assert_eq!(
+            preview_layout_step(true, 1.0, true, false, 430.0, arrived),
+            (true, 430.0)
+        );
+        // Explicit dragging still changes the settled split immediately.
+        assert_eq!(
+            preview_layout_step(true, 1.0, true, false, 520.0, true),
+            (true, 520.0)
+        );
+    }
+
+    #[test]
+    fn close_and_interrupted_open_never_reserve_intermediate_widths() {
+        assert_eq!(
+            preview_layout_step(false, 1.0, true, false, 430.0, true),
+            (false, 0.0)
+        );
+        assert_eq!(
+            preview_layout_step(false, 0.6, true, false, 430.0, false),
+            (false, 0.0)
+        );
+        assert_eq!(
+            preview_layout_step(true, 0.6, true, false, 430.0, false),
+            (false, 0.0)
+        );
+        assert_eq!(
+            preview_layout_step(true, 1.0, true, false, 430.0, false),
+            (true, 0.0)
+        );
+        assert_eq!(
+            preview_layout_step(false, 1.0, true, false, 430.0, true),
+            (false, 0.0)
+        );
+    }
+
+    #[test]
+    fn compact_and_external_viewers_do_not_reserve_preview_width() {
+        assert_eq!(
+            preview_layout_step(true, 1.0, true, true, 390.0, true),
+            (false, 0.0)
+        );
+        assert_eq!(
+            preview_layout_step(true, 1.0, false, false, 430.0, true),
+            (false, 0.0)
+        );
+        // Returning to desktop allows an endpoint tick before reserving again.
+        assert_eq!(
+            preview_layout_step(true, 1.0, true, false, 430.0, false),
+            (true, 0.0)
+        );
     }
 
     #[test]

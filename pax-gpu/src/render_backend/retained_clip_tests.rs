@@ -3121,6 +3121,84 @@ fn shader_effect_output_obeys_stencil_and_alpha() {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+fn strip_light_has_a_continuous_rotatable_band_and_zero_length_matches_point() {
+    use crate::{LightShape, Material, SceneLight, SceneLighting};
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 128, 128, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let mut lighting = SceneLighting {
+        active: true,
+        ambient_intensity: 0.0,
+        lights: vec![SceneLight {
+            shape: LightShape::Strip,
+            half_extent: [40.0, 0.0, 0.0],
+            position: [64.0, 64.0, 16.0],
+            direction: [0.0, 0.0, -1.0],
+            color: Color::rgba(1.0, 1.0, 1.0, 1.0),
+            intensity: 1.0,
+            radius: 100.0,
+        }],
+        ..Default::default()
+    };
+    renderer.set_scene_lighting(lighting.clone());
+    renderer.begin_node(1, 1, 1);
+    renderer.fill_path_with_material_and_opacity(
+        rect(0.0, 0.0, 128.0, 128.0),
+        Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+        Material::custom(0.0, 1.0, 0.0, 0.5, Color::rgba(0.0, 0.0, 0.0, 1.0), 0.0),
+        1.0,
+    );
+    renderer.end_node(1);
+    let capture = |renderer: &mut WgpuRenderer, id| {
+        renderer.request_screenshot_capture(id);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        renderer.take_screenshot_capture(id).unwrap()
+    };
+    let horizontal = capture(&mut renderer, 1);
+    let red = |frame: &CapturedFrame, x: usize, y: usize| {
+        frame.rgba[(y * frame.width as usize + x) * 4] as i32
+    };
+    let center = red(&horizontal, 64, 64);
+    for x in 32..96 {
+        assert!(
+            (red(&horizontal, x, 64) - center).abs() <= 1,
+            "no point-light scalloping"
+        );
+    }
+    assert!(
+        center > red(&horizontal, 64, 104) + 50,
+        "finite transverse falloff"
+    );
+    assert!(
+        center > red(&horizontal, 4, 64) + 30,
+        "finite endpoint falloff"
+    );
+
+    lighting.lights[0].half_extent = [0.0, 40.0, 0.0];
+    assert!(renderer.set_scene_lighting(lighting.clone()));
+    let vertical = capture(&mut renderer, 2);
+    assert!((red(&vertical, 64, 32) - center).abs() <= 1);
+    assert!(red(&vertical, 64, 32) > red(&vertical, 32, 64) + 30);
+
+    lighting.lights[0].half_extent = [0.0; 3];
+    renderer.set_scene_lighting(lighting.clone());
+    let collapsed = capture(&mut renderer, 3);
+    lighting.lights[0].shape = LightShape::Point;
+    renderer.set_scene_lighting(lighting);
+    let point = capture(&mut renderer, 4);
+    assert_eq!(collapsed.rgba, point.rgba);
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
 fn lighting_changes_preserve_unrelated_captures_and_geometry() {
     use crate::{LightShape, Material, SceneLight, SceneLighting};
     use pax_runtime_api::OpacityScope;
@@ -3139,6 +3217,7 @@ fn lighting_changes_preserve_unrelated_captures_and_geometry() {
         ambient_intensity: 0.0,
         lights: vec![SceneLight {
             shape: LightShape::Directional,
+            half_extent: [0.0; 3],
             position: [0.0, 0.0, 10.0],
             direction: [0.0, 0.0, -1.0],
             color: Color::rgba(1.0, 0.0, 0.0, 1.0),
@@ -3278,6 +3357,7 @@ fn lighting_changes_invalidate_only_affected_shader_sources() {
         ambient_intensity: 0.0,
         lights: vec![SceneLight {
             shape: LightShape::Directional,
+            half_extent: [0.0; 3],
             position: [0.0, 0.0, 10.0],
             direction: [0.0, 0.0, -1.0],
             color: Color::rgba(1.0, 0.0, 0.0, 1.0),

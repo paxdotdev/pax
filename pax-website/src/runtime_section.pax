@@ -3,19 +3,30 @@
         <SiteTheme />
     </ImportSettings>
     <Stacker id=runtime_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=36px>
-        <Text class="editorial_kicker" width=100%>A PORTABLE RUNTIME</Text>
+        <Text class="editorial_kicker" width=100% text="A PORTABLE RUNTIME"/>
         ///#h2
-        <Text class="editorial_title" width=100%>One project. Native and web.</Text>
-        <Text class="editorial_lead" width={self.compact ? 100% : 82%}>Take the same Pax templates and Rust logic to macOS, iOS, iPadOS, and the browser. Share the interface model, while each platform supplies the integration it needs.</Text>
-        ///#ignore
-        <PaxflixShowcase width=100% height={(self.showcase_height)px} content_height=bind:self.showcase_height/>
+        <Text class="editorial_title" width=100% text="One project. Native and web."/>
+        <Text class="editorial_lead" width={self.compact ? 100% : 82%}
+            text="Take the same Pax templates and Rust logic to macOS, iOS, iPadOS, and the browser. Share the interface model, while each platform supplies the integration it needs."/>
+        <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=32px
+            direction={self.stacked_examples ? StackerDirection::Vertical : StackerDirection::Horizontal}
+            sizes={self.stacked_examples ? [] : [Some(62%), None]}>
+            ///#ignore
+            <PaxflixShowcase width=100% height={(self.showcase_height)px} content_height=bind:self.showcase_height
+                compact={self.stacked_examples} scene_progress={self.scene_progress}/>
+            ///#ignore
+            <CalculatorPreview width=100% height={(self.calculator_height)px} content_height=bind:self.calculator_height
+                compact={self.stacked_examples} scene_progress={self.scene_progress}/>
+        </Stacker>
         <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=32px
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}>
             <Stacker width=100% autosize=true gutter=14px>
                 ///#h3
-                <Text class="editorial_subtitle" width=100%>Native where it matters.</Text>
-                <Text class="editorial_body" width=100%>Text selection, editing, form controls, and scrolling draw on the platform's own behavior. Pax composes those native elements with rendered visuals in one coordinate space, including transforms, clipping, and motion.</Text>
-                <Text class="editorial_note" width=100%>Build web apps from macOS, Debian/Ubuntu Linux, or Windows. Apple app targets require macOS and Xcode. Native Linux, Windows, and Android apps are not current targets.</Text>
+                <Text class="editorial_subtitle" width=100% text="Native where it matters."/>
+                <Text class="editorial_body" width=100%
+                    text="Text selection, editing, form controls, and scrolling draw on the platform's own behavior. Pax composes those native elements with rendered visuals in one coordinate space, including transforms, clipping, and motion."/>
+                <Text class="editorial_note" width=100%
+                    text="Build web apps from macOS, Debian/Ubuntu Linux, or Windows. Apple app targets require macOS and Xcode. Native Android, Windows, and Linux support is experimental."/>
             </Stacker>
             <Stacker width=100% autosize=true gutter=14px>
                 ///#h3

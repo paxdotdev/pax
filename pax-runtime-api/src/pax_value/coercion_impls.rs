@@ -692,6 +692,7 @@ impl CoercionRules for LightShape {
                 match variant.as_str() {
                     "Point" => Ok(LightShape::Point),
                     "Directional" => Ok(LightShape::Directional),
+                    "Strip" => Ok(LightShape::Strip),
                     _ => Err(format!(
                         "failed to coerce LightShape: unknown enum variant {:?}",
                         variant

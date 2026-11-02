@@ -1,7 +1,6 @@
 #![allow(unused_imports)]
 
-use crate::SiteTheme;
-use led_oscilloscope::LedOscilloscope;
+use crate::{ScreenshotStudy, SiteTheme};
 use pax_kit::*;
 
 #[pax]
@@ -11,6 +10,8 @@ pub struct FrameworkSection {
     pub _height_bound: Property<bool>,
     pub compact: Property<bool>,
     pub scope_height: Property<f64>,
+    pub game_height: Property<f64>,
+    pub scene_progress: Property<f64>,
 }
 
 impl FrameworkSection {
@@ -20,14 +21,6 @@ impl FrameworkSection {
     }
 
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
-        let width = ctx.bounds_self.get().0;
-        let content_width = if self.compact.get() {
-            width - 48.
-        } else {
-            width * 0.88
-        };
-        self.scope_height
-            .set_if_neq(LedOscilloscope::height(content_width));
         if !self._height_bound.get() {
             self._height_bound.set(crate::section_layout::bind_height(
                 ctx,

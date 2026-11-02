@@ -3214,6 +3214,7 @@ fn to_pax_gpu_scene_lighting(lighting: &SceneLighting) -> PixelSceneLighting {
                 shape: match light.shape {
                     pax_runtime_api::LightShape::Point => PixelLightShape::Point,
                     pax_runtime_api::LightShape::Directional => PixelLightShape::Directional,
+                    pax_runtime_api::LightShape::Strip => PixelLightShape::Strip,
                 },
                 position: [
                     light.position.x as f32,
@@ -3224,6 +3225,11 @@ fn to_pax_gpu_scene_lighting(lighting: &SceneLighting) -> PixelSceneLighting {
                     light.direction.x as f32,
                     light.direction.y as f32,
                     light.direction.z as f32,
+                ],
+                half_extent: [
+                    light.half_extent.x as f32,
+                    light.half_extent.y as f32,
+                    light.half_extent.z as f32,
                 ],
                 color: to_pax_gpu_color(&light.color),
                 intensity: light.intensity.max(0.0) as f32,
@@ -3308,6 +3314,22 @@ fn replay_identity_priority<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn strip_light_conversion_preserves_world_position_and_extent() {
+        let lighting = SceneLighting::with_default_ambient(vec![pax_runtime_api::SceneLight {
+            shape: pax_runtime_api::LightShape::Strip,
+            position: pax_runtime_api::Vector3::new(300., 700., 90.),
+            half_extent: pax_runtime_api::Vector3::new(65., -112., 0.),
+            ..Default::default()
+        }]);
+        let gpu = to_pax_gpu_scene_lighting(&lighting);
+        // Tiles now transform their surfaces into world space; lights must not
+        // subtract the raster origin or their world-space direction would drift.
+        assert_eq!(gpu.lights[0].shape, PixelLightShape::Strip);
+        assert_eq!(gpu.lights[0].position, [300., 700., 90.]);
+        assert_eq!(gpu.lights[0].half_extent, [65., -112., 0.]);
+    }
 
     #[cfg(feature = "shaders")]
     #[test]

@@ -74,9 +74,10 @@ pub struct LightSource {
     pub color: Property<Color>,
     /// Light intensity multiplier.
     pub intensity: Property<f64>,
-    /// Point-light attenuation radius in world pixels; ancestor scale does not resize it.
+    /// Point/strip attenuation radius in world pixels; ancestor scale does not resize it.
     pub radius: Property<Size>,
-    /// Positional or directional light shape.
+    /// Light shape. A strip spans the node's local width through its center;
+    /// ancestor transforms orient/resize it. Height is not emitter thickness.
     pub shape: Property<LightShape>,
     /// Local direction for directional lights, transformed with the light's ancestors.
     pub direction: Property<Vector3>,
@@ -194,9 +195,15 @@ impl InstanceNode for LightSourceInstance {
                 .to_float();
             let (position, direction) =
                 light_pose(geometry, local_z, properties.direction.local().get())?;
+            let half_extent = if properties.shape.local().get() == LightShape::Strip {
+                light_pose(geometry, local_z, Vector3::new(geometry.bounds.0 * 0.5, 0., 0.))?.1
+            } else {
+                Vector3::default()
+            };
             Some(SceneLight {
                 shape: properties.shape.local().get(),
                 position,
+                half_extent,
                 direction,
                 color: properties.color.local().get(),
                 intensity: properties.intensity.local().get().max(0.0),
@@ -222,6 +229,41 @@ impl InstanceNode for LightSourceInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
+    }
+}
+
+/// A finite line light. Its width sets length, its center sets position, and
+/// `rotate` sets its angle. The emitter is non-rendering and uses one light slot.
+///
+/// Uses the GPU renderer's continuous nearest-point line-light model, not a
+/// sampled row of point lights or physically integrated area illumination.
+/// Rougher materials soften its band; glossy materials give a tighter reflection.
+/// Height is only a layout box, not emitter thickness. Zero width behaves as a point.
+/// Like LightSource, it respects LightFrame scope; CPU/native-text lighting is unsupported.
+/// Position and depth use common node transforms, with zero depth by default.
+#[pax]
+#[engine_import_path("pax_engine")]
+#[custom(Default)]
+#[file("drawing/strip_light.pax")]
+pub struct StripLight {
+    /// Emitted light color.
+    pub color: Property<Color>,
+    /// Brightness multiplier; independent of strip length.
+    pub intensity: Property<f64>,
+    /// Attenuation distance from the closest point on the strip, in pixels.
+    pub radius: Property<Size>,
+    /// Whether this emitter contributes, without unmounting it.
+    pub enabled: Property<bool>,
+}
+
+impl Default for StripLight {
+    fn default() -> Self {
+        Self {
+            color: Property::new(Color::WHITE),
+            intensity: Property::new(1.0),
+            radius: Property::new(Size::Pixels(Numeric::F64(240.0))),
+            enabled: Property::new(true),
+        }
     }
 }
 
@@ -413,5 +455,18 @@ mod pose_tests {
             assert!((a - b).abs() < 1e-9, "{a} != {b}");
         }
         assert!(light_pose(geometry, f64::NAN, Vector3::new(0., 0., -1.)).is_none());
+    }
+
+    #[test]
+    fn strip_extent_inherits_spatial_rotation_without_translation() {
+        let transform = Transform3::<NodeLocal, Window>::translate(GeometricVector::new(500., 900., 70.))
+            * Transform3::<NodeLocal>::rotate_y(std::f64::consts::FRAC_PI_2);
+        let geometry = SpatialGeometry::new(transform, (100., 1.));
+        let (_, extent) = light_pose(geometry, 0., Vector3::new(50., 0., 0.)).unwrap();
+        assert!(extent.x.abs() < 1e-9);
+        assert_eq!(extent.y, 0.);
+        assert!((extent.z + 50.).abs() < 1e-9);
+        let (_, zero) = light_pose(geometry, 0., Vector3::default()).unwrap();
+        assert_eq!(zero, Vector3::default());
     }
 }

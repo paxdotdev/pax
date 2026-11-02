@@ -8,6 +8,9 @@ A display wrapper for documentation/demo examples.
 
 `ExampleHost` renders every projected child with `slot()` and offers an
 optional source drawer driven by an explicit `sources` manifest.
+The desktop drawer slides over the preview, then reserves its width after
+the opening motion finishes. Closing restores the preview width before
+sliding away. A tab follows the drawer's leading edge and shows × while open.
 The code pane offers Solarized Light (default) and Dark through a moon/sun switch.
 Theme state is local to the host unless `source_light_mode` is explicitly bound.
 Set `inline_source_viewer=false` to present a separately mounted
@@ -111,13 +114,29 @@ Source code contents.
 
 ---
 
+### `ExampleSourceToggle`
+A page-edge source tab, bound to the owning viewer's open state.
+
+Place at `x=100%`, with 112px width when closed and 28px when open, and 34px
+height. Its native button remains keyboard-operable in either state.
+The white tab morphs its inward notch into a left-pointing tip on opening,
+extending 8px beyond its left bound. Leave that edge unclipped.
+
+#### Properties
+##### `open`
+Type: `Property`<`bool`>
+
+Two-way bind to the owning source viewer's open state.
+
+---
+
 ### `ExampleSourceViewer`
 Reusable source panel with fixed black/white chrome and a Solarized code pane.
 
 It fills the bounds supplied by its caller, not the global viewport. For a
 full-screen presentation, mount it above (outside) the page Scroller and bind
 `open`, `selected_source`, and `source_light_mode` to the owning state. The
-caller controls mounting; the close control sets `open=false`.
+caller controls mounting; the page-edge close tab sets `open=false`.
 
 #### Properties
 ##### `title`
@@ -144,6 +163,12 @@ Close control writes false; the caller decides how to dismiss the viewer.
 Type: `Property`<`bool`>
 
 True (default) selects Solarized Light; false selects Dark. Chrome stays black/white.
+
+##### `show_close_tab`
+Type: `Property`<`bool`>
+
+Show the page-edge close tab (default true). Set false when the caller
+already supplies a persistent `ExampleSourceToggle`, as `ExampleHost` does.
 
 #### Implementations
 ##### `source_background`

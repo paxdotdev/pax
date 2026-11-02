@@ -540,6 +540,14 @@ compositing topology during scroll-only movement: Pax refreshes affected contain
 presentation bounds and nearby native masks in the descendant scroll islands.
 Rotated views use a conservative query envelope consistent with native masking.
 
+Moving, scaling, rotating, or resizing an existing clipped scroller also retains
+its content layer when that scroll island and its descendants remain isolated.
+The runtime refreshes the affected clip branch, container presentation bounds,
+and native masks, rather than rebuilding unrelated scene branches. Changes to
+viewport or content extents update surface planning without being treated as
+layer-ownership changes. This is shared-runtime behavior, not a web-only CSS
+shortcut; it still depends on the backend enabling isolated scroll layers.
+
 When an existing Frame or geometry Mask animates its clip, the shared runtime
 refreshes the records inheriting that clip and the native masks overlapping
 their old or new paint. Unrelated branches are not traversed just because a
@@ -583,7 +591,7 @@ not itself invalidate scene topology while the retained children are unchanged.
 Animated paint, opacity, and geometry still update normally; actual removals or
 interrupted transitions continue to reconcile the mounted scene.
 
-Clip-boundary or scroller-ownership changes, scroller-container geometry changes,
+Clip-boundary or scroller-ownership changes, singular scroller transforms,
 escaping unclippable branches, and scroll domains with
 disabled clipping or disabled scroll islands currently use full
 reconciliation. These optimizations do not guarantee a particular frame

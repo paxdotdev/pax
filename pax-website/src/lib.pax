@@ -24,6 +24,20 @@
     }>
         <CalculatorPage />
     </Route>
+    <Route path="/oscilloscope" metadata=RouteMetadata {
+        title: "Oscilloscope — A live Pax example"
+        description: "Play with light, lettering, and waveforms in a Pax-built instrument."
+        index: false
+    }>
+        <PlaygroundPage />
+    </Route>
+    <Route path="/space-game" metadata=RouteMetadata {
+        title: "Space Game — A live Pax example"
+        description: "Fly through an asteroid field in a small game built with Pax."
+        index: false
+    }>
+        <PlaygroundPage game=true/>
+    </Route>
     <Route default=true metadata=RouteMetadata {
         title: "Page not found — Pax"
         description: "This page could not be found."

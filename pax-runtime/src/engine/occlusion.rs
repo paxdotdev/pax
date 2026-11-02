@@ -441,11 +441,20 @@ pub(crate) fn update_node_occlusion_observed(
                 } else {
                     instance.base().flags().layer
                 };
-                // Scroller geometry and changed clip membership retain the
-                // conservative path. Existing clip geometry is branch-local.
+                // An isolated scroller can move/resize like an existing clip:
+                // preserve its content layer and repair the affected branch.
+                // Changing ownership or losing an invertible coordinate frame
+                // must still reclassify the scene conservatively.
                 let reason = if state.unsafe_layers.contains(&record.render_layer_id) {
                     "unsafe-layer"
-                } else if record.scrolls || instance.scrolls_content(&node) {
+                } else if record.scrolls != instance.scrolls_content(&node)
+                    || record.clips_content != instance.clips_content(&node)
+                {
+                    "clip-topology"
+                } else if record.scrolls
+                    && (!state.isolated_scrollers.contains_key(id)
+                        || scroll_region(*id, ctx).is_none())
+                {
                     "scroll-container"
                 } else if record.clip.is_some() != node.world_clip_geometry.get().0.is_some() {
                     "clip-topology"
@@ -471,8 +480,9 @@ pub(crate) fn update_node_occlusion_observed(
                 scrolled.iter().find_map(|id| {
                     // Escaped/unclipped content and shared-layer scrolling still require
                     // conservative reconciliation. Nested clipped islands do not.
-                    (!state.isolated_scrollers.contains_key(id))
-                        .then_some(("unisolated-scroll", Some(*id)))
+                    (!state.isolated_scrollers.contains_key(id)
+                        || scroll_region(*id, ctx).is_none())
+                    .then_some(("unisolated-scroll", Some(*id)))
                 })
             })
     };
