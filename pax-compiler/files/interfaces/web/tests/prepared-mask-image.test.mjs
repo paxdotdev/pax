@@ -134,7 +134,11 @@ function managerFixture(safari = true) {
     const {RenderLayerManager} = load('render-layer-context', {
         HTMLElement: Element,
         navigator: {userAgent: safari ? 'AppleWebKit Version/26 Safari/605' : 'AppleWebKit Chrome/140 Safari/537', platform: 'MacIntel'},
-        require: name => name === './prepared-mask-image' ? maskModule : {},
+        require: name => name === './prepared-mask-image' ? maskModule
+            : name === './native-mask-rasterizer' ? {NativeMaskRasterizer: class {
+                prepare = prepareNativeMaskRaster;
+                dispose() {}
+            }} : {},
     });
     const manager = new RenderLayerManager({});
     manager.effects = {updateMask() {}, cleanUp() {}};

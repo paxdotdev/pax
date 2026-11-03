@@ -643,6 +643,7 @@ fn web_interface_fingerprint_inputs(
 
     for relative_path in [
         "build-interface.sh",
+        "build-interface.mjs",
         "package.json",
         "package-lock.json",
         "tsconfig.json",
@@ -1685,6 +1686,17 @@ mod tests {
     }
 
     #[test]
+    fn web_interface_bundle_rebuilds_when_worker_bundling_changes() {
+        let dir = web_interface_fixture();
+        write_web_interface_fingerprint(dir.path()).expect("fingerprint should be written");
+        write_file(
+            &dir.path().join("build-interface.mjs"),
+            b"// changed worker bundling\n",
+        );
+        assert!(web_interface_bundle_needs_rebuild(dir.path(), true));
+    }
+
+    #[test]
     fn web_interface_bundle_rebuilds_when_source_file_is_deleted() {
         let dir = web_interface_fixture();
         write_web_interface_fingerprint(dir.path()).expect("fingerprint should be written");
@@ -1696,6 +1708,10 @@ mod tests {
     fn web_interface_fixture() -> tempfile::TempDir {
         let dir = tempfile::tempdir().expect("tempdir should be created");
         write_file(&dir.path().join("build-interface.sh"), b"#!/bin/sh\n");
+        write_file(
+            &dir.path().join("build-interface.mjs"),
+            b"// bundle worker and host\n",
+        );
         write_file(&dir.path().join("package.json"), b"{}");
         write_file(&dir.path().join("package-lock.json"), b"{}");
         write_file(&dir.path().join("tsconfig.json"), b"{}");

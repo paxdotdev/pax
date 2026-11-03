@@ -8,6 +8,7 @@ import { affineMultiply, invertAffineCoeffs } from "../utils/helpers";
 import type { NativeMaskEntry } from "./messages/native-mask-update-patch";
 import type { LayerCanvasPlan } from "./surface-host-policy";
 import { PreparedMaskImage } from "./prepared-mask-image";
+import { NativeMaskRasterizer } from "./native-mask-rasterizer";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -36,6 +37,7 @@ export class RenderLayerManager {
     private pendingLayerIslandClaims: Map<number, number>;
     private effects: SvgEffectManager;
     private maskImages = new Map<HTMLElement, PreparedMaskImage>();
+    private maskRasterizer?: NativeMaskRasterizer;
     private maskPixelRatio = typeof window !== 'undefined' ? Math.max(window.devicePixelRatio || 1, 1) : 1;
 
     constructor(objectManager: ObjectManager) {
@@ -144,7 +146,8 @@ export class RenderLayerManager {
         if (rasterFallback) {
             let image = this.maskImages.get(element);
             if (!image) {
-                image = new PreparedMaskImage(element);
+                this.maskRasterizer ??= new NativeMaskRasterizer();
+                image = new PreparedMaskImage(element, this.maskRasterizer.prepare);
                 this.maskImages.set(element, image);
             }
             image.update(entries, maskWidth, maskHeight, this.maskPixelRatio);
@@ -169,6 +172,8 @@ export class RenderLayerManager {
     disposeMaskImages() {
         this.maskImages.forEach(image => image.dispose());
         this.maskImages.clear();
+        this.maskRasterizer?.dispose();
+        this.maskRasterizer = undefined;
     }
 
     updateMaskPixelRatio(scale: number) {

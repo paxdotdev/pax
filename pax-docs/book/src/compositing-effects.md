@@ -530,6 +530,15 @@ base minus this bitmap preserves the rest of the element without encoding a
 mostly empty viewport-sized image. Partial opacity is preserved; changing
 display density regenerates the bitmap.
 
+Where worker-side 2D canvas is available, rasterization and PNG encoding run in
+one worker shared by the mounted host's native masks, with one raster job active
+at a time. Bitmap decoding and the CSS handoff remain on the browser's main
+thread. This avoids synchronous PNG compression delaying input and rendered
+tile preparation. Hosts without worker-side canvas, or with a Content Security
+Policy that blocks `blob:` workers, retain main-thread preparation; correct
+coverage does not require weakening the site's policy. That fallback can still
+stall on large changing masks. Disposing the host terminates its mask worker.
+
 Pax keeps the previous ready mask until the replacement bitmap has decoded.
 There is at most one preparation in flight per element; rapid changes coalesce
 to the latest pending request rather than building a queue. Animated coverage

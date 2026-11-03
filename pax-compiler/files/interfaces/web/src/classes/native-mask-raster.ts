@@ -6,6 +6,8 @@ export type MaskRasterRequest = {
 };
 export type PreparedMask = {url?: string; bounds?: MaskBounds};
 export type MaskPreparation = {ready: Promise<PreparedMask>; dispose(): void};
+export type EncodedMask = {blob?: Blob; bounds?: MaskBounds};
+export type MaskEncoding = {ready: Promise<EncodedMask>; dispose(): void};
 
 // The native-mask protocol emits absolute M/L/Q/C/Z paths. Bezier control hulls
 // conservatively contain their curves. Unknown syntax must never narrow a mask.
@@ -75,7 +77,7 @@ export function nativeMaskRasterBounds(request: MaskRasterRequest): MaskBounds |
         bottom: Math.min(Math.ceil(request.height * s), Math.ceil(union.bottom * s) + 1) / s};
 }
 
-export function paintNativeMaskCoverage(ctx: CanvasRenderingContext2D, request: MaskRasterRequest, bounds: MaskBounds) {
+export function paintNativeMaskCoverage(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, request: MaskRasterRequest, bounds: MaskBounds) {
     ctx.setTransform(request.scale, 0, 0, request.scale, -bounds.left * request.scale, -bounds.top * request.scale);
     ctx.fillStyle = 'white';
     // Source-over combines occluder alpha as 1 - product(1 - opacity), matching
@@ -89,21 +91,17 @@ export function paintNativeMaskCoverage(ctx: CanvasRenderingContext2D, request: 
     }
 }
 
-export function prepareNativeMaskRaster(request: MaskRasterRequest): MaskPreparation {
+// Compatibility path for hosts without worker-side 2D canvas, or whose CSP
+// disallows workers. Safari's callback-based toBlob can encode synchronously.
+export function encodeNativeMaskOnMainThread(request: MaskRasterRequest): MaskEncoding {
     let cancelled = false;
     let canvas: HTMLCanvasElement | undefined;
-    let image: HTMLImageElement | undefined;
-    let url: string | undefined;
     const dispose = () => {
         cancelled = true;
         if (canvas) canvas.width = canvas.height = 0;
         canvas = undefined;
-        image?.removeAttribute('src');
-        image = undefined;
-        if (url) URL.revokeObjectURL(url);
-        url = undefined;
     };
-    const ready = (async (): Promise<PreparedMask> => {
+    const ready = (async (): Promise<EncodedMask> => {
         const bounds = nativeMaskRasterBounds(request);
         if (!bounds) return {};
         try {
@@ -118,6 +116,33 @@ export function prepareNativeMaskRaster(request: MaskRasterRequest): MaskPrepara
             canvas.width = canvas.height = 0;
             canvas = undefined;
             if (!blob) throw new Error('Native mask encoding failed');
+            return {blob, bounds};
+        } finally {
+            dispose();
+        }
+    })();
+    return {ready, dispose};
+}
+
+export function prepareNativeMaskRaster(request: MaskRasterRequest,
+    encode = encodeNativeMaskOnMainThread): MaskPreparation {
+    let cancelled = false;
+    let image: HTMLImageElement | undefined;
+    let url: string | undefined;
+    const encoding = encode(request);
+    const dispose = () => {
+        cancelled = true;
+        encoding.dispose();
+        image?.removeAttribute('src');
+        image = undefined;
+        if (url) URL.revokeObjectURL(url);
+        url = undefined;
+    };
+    const ready = (async (): Promise<PreparedMask> => {
+        try {
+            const {blob, bounds} = await encoding.ready;
+            if (cancelled) throw new Error('Native mask preparation cancelled');
+            if (!blob || !bounds) return {};
             url = URL.createObjectURL(blob);
             image = new Image();
             image.src = url;
