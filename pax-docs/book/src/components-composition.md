@@ -897,15 +897,17 @@ complete source. Viewport selection uses the conservative, approximate
 layouts require more content before they can settle.
 
 The prepared canvas and native elements become visible together beneath the
-loader, which runs its `@out` while the remaining scene mounts cooperatively.
-The default loader fades over 250 ms. The main application's `@in` stays at
-its initial pose and its animation clock remains paused until mounting is
-complete; a custom root entry transition that starts fully transparent can
-therefore keep that content invisible until then. Application input and
-accessibility remain blocked until both mounting and loader exit finish.
+loader, which remains active while the remaining scene mounts cooperatively.
+Only after mounting completes and the main animation clock can advance does
+the loader run its `@out`. The default loader fades over 250 ms. This avoids
+exposing a motionless entry pose while offscreen content is still mounting.
+The main application's `@in` starts as mounting completes, underneath the
+exiting loader. Application input and accessibility remain blocked until both
+mounting and loader exit finish. A custom loader with a transparent background
+can still expose the preparing application's paused entry pose underneath it.
 The `init_web` promise resolves after that full handoff. This does not wait for
 every offscreen asset or application-defined async task. A failure during the
-remaining mount closes the partial application and prepares a fresh loader
+remaining mount closes the partial application and leaves the active loader
 to display the error and any available retry action.
 
 During remaining mount work, viewport resize and native layout/asset feedback
@@ -957,9 +959,9 @@ Its fields are:
 | `error` | Optional failure message. |
 | `can_retry`, `can_cancel` | Actions the host can currently accept safely. |
 
-`ready` means the initial viewport can be revealed; `revealing` can include
-remaining mount work after the loader has faded. Only `active` means the full
-mount and input handoff have finished.
+`preparing` includes the initial viewport and remaining mount work. `ready`
+means mounting is complete and the loader can begin its exit. `revealing`
+covers that exit transition; only `active` means the input handoff has finished.
 
 A completed download is not a ready application. There is no overall percentage
 for compilation, mounting or rendering. The default screen dedicates the first

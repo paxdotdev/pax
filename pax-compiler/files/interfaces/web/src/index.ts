@@ -319,8 +319,8 @@ class MountSession implements MountedApp {
     }
     publish() {
         if (!this.reveal()) return false;
-        // Early reveal keeps the mount queue, clocks and input gate alive. The
-        // loader may exit now, but publication still requires full initialization.
+        // Early reveal resumes mounting, not ordinary ticks or input. A loading
+        // screen must wait for `mounted` before beginning its exit transition.
         if (mountYieldEnabled && !startupPresented) return false;
         this.region.inert = false;
         this.region.removeAttribute("aria-hidden");

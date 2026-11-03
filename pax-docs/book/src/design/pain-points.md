@@ -16,6 +16,16 @@ Last triaged: 2026-10-05 — [PAX-972](https://linear.app/paxdev/issue/PAX-972/p
 
 ## Untriaged findings
 
+- 2026-11-03, homepage startup on desktop Chrome (1800×1043): expected the
+  hero to animate when the loader exits; instead the initial logo stroke and
+  headline stayed paused while the offscreen remainder mounted. The shared
+  coordinator exited at viewport readiness but held the main clock until full
+  mounting. DOM loading-phase sampling measured `revealing` at 1.49 s and
+  `active` at 18.05 s on the loaded development workstation; the user reported
+  about 8 s. Keeping the loader active until `mounted` fixes the exposed pause,
+  but does not reduce the remaining eager startup work (including 43 gallery
+  cards). Further startup-cost optimization remains separate from this handoff.
+
 - 2026-11-01, PAX-839 API-reference refresh: running `cargo run -p pax-docs
   --bin gen_api_docs` for a runtime startup API change also builds the generic
   macOS SDK through `pax-kit`'s host feature. Expected documentation generation;

@@ -340,9 +340,10 @@ frame clock or repeat `@mount`, `@tick`, or `@pre_render` handlers. Wall time st
 passes during ordinary initialization, so this does not pause elapsed-time animations.
 When a [loading screen](components-composition.md#loading-context-components-experimental)
 is configured, the loader and main application instead have independent clocks
-and reactive graphs. The main clock stays paused until mounting completes, even
-if its prepared viewport is already visible beneath the exiting loader. Input
-stays blocked until mounting and loader exit both finish. Their rendering scenes are independent while sharing
+and reactive graphs. The main clock stays paused until mounting completes; the
+loader remains active over the prepared viewport until then, and only begins
+its exit once the main clock can advance. Input stays blocked until mounting
+and loader exit both finish. Their rendering scenes are independent while sharing
 the runtime's GPU device. Cooperative preparation and rendering share a 4 ms
 allowance per animation-frame opportunity across these hosted applications;
 an indivisible callback can exceed this soft budget.
@@ -369,8 +370,9 @@ startup; consecutive pointer moves may be coalesced.
 The first preparation checkpoint prioritizes the initial viewport. Without a
 loading screen, this checkpoint permits the first reveal described below. A
 configured loading screen additionally waits for the initial visible surfaces
-to be submitted before revealing that viewport. The rest of the scene mounts
-cooperatively after reveal, with input and ordinary ticks still held; see its
+to be submitted before revealing that viewport underneath the active loader.
+The rest of the scene mounts cooperatively with input and ordinary ticks still
+held. Loader exit waits for this mounting to complete; see its
 [publication contract](components-composition.md#loading-context-components-experimental).
 A node with a known
 outer box entirely outside that viewport can defer its whole subtree; this

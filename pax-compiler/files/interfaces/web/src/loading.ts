@@ -89,17 +89,19 @@ export async function startLoadingApplication(options: WebInitOptions, glue: Glu
                 mountFailure = main.mounted.then(() => new Promise<never>(() => {}));
                 void mountFailure.catch(() => {});
                 attempt.signal.throwIfAborted();
+                await waitFrame(attempt.signal);
+                // Acknowledge the first viewport so deferred mounting can resume,
+                // but keep the loader active: the main clock is still held until
+                // the remainder finishes. Exiting now exposes a frozen entry pose.
+                while (!main.reveal()) await waitFrame(attempt.signal);
+                await abortable(main.mounted, attempt.signal);
                 update('ready');
                 await waitFrame(attempt.signal);
-                // Reveal canvas and native content under the loader before
-                // its exit starts; the application remains inert throughout.
-                while (!main.reveal()) await waitFrame(attempt.signal);
                 update('revealing');
                 loaderExiting = true;
                 loader.chassis!.begin_presentation_exit();
                 do { await waitFrame(attempt.signal); }
                 while (!loader.chassis!.presentation_exit_complete());
-                await abortable(main.mounted, attempt.signal);
                 while (!main.publish()) await waitFrame(attempt.signal);
                 update('active');
                 loader.close();
@@ -110,8 +112,8 @@ export async function startLoadingApplication(options: WebInitOptions, glue: Glu
                 main?.close();
                 if (main) await main.closed;
                 main = undefined;
-                // A remainder can fail after the loader has faded away. Retire
-                // its exited lifetime and prepare a fresh loader for error/retry.
+                // A handoff can fail after exit starts. Retire the exited loader
+                // lifetime and prepare a fresh one for error/retry in that case.
                 if (loaderExiting && !options.signal?.aborted) {
                     loader.close();
                     await loader.closed;

@@ -56,7 +56,7 @@ function harness({cancelOnFirstMount = false, ready = true, exitComplete = true,
 
 test('a cancel queued at mount completion reaches cancelled, then retries without publishing the retired app', async () => {
     const h = harness({cancelOnFirstMount: true});
-    await flush(); assert.equal(h.phases.at(-1), 'ready');
+    await flush(); assert.equal(h.phases.at(-1), 'preparing');
     await h.frame();
     assert.equal(h.phases.at(-1), 'cancelled');
     assert.equal(h.applications[0].isClosed, true);
@@ -75,39 +75,49 @@ test('a cancel queued at mount completion reaches cancelled, then retries withou
     mounted.close(); await mounted.closed;
 });
 
-test('loader exits at viewport readiness while completion and publication wait for remaining mounts', async () => {
+test('viewport readiness resumes mounting without exiting the loader onto a paused application', async () => {
     const h = harness({mounting: true}); await flush();
     await h.frame(); await h.frame();
-    assert.equal(h.phases.at(-1), 'revealing');
-    assert.equal(h.exits(), 1);
+    assert.equal(h.phases.at(-1), 'preparing');
+    assert.equal(h.applications[0].reveals, 1, 'the first viewport must release deferred mounting');
+    assert.equal(h.exits(), 0, 'keep the active loader until the application clock can advance');
     assert.equal(h.applications[0].publishes, 0);
     let finished = false; h.pending.then(() => { finished = true; });
     await flush(); assert.equal(finished, false);
     h.applications[0].finish(); await flush();
+    assert.equal(h.phases.at(-1), 'ready');
+    assert.equal(h.exits(), 0);
+    await h.frame();
+    assert.equal(h.phases.at(-1), 'revealing');
+    assert.equal(h.exits(), 1);
+    assert.equal(h.applications[0].publishes, 0, 'input waits for loader exit');
+    await h.frame();
     await h.pending;
     assert.equal(h.phases.at(-1), 'active');
     assert.equal(h.applications[0].publishes, 1);
 });
 
-test('failure after viewport readiness interrupts a stalled loader exit', async () => {
+test('failure during remaining mounts keeps the existing loader for error and retry', async () => {
     const h = harness({mounting: true, exitComplete: false}); await flush(); await h.frame();
-    assert.equal(h.phases.at(-1), 'revealing');
+    assert.equal(h.phases.at(-1), 'preparing');
     h.applications[0].fail(new Error('late mount failure')); await flush();
     assert.equal(h.phases.at(-1), 'failed');
-    assert.equal(h.loaders(), 2, 'the exited loader is recreated to show failure/retry');
+    assert.equal(h.loaders(), 1, 'the loader has not exited while the main app is still mounting');
+    assert.equal(h.exits(), 0);
     assert.equal(h.applications[0].isClosed, true);
     assert.equal(h.applications[0].publishes, 0);
     h.controller.abort(); await assert.rejects(h.pending, {name: 'AbortError'});
 });
 
-test('abort after loader exit cancels the remaining mount wait', async () => {
+test('abort during remaining mounts cancels the wait without exposing the paused application', async () => {
     const h = harness({mounting: true}); await flush(); await h.frame(); await h.frame();
+    assert.equal(h.exits(), 0);
     h.controller.abort(); await assert.rejects(h.pending, {name: 'AbortError'});
     assert.equal(h.applications[0].isClosed, true);
     assert.equal(h.applications[0].publishes, 0);
 });
 
-test('a late failure can retry through a new loader and publish only the replacement application', async () => {
+test('a late mount failure retries with the active loader and publishes only the replacement application', async () => {
     const h = harness({mounting: true}); await flush(); await h.frame(); await h.frame();
     h.applications[0].fail(new Error('late mount failure')); await flush();
     assert.equal(h.phases.at(-1), 'failed');
@@ -117,7 +127,7 @@ test('a late failure can retry through a new loader and publish only the replace
     for (let i = 0; i < 4 && h.phases.at(-1) !== 'active'; i++) await h.frame();
     const mounted = await h.pending;
     assert.equal(h.phases.at(-1), 'active');
-    assert.equal(h.loaders(), 2);
+    assert.equal(h.loaders(), 1);
     assert.equal(h.applications[0].publishes, 0);
     assert.equal(h.applications[1].publishes, 1);
     assert.equal(h.retired(), 2);
@@ -126,7 +136,7 @@ test('a late failure can retry through a new loader and publish only the replace
 
 test('attempt cancellation breaks a stalled readiness/reveal loop', async () => {
     const h = harness({ready: false}); await flush(); await h.frame();
-    assert.equal(h.phases.at(-1), 'ready');
+    assert.equal(h.phases.at(-1), 'preparing');
     h.request('cancel'); await h.frame();
     assert.equal(h.phases.at(-1), 'cancelled');
     assert.equal(h.applications[0].isClosed, true);
@@ -135,7 +145,7 @@ test('attempt cancellation breaks a stalled readiness/reveal loop', async () => 
 
 for (const atExit of [false, true]) test(`outer abort settles without another animation frame ${atExit ? 'during exit' : 'before reveal'}`, async () => {
     const h = harness({exitComplete: false}); await flush();
-    if (atExit) { await h.frame(); assert.equal(h.phases.at(-1), 'revealing'); }
+    if (atExit) { await h.frame(); await h.frame(); assert.equal(h.phases.at(-1), 'revealing'); }
     h.controller.abort();
     await assert.rejects(h.pending, {name: 'AbortError'});
     assert.equal(h.loaderClosed(), true);

@@ -130,9 +130,11 @@ The website enables both `package.metadata.pax.loader` and
 `package.metadata.pax.web.yield_mount`. The loading screen stays visible while
 the main application's initial viewport mounts in a hidden, inert region.
 Once its required content, native measurements, and visible surface submissions
-are ready, the page is revealed and the loader fades away. Remaining content
-mounts cooperatively. Input and the main animation clock remain held until
-mounting finishes, so the first visible scene can show a still entry pose. See
+are ready, the page is prepared beneath the still-active loader. Remaining
+content mounts cooperatively, with input and the main animation clock held.
+The loader only fades away once mounting finishes and the hero animation can
+advance, avoiding an exposed, frozen entry pose. Input is enabled after the
+loader exit completes. This handoff does not reduce the total mounting cost. See
 [loading screens](../pax-docs/book/src/components-composition.md#loading-context-components-experimental)
 for the build requirements and publication contract.
 
