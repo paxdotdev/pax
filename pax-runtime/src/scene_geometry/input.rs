@@ -53,10 +53,32 @@ pub(crate) struct InputPlacement {
     pub parent: Option<u32>,
     pub rank: usize,
     pub end: usize,
-    pub child_scroll: Affine,
+    pub scroll_parent: Option<u32>,
+    pub scrolls: bool,
+    // Perspective projection already incorporates scrolling before projection.
+    // Affine shapes instead stay in unscrolled coordinates within their chart.
+    pub window_space: bool,
     pub coverage: CoverageBounds,
     pub unknown: bool,
     pub hit: PreparedHit,
+}
+
+impl InputPlacement {
+    fn chart(&self) -> Option<u32> {
+        if self.window_space {
+            None
+        } else {
+            self.scroll_parent
+        }
+    }
+
+    pub fn test(&self, point: Point, scroll: Affine) -> (bool, Option<f64>) {
+        self.hit.test(if self.window_space {
+            point
+        } else {
+            scroll.inverse() * point
+        })
+    }
 }
 
 #[derive(Default)]
@@ -67,7 +89,9 @@ pub(crate) struct InputScene {
     pub order: Vec<u32>,
     pub records: HashMap<u32, InputPlacement>,
     pub dirty: HashSet<u32>,
-    index: SpatialIndex,
+    pub scrollers: Vec<u32>,
+    projected: HashSet<u32>,
+    indexes: HashMap<Option<u32>, SpatialIndex>,
     pub stats: InputQueryStats,
 }
 
@@ -79,7 +103,9 @@ impl InputScene {
         self.order.clear();
         self.records.clear();
         self.dirty.clear();
-        self.index = SpatialIndex::default();
+        self.scrollers.clear();
+        self.projected.clear();
+        self.indexes.clear();
         self.stats.topology_rebuilds += 1;
     }
 
@@ -89,10 +115,15 @@ impl InputScene {
         }
     }
 
-    pub fn invalidate_subtree(&mut self, id: u32) {
+    pub fn invalidate_scroll(&mut self, id: u32) {
         if let Some(record) = self.records.get(&id) {
+            // Scroll changes a chart's query transform, not each affine shape.
+            // Perspective descendants remain window-space and must be reprojected.
             self.dirty
-                .extend(self.order[record.rank..record.end].iter().copied());
+                .extend(self.projected.iter().copied().filter(|id| {
+                    let rank = self.records[id].rank;
+                    rank > record.rank && rank < record.end
+                }));
         }
     }
 
@@ -100,29 +131,44 @@ impl InputScene {
         let changed = self
             .records
             .get(&id)
-            .is_none_or(|old| old.coverage != record.coverage);
+            .is_none_or(|old| old.coverage != record.coverage || old.chart() != record.chart());
         if changed {
-            self.index.remove(id);
+            if let Some(old) = self.records.get(&id) {
+                if let Some(index) = self.indexes.get_mut(&old.chart()) {
+                    index.remove(id);
+                }
+            }
+            let index = self.indexes.entry(record.chart()).or_default();
             match record.coverage {
                 CoverageBounds::Empty => {}
-                CoverageBounds::Finite(rect) => self.index.insert(id, Some(rect)),
-                CoverageBounds::Unbounded => self.index.insert(id, None),
+                CoverageBounds::Finite(rect) => index.insert(id, Some(rect)),
+                CoverageBounds::Unbounded => index.insert(id, None),
             }
+        }
+        if record.window_space {
+            self.projected.insert(id);
+        } else {
+            self.projected.remove(&id);
         }
         self.stats.bounds_prepared += 1;
         self.records.insert(id, record);
     }
 
-    pub fn candidates(&mut self, point: Point) -> HashSet<u32> {
+    pub fn candidates(&mut self, point: Point, scrolls: &HashMap<u32, Affine>) -> HashSet<u32> {
         let mut ids = HashSet::new();
-        let rect = Rect::new(point.x, point.y, point.x, point.y);
-        self.index.candidates(rect, &mut ids);
-        ids.retain(|id| {
-            self.records[id]
-                .coverage
-                .query_rect()
-                .is_some_and(|bounds| super::intersects(Some(bounds), rect))
-        });
+        let mut local = HashSet::new();
+        for (chart, index) in &self.indexes {
+            let point = chart.map_or(point, |id| scrolls[&id].inverse() * point);
+            let rect = Rect::new(point.x, point.y, point.x, point.y);
+            local.clear();
+            index.candidates(rect, &mut local);
+            ids.extend(local.iter().copied().filter(|id| {
+                self.records[id]
+                    .coverage
+                    .query_rect()
+                    .is_some_and(|bounds| super::intersects(Some(bounds), rect))
+            }));
+        }
         self.stats.candidates += ids.len() as u64;
         ids
     }
@@ -131,8 +177,12 @@ impl InputScene {
         if self.records.contains_key(&id) {
             self.topology_dirty = true;
         }
-        self.records.remove(&id);
-        self.index.remove(id);
+        if let Some(old) = self.records.remove(&id) {
+            if let Some(index) = self.indexes.get_mut(&old.chart()) {
+                index.remove(id);
+            }
+        }
+        self.projected.remove(&id);
         self.dirty.remove(&id);
     }
 }

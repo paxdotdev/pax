@@ -1068,12 +1068,26 @@ pub(crate) fn flight_fixture_with_content(
     NodeRef,
     Rc<ExpandedNode>,
 ) {
+    flight_fixture_with_content_and_camera(content, None)
+}
+
+pub(crate) fn flight_fixture_with_content_and_camera(
+    content: Rc<dyn InstanceNode>,
+    camera: Option<pax_manifest::LiteralBlockDefinition>,
+) -> (
+    PaxEngine,
+    Rc<ExpandedNode>,
+    NodeRef,
+    NodeRef,
+    Rc<ExpandedNode>,
+) {
     use crate::api::Size;
     let higher = TreeNode::overlay(vec![]);
     let nav = TreeNode::overlay(vec![TreeNode::new(vec![], false, None)]);
     let home = TreeNode::scroller(vec![TreeNode::new(vec![content], false, None)]);
     let mut root_args = args(vec![]);
     root_args.component_template = Some(RefCell::new(vec![higher, nav, home]));
+    root_args.component_camera = camera;
     let mut engine = crate::test_support::empty_engine(
         (640., 480.),
         Platform::Web,

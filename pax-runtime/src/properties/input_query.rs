@@ -14,9 +14,9 @@ pub(super) struct InputQuery {
 }
 
 #[cfg(test)]
-mod tests;
-#[cfg(test)]
 mod hit_testing_tests;
+#[cfg(test)]
+mod tests;
 
 impl RuntimeContext {
     /// Invalidate conservative input coverage after non-reactive shape changes.
@@ -66,8 +66,8 @@ impl RuntimeContext {
                 .borrow_mut()
                 .input
                 .reset(key, renderer_is_gpu);
-            let mut stack = vec![(root.clone(), None, Affine::IDENTITY, false)];
-            while let Some((node, parent, inherited_scroll, exit)) = stack.pop() {
+            let mut stack = vec![(root.clone(), None, None, false)];
+            while let Some((node, parent, scroll_parent, exit)) = stack.pop() {
                 let id = node.id.to_u32();
                 if exit {
                     let mut scene = self.scene_geometry.borrow_mut();
@@ -80,10 +80,14 @@ impl RuntimeContext {
                 }
                 node.compute_flattened_projected_children();
                 let rank = self.scene_geometry.borrow().input.order.len();
-                let (coverage, hit, child_scroll) = self.input_coverage(&node, inherited_scroll);
+                let (coverage, hit) = self.prepare_node_hit(&node, Affine::IDENTITY);
+                let scrolls = borrow!(node.instance_node).scrolls_content(&node);
                 {
                     let mut scene = self.scene_geometry.borrow_mut();
                     scene.input.order.push(id);
+                    if scrolls {
+                        scene.input.scrollers.push(id);
+                    }
                     scene.input.publish(
                         id,
                         InputPlacement {
@@ -91,19 +95,22 @@ impl RuntimeContext {
                             parent,
                             rank,
                             end: rank + 1,
-                            child_scroll,
+                            scroll_parent,
+                            scrolls,
+                            window_space: node.has_perspective_camera(),
                             coverage,
                             hit,
                             unknown: coverage == CoverageBounds::Unbounded,
                         },
                     );
                 }
-                stack.push((node.clone(), parent, inherited_scroll, true));
+                stack.push((node.clone(), parent, scroll_parent, true));
+                let child_scroll_parent = if scrolls { Some(id) } else { scroll_parent };
                 stack.extend(
                     node.presentation_children(self)
                         .into_iter()
                         .rev()
-                        .map(|child| (child, Some(id), child_scroll, false)),
+                        .map(|child| (child, Some(id), child_scroll_parent, false)),
                 );
             }
         } else {
@@ -121,28 +128,16 @@ impl RuntimeContext {
                     self.scene_geometry.borrow_mut().input.topology_dirty = true;
                     return None;
                 }
-                let inherited_scroll = old
-                    .parent
-                    .and_then(|parent| {
-                        self.scene_geometry
-                            .borrow()
-                            .input
-                            .records
-                            .get(&parent)
-                            .map(|p| p.child_scroll)
-                    })
-                    .unwrap_or(Affine::IDENTITY);
-                let (coverage, hit, child_scroll) = self.input_coverage(&node, inherited_scroll);
-                let mut scene = self.scene_geometry.borrow_mut();
-                if child_scroll != old.child_scroll {
-                    for &child in &scene.input.order[old.rank + 1..old.end] {
-                        pending.insert(scene.input.records[&child].rank, child);
-                    }
+                if old.scrolls != borrow!(node.instance_node).scrolls_content(&node) {
+                    self.scene_geometry.borrow_mut().input.topology_dirty = true;
+                    return None;
                 }
+                let (coverage, hit) = self.prepare_node_hit(&node, Affine::IDENTITY);
+                let mut scene = self.scene_geometry.borrow_mut();
                 scene.input.publish(
                     id,
                     InputPlacement {
-                        child_scroll,
+                        window_space: node.has_perspective_camera(),
                         coverage,
                         hit,
                         unknown: coverage == CoverageBounds::Unbounded,
@@ -150,6 +145,19 @@ impl RuntimeContext {
                     },
                 );
             }
+        }
+        // Compose one transform per scroll chart, not one footprint per descendant.
+        // The topology order guarantees that an enclosing chart is available first.
+        let scrollers = self.scene_geometry.borrow().input.scrollers.clone();
+        let mut scrolls = HashMap::new();
+        for id in scrollers {
+            let parent = self.scene_geometry.borrow().input.records[&id].scroll_parent;
+            let inherited = parent.map_or(Affine::IDENTITY, |id| scrolls[&id]);
+            let node = self.get_expanded_node_by_eid(ExpandedNodeIdentifier(id))?;
+            scrolls.insert(
+                id,
+                inherited * self.scroller_content_presentation_transform(&node),
+            );
         }
         // Reading lazily computed slot/layout properties can enqueue work. Keep
         // the baseline query's settlement behavior, rather than painting a frame.
@@ -160,7 +168,7 @@ impl RuntimeContext {
         let (candidates, unknown, children) = {
             let mut scene = self.scene_geometry.borrow_mut();
             let input = &mut scene.input;
-            let candidates = input.candidates(point);
+            let candidates = input.candidates(point, &scrolls);
             let unknown: HashSet<_> = candidates
                 .iter()
                 .copied()
@@ -206,22 +214,6 @@ impl RuntimeContext {
             unknown,
             children,
         })
-    }
-
-    fn input_coverage(
-        &self,
-        node: &ExpandedNode,
-        inherited_scroll: Affine,
-    ) -> (CoverageBounds, PreparedHit, Affine) {
-        let scrolls = borrow!(node.instance_node).scrolls_content(node);
-        let child_scroll = inherited_scroll
-            * if scrolls {
-                self.scroller_content_presentation_transform(node)
-            } else {
-                Affine::IDENTITY
-            };
-        let (coverage, hit) = self.prepare_node_hit(node, inherited_scroll);
-        (coverage, hit, child_scroll)
     }
 
     pub(super) fn prepare_node_hit(

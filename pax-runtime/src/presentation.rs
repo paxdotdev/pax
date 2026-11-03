@@ -210,7 +210,7 @@ impl RuntimeContext {
         node.move_in_flight.set(true);
         node.rebind_move_presentation(self);
         node.mark_canvas_subtree_dirty_for_reparent(self, false);
-        self.presentation_changed();
+        self.presentation_changed(Some(node.id));
     }
 
     pub(crate) fn finish_move_flights(self: &Rc<Self>) {
@@ -265,7 +265,7 @@ impl RuntimeContext {
             .remove(&node.id)
             .is_some();
         if removed {
-            self.presentation_changed();
+            self.presentation_changed(Some(node.id));
         }
     }
 
@@ -382,7 +382,7 @@ impl RuntimeContext {
         if let Some(root) = self.get_root_expanded_node() {
             self.logical_children_changed(&root);
         }
-        self.presentation_changed();
+        self.presentation_changed(None);
     }
 
     fn placement_changed(&self, node: &ExpandedNode, old_parent: Option<Rc<ExpandedNode>>) {
@@ -401,7 +401,9 @@ impl RuntimeContext {
             }
         }
         self.projected_membership_changed(node);
-        self.mark_occlusion_dirty();
+        // Retained ancestry supplies the departure; current placement supplies
+        // the destination. Keep the parent DAG updates and occlusion repair local.
+        self.mark_occlusion_dirty_for_node(node.id.to_u32());
         self.viewport_structure_changed();
     }
 
@@ -650,12 +652,18 @@ impl RuntimeContext {
         Ok(())
     }
 
-    fn presentation_changed(&self) {
+    fn presentation_changed(&self, origin: Option<ExpandedNodeIdentifier>) {
         // Only viewport contributions subscribe here. Layout and received
         // children subscribe to their own parent/source membership instead.
         self.presentation_order_generation
             .set(self.presentation_order_generation.get().wrapping_add(1));
-        self.mark_occlusion_dirty();
+        // The retained topology supplies the old ancestry; current placement
+        // supplies the destination. A move is not an unknown scene-wide edit.
+        if let Some(id) = origin {
+            self.mark_occlusion_dirty_for_node(id.to_u32());
+        } else {
+            self.mark_occlusion_dirty();
+        }
         self.viewport_structure_changed();
     }
 

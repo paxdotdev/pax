@@ -91,6 +91,9 @@ impl InstanceNode for Probe {
     fn clips_content(&self, _: &ExpandedNode) -> bool {
         matches!(self.kind, Kind::Scroller | Kind::Clip)
     }
+    fn accepts_transferred_children(&self) -> bool {
+        matches!(self.kind, Kind::Group | Kind::Clip | Kind::Scroller)
+    }
     fn resolve_occlusion_path(&self, node: &ExpandedNode) -> Option<BezPath> {
         matches!(self.kind, Kind::Canvas).then(|| {
             Affine::from(node.transform_and_bounds.get().transform)
@@ -225,6 +228,26 @@ fn add(parent: &Rc<ExpandedNode>, kind: Kind, ctx: &Rc<RuntimeContext>) -> Rc<Ex
 }
 
 fn assert_full_rebuild_matches(root: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
+    let membership = |state: &OcclusionState| {
+        let pairs = |map: &HashMap<u32, Vec<u32>>| -> HashSet<(u32, u32)> {
+            map.iter()
+                .flat_map(|(&parent, children)| children.iter().map(move |&child| (parent, child)))
+                .collect()
+        };
+        (
+            pairs(&state.clip_dependents),
+            pairs(&state.scroll_containers),
+            state.isolated_scrollers.clone(),
+            state.leaf_scroll_regions.clone(),
+            state
+                .canvas_counts
+                .iter()
+                .filter(|(_, count)| **count > 0)
+                .map(|(&id, &count)| (id, count))
+                .collect::<HashMap<_, _>>(),
+        )
+    };
+    let expected_membership = membership(&ctx.occlusion_state.borrow());
     let expected: HashMap<_, _> = ctx
         .occlusion_state
         .borrow()
@@ -247,6 +270,10 @@ fn assert_full_rebuild_matches(root: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
     ctx.occlusion_state.borrow_mut().records.clear();
     ctx.mark_occlusion_dirty();
     update_node_occlusion(root, ctx);
+    assert_eq!(
+        membership(&ctx.occlusion_state.borrow()),
+        expected_membership
+    );
     assert_eq!(
         ctx.occlusion_state.borrow().records.len(),
         expected.len(),
@@ -941,7 +968,7 @@ fn leaf_changes_inside_nested_clips_reuse_exact_coverage() {
 }
 
 #[test]
-fn reparenting_between_clip_domains_and_container_edits_fall_back() {
+fn container_creation_falls_back_but_transfers_repair_locally() {
     for kind in [Kind::Clip, Kind::Scroller] {
         let (ctx, root) = mount(vec![
             probe(Kind::Canvas, vec![]),
@@ -954,11 +981,116 @@ fn reparenting_between_clip_domains_and_container_edits_fall_back() {
         assert!(ctx.occlusion_stats().rebuilds > before.rebuilds);
         let before = ctx.occlusion_stats();
         let leaf = group.children.get()[0].clone();
-        attach(&container, vec![leaf], &ctx);
+        crate::NodeRef::new(&leaf, &ctx)
+            .move_to_append_child(&crate::NodeRef::new(&container, &ctx))
+            .unwrap();
         settle(&root, &ctx);
-        assert!(ctx.occlusion_stats().rebuilds > before.rebuilds);
+        assert_eq!(ctx.occlusion_stats().rebuilds, before.rebuilds);
         assert_full_rebuild_matches(&root, &ctx);
     }
+}
+
+#[test]
+fn transferred_clip_subtree_repairs_both_scroll_islands_and_retains_distant_geometry() {
+    let (ctx, root) = mount(vec![
+        probe(
+            Kind::Scroller,
+            vec![
+                probe(
+                    Kind::Group,
+                    vec![probe(
+                        Kind::Clip,
+                        vec![probe(Kind::Canvas, vec![]), probe(Kind::Native, vec![])],
+                    )],
+                ),
+                probe(Kind::Native, vec![]),
+            ],
+        ),
+        probe(Kind::Scroller, vec![probe(Kind::Native, vec![])]),
+        probe(
+            Kind::Scroller,
+            (0..32).map(|_| probe(Kind::Canvas, vec![])).collect(),
+        ),
+    ]);
+    let hosts = root.children.get()[0].children.get();
+    let moved = hosts[0].children.get()[0].clone();
+    let clip = moved.children.get()[0].clone();
+    let canvas = clip.children.get()[0].clone();
+    let distant = hosts[2].children.get()[0].clone();
+    let handle = crate::NodeRef::new(&moved, &ctx);
+    for destination in [&hosts[1], &hosts[0], &hosts[1]] {
+        let geometry = ctx.canvas_geometry_for_node(&distant);
+        let before = ctx.occlusion_stats();
+        handle
+            .move_to_append_child(&crate::NodeRef::new(destination, &ctx))
+            .unwrap();
+        settle(&root, &ctx);
+        assert_eq!(ctx.occlusion_stats().rebuilds, before.rebuilds);
+        assert!(ctx.occlusion_stats().topology_nodes_reused > before.topology_nodes_reused);
+        assert!(Rc::ptr_eq(
+            &geometry,
+            &ctx.canvas_geometry_for_node(&distant)
+        ));
+        assert!(ctx.occlusion_state.borrow().records[&canvas.id.to_u32()]
+            .clips
+            .contains(&destination.id.to_u32()));
+        assert_full_rebuild_matches(&root, &ctx);
+        scroll_surface(&ctx, destination, 25.);
+        settle(&root, &ctx);
+        assert_full_rebuild_matches(&root, &ctx);
+        clear(&ctx);
+    }
+}
+
+#[test]
+fn overlay_flights_repair_departure_arrival_reversal_and_teardown() {
+    use crate::api::{Duration, EasingCurve};
+    let (mut engine, root, handle, target, nav) =
+        crate::node_query::tests::flight_fixture_with_content(probe(
+            Kind::Clip,
+            vec![probe(Kind::Canvas, vec![]), probe(Kind::Native, vec![])],
+        ));
+    let ctx = engine.runtime_context.clone();
+    let moved = handle.resolve().unwrap().0;
+    let clip = moved.children.get()[0].clone();
+    let canvas = clip.children.get()[0].clone();
+    for returning in [false, true, false] {
+        let before = ctx.occlusion_stats();
+        let motion = handle.animated(Duration::Frames(4.into()), EasingCurve::Linear);
+        if returning {
+            motion.move_to_home().unwrap();
+        } else {
+            motion.move_to_append_child(&target).unwrap();
+        }
+        for _ in 0..5 {
+            let before_tick = ctx.occlusion_stats();
+            engine.tick();
+            assert_eq!(ctx.occlusion_stats().rebuilds, before_tick.rebuilds);
+            assert_full_rebuild_matches(&root, &ctx);
+        }
+        assert!(
+            ctx.occlusion_stats().structural_reconciliations > before.structural_reconciliations
+        );
+        assert!(!moved.move_in_flight.get());
+        assert_eq!(canvas.occlusion.get().render_layer_id == 0, !returning);
+    }
+    handle
+        .animated(Duration::Frames(8.into()), EasingCurve::Linear)
+        .move_to_home()
+        .unwrap();
+    engine.tick();
+    handle
+        .animated(Duration::Frames(4.into()), EasingCurve::Linear)
+        .move_to_append_child(&target)
+        .unwrap();
+    engine.tick();
+    assert_full_rebuild_matches(&root, &ctx);
+    nav.recurse_unmount(&ctx);
+    engine.tick();
+    assert_full_rebuild_matches(&root, &ctx);
+    handle.move_to_home().unwrap();
+    engine.tick();
+    assert_full_rebuild_matches(&root, &ctx);
 }
 
 #[test]
@@ -977,6 +1109,64 @@ fn structural_edit_and_moving_leaf_repair_old_and_new_overlaps() {
     settle(&root, &ctx);
     assert_eq!(group.children.get()[1].native_mask_hash.get(), 0);
     assert_full_rebuild_matches(&root, &ctx);
+}
+
+#[cfg(feature = "3d")]
+#[test]
+fn overlay_transfer_repairs_camera_projection_and_clip_membership() {
+    use pax_manifest::{
+        ExpressionInfo, LiteralBlockDefinition, SettingElement, Token, ValueDefinition,
+    };
+    let camera = LiteralBlockDefinition::new(
+        [("projection", "CameraMode::Perspective"), ("z", "600px")]
+            .into_iter()
+            .map(|(key, value)| {
+                SettingElement::Setting(
+                    Token::new_without_location(key.into()),
+                    ValueDefinition::Expression(ExpressionInfo::new(
+                        pax_language::parse_pax_expression(value).unwrap(),
+                    )),
+                )
+            })
+            .collect(),
+    );
+    let (mut engine, root, handle, target, _) =
+        crate::node_query::tests::flight_fixture_with_content_and_camera(
+            probe(
+                Kind::Clip,
+                vec![probe(Kind::Canvas, vec![]), probe(Kind::Native, vec![])],
+            ),
+            Some(camera),
+        );
+    let ctx = engine.runtime_context.clone();
+    let moved = handle.resolve().unwrap().0;
+    let clip = moved.children.get()[0].clone();
+    let canvas = clip.children.get()[0].clone();
+    canvas
+        .get_common_properties()
+        .borrow()
+        .z
+        .set(Some(25.0.into()));
+    engine.tick();
+    assert!(canvas.has_perspective_camera());
+    assert_full_rebuild_matches(&root, &ctx);
+    for in_overlay in [true, false, true, false] {
+        let old_geometry = ctx.canvas_geometry_for_node(&canvas);
+        let before = ctx.occlusion_stats();
+        if in_overlay {
+            handle.move_to_append_child(&target).unwrap();
+        } else {
+            handle.move_to_home().unwrap();
+        }
+        engine.tick();
+        assert_eq!(ctx.occlusion_stats().rebuilds, before.rebuilds);
+        assert_eq!(canvas.has_perspective_camera(), !in_overlay);
+        assert!(!Rc::ptr_eq(
+            &old_geometry,
+            &ctx.canvas_geometry_for_node(&canvas)
+        ));
+        assert_full_rebuild_matches(&root, &ctx);
+    }
 }
 
 #[test]

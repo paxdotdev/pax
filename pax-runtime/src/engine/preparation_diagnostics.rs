@@ -7,6 +7,7 @@ use web_time::Instant;
 #[derive(Clone, Copy)]
 pub(super) enum Stage {
     Selection,
+    Prerequisite,
     Capture,
     Replay,
     ImageReplay,
@@ -20,6 +21,7 @@ impl Stage {
     fn name(self) -> &'static str {
         match self {
             Self::Selection => "selection",
+            Self::Prerequisite => "prerequisite",
             Self::Capture => "capture",
             Self::Replay => "replay",
             Self::ImageReplay => "image_replay",

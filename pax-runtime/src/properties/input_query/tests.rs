@@ -92,6 +92,9 @@ impl InstanceNode for HitNode {
     fn clips_content(&self, _: &ExpandedNode) -> bool {
         self.clip
     }
+    fn accepts_transferred_children(&self) -> bool {
+        true
+    }
     fn scrolls_content(&self, _: &ExpandedNode) -> bool {
         self.scroll
     }
@@ -169,6 +172,240 @@ fn oracle(
     let result = query(ctx, root, point, invisible);
     ctx.input_query_unindexed.set(false);
     result
+}
+
+fn native_scroll(ctx: &RuntimeContext, node: &ExpandedNode, y: f64) {
+    ctx.set_scroller_surface_state(
+        node.id.to_u32(),
+        crate::ScrollerSurfaceState {
+            viewport_width: 600.,
+            viewport_height: 500.,
+            content_width: 1200.,
+            content_height: 200_000.,
+            scroll_y: y,
+            presentation_scroll_y: y,
+            clip_content: true,
+            ..Default::default()
+        },
+    );
+}
+
+#[test]
+fn native_scroll_reuses_descendant_input_bounds_at_both_collection_sizes() {
+    for count in [32, 1024] {
+        let calls = Rc::new(Cell::new(0));
+        let leaves = (0..count)
+            .map(|_| HitNode::new(vec![], true, false, None, calls.clone()) as Rc<dyn InstanceNode>)
+            .collect();
+        let mut host = HitNode::new(leaves, true, true, None, calls);
+        Rc::get_mut(&mut host).unwrap().scroll = true;
+        let (mut engine, root) = fixture(vec![host]);
+        let host = root.children.get()[0].clone();
+        let leaves = host.children.get();
+        place(&host, 0., 0., 600., 500.);
+        for (i, leaf) in leaves.iter().enumerate() {
+            place(leaf, 10., i as f64 * 96., 60., 60.);
+        }
+        native_scroll(&engine.runtime_context, &host, 0.);
+        engine.tick();
+        query(&engine.runtime_context, None, (20., 20.), false);
+        let before = engine.runtime_context.input_query_stats();
+        for i in [5, 1, 20, 3, 0] {
+            native_scroll(&engine.runtime_context, &host, i as f64 * 96.);
+            // The pre-settlement fallback must still observe the new offset.
+            let ctx = &engine.runtime_context;
+            assert_eq!(
+                query(ctx, None, (20., 20.), false),
+                oracle(ctx, None, (20., 20.), false)
+            );
+            engine.tick();
+            let ctx = &engine.runtime_context;
+            let result = query(ctx, None, (20., 20.), false);
+            assert!(result.contains(&leaves[i].id));
+            assert_eq!(result, oracle(ctx, None, (20., 20.), false));
+            assert_eq!(
+                ctx.input_query_stats().bounds_prepared,
+                before.bounds_prepared,
+                "native scroll should not rebuild {count} descendant footprints"
+            );
+            assert_eq!(
+                ctx.input_query_stats().topology_rebuilds,
+                before.topology_rebuilds
+            );
+        }
+    }
+}
+
+#[test]
+fn nested_rotated_scroll_charts_preserve_clip_escape_and_current_geometry() {
+    let calls = Rc::new(Cell::new(0));
+    let leaf = HitNode::new(vec![], true, false, None, calls.clone());
+    let mut inner = HitNode::new(vec![leaf], true, true, None, calls.clone());
+    Rc::get_mut(&mut inner).unwrap().scroll = true;
+    let mut outer = HitNode::new(vec![inner], true, true, None, calls);
+    Rc::get_mut(&mut outer).unwrap().scroll = true;
+    let (mut engine, root) = fixture(vec![outer]);
+    let outer = root.children.get()[0].clone();
+    let inner = outer.children.get()[0].clone();
+    let leaf = inner.children.get()[0].clone();
+    place(&outer, 100., 100., 600., 500.);
+    place(&inner, 30., 50., 300., 200.);
+    place(&leaf, 80., 180., 60., 60.);
+    outer
+        .get_common_properties()
+        .borrow()
+        .rotate
+        .set(Some(pax_runtime_api::Rotation::Degrees(17.into())));
+    inner
+        .get_common_properties()
+        .borrow()
+        .scale_x
+        .set(Some(Size::Percent(75.into())));
+    native_scroll(&engine.runtime_context, &outer, 0.);
+    native_scroll(&engine.runtime_context, &inner, 0.);
+    engine.tick();
+    query(&engine.runtime_context, None, (20., 20.), false);
+    let before = engine.runtime_context.input_query_stats().bounds_prepared;
+    for (a, b) in [(30., 70.), (0., 0.), (160., 210.), (10., 90.)] {
+        native_scroll(&engine.runtime_context, &outer, a);
+        native_scroll(&engine.runtime_context, &inner, b);
+        engine.tick();
+        let ctx = &engine.runtime_context;
+        for x in (0..800).step_by(31) {
+            for y in (0..600).step_by(37) {
+                let p = (x as f64, y as f64);
+                assert_eq!(
+                    query(ctx, None, p, false),
+                    oracle(ctx, None, p, false),
+                    "{a},{b} at {p:?}"
+                );
+            }
+        }
+        assert_eq!(ctx.input_query_stats().bounds_prepared, before);
+    }
+    leaf.get_common_properties()
+        .borrow()
+        .unclippable
+        .set(Some(true));
+    place(&leaf, 80., 400., 60., 60.);
+    engine.tick();
+    let ctx = &engine.runtime_context;
+    let world = ctx.presentation_scroll_transform_for_node(&leaf)
+        * Affine::from(leaf.presentation_transform_and_bounds.get().transform);
+    let p = world * Point::new(20., 20.);
+    let result = query(ctx, None, (p.x, p.y), false);
+    assert!(result.contains(&leaf.id));
+    assert_eq!(result, oracle(ctx, None, (p.x, p.y), false));
+    assert!(
+        ctx.input_query_stats().bounds_prepared > before,
+        "real geometry still invalidates"
+    );
+}
+
+#[test]
+fn input_charts_follow_reparenting_and_scoped_query_roots() {
+    let calls = Rc::new(Cell::new(0));
+    let leaf = HitNode::new(vec![], true, false, None, calls.clone());
+    let mut a = HitNode::new(vec![leaf], true, true, None, calls.clone());
+    Rc::get_mut(&mut a).unwrap().scroll = true;
+    let mut b = HitNode::new(vec![], true, true, None, calls);
+    Rc::get_mut(&mut b).unwrap().scroll = true;
+    let (mut engine, root) = fixture(vec![a, b]);
+    let a = root.children.get()[0].clone();
+    let b = root.children.get()[1].clone();
+    let leaf = a.children.get()[0].clone();
+    place(&a, 0., 0., 200., 300.);
+    place(&b, 300., 0., 200., 300.);
+    place(&leaf, 20., 100., 50., 50.);
+    native_scroll(&engine.runtime_context, &a, 30.);
+    native_scroll(&engine.runtime_context, &b, 60.);
+    engine.tick();
+    assert!(query(&engine.runtime_context, None, (30., 80.), false).contains(&leaf.id));
+    crate::NodeRef::new(&leaf, &engine.runtime_context)
+        .move_to_append_child(&crate::NodeRef::new(&b, &engine.runtime_context))
+        .unwrap();
+    engine.tick();
+    let ctx = &engine.runtime_context;
+    for root in [None, Some(b.clone()), Some(leaf.clone()), None] {
+        for p in [(30., 80.), (330., 50.), (330., 110.)] {
+            assert_eq!(
+                query(ctx, root.clone(), p, false),
+                oracle(ctx, root.clone(), p, false)
+            );
+        }
+    }
+    assert!(query(ctx, None, (330., 50.), false).contains(&leaf.id));
+    leaf.clone().recurse_unmount(ctx);
+    assert!(!query(ctx, None, (330., 50.), false).contains(&leaf.id));
+}
+
+#[cfg(feature = "3d")]
+#[test]
+fn perspective_input_reprojects_on_scroll_and_matches_uncached_queries() {
+    use pax_manifest::{
+        ExpressionInfo, LiteralBlockDefinition, SettingElement, Token, ValueDefinition,
+    };
+    let calls = Rc::new(Cell::new(0));
+    let leaf = HitNode::new(vec![], true, false, None, calls.clone());
+    let mut host = HitNode::new(vec![leaf], true, true, None, calls);
+    Rc::get_mut(&mut host).unwrap().scroll = true;
+    let mut root_args = args(vec![]);
+    root_args.component_template = Some(RefCell::new(vec![host]));
+    root_args.component_camera = Some(LiteralBlockDefinition::new(
+        [("projection", "CameraMode::Perspective"), ("z", "600px")]
+            .into_iter()
+            .map(|(key, value)| {
+                SettingElement::Setting(
+                    Token::new_without_location(key.into()),
+                    ValueDefinition::Expression(ExpressionInfo::new(
+                        pax_language::parse_pax_expression(value).unwrap(),
+                    )),
+                )
+            })
+            .collect(),
+    ));
+    let mut engine = crate::test_support::empty_engine(
+        (800., 600.),
+        Platform::Web,
+        OS::Mac,
+        Box::new(|| 0),
+        Default::default(),
+    );
+    let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+    engine.tick();
+    let host = root.children.get()[0].clone();
+    let leaf = host.children.get()[0].clone();
+    place(&host, 100., 100., 400., 300.);
+    place(&leaf, 50., 100., 120., 120.);
+    leaf.get_common_properties()
+        .borrow()
+        .z
+        .set(Some(100.0.into()));
+    native_scroll(&engine.runtime_context, &host, 0.);
+    engine.tick();
+    query(&engine.runtime_context, None, (200., 200.), false);
+    let mut before = engine.runtime_context.input_query_stats().bounds_prepared;
+    for offset in [30., 60., 0.] {
+        native_scroll(&engine.runtime_context, &host, offset);
+        engine.tick();
+        let ctx = &engine.runtime_context;
+        for x in (50..700).step_by(43) {
+            for y in (50..500).step_by(41) {
+                let p = (x as f64, y as f64);
+                assert_eq!(
+                    query(ctx, None, p, false),
+                    oracle(ctx, None, p, false),
+                    "scroll={offset} at {p:?}"
+                );
+            }
+        }
+        let after = ctx.input_query_stats().bounds_prepared;
+        assert!(
+            after > before,
+            "perspective geometry cannot reuse an affine scroll chart"
+        );
+        before = after;
+    }
 }
 
 #[test]

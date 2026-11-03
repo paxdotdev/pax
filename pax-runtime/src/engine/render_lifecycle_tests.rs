@@ -20,6 +20,7 @@ struct RecordingRenderer {
     jobs: Vec<pax_runtime_api::ReplayCanvasLayerUpdate>,
     deferred: Vec<usize>,
     presented: Vec<usize>,
+    prepared_tiles: Vec<usize>,
     cached: bool,
     blocked_layers: HashSet<usize>,
     followups: HashMap<usize, usize>,
@@ -197,7 +198,11 @@ impl RenderContext for RecordingRenderer {
         }
     }
     fn prepare_settled_surface_replay(&mut self, layer: usize, _: &[u32]) -> bool {
-        self.cached && !self.blocked_layers.contains(&layer)
+        let ready = self.cached && !self.blocked_layers.contains(&layer);
+        if ready {
+            self.prepared_tiles.push(layer);
+        }
+        ready
     }
     fn set_scene_lighting(&mut self, layer: usize, _: &SceneLighting) {
         assert!(layer < self.layer_count);
@@ -1120,6 +1125,118 @@ fn cooperative_preparation_overrun_does_not_restart_at_the_next_host_task() {
         engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, &now);
     }
     assert_eq!(renderer.presented, [1, 2]);
+}
+
+#[test]
+fn cooperative_visible_first_paint_finishes_despite_repeated_dirty_ticks() {
+    let (mut engine, mut renderer, nodes) = dirty_render_probe();
+    renderer.cold_preparation = true;
+    renderer.cold_records = Some(HashSet::new());
+    // An already-presented animation can outrank this tile in ordinary-layer
+    // ordering. First paint must select its own prerequisite, not that layer.
+    renderer.ordinary_priorities.insert(0, -10);
+    let clock = Rc::new(std::cell::Cell::new(0.0));
+    renderer.submission_clock = Some(clock.clone());
+    let mut state = surface_work::RenderWorkState::default();
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    for epoch in 1..=3 {
+        // Model a tick after fresh scroll/animation input: both layers change
+        // before any queued continuation can finish the previous scene.
+        for (node, layer) in nodes.iter().zip([1, 0]) {
+            engine.runtime_context.mark_canvas_node_dirty(node.id);
+            engine.runtime_context.set_canvas_dirty(layer);
+        }
+        engine.runtime_context.prepare_scene_geometry();
+        renderer.jobs = vec![replay_job(1)];
+        renderer.events.clear();
+        renderer.prepared_tiles.clear();
+        state.begin(epoch);
+        let report =
+            engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || clock.get());
+        assert_eq!(renderer.prepared_tiles, [1], "epoch {epoch}");
+        assert_eq!(report.preparation.submitted, 1);
+        assert_eq!(report.units, 1, "repair plus first paint is one unit");
+        assert!(report.max_unit_ms >= 10.0, "include prerequisite cost");
+        assert!(report.pending, "yield after the completed unit overruns");
+        assert!(renderer.events.iter().all(|(_, layer)| *layer == 1));
+        assert!(engine.runtime_context.is_canvas_node_dirty(&nodes[1].id));
+        assert!(engine.runtime_context.is_canvas_dirty(&0));
+        assert!(renderer.clip_depths.values().all(|depth| *depth == 0));
+    }
+}
+
+#[test]
+fn cooperative_first_paint_waits_for_failed_prerequisites() {
+    for failed_removal in [false, true] {
+        let (mut engine, mut renderer, _) = dirty_render_probe();
+        renderer.cold_preparation = true;
+        renderer.cold_records = Some(HashSet::new());
+        renderer.jobs = vec![replay_job(1)];
+        if failed_removal {
+            renderer.pending = true;
+            engine.runtime_context.enqueue_canvas_node_removal(1, 999);
+        } else {
+            renderer.failed_flushes.insert(1);
+        }
+        let mut state = surface_work::RenderWorkState::default();
+        state.begin(1);
+        let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+        let blocked =
+            engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+        assert_eq!(blocked.preparation.submitted, 0);
+        assert!(renderer.prepared_tiles.is_empty());
+        assert!(engine.runtime_context.is_canvas_dirty(&1));
+        assert!(renderer.jobs.iter().any(|job| job.layer == 1));
+
+        renderer.pending = false;
+        renderer.failed_flushes.clear();
+        state.begin(2);
+        let recovered =
+            engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+        assert_eq!(recovered.preparation.submitted, 1);
+        assert_eq!(renderer.prepared_tiles, [1]);
+        assert!(!engine.runtime_context.has_canvas_node_removals());
+    }
+}
+
+#[test]
+fn first_paint_repair_does_not_bypass_order_or_inseparable_paths() {
+    let (engine, mut renderer, nodes) = dirty_render_probe();
+    engine
+        .runtime_context
+        .queue_canvas_node_order(1, nodes[0].id.to_u32(), 9);
+    assert!(!engine.repair_visible_surface_layer(&mut renderer, 1));
+    assert!(renderer.events.is_empty());
+    assert!(!engine.runtime_context.take_canvas_node_orders().is_empty());
+
+    let parent = nodes[0].render_parent.replace(Weak::new());
+    assert!(!engine.repair_visible_surface_layer(&mut renderer, 1));
+    assert!(renderer.events.is_empty());
+    assert!(engine.runtime_context.is_canvas_node_dirty(&nodes[0].id));
+    assert!(engine.runtime_context.is_canvas_dirty(&1));
+    nodes[0].render_parent.replace(parent);
+}
+
+#[test]
+fn first_paint_repair_does_not_change_warm_or_synchronous_admission() {
+    for (one_unit, priority_before) in [(true, i32::MAX), (false, 1)] {
+        let (engine, mut renderer, _) = dirty_render_probe();
+        engine.runtime_context.prepare_scene_geometry();
+        renderer.cold_preparation = true;
+        renderer.jobs = vec![replay_job(1)];
+        let report = engine.present_surfaces(
+            &mut renderer,
+            &mut surface_work::SurfaceWorkBudget::new(4.0),
+            || 0.0,
+            priority_before,
+            &Default::default(),
+            one_unit,
+        );
+        assert_eq!(report.submitted, 0);
+        assert_eq!(report.dirty_layers, 1);
+        assert!(renderer.events.is_empty());
+        assert!(engine.runtime_context.is_canvas_dirty(&1));
+    }
 }
 
 #[test]

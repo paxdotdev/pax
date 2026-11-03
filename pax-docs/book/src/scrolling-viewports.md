@@ -939,7 +939,7 @@ combine tile submissions, enlarge the warm region, or present partial content;
 cache pressure and unsupported capture boundaries retain the direct-tile
 fallback. Synchronous preparation still checks its allowance between primitives.
 
-On the default synchronous Web path, the shared runtime gives these preparation passes a 4ms CPU
+On synchronous rendering paths, the shared runtime gives these preparation passes a 4ms CPU
 allowance: it stops starting more work based on actual elapsed time,
 while allowing one eligible unit to make progress. The synchronous portion of
 one surface initialization, a primitive capture, or a tile submission is atomic
@@ -1073,14 +1073,17 @@ attempts from useful completion. Each list retains at most 64 entries per displa
 epoch; it is not an exhaustive log. Runtime collection is enabled by profiled
 ticks, and the details remain local to the opt-in trace.
 `preparation.*` phase aggregates break cold work down into selection (including
-synchronous initialization requests), capture, cached replay, image replay,
+synchronous initialization requests), prerequisite layer repair, capture, cached replay, image replay,
 encoding, queue submission, cleanup, and presentation calls. Image replay is
 nested inside replay; it includes image lookup/draw preparation and is not an
 isolated GPU-upload timer. `preparation_image_uploads` and
 `preparation_image_upload_bytes` count actual texture creation/upload work.
 `preparation_targeted_surfaces` and `preparation_additional_surfaces` distinguish
 selected targets from already-presented dirty surfaces included in their flush.
-These fixed-stage aggregates exist only during opted-in preparation services.
+`preparation.prerequisite` includes the filtered redraw and flush needed before
+a selected visible tile can receive its first paint. Its nested encode/submit
+timings must not be added again to obtain total elapsed time. These fixed-stage
+aggregates exist only during opted-in preparation services.
 `continuation.host_wait` measures physical host-task enqueue-to-service latency
 for continuations that actually run (not cancelled tasks). It is waiting time,
 not CPU work, and can span a newer frame superseding the original request.
@@ -1267,6 +1270,17 @@ allowance. Dirty content and pending application state must still settle before
 replay; genuinely asynchronous waits do not busy-loop or block eligible siblings.
 Current demand is rechecked after each unit, so a reversal can demote a completed
 tile that is no longer visible.
+
+If a visible tile's layer has changed, its prerequisite filtered layer redraw and
+the tile's first submission form one complete unit, without a host yield between
+them. Otherwise continuous scroll or animation input could dirty the layer again
+after every redraw and repeatedly postpone first paint. The redraw still updates
+already-presented copies of changed content; missing drawings are then captured
+for the selected tile. The combined cost is included in the unit's elapsed time
+and can exceed the soft slice. This does not bypass pending geometry/effects,
+unapplied order changes, failed removals, or failed flushes. Inseparable paths
+retain the ordinary full-tree fallback; warm-only preparation and synchronous
+rendering retain their existing admission rules.
 
 Preparation considers ready candidates in current priority order. If one layer
 is blocked by a pending content update, other eligible layers can still use the

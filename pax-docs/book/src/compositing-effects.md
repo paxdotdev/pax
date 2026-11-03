@@ -550,6 +550,15 @@ swaps and releases their resources. Other browsers retain their synchronous
 SVG-reference path. This handoff does not change tile budgets or guarantee
 readiness of incoming rendered content.
 
+Inside browser-owned scrollers, the Web host keeps native content above its
+sibling GPU canvases in a dedicated compositing wrapper. This prevents Safari
+from painting an accelerated canvas over native text despite the authored
+stacking order. The compositing hint belongs only to registered scroller-island
+wrappers and is released when they are replaced or disposed. Individual text
+and control elements are not pinned to composited rasters, so projected content
+can still rerasterize as its scale changes. Frame clips, native punch-through
+masks, and authored z-order remain in force; this does not change tile budgets.
+
 On macOS, masked Text snapshots include the text's painted overflow when
 `clip=false`; entering an overlap does not itself crop the label to its layout
 box. `clip=true` and ancestor Frame clips still constrain the text. Occlusion

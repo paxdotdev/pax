@@ -1433,8 +1433,11 @@ impl RuntimeContext {
         // target, or are awaiting decoded pixels. They need bounded capture, not
         // another application tick. Application invalidation dirties the layer
         // and/or the scene/effect guards checked by the caller.
-        !self.is_canvas_dirty(&layer)
-            && !self.canvas_node_orders.borrow().contains_key(&layer)
+        !self.is_canvas_dirty(&layer) && self.canvas_layer_structure_is_settled(layer)
+    }
+
+    pub(crate) fn canvas_layer_structure_is_settled(&self, layer: usize) -> bool {
+        !self.canvas_node_orders.borrow().contains_key(&layer)
             && !borrow!(self.removed_canvas_nodes)
                 .iter()
                 .any(|(owner, _)| *owner == layer)
@@ -1537,7 +1540,7 @@ impl RuntimeContext {
         self.scene_geometry
             .borrow_mut()
             .input
-            .invalidate_subtree(id);
+            .invalidate_scroll(id);
         self.occlusion_dirty.set(true);
         self.occlusion_state.borrow_mut().scrolled.insert(id);
     }
@@ -2710,8 +2713,7 @@ impl RuntimeContext {
                 let point = kurbo::Point::new(ray.x, ray.y);
                 if input.is_some() {
                     self.scene_geometry.borrow().input.records[&node.id.to_u32()]
-                        .hit
-                        .test(point)
+                        .test(point, active_scroll_transform)
                 } else {
                     self.prepare_node_hit(&node, active_scroll_transform)
                         .1

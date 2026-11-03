@@ -192,6 +192,15 @@ placement without waiting for a frame or traversing the ancestor chain again.
 Clip owners retain local paths separately from their placement, so moving a Frame
 or changing its opacity does not rebuild its local clip shape.
 
+Transfers between existing clipping and presentation domains repair the moved
+subtree's layer/container membership and both its former and current overlaps.
+Unrelated coverage remains retained. Overlay entry, return, and animation-flight
+handoffs preserve the normal camera and clipping rules; reuse does not bypass
+invalidation. Container presentation follows native Scroller ancestry
+even when that Scroller has no vector clip path. Changes to scroller-layer
+allocation, escaping content, or unsupported structural shapes retain the
+conservative full reconciliation path.
+
 With `3d` enabled, perspective picking, local-coordinate conversion and native masking also
 reuse per-instance projections, inverses and depth planes. The runtime compares
 retained world geometry, camera and scroll inputs before projecting. These records
@@ -209,6 +218,16 @@ ancestors, and unchanged queries reuse hit geometry. During startup or pending
 reactive work, the facade prepares shapes on demand through an uncached traversal;
 it does not drain effects or advance a frame. See
 [primitive input geometry](primitives.md#input-geometry) for the author contract.
+
+Affine input bounds are indexed in unscrolled coordinates, grouped by their
+enclosing scroller. Scrolling transforms the pointer query into each group's
+coordinates rather than rebuilding every descendant's bounds. Nested scrollers
+compose their transforms; exact clipping and hit tests retain their normal
+semantics. Layout, shape changes, and reparenting still invalidate the affected
+geometry or membership. Perspective input remains projection-aware: scrolling
+before projection can change a descendant's screen footprint and requires
+refreshing it. This optimization belongs to the shared runtime, not a web-only
+input path, and does not change event frequency or cancellation policy.
 
 Native masks retain dependency plans before mapping paths into a control or
 serializing SVG. An unchanged plan performs neither operation; an opacity-only

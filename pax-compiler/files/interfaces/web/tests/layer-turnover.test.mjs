@@ -28,6 +28,55 @@ function load(file) {
 const {Layer} = load('layer');
 const {RenderLayerManager} = load('render-layer-context');
 
+function islandManager() {
+    const manager = Object.create(RenderLayerManager.prototype);
+    manager.scrollerIslandHosts = new Map();
+    manager.pendingLayerIslandClaims = new Map();
+    manager.layerIslandOwners = new Map();
+    manager.parentFrameHosts = new Map();
+    manager.containers = new Map();
+    manager.disposeMaskImages = () => {};
+    manager.effects = {cleanUp() {}};
+    return manager;
+}
+
+test('only registered scroller native hosts receive compositing promotion', () => {
+    const manager = islandManager();
+    const canvasHost = new Element(), nativeHost = new Element(), text = new Element();
+    const projected = 'matrix3d(1,0,0,0.002,0,1,0,0,0,0,1,0,0,0,0,1)';
+    text.style.transform = projected;
+    text.style.willChange = 'auto';
+    nativeHost.style.transform = 'matrix(1,0,0,1,0,-3000)';
+    nativeHost.style.zIndex = '1';
+    nativeHost.appendChild(text);
+    manager.registerParentFrameHost(1, nativeHost);
+    assert.equal(nativeHost.style.willChange, undefined, 'ordinary native parent hosts are unchanged');
+    manager.registerScrollerIslandHosts(1, canvasHost, nativeHost);
+    assert.equal(nativeHost.style.willChange, 'transform');
+    assert.equal(nativeHost.style.transform, 'matrix(1,0,0,1,0,-3000)');
+    assert.equal(nativeHost.style.zIndex, '1');
+    assert.equal(canvasHost.style.willChange, undefined);
+    assert.equal(text.style.willChange, 'auto');
+    assert.equal(text.style.transform, projected, 'promotion does not flatten projected leaves');
+    manager.unregisterScrollerIslandHosts(1, canvasHost, nativeHost);
+    assert.equal(nativeHost.style.willChange, '');
+});
+
+test('host replacement, stale teardown, and manager disposal release only owned promotion', () => {
+    const manager = islandManager();
+    const oldCanvas = new Element(), oldNative = new Element();
+    const newCanvas = new Element(), newNative = new Element();
+    manager.registerScrollerIslandHosts(1, oldCanvas, oldNative);
+    manager.registerScrollerIslandHosts(1, newCanvas, newNative);
+    assert.equal(oldNative.style.willChange, '', 'pooled/replaced host must not retain the hint');
+    assert.equal(newNative.style.willChange, 'transform');
+    manager.unregisterScrollerIslandHosts(1, oldCanvas, oldNative);
+    assert.equal(newNative.style.willChange, 'transform', 'late teardown must not demote the replacement');
+    manager.cleanUp();
+    assert.equal(newNative.style.willChange, '');
+    assert.equal(manager.scrollerIslandHosts.size, 0);
+});
+
 test('frame movement updates clips without rescanning descendant opacity', () => {
     const manager = Object.create(RenderLayerManager.prototype);
     const container = {

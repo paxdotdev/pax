@@ -2923,6 +2923,10 @@ impl ExpandedNode {
         deps.extend([
             self.presentation_layer.untyped(),
             self.presentation_transform_and_bounds.untyped(),
+            // Clip-only nodes need not consume the general projected paint
+            // geometry. Their retained clip is the dependency reconciliation
+            // actually reads, including custom clips during overlay flights.
+            self.world_clip_geometry.untyped(),
             #[cfg(feature = "3d")]
             self.presentation_geometry.untyped(),
             self.computed_opacity.untyped(),

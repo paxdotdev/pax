@@ -244,6 +244,16 @@ export class RenderLayerManager {
     }
 
     registerScrollerIslandHosts(id: number, canvasHost: Element, nativeHost: Element) {
+        const previous = this.scrollerIslandHosts.get(id);
+        if (previous?.nativeHost !== nativeHost && previous?.nativeHost instanceof HTMLElement) {
+            previous.nativeHost.style.willChange = "";
+        }
+        if (nativeHost instanceof HTMLElement) {
+            // WebKit can composite accelerated canvas siblings above this host
+            // despite their lower z-index. Promote the island's native wrapper,
+            // not its leaves: projected text must still rerasterize as it scales.
+            nativeHost.style.willChange = "transform";
+        }
         this.scrollerIslandHosts.set(id, { canvasHost, nativeHost });
         let ownershipChanged = false;
         this.pendingLayerIslandClaims.forEach((ownerId, layerId) => {
@@ -329,6 +339,9 @@ export class RenderLayerManager {
             || (nativeHost != null && current.nativeHost !== nativeHost)
         ) {
             return false;
+        }
+        if (current.nativeHost instanceof HTMLElement) {
+            current.nativeHost.style.willChange = "";
         }
         this.scrollerIslandHosts.delete(id);
         let ownershipChanged = false;
@@ -438,6 +451,9 @@ export class RenderLayerManager {
         }
         this.containers.clear();
         this.parentFrameHosts.clear();
+        this.scrollerIslandHosts.forEach(({nativeHost}) => {
+            if (nativeHost instanceof HTMLElement) nativeHost.style.willChange = "";
+        });
         this.scrollerIslandHosts.clear();
         this.layerIslandOwners.clear();
         this.pendingLayerIslandClaims.clear();

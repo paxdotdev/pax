@@ -981,10 +981,22 @@ impl PaxEngine {
             let ids = self
                 .runtime_context
                 .settled_canvas_nodes_intersecting(update.layer, regions);
+            drop(selection);
             if !can_prepare(update.layer, &ids) {
-                report.dirty_layers += 1;
-                deferred.push(update.layer);
-                continue;
+                // A visible first paint owns its prerequisite redraw and tile
+                // submission as one unit. Yielding between them lets the next
+                // input/tick dirty this layer again and starve first paint.
+                // Repair only this selected layer, including its surviving
+                // tiles; geometry/effects and structural changes still block.
+                let repaired = captures_cold
+                    && one_unit
+                    && priority_before == 1
+                    && self.repair_visible_surface_layer(rcs, update.layer);
+                if !repaired || self.runtime_context.settled_surface_blocker().is_some() {
+                    report.dirty_layers += 1;
+                    deferred.push(update.layer);
+                    continue;
+                }
             }
             if captures_cold && !self.can_capture_surface_nodes(&ids) {
                 report.unfiltered_layers += 1;
@@ -992,7 +1004,6 @@ impl PaxEngine {
                 continue;
             }
             let mut direct = false;
-            drop(selection);
             if let Some(missing) = rcs.missing_surface_drawings(update.layer, &ids) {
                 report.cache_misses += usize::from(!missing.is_empty());
                 // Cooperative work already owns one complete tile. Share its

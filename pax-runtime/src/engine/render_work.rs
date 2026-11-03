@@ -32,6 +32,52 @@ impl Drop for RenderTurn<'_> {
 }
 
 impl PaxEngine {
+    // Both ordinary drawing and first-paint prerequisites must update surviving
+    // tiles, preserve failed removals, and let the backend retain failed flushes.
+    pub(super) fn draw_and_flush_layer(
+        &self,
+        rcs: &mut dyn RenderContext,
+        layer: usize,
+        plan: Option<&FilteredRenderPlan>,
+    ) {
+        if let Some(plan) = plan {
+            self.draw_filtered_render_plan(rcs, self.root_expanded_node.as_ref().unwrap(), plan);
+        }
+        self.runtime_context.recurse_flush_queued_renders(rcs);
+        self.runtime_context.dirty_canvases.borrow_mut()[layer] = false;
+        if self
+            .runtime_context
+            .has_canvas_node_removals_on_layer(layer)
+        {
+            self.runtime_context.set_canvas_dirty(layer);
+        }
+        rcs.flush(layer, Rc::clone(&self.runtime_context.dirty_canvases));
+    }
+
+    pub(super) fn repair_visible_surface_layer(
+        &self,
+        rcs: &mut dyn RenderContext,
+        layer: usize,
+    ) -> bool {
+        if !rcs.retains_canvas_nodes()
+            || !self.runtime_context.is_canvas_dirty(&layer)
+            || !self
+                .runtime_context
+                .canvas_layer_structure_is_settled(layer)
+        {
+            return false;
+        }
+        let _repair =
+            preparation_diagnostics::Span::new(preparation_diagnostics::Stage::Prerequisite);
+        let Ok(plan) = self.build_layer_render_plan(layer) else {
+            // Inseparable paths keep the ordinary full-tree fallback. A tile
+            // request must not weaken inherited clipping or consume other layers.
+            return false;
+        };
+        self.draw_and_flush_layer(rcs, layer, plan.as_ref());
+        self.runtime_context.can_prepare_settled_layer(layer)
+    }
+
     pub(super) fn build_layer_render_plan(
         &self,
         layer: usize,
@@ -236,22 +282,7 @@ impl PaxEngine {
                                 .map(|plan| plan.dirty_nodes.iter().copied().collect::<Vec<_>>())
                                 .unwrap_or_default()
                         });
-                        if let Some(plan) = plan {
-                            self.draw_filtered_render_plan(
-                                rcs,
-                                self.root_expanded_node.as_ref().unwrap(),
-                                &plan,
-                            );
-                        }
-                        self.runtime_context.recurse_flush_queued_renders(rcs);
-                        self.runtime_context.dirty_canvases.borrow_mut()[layer] = false;
-                        if self
-                            .runtime_context
-                            .has_canvas_node_removals_on_layer(layer)
-                        {
-                            self.runtime_context.set_canvas_dirty(layer);
-                        }
-                        rcs.flush(layer, Rc::clone(&self.runtime_context.dirty_canvases));
+                        self.draw_and_flush_layer(rcs, layer, plan.as_ref());
                         state.pending_lighting_flushes.remove(&layer);
                         state.attempted_layers.insert(layer);
                         if let Some(nodes) = traced_nodes {
