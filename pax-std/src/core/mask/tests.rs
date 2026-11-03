@@ -240,7 +240,8 @@ fn component_sources_do_not_present_native_leaves_or_containers() {
             pax_message::NativeMessage::FrameUpdate(patch) => patch.id == mask.id.to_u32(),
             _ => false,
         }),
-        "source nodes must not create native resources: {messages:?}"
+        "source nodes must not create native resources ({} messages)",
+        messages.len()
     );
 
     // Whole-component replacement uses the same source role and balances old
@@ -267,7 +268,8 @@ fn component_sources_do_not_present_native_leaves_or_containers() {
             message,
             pax_message::NativeMessage::FrameDelete(id) if *id == mask.id.to_u32()
         )),
-        "source teardown must not delete resources it never created: {messages:?}"
+        "source teardown must not delete resources it never created ({} messages)",
+        messages.len()
     );
 }
 

@@ -22,3 +22,5 @@ pub use shaders::*;
 
 #[cfg(test)]
 mod test_support;
+#[cfg(test)]
+mod native_geometry_tests;

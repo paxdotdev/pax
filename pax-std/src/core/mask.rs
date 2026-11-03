@@ -462,8 +462,7 @@ impl InstanceNode for MaskInstance {
         }));
 
         let mut deps = vec![
-            #[cfg(feature = "3d")]
-            expanded_node.presentation_geometry().untyped(),
+            crate::common::native_geometry_dependency(expanded_node),
             expanded_node.computed_opacity.untyped(),
             expanded_node.occlusion.untyped(),
         ];

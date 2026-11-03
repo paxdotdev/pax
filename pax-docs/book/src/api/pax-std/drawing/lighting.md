@@ -83,6 +83,7 @@ Rougher materials soften its band; glossy materials give a tighter reflection.
 Height is only a layout box, not emitter thickness. Zero width behaves as a point.
 Like LightSource, it respects LightFrame scope; CPU/native-text lighting is unsupported.
 Position and depth use common node transforms, with zero depth by default.
+In 2D, common `z` is emitter height; with `3d`, it inherits the spatial pose once.
 
 #### Properties
 ##### `color`

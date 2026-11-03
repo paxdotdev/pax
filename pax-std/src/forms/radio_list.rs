@@ -117,8 +117,7 @@ impl InstanceNode for RadioListInstance {
             .cloned()
             .map(|v| v.get_untyped_property().clone())
             .chain([
-                #[cfg(feature = "3d")]
-                expanded_node.presentation_geometry().untyped(),
+                crate::common::native_geometry_dependency(expanded_node),
                 expanded_node.computed_opacity.untyped(),
                 expanded_node.occlusion.untyped(),
                 expanded_node.liquid_glass_scope.untyped(),

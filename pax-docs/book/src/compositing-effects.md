@@ -50,6 +50,13 @@ container carries its descendants with it. See
 [element order](template-language.md#element-order) and
 [transforms](layout-responsiveness.md#transforms-and-origins) for those foundations.
 
+Native text, images, controls, and clipping containers follow inherited layout
+changes as well as changes to their own properties. Resizing or animating an
+ancestor updates their native geometry; a changed text width also requests a
+fresh measurement when its height is content-driven. This works in ordinary
+2D builds without enabling the optional `3d` feature. With `3d` enabled, native
+geometry follows the projected presentation instead.
+
 Choose a container based on what should happen at its edge:
 
 | Container | Use it for |

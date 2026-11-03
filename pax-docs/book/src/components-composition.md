@@ -876,6 +876,16 @@ must finish loading before a Pax component can render; progress covers the
 second Wasm download. Append `?pax_loader_ms=5000` to a preview URL to artificially
 slow that stream for inspection. Remove it to observe real loading behavior.
 
+The host compiles the application stream, then installs the compiled module
+asynchronously. This also supports large application modules in browsers that
+limit synchronous Wasm instantiation on the UI thread. Download and compilation
+can be cancelled and retried. Once installation begins, it must finish because
+Wasm cannot roll back writes to the shared runtime's memory or function table.
+Closing a view still prevents that view from mounting or revealing its
+application; another view using the same runtime waits for the same installation
+or reuses its completed result. An installation failure requires recreating the
+runtime, rather than retrying against potentially modified memory.
+
 The web host mounts the loader in its own application lifetime and keeps it
 active while the main application prepares in a hidden, inert surface. Native
 controls retain layout for font and measurement feedback, but cannot receive
@@ -912,7 +922,7 @@ therefore still be slow.
 Mount and render continuations share a soft work budget across hosted
 applications. Drawing that exhausts an allowance continues across display
 frames; input or property changes first return through normal settlement.
-A synchronous Rust initializer, event handler, Wasm installation,
+A synchronous Rust initializer, event handler, work inside a Wasm start function,
 or indivisible browser/GPU operation can still block the UI thread; a loader
 cannot make arbitrary synchronous work preemptible. Move expensive application
 work into yielding tasks where appropriate.

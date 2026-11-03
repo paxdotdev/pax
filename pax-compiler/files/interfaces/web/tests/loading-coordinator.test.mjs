@@ -10,7 +10,7 @@ const source = readFileSync(new URL('../src/loading.ts', import.meta.url), 'utf8
     .replace("import(new URL('./__wasm_split.js', new URL(options.cartridgeUrl, document.baseURI)).href)", 'getSplit()');
 const abortSource = readFileSync(new URL('../src/utils/abortable.ts', import.meta.url), 'utf8').replace('export function', 'function');
 const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
-function harness({cancelOnFirstMount = false, ready = true, exitComplete = true, mounting = false} = {}) {
+function harness({cancelOnFirstMount = false, ready = true, exitComplete = true, mounting = false, splitAdapter} = {}) {
     const jobs = new Map(), phases = [], applications = [];
     let nextJob = 0, action, loaderClosed = false, exits = 0, retired = 0, loaders = 0;
     const frame = callback => { const id = ++nextJob; jobs.set(id, callback); return id; };
@@ -20,7 +20,7 @@ function harness({cancelOnFirstMount = false, ready = true, exitComplete = true,
         take_loading_request() { const request = action; action = undefined; return request; },
         begin_presentation_exit() { exits++; }, presentation_exit_complete: () => exitComplete,
     }});
-    const adapter = {load: async () => {}, observe: () => () => {}, state: {}};
+    const adapter = splitAdapter ?? {load: async () => {}, observe: () => () => {}, state: {}};
     const module = {exports: {}};
     vm.runInNewContext(transformSync(abortSource + '\n' + source, {loader: 'ts', format: 'cjs'}).code, {
         module, exports: module.exports, AbortController, WebAssembly, URL,
@@ -142,4 +142,40 @@ for (const atExit of [false, true]) test(`outer abort settles without another an
     assert.equal(h.applications[0].isClosed, true);
     assert.equal(h.applications[0].publishes, 0);
     assert.equal(h.retired(), 1);
+});
+
+test('closing a view during async installation never mounts it when the shared install finishes', async () => {
+    let finish;
+    const installation = new Promise(resolve => { finish = resolve; });
+    const observers = new Set();
+    const adapter = {
+        load: () => installation,
+        observe(callback) { observers.add(callback); return () => observers.delete(callback); },
+        state: {phase: 'installing'},
+    };
+    const retired = harness({splitAdapter: adapter});
+    await flush();
+    for (const observer of observers) observer(adapter.state);
+    assert.equal(retired.phases.at(-1), 'preparing');
+    retired.controller.abort();
+    await assert.rejects(retired.pending, {name: 'AbortError'});
+    assert.equal(retired.loaderClosed(), true);
+    assert.equal(retired.retired(), 1);
+    assert.equal(observers.size, 0);
+    const phasesAtClose = [...retired.phases];
+
+    // A later view can wait for the same uncancellable installation.
+    const live = harness({splitAdapter: adapter});
+    await flush();
+    assert.equal(live.applications.length, 0);
+    finish();
+    await flush();
+    for (let i = 0; i < 4 && live.phases.at(-1) !== 'active'; i++) await live.frame();
+    const mounted = await live.pending;
+    assert.equal(live.phases.at(-1), 'active');
+    assert.equal(live.applications.length, 1);
+    assert.equal(retired.applications.length, 0);
+    assert.deepEqual(retired.phases, phasesAtClose);
+    assert.equal(observers.size, 0);
+    mounted.close(); await mounted.closed;
 });

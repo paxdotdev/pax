@@ -1,9 +1,10 @@
 /** One owner, one module installation. All callers share an attempt and its
- * cancellation. Retrying a failed download/compile is safe; an install failure
- * poisons this owner because instantiation may already have changed memory. */
+ * cancellation before installation. Once installation starts it must settle:
+ * Wasm cannot roll back shared memory/table writes. A failed download/compile
+ * is retryable; a failed installation poisons this owner. */
 export function createSplitLoader({url, getImports, fetcher = (...args) => fetch(...args), decodedSize = null}) {
   const previewMs = Math.max(0, Math.min(60000, Number(new URLSearchParams(globalThis.location?.search ?? '').get('pax_loader_ms')) || 0));
-  let pending, installed, poisoned, controller, observers = new Set(), latest;
+  let pending, installed, poisoned, controller, installing = false, observers = new Set(), latest;
   const emit = value => {
     latest = Object.freeze(value);
     // UI instrumentation must not change the result of a memory installation.
@@ -77,8 +78,13 @@ export function createSplitLoader({url, getImports, fetcher = (...args) => fetch
         emit({phase, received, total, started});
         signal.throwIfAborted();
         const installStart = performance.now();
-        // JS runs to completion here. Cancellation cannot race memory/table writes.
-        try { installed = new WebAssembly.Instance(module, imports); }
+        // Async instantiation avoids browsers' main-thread synchronous size
+        // limit. Keep the shared attempt alive even if its last view closes:
+        // installation may already have written into bootstrap memory/tables.
+        // New callers must join it, not start a second installation. The host
+        // independently prevents a cancelled view from publishing its app.
+        installing = true;
+        try { installed = await WebAssembly.instantiate(module, imports); }
         catch (error) { poisoned = new Error('Module installation failed; recreate the runtime before retrying', {cause:error}); throw poisoned; }
         emit({phase:'ready', received, total, started, installMs:performance.now()-installStart, elapsedMs:performance.now()-started});
         return installed;
@@ -97,12 +103,13 @@ export function createSplitLoader({url, getImports, fetcher = (...args) => fetch
     pending = attempt;
     // Register reset before exposing the promise, so a caller can retry directly
     // from its rejection handler. Avoid an unobserved promise from finally().
-    attempt.then(() => {pending=undefined;controller=undefined;}, () => {pending=undefined;controller=undefined;});
+    const settled = () => {pending=undefined;controller=undefined;installing=false;};
+    attempt.then(settled, settled);
     return attempt;
   }
   return {
     load,
-    cancel() { if (!installed) controller?.abort(); },
+    cancel() { if (!installed && !installing) controller?.abort(); },
     observe(callback) { observers.add(callback); if(latest) callback(latest); return () => observers.delete(callback); },
     get state() { return latest; },
     // Rust's fallible wrapper owns callback data. Settle each invocation once,

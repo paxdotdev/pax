@@ -5,6 +5,22 @@ use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::RenderContext;
 use pax_runtime::{ExpandedNode, RuntimeContext};
 
+// Native patch listeners must observe inherited geometry even when no authored
+// property on the leaf changes. Keep this feature switch in one place: 3D needs
+// the full projected plane; 2D aliases presentation bounds to layout geometry.
+pub(crate) fn native_geometry_dependency(
+    node: &ExpandedNode,
+) -> pax_runtime::api::properties::UntypedProperty {
+    #[cfg(feature = "3d")]
+    {
+        node.presentation_geometry().untyped()
+    }
+    #[cfg(not(feature = "3d"))]
+    {
+        node.presentation_transform_and_bounds.untyped()
+    }
+}
+
 // Resolves Pax units against bounds into a kurbo point.
 pub(crate) fn to_kurbo_point(x: Size, y: Size, bounds: (f64, f64)) -> kurbo::Point {
     let x = x.evaluate(bounds, pax_engine::api::Axis::X);

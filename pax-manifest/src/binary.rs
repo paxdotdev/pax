@@ -1158,6 +1158,46 @@ mod tests {
     }
 
     #[test]
+    fn strip_light_primitive_descriptor_survives_baking_without_a_wrapper() {
+        let type_id =
+            TypeId::build_singleton("pax_std::drawing::lighting::StripLight", Some("StripLight"));
+        let instance_path = "pax_std::drawing::lighting::StripLightInstance";
+        let definition = crate::parsing::assemble_primitive_definition(
+            "pax_std::drawing::lighting",
+            instance_path.into(),
+            type_id.clone(),
+            None,
+        );
+        let manifest = PaxManifest {
+            main_component_type_id: type_id.clone(),
+            engine_import_path: "pax_kit::pax_engine".into(),
+            components: BTreeMap::from([(type_id.clone(), definition)]),
+            type_table: TypeTable::default(),
+            assets_dirs: vec![],
+        };
+        let decoded = from_slice(&to_vec(&manifest).unwrap()).unwrap();
+        let definition = &decoded.components[&type_id];
+        assert!(definition.is_primitive);
+        assert!(definition.template.is_none());
+        assert_eq!(
+            definition.primitive_instance_import_path.as_deref(),
+            Some(instance_path)
+        );
+        let ir = crate::program_ir::ProgramIR::from_manifest(&decoded);
+        let ir =
+            crate::program_ir::binary::from_slice(&crate::program_ir::binary::to_vec(&ir).unwrap())
+                .unwrap();
+        assert!(ir.components[&type_id].is_primitive);
+        assert!(ir.components[&type_id].template.is_none());
+        #[cfg(feature = "compiler")]
+        {
+            let rust = crate::rust_manifest::to_rust_expression(&decoded);
+            assert!(rust.contains(instance_path));
+            assert!(rust.contains("is_primitive: true"));
+        }
+    }
+
+    #[test]
     fn binary_manifest_round_trips_template_maps_without_json_keys() {
         let type_id = TypeId::build_singleton("crate::App", Some("App"));
         let mut template = ComponentTemplate::new(type_id.clone(), Some("src/lib.pax".to_string()));

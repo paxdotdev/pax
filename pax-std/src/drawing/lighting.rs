@@ -1,11 +1,13 @@
-use pax_engine::api::{Depth, LocalProperty, NodeContext};
+use pax_engine::api::LocalProperty;
 use pax_engine::*;
+use pax_runtime::api::pax_value::ToFromPaxAny;
 use pax_runtime::api::{
     Color, Layer, LightShape, Numeric, SceneAmbientLight, SceneLight, SceneLighting, Size, Vector3,
 };
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
+use std::marker::PhantomData;
 use std::rc::Rc;
 
 #[cfg(test)]
@@ -98,11 +100,49 @@ impl Default for LightSource {
     }
 }
 
-pub struct LightSourceInstance {
+// Both public emitters share registration, reactive invalidation, and pose
+// resolution. A StripLight must itself be a light primitive: a component
+// wrapper's common z would require spatial layout even in a flat scene.
+pub type LightSourceInstance = DirectLightInstance<LightSource>;
+pub type StripLightInstance = DirectLightInstance<StripLight>;
+
+#[doc(hidden)]
+pub struct DirectLightInstance<P> {
     base: BaseInstance,
+    properties: PhantomData<P>,
 }
 
-impl InstanceNode for LightSourceInstance {
+struct DirectLightProperties {
+    color: Property<Color>,
+    intensity: Property<f64>,
+    radius: Property<Size>,
+    enabled: Property<bool>,
+    // StripLight has a fixed shape/direction and no corresponding graph inputs.
+    shape: Option<Property<LightShape>>,
+    direction: Option<Property<Vector3>>,
+}
+
+trait DirectLight: ToFromPaxAny {
+    const NAME: &'static str;
+    fn light_properties(&self) -> DirectLightProperties;
+}
+
+impl DirectLight for LightSource {
+    const NAME: &'static str = "LightSource";
+
+    fn light_properties(&self) -> DirectLightProperties {
+        DirectLightProperties {
+            color: self.color.clone(),
+            intensity: self.intensity.clone(),
+            radius: self.radius.clone(),
+            enabled: self.enabled.clone(),
+            shape: Some(self.shape.clone()),
+            direction: Some(self.direction.clone()),
+        }
+    }
+}
+
+impl<P: DirectLight + 'static> InstanceNode for DirectLightInstance<P> {
     fn has_scene_lighting(&self) -> bool {
         true
     }
@@ -112,6 +152,7 @@ impl InstanceNode for LightSourceInstance {
         Self: Sized,
     {
         Rc::new(Self {
+            properties: PhantomData,
             base: BaseInstance::new(
                 args,
                 InstanceFlags {
@@ -134,29 +175,20 @@ impl InstanceNode for LightSourceInstance {
         let geometry = expanded_node.spatial_geometry();
         #[cfg(not(feature = "3d"))]
         let geometry = expanded_node.transform_and_bounds.clone();
-        let (color, intensity, radius, shape, direction, enabled) = expanded_node
-            .with_properties_unwrapped(|properties: &mut LightSource| {
-                (
-                    properties.color.clone(),
-                    properties.intensity.clone(),
-                    properties.radius.clone(),
-                    properties.shape.clone(),
-                    properties.direction.clone(),
-                    properties.enabled.clone(),
-                )
-            });
+        let properties = expanded_node
+            .with_properties_unwrapped(|properties: &mut P| properties.light_properties());
 
         let common_z = expanded_node.get_common_properties().borrow().z.clone();
-        let deps = &[
+        let mut deps = vec![
             geometry.untyped(),
             common_z.untyped(),
-            color.untyped(),
-            intensity.untyped(),
-            radius.untyped(),
-            shape.untyped(),
-            direction.untyped(),
-            enabled.untyped(),
+            properties.color.untyped(),
+            properties.intensity.untyped(),
+            properties.radius.untyped(),
+            properties.enabled.untyped(),
         ];
+        deps.extend(properties.shape.map(|shape| shape.untyped()));
+        deps.extend(properties.direction.map(|direction| direction.untyped()));
         let cloned_context = context.clone();
 
         expanded_node
@@ -165,7 +197,7 @@ impl InstanceNode for LightSourceInstance {
                 move || {
                     cloned_context.mark_scene_lighting_dirty();
                 },
-                deps,
+                &deps,
             ));
     }
 
@@ -174,7 +206,8 @@ impl InstanceNode for LightSourceInstance {
         expanded_node: &ExpandedNode,
         _context: &RuntimeContext,
     ) -> Option<SceneLight> {
-        expanded_node.with_properties_unwrapped(|properties: &mut LightSource| {
+        expanded_node.with_properties_unwrapped(|properties: &mut P| {
+            let properties = properties.light_properties();
             if !properties.enabled.local().get() {
                 return None;
             }
@@ -193,9 +226,14 @@ impl InstanceNode for LightSourceInstance {
                 .get()
                 .unwrap_or_default()
                 .to_float();
-            let (position, direction) =
-                light_pose(geometry, local_z, properties.direction.local().get())?;
-            let half_extent = if properties.shape.local().get() == LightShape::Strip {
+            let shape = properties
+                .shape
+                .map_or(LightShape::Strip, |shape| shape.get());
+            let direction = properties
+                .direction
+                .map_or(Vector3::new(0., 0., -1.), |direction| direction.get());
+            let (position, direction) = light_pose(geometry, local_z, direction)?;
+            let half_extent = if shape == LightShape::Strip {
                 light_pose(
                     geometry,
                     local_z,
@@ -206,7 +244,7 @@ impl InstanceNode for LightSourceInstance {
                 Vector3::default()
             };
             Some(SceneLight {
-                shape: properties.shape.local().get(),
+                shape,
                 position,
                 half_extent,
                 direction,
@@ -229,7 +267,7 @@ impl InstanceNode for LightSourceInstance {
         f: &mut std::fmt::Formatter,
         _expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result {
-        f.debug_struct("LightSource").finish()
+        f.debug_struct(P::NAME).finish()
     }
 
     fn base(&self) -> &BaseInstance {
@@ -246,10 +284,11 @@ impl InstanceNode for LightSourceInstance {
 /// Height is only a layout box, not emitter thickness. Zero width behaves as a point.
 /// Like LightSource, it respects LightFrame scope; CPU/native-text lighting is unsupported.
 /// Position and depth use common node transforms, with zero depth by default.
+/// In 2D, common `z` is emitter height; with `3d`, it inherits the spatial pose once.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[custom(Default)]
-#[file("drawing/strip_light.pax")]
+#[primitive("pax_std::drawing::lighting::StripLightInstance")]
 pub struct StripLight {
     /// Emitted light color.
     pub color: Property<Color>,
@@ -259,7 +298,6 @@ pub struct StripLight {
     pub radius: Property<Size>,
     /// Whether this emitter contributes, without unmounting it.
     pub enabled: Property<bool>,
-    pub _emitter_depth: Property<Depth>,
 }
 
 impl Default for StripLight {
@@ -269,25 +307,21 @@ impl Default for StripLight {
             intensity: Property::new(1.0),
             radius: Property::new(Size::Pixels(Numeric::F64(240.0))),
             enabled: Property::new(true),
-            _emitter_depth: Property::new(Depth::default()),
         }
     }
 }
 
-impl StripLight {
-    pub fn mount(&mut self, _ctx: &NodeContext) {
-        // Spatial transforms already carry the wrapper's depth into its emitter.
-        // The flat backend has no inherited z, so forward common z explicitly there.
-        #[cfg(not(feature = "3d"))]
-        if let Some(node) = _ctx.expanded_node.upgrade() {
-            let z = node.get_common_properties().borrow().z.clone();
-            let depth = self._emitter_depth.local();
-            let deps = [z.untyped()];
-            let update = move || {
-                depth.set_if_neq(z.get().unwrap_or_default());
-            };
-            update();
-            _ctx.subscribe(&deps, update);
+impl DirectLight for StripLight {
+    const NAME: &'static str = "StripLight";
+
+    fn light_properties(&self) -> DirectLightProperties {
+        DirectLightProperties {
+            color: self.color.clone(),
+            intensity: self.intensity.clone(),
+            radius: self.radius.clone(),
+            enabled: self.enabled.clone(),
+            shape: None,
+            direction: None,
         }
     }
 }

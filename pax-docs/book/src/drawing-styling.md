@@ -722,8 +722,10 @@ point receives light from the closest point on the segment. It uses one direct
 light slot, not a row of point lights. Intensity is independent of strip length;
 this is not physically integrated area illumination. `StripLight` also uses common
 `z`, defaulting to zero; set it explicitly to place the emitter above a surface.
-With `3d`, ancestor depth and rotation affect the strip; flat builds forward its
-own common `z` to the emitter without inherited spatial depth. `height` is a layout box,
+`StripLight` is a light primitive, so its own `z` sets emitter height even without
+the `3d` feature, just as for `LightSource`. With `3d`, ancestor depth and rotation
+affect the strip, with each node's depth applied once. Flat builds do not inherit
+spatial depth. `height` is a layout box,
 not emitter thickness. A zero-length strip behaves as a point light. The same
 behavior is available through `LightSource shape=LightShape::Strip`; use
 `LightSource` when switching shapes dynamically.
