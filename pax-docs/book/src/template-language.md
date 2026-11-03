@@ -65,10 +65,15 @@ organizing reusable components.
 ## Static page text on the web
 
 Web builds extract a bounded text document into the initial HTML, in debug and
-release builds. **Read page text** opens a native HTML view of that content and
-its links. It works without JavaScript and remains available while Pax mounts
-progressively and afterward. This is a source-derived reading view, not a
-server-rendered copy of the running scene or a guarantee of search indexing.
+release builds. It contains semantic HTML headings, paragraphs, and links for
+assistive technology and browser reading modes, without adding a visible button
+to the application. The article is visually clipped during normal use, not
+removed from the accessibility tree. Focusing one of its links reveals it;
+without JavaScript, or when printing, it is shown as ordinary page text.
+Browser Reader availability depends on the browser's content heuristics, so
+an extracted document does not guarantee a Reader toolbar action.
+This is a source-derived reading view, not a server-rendered copy of the
+running scene or a guarantee of search indexing.
 
 Use reserved documentation comments to mark headings and omit demonstrations:
 

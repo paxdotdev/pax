@@ -1207,7 +1207,10 @@ mod tests {
         )
         .unwrap();
         let catalog = WebRouteCatalog {
-            documents: BTreeMap::new(),
+            documents: BTreeMap::from([
+                ("/".into(), "<h1>Home copy</h1>".into()),
+                ("/blog".into(), "<h1>Blog copy</h1>".into()),
+            ]),
             version: 1,
             site: test_site(),
             routes: vec![
@@ -1238,7 +1241,13 @@ mod tests {
         assert!(blog.contains("<title>Blog</title>"));
         assert!(blog.contains("https://example.com/blog"));
         assert!(blog.contains("<base href=\"/\">"));
+        assert!(root.contains("<h1>Home copy</h1>"));
+        assert!(!root.contains("<h1>Blog copy</h1>"));
+        assert!(blog.contains("<h1>Blog copy</h1>"));
+        assert!(!blog.contains("<h1>Home copy</h1>"));
         for document in [&root, &blog] {
+            assert!(document.contains("<article aria-label=\"Page text\">"));
+            assert!(!document.contains("<summary>"));
             assert_eq!(document.matches("id=\"pax-web-config\"").count(), 1);
             assert!(document.contains(r#"{"server_owned_prefixes":["/downloads"]}"#));
         }

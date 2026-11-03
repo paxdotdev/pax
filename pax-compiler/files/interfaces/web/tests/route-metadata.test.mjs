@@ -87,10 +87,10 @@ test('navigation replaces social overrides and clears stale tags when unmatched'
 });
 
 
-test('reading view follows routes without leaving stale content or changing its open state', async () => {
+test('semantic article follows routes without leaving stale content', async () => {
     const article = {innerHTML:'<p>Home</p>',
         set textContent(value) { this.innerHTML = ''; this.text = value; }, get textContent() { return this.text; }};
-    const view = {dataset:{route:'/'},open:true,querySelector:()=>article};
+    const view = {dataset:{route:'/'},querySelector:()=>article};
     const h = harness([route('/','/','Home'),route('/about','/about','About')],
         {'/':'<p>Home</p>','/about':'<h1>About</h1>'},view);
     await h.update(new URL('https://app.example/'));
@@ -99,7 +99,6 @@ test('reading view follows routes without leaving stale content or changing its 
     assert.equal(article.textContent,'Loading page text…');
     await pending;
     assert.equal(article.innerHTML,'<h1>About</h1>');
-    assert.equal(view.open,true);
     await h.update(new URL('https://app.example/unknown'));
     assert.equal(article.innerHTML,'');
     assert.equal(article.textContent,'A text view is not available for this route.');
@@ -117,15 +116,12 @@ test('overlapping route updates only publish the latest text and metadata', asyn
 });
 
 
-test('opening the reading view excludes the covered live app from keyboard focus', async () => {
+test('semantic article updates do not disable the live app or install disclosure handlers', async () => {
     const mount = {inert:false};
     const article = {innerHTML:'Home'};
-    let onToggle;
-    const view = {dataset:{route:'/'},open:true,querySelector:()=>article,
-        hasAttribute:()=>view.open,addEventListener:(name,handler)=>{ assert.equal(name,'toggle'); onToggle=handler; }};
+    const view = {dataset:{route:'/'},querySelector:()=>article,
+        addEventListener:()=>assert.fail('No disclosure listener should be installed')};
     const h = harness([route('/','/','Home')],{'/':'Home'},view,mount);
     await h.update(new URL('https://app.example/'));
-    assert.equal(mount.inert,true);
-    view.open=false; onToggle();
     assert.equal(mount.inert,false);
 });

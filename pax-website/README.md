@@ -450,7 +450,21 @@ The graphic pauses its clock offscreen. There is no visible vocabulary legend
 or playback control; these are decorative outlines, not selectable vector text
 or a complete accessibility audit.
 System reduced-motion integration remains tracked separately in PAX-1048.
-The grayscale, unlit paints work on GPU and CPU without shader-only illumination.
+The grayscale-to-white, unlit paints work on GPU and CPU. On GPU, the four
+selected letters also receive a restrained `Radiance` treatment: emitted-light
+opacity follows the same illumination envelope with a 36% strength multiplier
+(the actual rays are dimmer after attenuation), with a reach of 36% of a cell
+and at most 48 logical pixels. Linear falloff keeps the outer light legible.
+During each illuminated hold, one backlight eases from the bottom of the column
+to the top, translated into each letter's local coordinates. It resets only
+while the light is off; the existing offscreen clock pause applies to the sweep.
+Transmission and polish are disabled
+so the letter faces remain unchanged. Four small, normalized letter artboards
+keep the effect captures local; they sit outside the tape's clipping Frame so
+the first and last rows can cast light beyond its edges. The selected tape paths
+remain retained but hidden while those artboards draw them, avoiding doubled
+edges. During travel only the ordinary tape paths draw; CPU retains the same
+letter/color choreography without the shader.
 Desktop places the field beside the mission copy; narrow layouts stack it above.
 
 The uppercase alphabet uses the same Manrope 800 font and offline extraction as
@@ -563,7 +577,10 @@ web build, and desktop/mobile browser checks including paused selection and
 copying. The updated Apple application has not been rerun.
 
 The web build also extracts source-known copy and links into each concrete route's
-HTML. Use **Read page text** to inspect it independently of Pax startup. Website
+HTML as a semantic article for assistive technology and browser reading modes.
+There is no visible reading-mode button. Reader availability is browser-dependent;
+the article is also exposed for printing, without JavaScript, and on link focus.
+Website
 `///#h1`–`///#h3` comments declare heading levels; `///#ignore` excludes interactive
 demos and source overlays. The gallery's document contract visits its authored
 cards once, retaining descriptions and documentation links without initializing

@@ -756,7 +756,7 @@ fn markdown_html(text: &str, inline: bool) -> String {
     html
 }
 
-/// Native HTML disclosure works before JS and remains reachable after Pax mounts.
+/// Semantic HTML for assistive technology and browser readers, without app chrome.
 pub(crate) fn package(html: &str, content: &str, path: &str) -> String {
     const START: &str = "<!-- pax-static-document:start -->";
     const END: &str = "<!-- pax-static-document:end -->";
@@ -770,23 +770,31 @@ pub(crate) fn package(html: &str, content: &str, path: &str) -> String {
     let block = format!(
         r#"{START}
 <style>
-#pax-page-text {{ position:fixed; z-index:2147483647; bottom:12px; left:12px; max-width:calc(100vw - 24px); color:#eee; background:#171717; border:1px solid #666; border-radius:6px; font:14px/1.6 system-ui,sans-serif; }}
-#pax-page-text > summary {{ cursor:pointer; padding:6px 12px; position:sticky; top:0; background:#171717; }}
-#pax-page-text[open] {{ inset:12px; overflow:auto; overscroll-behavior:contain; }}
+#pax-page-text {{ position:fixed; z-index:2147483647; inset:12px; overflow:auto; overscroll-behavior:contain; color:#eee; background:#171717; font:16px/1.6 system-ui,sans-serif; }}
+#pax-page-text:not(:focus-within) {{ clip-path:inset(50%); pointer-events:none; }}
 #pax-page-text article {{ max-width:70ch; padding:12px 24px 32px; margin:auto; }}
 #pax-page-text a {{ color:#a8d9ff; }}
 #pax-page-text p {{ white-space:pre-wrap; }}
 #pax-page-text :focus-visible {{ outline:2px solid #a8d9ff; outline-offset:3px; }}
+@media print {{
+    html, body {{ height:auto !important; overflow:visible !important; }}
+    body > :not(#pax-page-text) {{ display:none !important; }}
+    #pax-page-text {{ position:static; overflow:visible; clip-path:none !important; color:#000; background:#fff; }}
+    #pax-page-text a {{ color:inherit; }}
+}}
 </style>
-<details id="pax-page-text" data-route="{}"><summary>Read page text</summary><article aria-label="Page text">
+<noscript><style>#pax-page-text {{ clip-path:none !important; pointer-events:auto !important; }}</style></noscript>
+<div id="pax-page-text" data-route="{}"><article aria-label="Page text">
 {}
-</article></details>
+</article></div>
 {END}"#,
         escape(path),
         content
     );
-    // Parse the reading view before the blocking bundle script, so even a slow
-    // or failed script download cannot hold the source content behind it.
+    // Keep real paragraphs/headings in layout, not display:none/aria-hidden or a
+    // closed disclosure: reader extraction and accessibility need the content.
+    // Keyboard focus reveals the article so its links never receive unseen focus.
+    // Parse it before the blocking bundle script; extraction must not await Wasm.
     let lower = html.to_ascii_lowercase();
     let at = lower
         .find("<body")
@@ -1047,10 +1055,25 @@ mod tests {
         let twice = package(&once, &d.html, "/");
         assert_eq!(once, twice);
         assert!(
-            once.contains("<details id=\"pax-page-text\" data-route=\"/\">")
+            once.contains("<div id=\"pax-page-text\" data-route=\"/\"><article")
                 && once.contains("Read without JavaScript")
         );
+        assert!(!once.contains("<details") && !once.contains("<summary"));
+        assert!(!once.contains("Read page text"));
+        assert!(!once.contains("aria-hidden") && !once.contains("visibility:hidden"));
+        assert!(once.contains(":not(:focus-within)"));
+        assert!(once.contains("<noscript>") && once.contains("@media print"));
+        // Custom web shells need not name their application mount "mount".
+        assert!(once.contains("body > :not(#pax-page-text)"));
         assert!(once.contains("<div id=\"mount\"></div>"));
+    }
+    #[test]
+    fn packaging_escapes_routes_and_removes_stale_documents() {
+        let shell = "<html><body><script src=\"app.js\"></script></body></html>";
+        let document = package(shell, "<h1>Page</h1><p>Copy</p>", "/a\"b");
+        assert!(document.contains("data-route=\"/a&quot;b\""));
+        assert!(document.find("<article").unwrap() < document.find("<script").unwrap());
+        assert_eq!(package(&document, "", "/"), shell);
     }
     #[test]
     fn document_contracts_and_directives_do_not_enter_baked_programs() {

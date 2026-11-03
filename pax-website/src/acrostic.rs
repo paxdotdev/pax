@@ -151,10 +151,34 @@ pub struct AcrosticRow {
     pub light: Property<f64>,
     pub cell_px: Property<f64>,
     pub row_height: Property<f64>,
+    pub lit_overlay: Property<bool>,
 }
 
 #[helpers]
 impl AcrosticRow {
+    pub fn radiance_light_y(phase_ms: f64, row: usize) -> f64 {
+        // One light crosses the entire column. Translate it into each retained
+        // letter artboard, so the rays agree rather than repeating four sweeps.
+        let column_y = 3500.0 * (1.0 - ease(phase_ms / HOLD_MS));
+        column_y - row as f64 * 875.0
+    }
+
+    pub fn radiance_tint(light: f64) -> Color {
+        let mut paper = SiteTheme::paper().to_rgba_0_1();
+        // Fade emitted light, not the opaque letter face, on the existing envelope.
+        paper[3] = light.clamp(0.0, 1.0) * 0.36;
+        Color::from_rgba_0_1(paper)
+    }
+
+    pub fn radiance_reach(cell_px: f64) -> f64 {
+        // Radiance is authored in a 1000-unit letter cell. Bound its visible
+        // reach to 36% of a cell and at most 48 logical pixels on large screens.
+        if !cell_px.is_finite() || cell_px <= 0.0 {
+            return 0.0;
+        }
+        (cell_px * 0.36).min(48.0) * 1000.0 / cell_px
+    }
+
     pub fn position(slot: usize, phase: f64) -> f64 {
         // Recycle only in the clipped overscan, never at a visible cell boundary.
         wrap(slot as f64 + phase + 1.0) - 1.0
@@ -216,6 +240,55 @@ fn plan_row(from: f64, letter: u8, column: usize, row: usize, word: usize) -> Ro
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn backlight_sweeps_up_once_per_hold_in_shared_column_space() {
+        for row in 0..4 {
+            let offset = row as f64 * 875.0;
+            assert_eq!(AcrosticRow::radiance_light_y(0.0, row) + offset, 3500.0);
+            assert_eq!(
+                AcrosticRow::radiance_light_y(HOLD_MS / 2.0, row) + offset,
+                1750.0
+            );
+            assert_eq!(AcrosticRow::radiance_light_y(HOLD_MS, row) + offset, 0.0);
+            let mut previous = 3500.0;
+            for tick in 0..=100 {
+                let time = HOLD_MS * tick as f64 / 100.0;
+                let y = AcrosticRow::radiance_light_y(time, row) + offset;
+                assert!(y <= previous);
+                assert!((0.0..=3500.0).contains(&y));
+                previous = y;
+            }
+        }
+        // The reset between holds happens with the illumination extinguished.
+        assert_eq!(illumination(0.0), 0.0);
+        assert_eq!(illumination(HOLD_MS), 0.0);
+    }
+
+    #[test]
+    fn radiance_tracks_the_white_fade_with_restrained_opacity_and_reach() {
+        for time in [0.0, 95.0, 190.0, 380.0, 1000.0, HOLD_MS - 140.0, HOLD_MS] {
+            let light = illumination(time);
+            let tint = AcrosticRow::radiance_tint(light).to_rgba_0_1();
+            assert!((tint[3] - light * 0.36).abs() < 1e-6);
+            assert!(tint[3] <= 0.36 + 1e-6);
+            assert_eq!(AcrosticRow::ink(light).to_rgba_0_1()[3], 1.0);
+        }
+        for (cell, expected_px) in [
+            (40.0, 14.4),
+            (60.0, 21.6),
+            (120.0, 43.2),
+            (160.0, 48.0),
+            (300.0, 48.0),
+        ] {
+            let reach = AcrosticRow::radiance_reach(cell);
+            assert!(reach <= 360.0 + 1e-9);
+            assert!((reach * cell / 1000.0 - expected_px).abs() < 1e-9);
+        }
+        for cell in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            assert_eq!(AcrosticRow::radiance_reach(cell), 0.0);
+        }
+    }
 
     #[test]
     fn every_word_lands_exactly_and_moves_to_a_different_column() {

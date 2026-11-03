@@ -3,6 +3,7 @@
         // Half of the shared gutter plus half of the outline on each edge.
         <Path x={((AcrosticRow::position(glyph.slot, self.phase) + 0.04) * self.cell_px)px} y={(self.cell_px * 0.04)px}
             width={(self.cell_px * 0.92)px} height={(self.row_height - self.cell_px * 0.08)px} elements={glyph.elements}
+            opacity={self.lit_overlay && glyph.slot == self.selected ? 0 : 1}
             smoothing=PathSmoothing::None fill={
                 paint: {AcrosticRow::ink(glyph.slot == self.selected ? self.light : 0.0)}
                 material: {Material::unlit()}

@@ -23,7 +23,7 @@
     ///#ignore
     if self.compact_sources && self.gallery_source_open {
         <MobileSourceSheet width=100% height=100% y=0px anchor_y=0px mounted_count=bind:self.source_sheets_mounted>
-            <ExampleSourceViewer width=100% height=100% title="Meet Pax's creative toolkit:" sources={self.feature_gallery_sources}
+            <ExampleSourceViewer width=100% height=100% title="Meet your creative toolkit" sources={self.feature_gallery_sources}
                 open=bind:self.gallery_source_open selected_source=bind:self.gallery_source_selected
                 source_light_mode=bind:self.source_light/>
         </MobileSourceSheet>
@@ -65,7 +65,7 @@
                 selected_source=bind:self.framework_source_selected source_light_mode=bind:self.source_light>
                 <FrameworkSection content_height=bind:self.framework_height scene_progress={self.framework_progress}/>
             </ExampleHost>
-            <ExampleHost width=100% height={(Math::max(760, self.gallery_height))px} title="Meet Pax's creative toolkit:"
+            <ExampleHost width=100% height={(Math::max(760, self.gallery_height))px} title="Meet your creative toolkit"
                 sources={self.feature_gallery_sources} drawer_open=bind:self.gallery_source_open
                 inline_source_viewer={!self.compact_sources} selected_source=bind:self.gallery_source_selected
                 source_light_mode=bind:self.source_light>

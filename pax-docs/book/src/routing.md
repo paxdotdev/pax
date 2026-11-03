@@ -736,8 +736,9 @@ route metadata. Extraction follows the first matching explicit branch, then the
 fallback, and passes catch-all tails to nested routers. It does not enumerate
 parameter values or invent data for symbolic routes.
 
-The native **Read page text** disclosure remains available alongside the live
-scene. Client-side navigation replaces its content from the generated route
+The semantic HTML article remains available to assistive technology and browser
+readers alongside the live scene, without a visible disclosure button.
+Client-side navigation replaces its content from the generated route
 catalog; routes without a concrete extracted document report that a text view
 is unavailable. Extracted links use normal browser navigation and work without
 Pax or WebAssembly. Deployment must serve the generated route entry documents,

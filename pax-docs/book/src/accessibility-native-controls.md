@@ -499,10 +499,14 @@ For more detail, see the [forms API](api/pax-std/forms.md),
 
 ## Reading static web content
 
-Web builds provide a native **Read page text** disclosure for statically
-extractable content. It supports keyboard navigation and ordinary HTML links
-before and after the live scene initializes, without requiring JavaScript.
+Web builds include a semantic HTML article for statically extractable content,
+without adding a visible reading-mode button. Screen readers can traverse its
+headings and links before or after the live scene initializes. The article is
+visually clipped during normal use and revealed when a contained link receives
+keyboard focus, so focus is not invisible. It is also shown without JavaScript
+and when printing. Browser reading modes can extract this HTML when their
+heuristics accept the page; Pax cannot force Reader availability or activation.
 [Documentation directives](template-language.md#static-page-text-on-the-web)
-provide headings and exclude demonstrations from this view. This is a reading
+provide headings and exclude demonstrations from this article. This is a reading
 alternative for source-known text, not a complete accessibility representation
 of interactive controls or runtime state.

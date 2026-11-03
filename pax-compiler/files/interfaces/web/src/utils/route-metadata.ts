@@ -215,24 +215,10 @@ function applyUnmatchedRouteMetadata(catalog: RouteCatalog) {
 }
 
 let documentUpdate = 0;
-const initializedTextViews = new WeakSet<HTMLElement>();
-
-function connectTextView(view: HTMLElement) {
-    if (initializedTextViews.has(view)) return;
-    initializedTextViews.add(view);
-    const mount = document.getElementById("mount");
-    if (!mount) return;
-    const originallyInert = mount.inert;
-    const sync = () => { mount.inert = originallyInert || view.hasAttribute("open"); };
-    view.addEventListener("toggle", sync);
-    sync();
-}
-
 export async function updateDocumentRouteMetadata(url: URL) {
     const update = ++documentUpdate;
     const path = normalizedPath(url.pathname);
     const textView = document.getElementById("pax-page-text");
-    if (textView) connectTextView(textView);
     const article = textView?.querySelector("article");
     if (textView && article && textView.dataset.route !== path) {
         // Never show the previous route's text while navigation metadata loads.
