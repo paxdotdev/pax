@@ -582,6 +582,20 @@ export class NativeElementPool {
     }
 
     attachTextboxListeners(textbox: HTMLInputElement | HTMLTextAreaElement, id: number) {
+        let composing = false;
+        textbox.addEventListener("compositionstart", () => { composing = true; });
+        textbox.addEventListener("compositionend", () => { composing = false; });
+        textbox.addEventListener("keydown", (event) => {
+            // keyCode 229 covers engines that clear isComposing before the
+            // confirmation keydown. Multiline Return remains native editing.
+            const key = event as KeyboardEvent;
+            if (textbox instanceof HTMLTextAreaElement || key.key !== "Enter" ||
+                key.isComposing || composing || key.keyCode === 229) return;
+            // Pax owns this action; an embedding HTML form must not also submit.
+            key.preventDefault();
+            if (key.repeat) return;
+            this.chassis!.interrupt({FormTextboxSubmit: {id, text: textbox.value}}, undefined);
+        });
         textbox.addEventListener("input", (_event) => {
             let message = {
                 "FormTextboxInput": {
@@ -998,6 +1012,8 @@ export class NativeElementPool {
         console.assert(patch.renderLayerId != null);
         
         const button = this.objectManager.getFromPool(BUTTON) as HTMLButtonElement;
+        // Submission is routed by Pax, independently of any embedding HTML form.
+        button.type = "button";
         const textContainer = this.objectManager.getFromPool(DIV) as HTMLDivElement;
         const textChild = this.objectManager.getFromPool(DIV) as HTMLDivElement;
         button.setAttribute("class", BUTTON_CLASS);

@@ -102,6 +102,7 @@ starting points:
 | Binding | Handler argument | Useful data |
 | --- | --- | --- |
 | `@button_click` | `Event<ButtonClick>` | Activation of a native Button |
+| `@submit` | `Event<Submit>` | `event.origin` (originating node ID), `event.trigger` |
 | `@click`, `@tap` | `Event<Click>` | `event.mouse.x`, `.y`, `.button`, `.modifiers` |
 | `@mouse_move` | `Event<MouseMove>` | Pointer position through `event.mouse` |
 | `@touch_start`, `@touch_move`, `@touch_end`, `@touch_cancel` | `Event<TouchStart>`, `Event<TouchMove>`, `Event<TouchEnd>`, `Event<TouchCancel>` | `event.touches`, including identifiers and positions |
@@ -177,6 +178,62 @@ the child's own settings acts on that child; an inline binding on the child's
 invocation acts on the containing component. See
 [Components and Composition](components-composition.md) for the component
 boundary and [Event delivery](#event-delivery) for propagation.
+
+### Submit an action
+
+Use `@submit` to connect single-line Return/Enter and an explicit submit button
+to one action. It is a request to attempt the action; application validation
+and persistence belong in the handler.
+
+```pax
+<Group width=100% height=120px @submit=self.save>
+    <Textbox width={100% - 96px} height=40px text=bind:self.title />
+    <Button x=100% width=88px height=40px label="Save" submit=true />
+</Group>
+```
+
+```rust
+pub fn save(&mut self, _ctx: &NodeContext, event: Event<Submit>) {
+    event.stop_propagation();
+    let title = self.title.get();
+    // Validate and persist title here.
+}
+```
+
+The Textbox's bound value is current before the submit handler runs.
+Submission bubbles through template parents, including ordinary Groups;
+there is no special nearest-handler rule. An owning handler stops propagation
+even when it rejects the values. Otherwise an ancestor handler can also act
+on the same request. This supports an inner tag editor inside a larger form:
+the tag editor handles and stops its own submission.
+
+Single-line Textbox submits on Return on web, iOS/iPadOS, and macOS. IME
+confirmation and held-key repeats do not request another submission.
+Multiline Return inserts a newline. Blur and `@textbox_change` do not submit.
+Submission does not itself dismiss the keyboard or move focus; an application
+may change its UI in response.
+
+Buttons submit only with `submit=true` (the default is false). Activation
+first delivers `@button_click`, then emits a fresh `@submit` from the button.
+Calling `prevent_default()` on that click suppresses submission; calling
+`stop_propagation()` on the click only stops the click's ancestor delivery.
+Bind the action to `@submit` once, rather than performing it in both events.
+Pax submission does not invoke an embedding HTML form's submission.
+
+`Submit` carries the originating node's runtime ID and a `SubmitTrigger`
+(`Return`, `Button`, or `Programmatic`), rather than a Textbox-specific value.
+The receiving `NodeContext` still describes the node where that handler runs.
+
+Custom controls can call `ctx.submit()` from an activation handler. This
+queues a `Programmatic` submission from the context's node for the end of the
+tick, after the current handler releases component state. Values are read at
+delivery time; a source removed before delivery is ignored. This shares the
+ordinary submission route and does not register or validate fields.
+
+`submit` is now a built-in event name. If a component previously used a
+payload-free custom callback with that name, migrate its handler to
+`Event<Submit>` and its emitter to `ctx.submit()`. Give the custom callback
+a different name if it should retain the named-callback delivery model.
 
 ## Do application work
 
@@ -603,6 +660,12 @@ its template parents. This is event bubbling. Each visited node runs its
 applicable handlers with its own context, which is why an inline handler and
 a component-level handler can both observe one action.
 
+Call `event.stop_propagation()` to stop a bubbling event before the next
+template parent. Other handlers on the current node still run. The flag is
+shared by cloned event wrappers and is independent of default prevention.
+This applies to bubbling pointer events (including both click and tap) and
+control events, including `@submit`.
+
 The route follows template ancestry. Projection and component composition
 can make that ancestry different from the visual container arrangement. Do
 not infer the entire event path from which rectangles overlap on screen.
@@ -619,8 +682,9 @@ default response. The arrow-key handler uses it to request that the browser
 not perform its normal arrow-key action for that handled press.
 
 Default prevention leaves Pax's handler delivery intact: other handlers and
-template parents still receive the event. The current `Event` API has no
-`stop_propagation` method.
+template parents still receive the event unless propagation is separately
+stopped. Conversely, stopping propagation does not cancel a default action,
+such as a submit Button emitting `@submit` after its click.
 
 Whether the request can suppress an action depends on the chassis and event.
 On web, it also depends on the browser listener's cancellation rules. Wheel

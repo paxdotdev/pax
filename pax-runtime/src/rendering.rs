@@ -642,6 +642,16 @@ pub trait InstanceNode {
         false
     }
 
+    /// Runs only on the originating native button after uncancelled activation.
+    /// Returns whether a semantic event produced by the default action was cancelled.
+    fn handle_button_click_default(
+        &self,
+        _expanded_node: &Rc<ExpandedNode>,
+        _context: &Rc<RuntimeContext>,
+    ) -> bool {
+        false
+    }
+
     fn handle_native_interrupt(
         &self,
         _expanded_node: &Rc<ExpandedNode>,

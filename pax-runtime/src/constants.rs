@@ -11,6 +11,7 @@ pub const KEY_PRESS_HANDLERS: &str = "key_press";
 pub const CHECKBOX_CHANGE_HANDLERS: &str = "checkbox_change";
 pub const SLIDER_CHANGE_HANDLERS: &str = "slider_change";
 pub const BUTTON_CLICK_HANDLERS: &str = "button_click";
+pub const SUBMIT_HANDLERS: &str = "submit";
 pub const PHOTO_PICKER_CHANGE_HANDLERS: &str = "photo_picker_change";
 pub const TEXTBOX_CHANGE_HANDLERS: &str = "textbox_change";
 pub const TEXT_INPUT_HANDLERS: &str = "text_input";

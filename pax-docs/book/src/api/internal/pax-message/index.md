@@ -442,6 +442,19 @@ Type: `u32`
 
 ---
 
+### `FormTextboxSubmitArgs`
+Single-line native Textbox submission, carrying the final value so bindings
+are updated before the semantic Submit event is delivered.
+
+#### Properties
+##### `text`
+Type: `String`
+
+##### `id`
+Type: `u32`
+
+---
+
 ### `FramePatch`
 Create/update patch for a native frame host.
 
@@ -1850,6 +1863,7 @@ Events and data packets sent from the chassis back into the Pax runtime.
 ##### `FormRadioListChange`([`FormRadioListChangeArgs`](../../../api/internal/pax-message/index.md#formradiolistchangeargs))
 ##### `FormTextboxChange`([`FormTextboxChangeArgs`](../../../api/internal/pax-message/index.md#formtextboxchangeargs))
 ##### `FormTextboxInput`([`FormTextboxInputArgs`](../../../api/internal/pax-message/index.md#formtextboxinputargs))
+##### `FormTextboxSubmit`([`FormTextboxSubmitArgs`](../../../api/internal/pax-message/index.md#formtextboxsubmitargs))
 ##### `FormButtonClick`([`FormButtonClickArgs`](../../../api/internal/pax-message/index.md#formbuttonclickargs))
 ##### `PhotoPicker`([`PhotoPickerInterruptArgs`](../../../api/internal/pax-message/index.md#photopickerinterruptargs))
 ##### `ScrollerPosition`([`ScrollerPositionInterruptArgs`](../../../api/internal/pax-message/index.md#scrollerpositioninterruptargs))

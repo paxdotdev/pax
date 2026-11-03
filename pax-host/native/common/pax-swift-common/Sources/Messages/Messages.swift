@@ -606,6 +606,15 @@ public func dispatchFormTextboxInput(id: PaxNodeId, text: String) {
     }
 }
 
+public func dispatchFormTextboxSubmit(id: PaxNodeId, text: String) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("FormTextboxSubmit") { messageBuilder in
+            messageBuilder.addWithStringKey("id", UInt(id))
+            messageBuilder.addStringWithStringKey("text", text)
+        }
+    }
+}
+
 public func dispatchFormTextboxChange(id: PaxNodeId, text: String) {
     dispatchNativeInterrupt { builder in
         builder.addMapWithStringKey("FormTextboxChange") { messageBuilder in

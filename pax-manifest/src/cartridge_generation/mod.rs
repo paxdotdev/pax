@@ -173,6 +173,7 @@ impl PaxManifest {
         add("checkbox_change", "CheckboxChange");
         add("slider_change", "SliderChange");
         add("button_click", "ButtonClick");
+        add("submit", "Submit");
         add("photo_picker_change", "PhotoPickerChange");
         add("textbox_change", "TextboxChange");
         add("text_input", "TextInput");

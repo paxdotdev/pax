@@ -67,16 +67,22 @@ pub struct ViewportProximityExit {
     pub current: ViewportProximitySnapshot,
 }
 
+#[derive(Clone, Copy, Default)]
+struct EventState {
+    default_prevented: bool,
+    propagation_stopped: bool,
+}
+
 /// Event wrapper passed to Pax event handlers.
 ///
-/// `Event<T>` carries the typed event payload and shared cancellation state,
-/// allowing handlers to call `prevent_default` where the active chassis supports it.
+/// `Event<T>` carries the typed payload and shared default-prevention and
+/// propagation state. Clones observe the same flags.
 #[derive(Clone)]
 pub struct Event<T> {
     /// The event-specific payload, for example `Click` or `KeyDown`.
     pub args: T,
-    // Shared cancellation state, so cloned event wrappers preserve `prevent_default`.
-    cancelled: Rc<Cell<bool>>,
+    // Both flags share one allocation across the entire event route.
+    state: Rc<Cell<EventState>>,
 }
 
 impl<T: Clone + 'static> ImplToFromPaxAny for Event<T> {}
@@ -86,19 +92,65 @@ impl<T> Event<T> {
     pub fn new(args: T) -> Self {
         Self {
             args,
-            cancelled: Default::default(),
+            state: Default::default(),
         }
     }
 
     /// Cancels the platform default for this event, when the chassis supports cancellation.
     pub fn prevent_default(&self) {
-        self.cancelled.set(true);
+        self.state.set(EventState {
+            default_prevented: true,
+            ..self.state.get()
+        });
     }
 
-    // Whether `prevent_default` has been called.
+    /// Whether `prevent_default` has been called. Independent of propagation.
     pub fn cancelled(&self) -> bool {
-        self.cancelled.get()
+        self.state.get().default_prevented
     }
+
+    /// Stops a bubbling event before it reaches the next template parent.
+    /// Call synchronously during delivery; this cannot undo handlers already run.
+    /// Other handlers on the current node still run, and default actions are
+    /// unaffected. This does not stop globally delivered keyboard events or
+    /// unrelated events; call `prevent_default` separately to cancel a default.
+    pub fn stop_propagation(&self) {
+        self.state.set(EventState {
+            propagation_stopped: true,
+            ..self.state.get()
+        });
+    }
+
+    /// Whether a handler has stopped this event's propagation.
+    pub fn propagation_stopped(&self) -> bool {
+        self.state.get().propagation_stopped
+    }
+}
+
+/// The action that requested submission.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SubmitTrigger {
+    /// Return/Enter in a single-line native Textbox.
+    Return,
+    /// Activation of a native Button with `submit=true`.
+    Button,
+    /// A custom control called `NodeContext::submit`.
+    Programmatic,
+}
+
+/// A request to attempt an application action, before application validation.
+///
+/// `@submit` bubbles through template parents like other control events. An
+/// owning handler can stop propagation independently of whether it accepts the
+/// values. Read values through bindings, which are current before delivery.
+/// Submission itself neither dismisses the keyboard nor performs navigation.
+#[derive(Clone, Debug)]
+pub struct Submit {
+    /// Expanded node ID of the originating control, stable for this node's lifetime.
+    /// The handler's `NodeContext` still describes the node receiving the event.
+    pub origin: u32,
+    /// What requested this submission.
+    pub trigger: SubmitTrigger,
 }
 
 impl<T> Deref for Event<T> {

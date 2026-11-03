@@ -247,6 +247,16 @@ Request a screenshot capture from the chassis, keyed by caller-provided id.
 
 Ask the chassis to display the requested cursor over the app surface.
 
+##### `submit`
+<pre><code class="api-signature language-rust ignore">pub fn submit(&amp;self)</code></pre>
+
+Queue a bubbling `@submit` from this context's node at the end of the tick.
+
+Custom controls can use this from their activation handler without
+re-entering borrowed component state. The payload has a Programmatic
+trigger. Values are read at delivery time, and detached sources are
+ignored. This neither performs validation nor dismisses the keyboard.
+
 ##### `subscribe`
 <pre><code class="api-signature language-rust ignore">pub fn subscribe(&amp;self, dependencies: &amp;[UntypedProperty], f: impl Fn() + &#39;static)</code></pre>
 

@@ -1762,3 +1762,7 @@ updates. Logs: `/tmp/pax-strip-{clean,pointer}-log.txt`.
   screenshots. Rebundling the same interface source with the prior esbuild
   0.23.0 reproduces the clipping (`/tmp/pax-1060-capture-baseline/0000.png`);
   this is not a regression from the esbuild 0.25.12 update.
+
+- 2026-11-03: After rebuilding Redo's web interface with Textbox Return submission, a new in-app-browser tab and ordinary reload at `127.0.0.1:8060` kept the old `pax-interface-web.js` while loading the new wasm. Expected a rebuilt development app to load its matching interface; Enter did nothing, but submit buttons worked. Server logs showed no interface request on reload. Loading `localhost:8060` fetched the new interface and Enter submitted correctly. Workaround: bypass the browser asset cache when verifying interface changes; investigate dev-server cache headers or versioned interface URLs.
+
+- 2026-11-03: After rebasing the submit work onto `11836b1ed`, the web interface's `npm run build` and Node tests pass, but `npx tsc --noEmit` reports 16 errors: the configured `dom,es2015` libraries omit APIs already used by the interface (`allSettled`, `fromEntries`, `matchAll`, etc.), and the zero-argument `Uint8Array` constructor is rejected. Reproduced the same errors in an archive of untouched `main` using the new locked dependencies, so this is independent of submit. Evidence: `/tmp/pax-forms-main-typescript.log`. `npx tsc --noEmit --lib dom,es2020` passes. Review the standalone type-check configuration after removal of webpack's transitive type dependencies.

@@ -100,6 +100,10 @@ mod publication_tests {
 #[primitive("pax_std::forms::button::ButtonInstance")]
 #[custom(Default)]
 pub struct Button {
+    /// Emits a bubbling `@submit` after activation unless `@button_click`
+    /// prevents default. Defaults to false; stopping click propagation alone
+    /// does not suppress submission.
+    pub submit: Property<bool>,
     /// Text label displayed inside the button, also assignable with
     /// `<Button>content</Button>` or a whole-body PAXEL expression.
     #[pax(content)]
@@ -119,6 +123,7 @@ pub struct Button {
 impl Default for Button {
     fn default() -> Self {
         Self {
+            submit: Property::new(false),
             color: Property::new(Color::GRAY),
             hover_color: Property::new(Color::INDIGO),
             corner_radius: Property::new(8.0),
@@ -147,6 +152,16 @@ pub struct ButtonInstance {
 }
 
 impl InstanceNode for ButtonInstance {
+    fn handle_button_click_default(
+        &self,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RuntimeContext>,
+    ) -> bool {
+        let submits =
+            expanded_node.with_properties_unwrapped(|button: &mut Button| button.submit.get());
+        submits && expanded_node.emit_submit(pax_runtime::api::SubmitTrigger::Button, context)
+    }
+
     fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
         false
     }

@@ -1120,6 +1120,7 @@ mod tests {
             components: BTreeMap::from([(
                 type_id.clone(),
                 ComponentDefinition {
+                    document: None,
                     type_id: type_id.clone(),
                     is_main_component: true,
                     is_primitive: false,

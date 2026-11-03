@@ -7,6 +7,13 @@
 A button control, delegating to a platform-specific native button.
 
 #### Properties
+##### `submit`
+Type: `Property`<`bool`>
+
+Emits a bubbling `@submit` after activation unless `@button_click`
+prevents default. Defaults to false; stopping click propagation alone
+does not suppress submission.
+
 ##### `label`
 Type: `Property`<`String`>
 

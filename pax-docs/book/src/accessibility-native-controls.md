@@ -145,8 +145,8 @@ control-specific bindings; ordinary pointer events are covered in
 
 | Control | Editable property or content | Control event |
 | --- | --- | --- |
-| [Button](api/pax-std/forms/button.md) | `label` supplies its visible title | `@button_click`, with `Event<ButtonClick>` |
-| [Textbox](api/pax-std/forms/textbox.md) | `text: String` | `@textbox_input` while editing; `@textbox_change` when the platform commits a change |
+| [Button](api/pax-std/forms/button.md) | `label` supplies its visible title | `@button_click`; also `@submit` when `submit=true` |
+| [Textbox](api/pax-std/forms/textbox.md) | `text: String` | `@textbox_input` while editing; `@textbox_change` when the platform commits a change; `@submit` for single-line Return |
 | [Checkbox](api/pax-std/forms/checkbox.md) | `checked: bool` | `@checkbox_change`, with `event.checked` |
 | [Slider](api/pax-std/forms/slider.md) | `value: f64`, bounded by `min` and `max` | `@slider_change`, with `event.value` |
 | [Dropdown](api/pax-std/forms/dropdown.md) | `options: Vec<String>` and `selected_id: u32` | Bind `selected_id`; there is no dedicated public dropdown-change event |
@@ -165,8 +165,11 @@ same value back just to maintain the binding.
 On web, `@textbox_input` follows the browser's `input` event, while
 `@textbox_change` follows `change`. Apple text controls report input during
 editing and change when editing ends. Use input for immediate feedback and
-an explicit Button for a submission action; do not assume a change event
-means Enter was pressed. Likewise, a slider-change handler can run repeatedly
+`@submit` for a submission action from single-line Return or a Button with
+`submit=true`; do not assume a change event means Enter was pressed. The bound
+Textbox value is updated before submission handlers run. See
+[Submit an action](event-handling-rust.md#submit-an-action) for Group handlers,
+nested controls, and propagation. Likewise, a slider-change handler can run repeatedly
 during a drag, so keep expensive work out of that immediate path.
 
 ### Multiline text and styling

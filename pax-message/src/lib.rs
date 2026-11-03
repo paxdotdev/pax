@@ -123,6 +123,7 @@ pub enum NativeInterrupt {
     FormRadioListChange(FormRadioListChangeArgs),
     FormTextboxChange(FormTextboxChangeArgs),
     FormTextboxInput(FormTextboxInputArgs),
+    FormTextboxSubmit(FormTextboxSubmitArgs),
     FormButtonClick(FormButtonClickArgs),
     PhotoPicker(PhotoPickerInterruptArgs),
     // TODO: remove alias once all persisted/older web chassis payloads use `ScrollerPosition`.
@@ -221,6 +222,15 @@ pub struct TextInputArgs {
 #[repr(C)]
 /// Textbox in-progress input payload.
 pub struct FormTextboxInputArgs {
+    pub text: String,
+    pub id: u32,
+}
+
+/// Single-line native Textbox submission, carrying the final value so bindings
+/// are updated before the semantic Submit event is delivered.
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct FormTextboxSubmitArgs {
     pub text: String,
     pub id: u32,
 }

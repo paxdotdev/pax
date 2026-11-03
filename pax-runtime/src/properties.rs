@@ -27,6 +27,11 @@ mod input_query;
 
 use crate::{ExpandedNode, Globals};
 
+enum QueuedEvent {
+    Custom(Rc<ExpandedNode>, &'static str),
+    Submit(Rc<ExpandedNode>),
+}
+
 #[cfg(feature = "designtime")]
 use crate::{ComponentInstance, InstanceNode};
 
@@ -127,7 +132,7 @@ pub struct RuntimeContext {
     active_touch_targets: RefCell<HashMap<i64, ExpandedNodeIdentifier>>,
     pub(crate) mouse_input: RefCell<crate::mouse_input::MouseInput>,
     pub(crate) wheel_regions: RefCell<crate::wheel_input::WheelRegions>,
-    queued_custom_events: RefCell<Vec<(Rc<ExpandedNode>, &'static str)>>,
+    queued_custom_events: RefCell<Vec<QueuedEvent>>,
     queued_renders: RefCell<Vec<Rc<ExpandedNode>>>,
     pub layer_count: Cell<usize>,
     pub dirty_canvases: Rc<RefCell<Vec<bool>>>,
@@ -2889,14 +2894,24 @@ impl RuntimeContext {
 
     pub fn queue_custom_event(&self, source_expanded_node: Rc<ExpandedNode>, name: &'static str) {
         let mut queued_custom_events = borrow_mut!(self.queued_custom_events);
-        queued_custom_events.push((source_expanded_node, name));
+        queued_custom_events.push(QueuedEvent::Custom(source_expanded_node, name));
+    }
+
+    pub(crate) fn queue_submit(&self, node: Rc<ExpandedNode>) {
+        borrow_mut!(self.queued_custom_events).push(QueuedEvent::Submit(node));
     }
 
     pub fn flush_custom_events(self: &Rc<Self>) -> Result<(), String> {
-        let mut queued_custom_event = borrow_mut!(self.queued_custom_events);
-        let to_flush: Vec<_> = std::mem::take(queued_custom_event.as_mut());
-        for (target, ident) in to_flush {
-            target.dispatch_custom_event(ident, self)?;
+        // Release the queue borrow before calling application handlers, which
+        // may enqueue another action for the next flush.
+        let to_flush = std::mem::take(&mut *borrow_mut!(self.queued_custom_events));
+        for event in to_flush {
+            match event {
+                QueuedEvent::Custom(target, ident) => target.dispatch_custom_event(ident, self)?,
+                QueuedEvent::Submit(target) => {
+                    target.emit_submit(pax_runtime_api::SubmitTrigger::Programmatic, self);
+                }
+            }
         }
         Ok(())
     }

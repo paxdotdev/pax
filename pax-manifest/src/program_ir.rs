@@ -793,6 +793,7 @@ mod tests {
     fn input_and_proximity_bindings_survive_rich_and_release_program_paths() -> BinaryResult<()> {
         let mut manifest = build_manifest();
         let events = [
+            ("submit", "Submit"),
             ("mouse_cancel", "MouseCancel"),
             ("viewport_proximity_enter", "ViewportProximityEnter"),
             ("viewport_proximity_change", "ViewportProximityChange"),

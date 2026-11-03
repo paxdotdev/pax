@@ -20,7 +20,7 @@ use pax_runtime::api::math::Point2;
 use pax_runtime::api::{
     Accel, ButtonClick, CheckboxChange, Click, Event, Focus, Gyro, KeyDown, KeyPress, KeyUp,
     KeyboardEventArgs, ModifierKey, MouseButton, MouseCancel, MouseDown, MouseEventArgs, MouseMove, MouseUp,
-    PhotoPickerChange, RenderContext, Scroll, SelectStart, SliderChange, TextboxChange,
+    PhotoPickerChange, RenderContext, Scroll, SelectStart, SliderChange, SubmitTrigger, TextboxChange,
     TextboxInput, Touch, TouchCancel, TouchEnd, TouchMove, TouchStart, Wheel,
 };
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -1105,6 +1105,14 @@ pub extern "C" fn pax_interrupt(
                 engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
             {
                 borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
+            }
+        }
+        NativeInterrupt::FormTextboxSubmit(args) => {
+            if let Some(node) =
+                engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+            {
+                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
+                node.emit_submit(SubmitTrigger::Return, &engine.runtime_context);
             }
         }
         NativeInterrupt::FormTextboxChange(args) => {

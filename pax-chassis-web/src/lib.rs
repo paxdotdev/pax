@@ -7,6 +7,7 @@ use pax_message::{
     ClickInterruptArgs, ContextMenuInterruptArgs, DoubleClickInterruptArgs, DropFileArgs,
     FocusInterruptArgs, FormButtonClickArgs, FormCheckboxToggleArgs, FormDropdownChangeArgs,
     FormRadioListChangeArgs, FormSliderChangeArgs, FormTextboxChangeArgs, FormTextboxInputArgs,
+    FormTextboxSubmitArgs,
     GyroInterruptArgs, ImageDataArgs, ImageLoadInterruptArgs, ImagePointerArgs,
     KeyDownInterruptArgs, KeyPressInterruptArgs, KeyUpInterruptArgs, ModifierKeyMessage,
     MouseButtonMessage, MouseDownInterruptArgs, MouseMoveInterruptArgs, MouseUpInterruptArgs,
@@ -29,7 +30,7 @@ use pax_runtime::api::RenderContext;
 use pax_runtime::api::SelectStart;
 use pax_runtime::api::OS;
 use pax_runtime::api::{Accel, Gyro};
-use pax_runtime::api::{PhotoPickerChange, SliderChange, TextboxChange, TextboxInput};
+use pax_runtime::api::{PhotoPickerChange, SliderChange, SubmitTrigger, TextboxChange, TextboxInput};
 use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, LayerCanvasPlan};
 use pax_runtime::DefinitionToInstanceTraverser;
 use web_time::Instant;
@@ -993,6 +994,14 @@ impl PaxChassisWeb {
                     log::warn!("tried to dispatch event for text input after node already removed");
                 }
                 false
+            }
+            NativeInterrupt::FormTextboxSubmit(args) => {
+                if let Some(node) = input_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
+                    borrow!(node.instance_node).handle_native_interrupt(&node, &x);
+                    node.emit_submit(SubmitTrigger::Return, &engine.runtime_context)
+                } else {
+                    false
+                }
             }
             NativeInterrupt::FormTextboxChange(args) => {
                 if let Some(node) = input_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
@@ -2619,6 +2628,11 @@ fn native_interrupt_from_js(value: JsValue) -> NativeInterrupt {
         })
     } else if let Some(payload) = js_variant(&value, "FormTextboxChange") {
         NativeInterrupt::FormTextboxChange(FormTextboxChangeArgs {
+            text: js_string(&payload, "text"),
+            id: js_u32(&payload, "id"),
+        })
+    } else if let Some(payload) = js_variant(&value, "FormTextboxSubmit") {
+        NativeInterrupt::FormTextboxSubmit(FormTextboxSubmitArgs {
             text: js_string(&payload, "text"),
             id: js_u32(&payload, "id"),
         })

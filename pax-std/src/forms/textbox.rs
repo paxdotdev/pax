@@ -15,6 +15,8 @@ use crate::common::{native_surface_opacity, patch_if_needed, patch_liquid_glass_
 
 /// A text input field, with support for styling and font specification.  Will be composited as a platform-specific
 /// native element, for example an `<input>` element in the browser or a `UITextField` on iOS.
+/// Single-line Return emits bubbling `@submit` with the current bound text.
+/// Multiline Return inserts a newline; blur/change does not submit.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::forms::textbox::TextboxInstance")]
@@ -291,9 +293,14 @@ impl InstanceNode for TextboxInstance {
         expanded_node: &Rc<ExpandedNode>,
         interrupt: &pax_message::NativeInterrupt,
     ) {
-        if let pax_message::NativeInterrupt::FormTextboxInput(args) = interrupt {
+        let text = match interrupt {
+            pax_message::NativeInterrupt::FormTextboxInput(args) => Some(&args.text),
+            pax_message::NativeInterrupt::FormTextboxSubmit(args) => Some(&args.text),
+            _ => None,
+        };
+        if let Some(text) = text {
             expanded_node.with_properties_unwrapped(|textbox: &mut Textbox| {
-                textbox.text.set(args.text.clone());
+                textbox.text.set(text.clone());
             })
         } else {
             log::warn!("textbox element was handed interrupt it doesn't use");

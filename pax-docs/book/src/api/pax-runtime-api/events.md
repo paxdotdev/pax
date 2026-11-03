@@ -93,8 +93,8 @@ Raw dropped payload bytes.
 ### `Event`
 Event wrapper passed to Pax event handlers.
 
-`Event<T>` carries the typed event payload and shared cancellation state,
-allowing handlers to call `prevent_default` where the active chassis supports it.
+`Event<T>` carries the typed payload and shared default-prevention and
+propagation state. Clones observe the same flags.
 
 #### Properties
 ##### `args`
@@ -103,6 +103,11 @@ Type: `T`
 The event-specific payload, for example `Click` or `KeyDown`.
 
 #### Implementations
+##### `cancelled`
+<pre><code class="api-signature language-rust ignore">pub fn cancelled(&amp;self) -&gt; bool</code></pre>
+
+Whether `prevent_default` has been called. Independent of propagation.
+
 ##### `new`
 <pre><code class="api-signature language-rust ignore">pub fn new(args: T) -&gt; Self</code></pre>
 
@@ -112,6 +117,20 @@ Constructs an event wrapper around a raw payload.
 <pre><code class="api-signature language-rust ignore">pub fn prevent_default(&amp;self)</code></pre>
 
 Cancels the platform default for this event, when the chassis supports cancellation.
+
+##### `propagation_stopped`
+<pre><code class="api-signature language-rust ignore">pub fn propagation_stopped(&amp;self) -&gt; bool</code></pre>
+
+Whether a handler has stopped this event's propagation.
+
+##### `stop_propagation`
+<pre><code class="api-signature language-rust ignore">pub fn stop_propagation(&amp;self)</code></pre>
+
+Stops a bubbling event before it reaches the next template parent.
+Call synchronously during delivery; this cannot undo handlers already run.
+Other handlers on the current node still run, and default actions are
+unaffected. This does not stop globally delivered keyboard events or
+unrelated events; call `prevent_default` separately to cancel a default.
 
 ---
 
@@ -371,6 +390,28 @@ User changes a slider's value.
 Type: `f64`
 
 The new slider value.
+
+---
+
+### `Submit`
+A request to attempt an application action, before application validation.
+
+`@submit` bubbles through template parents like other control events. An
+owning handler can stop propagation independently of whether it accepts the
+values. Read values through bindings, which are current before delivery.
+Submission itself neither dismisses the keyboard nor performs navigation.
+
+#### Properties
+##### `origin`
+Type: `u32`
+
+Expanded node ID of the originating control, stable for this node's lifetime.
+The handler's `NodeContext` still describes the node receiving the event.
+
+##### `trigger`
+Type: [`SubmitTrigger`](../../api/pax-runtime-api/events.md#submittrigger)
+
+What requested this submission.
 
 ---
 
@@ -690,3 +731,18 @@ One or more candidate photos exceeded the configured byte limit.
 
 ##### `Failed`
 The platform picker failed for another reason.
+
+---
+
+### `SubmitTrigger`
+The action that requested submission.
+
+#### Variants
+##### `Return`
+Return/Enter in a single-line native Textbox.
+
+##### `Button`
+Activation of a native Button with `submit=true`.
+
+##### `Programmatic`
+A custom control called `NodeContext::submit`.

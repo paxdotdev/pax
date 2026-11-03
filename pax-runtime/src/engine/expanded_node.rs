@@ -4,7 +4,8 @@ use pax_language::Computable;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{
     borrow, borrow_mut, use_RefCell, AsyncError, AsyncScope, Focus, Interpolatable, Layer,
-    LocalProperty, NativeLiquidGlassScope, OpacityScope, PaxValue, Percent, SelectStart, Variable,
+    LocalProperty, NativeLiquidGlassScope, OpacityScope, PaxValue, Percent, SelectStart, Submit,
+    SubmitTrigger, Variable,
 };
 
 use crate::constants::{
@@ -13,7 +14,8 @@ use crate::constants::{
     KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS, KEY_UP_HANDLERS, MOUSE_CANCEL_HANDLERS,
     MOUSE_DOWN_HANDLERS, MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS, MOUSE_OVER_HANDLERS,
     MOUSE_UP_HANDLERS, PHOTO_PICKER_CHANGE_HANDLERS, SCROLL_HANDLERS, SELECT_START_HANDLERS,
-    SLIDER_CHANGE_HANDLERS, TAP_HANDLERS, TEXTBOX_CHANGE_HANDLERS, TEXTBOX_INPUT_HANDLERS,
+    SLIDER_CHANGE_HANDLERS, SUBMIT_HANDLERS, TAP_HANDLERS, TEXTBOX_CHANGE_HANDLERS,
+    TEXTBOX_INPUT_HANDLERS,
     TEXT_INPUT_HANDLERS, TOUCH_CANCEL_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS,
     TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
@@ -836,7 +838,7 @@ macro_rules! dispatch_event_handler {
             }
             self.run_event_handlers_for_key($handler_key, &event, ctx);
 
-            if $recurse {
+            if $recurse && !event.propagation_stopped() {
                 if let Some(parent) = self.template_parent.upgrade() {
                     return parent.$fn_name(event, globals, ctx);
                 }
@@ -4421,11 +4423,47 @@ impl ExpandedNode {
         true
     );
     dispatch_event_handler!(
-        dispatch_button_click,
+        dispatch_button_click_handlers,
         ButtonClick,
         BUTTON_CLICK_HANDLERS,
         true
     );
+    dispatch_event_handler!(dispatch_submit, Submit, SUBMIT_HANDLERS, true);
+
+    /// Dispatches activation, then the originating primitive's default action.
+    /// Stopping propagation does not cancel that action; preventing default does.
+    pub fn dispatch_button_click(
+        self: &Rc<Self>,
+        event: Event<ButtonClick>,
+        globals: &Globals,
+        ctx: &Rc<RuntimeContext>,
+    ) -> bool {
+        if self.is_render_source() || self.attached.get() == 0 || !ctx.accepts_startup_input(self) {
+            return event.cancelled();
+        }
+        if self.dispatch_button_click_handlers(event, globals, ctx) {
+            return true;
+        }
+        if self.attached.get() == 0 {
+            return false;
+        }
+        borrow!(self.instance_node).handle_button_click_default(self, ctx)
+    }
+
+    /// Starts a submission at this node. Detached and non-interactive sources are ignored.
+    pub fn emit_submit(self: &Rc<Self>, trigger: SubmitTrigger, ctx: &Rc<RuntimeContext>) -> bool {
+        if self.is_render_source() || self.attached.get() == 0 || !ctx.accepts_startup_input(self) {
+            return false;
+        }
+        self.dispatch_submit(
+            Event::new(Submit {
+                origin: self.id.to_u32(),
+                trigger,
+            }),
+            &ctx.globals(),
+            ctx,
+        )
+    }
     dispatch_event_handler!(
         dispatch_photo_picker_change,
         PhotoPickerChange,
@@ -4475,8 +4513,10 @@ impl ExpandedNode {
             self.run_event_handlers_for_key(handler_key, &event, ctx);
         }
 
-        if let Some(parent) = self.template_parent.upgrade() {
-            return parent.dispatch_pointer_activation(event, source, ctx);
+        if !event.propagation_stopped() {
+            if let Some(parent) = self.template_parent.upgrade() {
+                return parent.dispatch_pointer_activation(event, source, ctx);
+            }
         }
         event.cancelled()
     }

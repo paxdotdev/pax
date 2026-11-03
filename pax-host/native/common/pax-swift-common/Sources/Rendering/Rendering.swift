@@ -5240,7 +5240,58 @@ private final class PaxNativeRadioListView: UIStackView {
     }
 }
 
-private final class PaxNativeTextboxFieldView: UITextField, UITextFieldDelegate {
+// Track a held hardware Return independently of the software keyboard's action.
+// UIKit's delegate does not include the key-repeat flag.
+private class PaxSubmitTextField: UITextField {
+    private var heldReturnCodes = Set<Int>()
+    private var submittedHeldReturn = false
+
+    private func returnCodes(_ presses: Set<UIPress>) -> Set<Int> {
+        Set(presses.compactMap { press in
+            guard let code = press.key?.keyCode.rawValue, code == 40 || code == 88 else { return nil }
+            return code // USB HID Return and keypad Enter.
+        })
+    }
+
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        let codes = returnCodes(presses)
+        if !codes.isEmpty {
+            if heldReturnCodes.isEmpty { submittedHeldReturn = markedTextRange != nil }
+            heldReturnCodes.formUnion(codes)
+        }
+        super.pressesBegan(presses, with: event)
+    }
+
+    override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        super.pressesEnded(presses, with: event)
+        heldReturnCodes.subtract(returnCodes(presses))
+    }
+
+    override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        super.pressesCancelled(presses, with: event)
+        heldReturnCodes.subtract(returnCodes(presses))
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let resigned = super.resignFirstResponder()
+        if resigned {
+            heldReturnCodes.removeAll()
+            submittedHeldReturn = false
+        }
+        return resigned
+    }
+
+    func acceptsReturnSubmission() -> Bool {
+        guard markedTextRange == nil else { return false }
+        if !heldReturnCodes.isEmpty {
+            guard !submittedHeldReturn else { return false }
+            submittedHeldReturn = true
+        }
+        return true
+    }
+}
+
+private final class PaxNativeTextboxFieldView: PaxSubmitTextField, UITextFieldDelegate {
     private var nodeId: PaxNodeId = 0
     private var isProgrammaticChange = false
 
@@ -5286,6 +5337,13 @@ private final class PaxNativeTextboxFieldView: UITextField, UITextFieldDelegate 
 
     func textFieldDidEndEditing(_ textField: UITextField) {
         dispatchFormTextboxChange(id: nodeId, text: textField.text ?? "")
+    }
+
+    func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+        guard acceptsReturnSubmission() else { return false }
+        dispatchFormTextboxSubmit(id: nodeId, text: textField.text ?? "")
+        // Submission does not imply ending editing or dismissing the keyboard.
+        return false
     }
 }
 
@@ -6318,6 +6376,16 @@ private final class PaxNativeTextboxFieldView: PaxProjectedTextField, NSTextFiel
     func controlTextDidEndEditing(_ obj: Notification) {
         dispatchFormTextboxChange(id: nodeId, text: stringValue)
     }
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        guard commandSelector == #selector(NSResponder.insertNewline(_:)), !textView.hasMarkedText() else {
+            return false
+        }
+        if NSApp.currentEvent?.isARepeat != true {
+            dispatchFormTextboxSubmit(id: nodeId, text: textView.string)
+        }
+        return true
+    }
 }
 
 private final class PaxNativeTextboxAreaView: NSScrollView, NSTextViewDelegate {
@@ -6477,7 +6545,7 @@ private struct PaxTextboxField: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UITextField {
-        let field = UITextField()
+        let field = PaxSubmitTextField()
         field.borderStyle = .none
         field.autocorrectionType = .no
         field.autocapitalizationType = .none
@@ -6527,6 +6595,12 @@ private struct PaxTextboxField: UIViewRepresentable {
 
         func textFieldDidEndEditing(_ textField: UITextField) {
             dispatchFormTextboxChange(id: id, text: textField.text ?? "")
+        }
+
+        func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+            guard let field = textField as? PaxSubmitTextField, field.acceptsReturnSubmission() else { return false }
+            dispatchFormTextboxSubmit(id: id, text: textField.text ?? "")
+            return false
         }
     }
 }
@@ -6655,12 +6729,14 @@ private struct PaxTextboxField: View {
             text: Binding(
                 get: { element.text },
                 set: {
+                    element.text = $0
                     dispatchFormTextboxInput(id: element.id, text: $0)
                     dispatchFormTextboxChange(id: element.id, text: $0)
                 }
             ),
             prompt: element.placeholder.isEmpty ? nil : Text(element.placeholder)
         )
+        .onSubmit { dispatchFormTextboxSubmit(id: element.id, text: element.text) }
     }
 }
 

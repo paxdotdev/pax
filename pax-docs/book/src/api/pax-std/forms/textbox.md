@@ -6,6 +6,8 @@
 ### `Textbox`
 A text input field, with support for styling and font specification.  Will be composited as a platform-specific
 native element, for example an `<input>` element in the browser or a `UITextField` on iOS.
+Single-line Return emits bubbling `@submit` with the current bound text.
+Multiline Return inserts a newline; blur/change does not submit.
 
 #### Properties
 ##### `text`

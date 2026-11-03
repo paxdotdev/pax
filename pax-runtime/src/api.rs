@@ -265,6 +265,18 @@ impl NodeContext {
         Ok(())
     }
 
+    /// Queue a bubbling `@submit` from this context's node at the end of the tick.
+    ///
+    /// Custom controls can use this from their activation handler without
+    /// re-entering borrowed component state. The payload has a Programmatic
+    /// trigger. Values are read at delivery time, and detached sources are
+    /// ignored. This neither performs validation nor dismisses the keyboard.
+    pub fn submit(&self) {
+        if let Some(node) = self.expanded_node.upgrade() {
+            self.runtime_context.queue_submit(node);
+        }
+    }
+
     /// Ask the chassis to display the requested cursor over the app surface.
     pub fn set_cursor(&self, cursor: CursorStyle) {
         self.runtime_context
