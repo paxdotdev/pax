@@ -10,7 +10,6 @@ description = "Compiler APIs for parsing and building Pax projects into applicat
 include = [
     "files/**/*",
     "!files/interfaces/web/node_modules/**/*",
-    "!files/interfaces/web/package-lock.json",
     "src/**/*",
     "/README.md",
 ]

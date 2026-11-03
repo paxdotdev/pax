@@ -1,21 +1,12 @@
 {
   "license": "(MIT OR Apache-2.0)",
   "scripts": {
-    "build": "webpack --config ./webpack.prod.js",
-    "serve": "webpack-dev-server --config ./webpack.config.js"
+    "build": "bash ./build-interface.sh"
   },
   "devDependencies": {
     "@types/web": "^0.0.99",
-    "copy-webpack-plugin": "^11.0.0",
-    "css-loader": "^6.8.1",
-    "esbuild": "0.23.0",
-    "html-webpack-plugin": "^5.5.3",
-    "style-loader": "^3.3.3",
-    "ts-loader": "^9.4.4",
-    "typescript": "^5.1.6",
-    "webpack": "^5.88.1",
-    "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^4.15.1"
+    "esbuild": "0.25.12",
+    "typescript": "^5.1.6"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",

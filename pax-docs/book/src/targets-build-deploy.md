@@ -75,6 +75,27 @@ The published CLI includes its web interface bundle. Node.js/npm are needed
 when rebuilding that interface from the Pax repository, rather than for the
 ordinary installed-CLI workflow.
 
+To rebuild the web interface from a Pax checkout, select the Node version in
+the repository's `.nvmrc`, then run:
+
+```sh
+cd pax-compiler/files/interfaces/web
+npm run build
+```
+
+This runs `build-interface.sh`, installs the locked dependencies with `npm ci`
+(including build-time dependencies), and bundles the TypeScript and CSS into
+`public/pax-interface-web.js` and `public/pax-interface-web.css`. The script
+requires Bash; source builds on Windows need a Bash environment such as Git Bash.
+The CLI and release tooling use the same script. The dependency lockfile is part
+of the compiler's packaged sources; regenerate it with `npm install` when
+intentionally changing dependencies and include it in the change.
+
+The obsolete webpack-based `npm run serve` and `run-web.sh` entry points have
+been removed. To serve an application and reload `.pax` edits, use
+`pax-cli run --target web` from the application directory. Rebuilding the
+interface bundle alone does not compile or serve an application's Wasm cartridge.
+
 Target support does not promise identical rendering or controls everywhere.
 [How Pax Runs](how-pax-runs.md#rendering-backends) explains backend selection;
 feature chapters state their narrower target and backend limits. Include the

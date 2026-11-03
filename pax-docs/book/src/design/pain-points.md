@@ -1542,12 +1542,6 @@ Coordinating lifecycle entry with native presentation readiness remains open.
 - 2026-10-30 (PAX-1051): nightly rustfmt with partial `--file-lines` ranges around newly added `cfg` blocks produced mismatched delimiters in `capture.rs` and a closure in `render_context.rs`. Expected syntax-preserving formatting; the next compiler/rustfmt parse rejected both files. Repaired the delimiters and used full-file formatting output with syntax-checked selection instead; avoid partial-range rustfmt for these edits.
 - 2026-10-30 (PAX-1051): New IAB tabs for the release Increment footprint comparison remained blank with both `3d` enabled and disabled. Temporary startup tracing reached `navigator.gpu.requestAdapter()` but its promise remained pending before device/shader creation; reproduced on ports 63271 and 50072, including a visible tab. The already-mounted Light / Space WebGPU preview remained interactive, and `?pax_renderer=cpu` rendered Increment and handled clicks. Metal tests passed in both feature modes. Cause is unestablished; temporary tracing and test tabs were removed.
 
-- 2026-10-30, PAX-1051 native-pointer check: running `npm run build` in
-  `pax-compiler/files/interfaces/web` failed because its package script references
-  missing `webpack.prod.js`. Expected the advertised build script to bundle the
-  interface. Evidence: `/tmp/pax-solid-interface.log`. Workaround: use the
-  compiler's normal `pax-cli build --libdev` interface-bundling path.
-
 - 2026-10-30, PAX-1051 macOS validation: `swift test --package-path
   pax-host/native/common/pax-swift-common` creates `.build` under native sources
   embedded by `pax-host`. A simultaneous app build failed while embedding a
@@ -1757,3 +1751,14 @@ updates. Logs: `/tmp/pax-strip-{clean,pointer}-log.txt`.
   uses `OutCubic` at its 1960ms keyframes (lines 128, 138, 143). Reproduce by
   opening the rebuilt website and inspecting browser warnings. No timing or
   easing changes made during the startup fixes.
+
+- 2026-11-03 (PAX-1060 validation): In a freshly generated Increment web app,
+  click once, then run `pax-cli dev look --scale 0.5`. Expected a scaled capture
+  of the full rotated rectangle; the 900×494 PNG clips its vector content at
+  the viewport midpoint while the live Chrome view renders it fully. A default
+  `--scale 1` capture also renders the full rectangle. Evidence:
+  `/tmp/pax-1060-capture/0000.png` versus
+  `/tmp/pax-1060-capture-full/0000.png`. Workaround: use scale 1 or browser
+  screenshots. Rebundling the same interface source with the prior esbuild
+  0.23.0 reproduces the clipping (`/tmp/pax-1060-capture-baseline/0000.png`);
+  this is not a regression from the esbuild 0.25.12 update.

@@ -641,7 +641,12 @@ fn web_interface_fingerprint_inputs(
 ) -> io::Result<Vec<WebInterfaceFingerprintInput>> {
     let mut inputs = Vec::new();
 
-    for relative_path in ["build-interface.sh", "package.json", "tsconfig.json"] {
+    for relative_path in [
+        "build-interface.sh",
+        "package.json",
+        "package-lock.json",
+        "tsconfig.json",
+    ] {
         let path = web_interface_root.join(relative_path);
         inputs.push(WebInterfaceFingerprintInput {
             relative_path: relative_path.to_string(),
@@ -1659,6 +1664,18 @@ mod tests {
     }
 
     #[test]
+    fn web_interface_bundle_rebuilds_when_dependency_lock_changes() {
+        let dir = web_interface_fixture();
+        write_web_interface_fingerprint(dir.path()).expect("fingerprint should be written");
+        write_file(
+            &dir.path().join("package-lock.json"),
+            b"{\"lockfileVersion\":3}",
+        );
+
+        assert!(web_interface_bundle_needs_rebuild(dir.path(), true));
+    }
+
+    #[test]
     fn web_interface_bundle_rebuilds_when_source_file_is_added() {
         let dir = web_interface_fixture();
         write_web_interface_fingerprint(dir.path()).expect("fingerprint should be written");
@@ -1680,6 +1697,7 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir should be created");
         write_file(&dir.path().join("build-interface.sh"), b"#!/bin/sh\n");
         write_file(&dir.path().join("package.json"), b"{}");
+        write_file(&dir.path().join("package-lock.json"), b"{}");
         write_file(&dir.path().join("tsconfig.json"), b"{}");
         write_file(&dir.path().join("src/index.ts"), b"console.log('pax');");
         write_file(&dir.path().join(WEB_INTERFACE_BUNDLE_FILE), b"bundle");
