@@ -1,4 +1,4 @@
-<Group width=100% height=100% @viewport_proximity_enter=self.enter @viewport_proximity_exit=self.exit>
+<Group width=100% height=100% @viewport_proximity_change=self.visibility>
     if self.editing_message {
         <MessageEditor width=100% height=100% message=bind:self.message open=bind:self.editing_message
             drawing_mode=bind:self.drawing_mode drawing=bind:self.drawing drawing_columns=bind:self.drawing_columns/>

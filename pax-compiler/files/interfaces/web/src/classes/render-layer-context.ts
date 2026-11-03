@@ -7,6 +7,7 @@ import { CLIPPING_CONTAINER, NATIVE_LEAF_CLASS } from "../utils/constants";
 import { affineMultiply, invertAffineCoeffs } from "../utils/helpers";
 import type { NativeMaskEntry } from "./messages/native-mask-update-patch";
 import type { LayerCanvasPlan } from "./surface-host-policy";
+import { PreparedMaskImage } from "./prepared-mask-image";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -34,6 +35,8 @@ export class RenderLayerManager {
     private layerIslandOwners: Map<number, number>;
     private pendingLayerIslandClaims: Map<number, number>;
     private effects: SvgEffectManager;
+    private maskImages = new Map<HTMLElement, PreparedMaskImage>();
+    private maskPixelRatio = typeof window !== 'undefined' ? Math.max(window.devicePixelRatio || 1, 1) : 1;
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
@@ -111,10 +114,6 @@ export class RenderLayerManager {
         return ownershipChanged;
     }
 
-    removeElementMask(id: number) {
-        this.effects.updateMask(id, [], 0, 0);
-    }
-
     updateElementMask(
         element: HTMLElement,
         id: number,
@@ -124,7 +123,8 @@ export class RenderLayerManager {
     ) {
         let maskWidth = sizeX ?? 0;
         let maskHeight = sizeY ?? 0;
-        this.effects.updateMask(id, entries, maskWidth, maskHeight);
+        const rasterFallback = requiresWebkitSvgReferenceFallback();
+        if (!rasterFallback) this.effects.updateMask(id, entries, maskWidth, maskHeight);
         if (
             entries.length === 0
             || !Number.isFinite(maskWidth)
@@ -132,6 +132,7 @@ export class RenderLayerManager {
             || maskWidth <= 0
             || maskHeight <= 0
         ) {
+            this.releaseMaskImage(element);
             element.classList.remove(MASKED_NATIVE_LEAF_CLASS);
             clearMaskStyles(element);
             refreshLeafOpacities(element);
@@ -140,14 +141,40 @@ export class RenderLayerManager {
 
         let maskValue = `url(#${nativeMaskId(id)})`;
         element.classList.add(MASKED_NATIVE_LEAF_CLASS);
-        applyMaskStyles(
-            element,
-            maskValue,
-            buildWebkitSvgMaskImageValue(entries, maskWidth, maskHeight),
-            maskWidth,
-            maskHeight,
-        );
+        if (rasterFallback) {
+            let image = this.maskImages.get(element);
+            if (!image) {
+                image = new PreparedMaskImage(element);
+                this.maskImages.set(element, image);
+            }
+            image.update(entries, maskWidth, maskHeight, this.maskPixelRatio);
+        } else {
+            applyMaskStyles(element, maskValue);
+        }
         refreshLeafOpacities(element);
+    }
+
+    removeElementMask(element: HTMLElement, id: number) {
+        this.releaseMaskImage(element);
+        this.effects.updateMask(id, [], 0, 0);
+        element.classList.remove(MASKED_NATIVE_LEAF_CLASS);
+        clearMaskStyles(element);
+    }
+
+    private releaseMaskImage(element: HTMLElement) {
+        this.maskImages.get(element)?.dispose();
+        this.maskImages.delete(element);
+    }
+
+    disposeMaskImages() {
+        this.maskImages.forEach(image => image.dispose());
+        this.maskImages.clear();
+    }
+
+    updateMaskPixelRatio(scale: number) {
+        if (this.maskPixelRatio === scale) return;
+        this.maskPixelRatio = scale;
+        this.maskImages.forEach(image => image.setPixelRatio(scale));
     }
 
     // If a div for the container referenced already exists, returns it. if not,
@@ -398,6 +425,7 @@ export class RenderLayerManager {
     }
 
     cleanUp(){
+        this.disposeMaskImages();
         if(this.layers != undefined){
             this.layers.forEach((layer) => {
                 this.objectManager.returnToPool(LAYER, layer);
@@ -947,27 +975,20 @@ function clearMaskStyles(element: HTMLElement) {
     element.style.maskRepeat = "";
     element.style.maskPosition = "";
     element.style.maskSize = "";
+    element.style.maskComposite = "";
+    element.style.maskMode = "";
     (element.style as any).webkitMaskImage = "";
     (element.style as any).webkitMaskRepeat = "";
     (element.style as any).webkitMaskPosition = "";
     (element.style as any).webkitMaskSize = "";
+    (element.style as any).webkitMaskComposite = "";
 }
 
 function applyMaskStyles(
     element: HTMLElement,
     fragmentMaskValue: string,
-    webkitImageMaskValue: string,
-    width: number,
-    height: number,
 ) {
     clearMaskStyles(element);
-    if (requiresWebkitSvgReferenceFallback()) {
-        (element.style as any).webkitMaskImage = webkitImageMaskValue;
-        (element.style as any).webkitMaskRepeat = "no-repeat";
-        (element.style as any).webkitMaskPosition = "0px 0px";
-        (element.style as any).webkitMaskSize = `${width}px ${height}px`;
-        return;
-    }
 
     // Blink resolves the SVG fragment reference correctly, and setting both the
     // prefixed and standard forms avoids browser differences around transformed
@@ -981,37 +1002,6 @@ function applyMaskStyles(
     element.style.maskImage = fragmentMaskValue;
     element.style.maskRepeat = "no-repeat";
     element.style.maskPosition = "0px 0px";
-}
-
-function buildWebkitSvgMaskImageValue(entries: NativeMaskEntry[], width: number, height: number) {
-    let clipDefs: string[] = [];
-    let maskChildren = [
-        `<rect x="0" y="0" width="${width}" height="${height}" fill="white"/>`,
-    ];
-    entries.forEach((entry, entryIndex) => {
-        let child = `<path d="${escapeSvgAttribute(entry.path)}" fill="black" fill-opacity="${clampMaskOpacity(entry.opacity)}"/>`;
-        entry.clips.forEach((clipPathData, clipIndex) => {
-            let clipId = `pax-webkit-mask-clip-${entryIndex}-${clipIndex}`;
-            clipDefs.push(
-                `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${escapeSvgAttribute(clipPathData)}"/></clipPath>`,
-            );
-            child = `<g clip-path="url(#${clipId})">${child}</g>`;
-        });
-        maskChildren.push(child);
-    });
-
-    let svg = [
-        `<svg xmlns="${SVG_NS}" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
-        "<defs>",
-        clipDefs.join(""),
-        `<mask id="pax-webkit-native-mask" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" mask-type="luminance">`,
-        maskChildren.join(""),
-        "</mask>",
-        "</defs>",
-        `<rect x="0" y="0" width="${width}" height="${height}" fill="white" mask="url(#pax-webkit-native-mask)"/>`,
-        "</svg>",
-    ].join("");
-    return `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`;
 }
 
 function webkitSvgClipImageSize(pathData: string, fallbackWidth: number, fallbackHeight: number) {

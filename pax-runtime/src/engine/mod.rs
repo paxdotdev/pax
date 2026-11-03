@@ -952,15 +952,20 @@ impl PaxEngine {
             let Some(update) = next else {
                 break;
             };
+            if rcs.surface_replay_priority(update.layer).max(0) >= priority_before {
+                // Candidates are priority ordered. Return the remaining warm
+                // tail together instead of repeatedly selecting and excluding
+                // each of its layers during a visible-only pass.
+                let pending: Vec<_> = updates.map(|job| job.layer).collect();
+                deferred.push(update.layer);
+                deferred.extend(pending);
+                break;
+            }
             // Submission can expose a higher-priority batch on the same layer.
             // Return the other candidates before selecting again, rather than
             // draining a stale layer snapshot or imposing a one-batch/frame cap.
             for pending in updates {
                 rcs.defer_surface_replay(pending.layer);
-            }
-            if rcs.surface_replay_priority(update.layer).max(0) >= priority_before {
-                deferred.push(update.layer);
-                continue;
             }
             if let Some(blocker) = self.runtime_context.settled_surface_blocker() {
                 deferred.push(update.layer);

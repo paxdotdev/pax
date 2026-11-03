@@ -8,6 +8,7 @@ import {transformSync} from 'esbuild';
 // native deletion handlers themselves run unchanged.
 class Element {
     children = []; style = {}; dataset = {}; attributes = {}; parentElement;
+    classList = {remove() {}};
     constructor(tag) { this.tag = tag; }
     get id() { return this.attributes.id; }
     setAttribute(name, value) { this.attributes[name] = value; }
@@ -43,7 +44,7 @@ for (const kind of ['checkbox', 'nativeImage', 'youtubeVideo', 'textbox', 'radio
         const host = new Element('div');
         const effects = new SvgEffectManager();
         effects.attach(host);
-        const manager = Object.create(RenderLayerManager.prototype);
+        const manager = new RenderLayerManager({});
         manager.effects = effects;
         manager.unregisterScrollerIslandHosts = () => false;
         manager.unregisterParentFrameHost = () => {};
@@ -56,12 +57,16 @@ for (const kind of ['checkbox', 'nativeImage', 'youtubeVideo', 'textbox', 'radio
             const leaf = new Element('div');
             host.appendChild(leaf);
             pool.nodesLookup.set(id, leaf);
+            let released = false;
+            manager.maskImages.set(leaf, {dispose() {released = true;}});
             effects.updateMask(id, [{path: 'M0 0H10V10Z', opacity: 1, clips: ['M0 0H20V20Z', 'M1 1H19V19Z']}], 100, 100);
             assert.equal(effects.defs.children.length, 4);
             pool[`${kind}Delete`](id);
             assert.equal(effects.defs.children.length, 1, `mask leaked after deletion ${id}`);
             assert.equal(effects.defs.children[0].id, 'unrelated-container');
             assert.equal(pool.nodesLookup.size, 0);
+            assert.equal(released, true, 'prepared bitmap owner must be retired too');
+            assert.equal(manager.maskImages.size, 0);
         }
     });
 }

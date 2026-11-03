@@ -46,7 +46,7 @@ for (const f of fixtures) {
             surfacePlanPending: false,
             chassis: {layer_canvas_plan_generation: () => 1, surface_policy_revision: () => 0,
                 interrupt: e => refreshes.push(e.RenderSurfaceUpdate.layer_id)},
-            layers: {syncLayerCanvasLayouts() {}}, syncWarmScrollerHosts() { return true; },
+            layers: {syncLayerCanvasLayouts() {}, updateMaskPixelRatio() {}}, syncWarmScrollerHosts() { return true; },
         });
         pool.syncRenderSurfaceLayouts();
         refreshes.length = 0;

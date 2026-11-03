@@ -41,6 +41,7 @@ struct RecordingRenderer {
     capture_ids: Vec<u32>,
     #[cfg(feature = "3d")]
     depth_updates: Vec<(u32, Option<pax_runtime_api::DepthPlane>)>,
+    submission_clock: Option<Rc<std::cell::Cell<f64>>>,
 }
 
 impl RenderContext for RecordingRenderer {
@@ -105,6 +106,9 @@ impl RenderContext for RecordingRenderer {
         self.clears.push(layer);
     }
     fn flush(&mut self, layer: usize, dirty: Rc<RefCell<Vec<bool>>>) {
+        if let Some(clock) = &self.submission_clock {
+            clock.set(clock.get() + 5.0);
+        }
         assert!(layer < self.layer_count);
         self.flushes.push(layer);
         assert_eq!(self.clip_depths.get(&layer).copied().unwrap_or(0), 0);
@@ -719,6 +723,131 @@ fn failed_visible_flush_still_blocks_publication_after_its_attempt() {
     state.continue_epoch(2);
     let report = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
     assert!(!report.visible_pending);
+}
+
+#[test]
+fn cooperative_animation_cannot_starve_admitted_incoming_tiles_across_frames() {
+    let mut engine = engine();
+    engine.tick();
+    engine.runtime_context.layer_count.set(2);
+    let mut renderer = RecordingRenderer::default();
+    engine.render(&mut renderer);
+    renderer.events.clear();
+    renderer.cached = true;
+    renderer.ordinary_priorities.insert(1, 0);
+    renderer.priorities.insert(0, 5);
+    renderer.initializations.push(0);
+    let clock = Rc::new(std::cell::Cell::new(0.0));
+    renderer.submission_clock = Some(clock.clone());
+    let mut state = surface_work::RenderWorkState::default();
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+
+    // Every ordinary frame invalidates an already-painted animation. Its atomic
+    // draw consumes a slice; assume no continuation runs before the next frame.
+    for epoch in 0..4 {
+        engine.runtime_context.set_canvas_dirty(1);
+        state.begin(epoch);
+        engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || clock.get());
+    }
+    assert!(renderer.events.contains(&("initialize", 0)));
+    assert!(renderer.events.contains(&("submit", 0)));
+    assert!(renderer.events.contains(&("submit", 1)));
+}
+
+#[test]
+fn cooperative_preparation_turn_preserves_visible_priority_and_frame_allowance() {
+    let (mut engine, mut renderer, mut state) = exhausted_cooperative_probe();
+    state.prefer_preparation = true;
+    state.begin(1); // Another tick must not replenish the spent allowance.
+    renderer.initializations = vec![0];
+    renderer.jobs = vec![replay_job(1)];
+    let report = engine.service_render_work(
+        &mut renderer,
+        &mut state,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        3.0,
+        || 0.0,
+    );
+    assert!(report.pending);
+    assert_eq!(renderer.events, [("submit", 1)]);
+    assert_eq!(renderer.initializations, [0]);
+    engine.service_render_work(
+        &mut renderer,
+        &mut state,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        3.0,
+        || 0.0,
+    );
+    assert_eq!(renderer.events, [("submit", 1), ("submit", 0)]);
+    assert_eq!(renderer.initializations, [0]);
+}
+
+#[test]
+fn cooperative_preparation_turn_does_not_split_cheap_visible_layers() {
+    let (mut engine, mut renderer, _) = dirty_render_probe();
+    renderer.ordinary_priorities.insert(0, 0);
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let report = engine.service_render_work(
+        &mut renderer,
+        &mut state,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        3.0,
+        || 0.0,
+    );
+    assert_eq!(report.ordinary_layers, 2);
+    assert!(report.pending); // One boundary after both urgent layers, as before.
+}
+
+#[test]
+fn cooperative_preparation_turn_does_not_preempt_visible_replay_dependencies() {
+    let mut engine = engine();
+    engine.tick();
+    engine.runtime_context.layer_count.set(2);
+    let mut renderer = RecordingRenderer::default();
+    engine.render(&mut renderer);
+    renderer.events.clear();
+    renderer.cached = true;
+    renderer.priorities = HashMap::from([(0, 5), (1, 0)]);
+    renderer.ordinary_priorities = renderer.priorities.clone();
+    renderer.jobs = vec![replay_job(0), replay_job(1)];
+    engine.runtime_context.set_canvas_dirty(1);
+    let mut state = surface_work::RenderWorkState::default();
+    state.prefer_preparation = true;
+    state.begin(1);
+    engine.service_render_work(
+        &mut renderer,
+        &mut state,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        3.0,
+        || 0.0,
+    );
+    // The visible tile needs current content first; its prerequisite draw is
+    // urgent too. An eligible warm tile must not consume the preparation turn.
+    assert_eq!(renderer.events, [("submit", 1), ("submit", 1)]);
+}
+
+#[test]
+fn cooperative_preparation_turn_reselects_after_reversal_and_skips_async_waits() {
+    let (mut engine, mut renderer, mut state) = exhausted_cooperative_probe();
+    state.prefer_preparation = true;
+    state.begin(2);
+    renderer.priorities = HashMap::from([(1, 10), (2, 2)]);
+    renderer.initializations = vec![1, 2];
+    renderer.async_initialization = true;
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    // Separate the setup from the unit so a zero slice exposes the next choice.
+    engine.service_render_work(&mut renderer, &mut state, &mut budget, 0.0, || 0.0);
+    engine.service_render_work(&mut renderer, &mut state, &mut budget, 0.0, || 0.0);
+    assert_eq!(renderer.events, [("initialize", 2)]);
+    engine.service_render_work(&mut renderer, &mut state, &mut budget, 0.0, || 0.0);
+    assert_eq!(renderer.events, [("initialize", 2), ("submit", 0)]);
+    assert_eq!(renderer.in_flight, [2]);
+    // A late completion has no captured priority; current demand wins.
+    renderer.priorities.insert(2, 20);
+    renderer.jobs.push(replay_job(2));
+    engine.service_render_work(&mut renderer, &mut state, &mut budget, 0.0, || 0.0);
+    assert_eq!(renderer.events.last(), Some(&("initialize", 1)));
 }
 
 #[test]
@@ -1847,6 +1976,9 @@ fn settled_replay_skips_a_blocked_head_without_retrying_or_starving_siblings() {
     engine.render(&mut renderer);
     renderer.presented.clear();
     renderer.cached = true;
+    // Distinct warm priorities exercise skipping a blocked speculative head,
+    // not only skipping one of several equally urgent visible jobs.
+    renderer.priorities = HashMap::from([(1, 2), (2, 4)]);
     renderer.blocked_layers.insert(1);
     renderer.jobs = vec![replay_job(1), replay_job(2)];
     renderer.followups.insert(2, 2);

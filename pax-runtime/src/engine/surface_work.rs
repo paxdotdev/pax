@@ -111,6 +111,9 @@ pub struct RenderWorkState {
     // held. Retry that reconciliation in the next display epoch.
     pub(super) retry_reconciliation: bool,
     pub(super) urgent_complete: bool,
+    // A frame boundary must not repeatedly put animation redraws ahead of
+    // admitted incoming tiles. This is a turn, not a saved surface selection.
+    pub(super) prefer_preparation: bool,
     pub(super) preparation: SurfaceWorkReport,
     // Failed layers wait for a later tick rather than spinning between host tasks.
     pub(super) attempted_layers: std::collections::HashSet<usize>,

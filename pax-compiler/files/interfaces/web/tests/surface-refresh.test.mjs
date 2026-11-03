@@ -32,7 +32,7 @@ function harness(entries) {
         surfacePlanPending: false,
         chassis: {layer_canvas_plan_generation: () => 1,
             interrupt: event => refreshes.push(event.RenderSurfaceUpdate.layer_id)},
-        layers: {syncLayerCanvasLayouts() {}},
+        layers: {syncLayerCanvasLayouts() {}, updateMaskPixelRatio() {}},
         syncWarmScrollerHosts() { return true; },
     });
     pool.syncRenderSurfaceLayouts();
@@ -63,6 +63,16 @@ test('removing a row does not swallow another layer retarget', () => {
 test('unchanged surfaces do not request replay', () => {
     const h = harness([['root', canvas(1)]]);
     assert.deepEqual(h.sync(), []);
+});
+
+test('mask density follows display changes even when warm-host planning is deferred', () => {
+    const h = harness([]), densities = [];
+    h.pool.layers.updateMaskPixelRatio = scale => densities.push(scale);
+    h.pool.syncWarmScrollerHosts = () => false;
+    viewport.devicePixelRatio = 2;
+    h.pool.syncRenderSurfaceLayouts(true);
+    assert.deepEqual(densities, [2]);
+    viewport.devicePixelRatio = 1;
 });
 
 test('a plan wake does not refresh unchanged survivors or issue a global refresh', () => {
@@ -283,7 +293,7 @@ function settlingPlanHarness(change) {
         canvases: new Map([['tile', tile]]), layerCanvasPlanCache: new Map(),
         surfacePlanPending: false,
         buildWarmScrollerCandidates: () => new Map(),
-        layers: {layerIds: () => [0], syncLayerCanvasLayouts(provider) {
+        layers: {layerIds: () => [0], updateMaskPixelRatio() {}, syncLayerCanvasLayouts(provider) {
             const s = provider(0).surfaces[0];
             installs++;
             tile.width = s.backingWidth; tile.height = s.backingHeight;

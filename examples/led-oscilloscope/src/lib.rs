@@ -196,6 +196,12 @@ struct ScopeState {
 }
 impl Store for ScopeState {}
 
+impl ScopeState {
+    fn observe_visibility(&mut self, current: &ViewportProximitySnapshot) {
+        self.visible = current.is_in_viewport();
+    }
+}
+
 #[helpers]
 impl LedOscilloscope {
     /// Suggested panel height when the host has a width but no fixed height.
@@ -222,17 +228,14 @@ impl LedOscilloscope {
         self.yellow_frequency.set(0.5);
         self.rate.set(0.45);
         self.saturation.set(0.);
-        ctx.provide_store(ScopeState {
-            visible: true,
-            ..Default::default()
-        })
-        .expect("oscilloscope mounts once");
+        // Initially distant nodes receive no proximity event. Stay quiet until
+        // an actual viewport intersection is reported; layout still paints the
+        // initial retained display even while its animation clock is stopped.
+        ctx.provide_store(ScopeState::default())
+            .expect("oscilloscope mounts once");
     }
-    pub fn enter(&mut self, ctx: &NodeContext, _: Event<ViewportProximityEnter>) {
-        let _ = ctx.with_store(|s: &mut ScopeState| s.visible = true);
-    }
-    pub fn exit(&mut self, ctx: &NodeContext, _: Event<ViewportProximityExit>) {
-        let _ = ctx.with_store(|s: &mut ScopeState| s.visible = false);
+    pub fn visibility(&mut self, ctx: &NodeContext, event: Event<ViewportProximityChange>) {
+        let _ = ctx.with_store(|s: &mut ScopeState| s.observe_visibility(&event.current));
     }
     pub fn pre_render(&mut self, ctx: &NodeContext) {
         let (width, height) = ctx.bounds_self.get();
@@ -362,5 +365,45 @@ impl LedOscilloscope {
         self.control_width.set(l.control_width);
         self.control_height.set(l.control_height);
         self.knob_diameter.set(l.diameter);
+    }
+}
+
+#[cfg(test)]
+mod visibility_tests {
+    use super::*;
+
+    #[test]
+    fn animation_waits_for_actual_visibility_and_stops_before_proximity_exit() {
+        // No enter/exit event is delivered for an initially distant component.
+        let mut state = ScopeState::default();
+        assert!(!state.visible);
+        let mut sample = ViewportProximitySnapshot {
+            in_proximity: true,
+            bounds: Default::default(),
+            viewport_intersection: None,
+        };
+        sample.bounds.x1 = 100.0;
+        sample.bounds.y1 = 100.0;
+        state.observe_visibility(&sample);
+        assert!(!state.visible, "preparation proximity must not animate");
+
+        sample.viewport_intersection = Some(sample.bounds);
+        state.observe_visibility(&sample);
+        assert!(state.visible);
+
+        sample.viewport_intersection = None;
+        state.observe_visibility(&sample);
+        assert!(
+            !state.visible,
+            "leaving the viewport stops motion immediately"
+        );
+
+        sample.in_proximity = false;
+        state.observe_visibility(&sample);
+        assert!(!state.visible);
+        sample.in_proximity = true;
+        sample.viewport_intersection = Some(sample.bounds);
+        state.observe_visibility(&sample);
+        assert!(state.visible, "re-entry resumes the retained component");
     }
 }

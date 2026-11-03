@@ -15,6 +15,8 @@ pub(super) struct InputQuery {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod hit_testing_tests;
 
 impl RuntimeContext {
     /// Invalidate conservative input coverage after non-reactive shape changes.

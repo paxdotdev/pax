@@ -162,9 +162,27 @@ impl PaxEngine {
             // work. One tile (including missing captures) is atomic: a CPU
             // overrun is reported, never presented as a half-built replacement.
             let next = self.present_surfaces(rcs, budget, &now_ms, 1, &state.preparation, true);
-            let prepared = next.initializations + next.submitted > 0;
+            let mut prepared = next.initializations + next.submitted > 0;
+            let visible_needs_draw = next.dirty_layers > 0 || next.unfiltered_layers > 0;
             report.preparation.accumulate(next.clone());
             state.preparation.accumulate(next);
+            let tried_preparation =
+                !prepared && !visible_needs_draw && state.prefer_preparation && report.units == 0;
+            if tried_preparation {
+                // Missing visible content always goes first. After an ordinary
+                // redraw, give admitted preparation a turn before another one,
+                // even if a new tick has dirtied that animation again. Only do
+                // this at a service boundary: cheap visible layers can still
+                // share a slice. Reselect current demand, not a saved job.
+                let next =
+                    self.present_surfaces(rcs, budget, &now_ms, i32::MAX, &state.preparation, true);
+                prepared = next.initializations + next.submitted > 0;
+                report.preparation.accumulate(next.clone());
+                state.preparation.accumulate(next);
+                if prepared {
+                    state.prefer_preparation = false;
+                }
+            }
             if prepared {
                 state.urgent_complete = false;
                 report.units += 1;
@@ -272,18 +290,24 @@ impl PaxEngine {
                     }
                     report.units += 1;
                     report.ordinary_ms += now_ms() - ordinary_start;
+                    state.prefer_preparation = true;
                 } else {
-                    let next = self.present_surfaces(
-                        rcs,
-                        budget,
-                        &now_ms,
-                        i32::MAX,
-                        &state.preparation,
-                        true,
-                    );
-                    let prepared = next.initializations + next.submitted > 0;
-                    report.preparation.accumulate(next.clone());
-                    state.preparation.accumulate(next);
+                    let prepared = if tried_preparation {
+                        false
+                    } else {
+                        let next = self.present_surfaces(
+                            rcs,
+                            budget,
+                            &now_ms,
+                            i32::MAX,
+                            &state.preparation,
+                            true,
+                        );
+                        let prepared = next.initializations + next.submitted > 0;
+                        report.preparation.accumulate(next.clone());
+                        state.preparation.accumulate(next);
+                        prepared
+                    };
                     if !prepared {
                         let completed = state.preparation.initializations
                             + state.preparation.recorded

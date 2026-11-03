@@ -62,8 +62,11 @@ fill a viewport, or choose a panel height for an embed. For a suggested height
 based on width, use `LedOscilloscope::height(available_width)` in Rust, as the
 website's `FrameworkSection` does. The host-provided `paused`
 property can suspend updates while retaining the scene. Each instance owns its
-own display and controls. Motion starts automatically and stops outside the
-viewport. System reduced-motion settings are not yet connected; that work is
+own display and controls. Motion starts when the panel enters the actual
+viewport and stops when it leaves, including when embedded initially offscreen.
+The panel still mounts and draws its initial state offscreen; the wider
+preparation region does not start its animation. System reduced-motion settings
+are not yet connected; that work is
 tracked by [PAX-1048](https://linear.app/paxdev/issue/PAX-1048).
 
 Messages support ASCII letters (lowercase folds to uppercase), digits, spaces,

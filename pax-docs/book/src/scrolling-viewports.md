@@ -449,6 +449,14 @@ own. The element carrying the binding is the observed target, including when
 it is a Group. The reference is always the **global viewport**, with ancestor
 clipping and native scroll presentation applied.
 
+For visible-only animation, initialize your running/visible flag to `false` and
+update it from `event.current.is_in_viewport()` in the change handler. An
+initially distant target emits no event until it approaches, so an exit handler
+cannot stop animation that was enabled at mount. Proximity entry alone is also
+too early: it includes the surrounding preparation region. Keep initial layout
+and painting independent of this animation flag so nearby content can still be
+prepared before it becomes visible.
+
 ```pax
 <Group width=100% height=200px
     @viewport_proximity_enter=self.prepare
@@ -1259,6 +1267,19 @@ allowance. Dirty content and pending application state must still settle before
 replay; genuinely asynchronous waits do not busy-loop or block eligible siblings.
 Current demand is rechecked after each unit, so a reversal can demote a completed
 tile that is no longer visible.
+
+Preparation considers ready candidates in current priority order. If one layer
+is blocked by a pending content update, other eligible layers can still use the
+remaining allowance; a blocked warm layer does not hold up all later warm work.
+
+After an ordinary redraw, the next service opportunity offers one eligible
+admitted preparation unit before another ordinary redraw. This turn survives
+new application frames, so a continuously animated visible layer cannot restart
+ahead of incoming tiles on every frame. Missing visible tiles still take
+precedence, and preparation still requires settled content and the remaining
+per-frame allowance. The turn retains no tile identity: reversal, retirement,
+or asynchronous completion changes the next selection normally. If preparation
+is blocked or its allowance is spent, ordinary drawing continues.
 
 Ordinary drawing is spread across host tasks, not discarded by a CPU allowance.
 Speculative preparation retains the 4ms soft allowance and guaranteed first unit,

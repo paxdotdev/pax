@@ -2657,10 +2657,12 @@ impl RuntimeContext {
             }
             // Browser-composited scrollers move descendants outside the engine transform tree.
             // Fold active scroll offsets into hit-testing so event rays line up with presented content.
-            let (scroll_transform, clips_content) = {
+            let (scroll_transform, clips_content, can_receive_hit) = {
                 let instance_node = borrow!(node.instance_node);
                 let scrolls_content = instance_node.scrolls_content(&node);
                 let clips_content = instance_node.clips_content(&node);
+                let can_receive_hit =
+                    hit_invisible || !instance_node.base().flags().invisible_to_raycasting;
                 drop(instance_node);
                 (
                     if scrolls_content {
@@ -2669,12 +2671,18 @@ impl RuntimeContext {
                         Affine::IDENTITY
                     },
                     clips_content,
+                    can_receive_hit,
                 )
             };
             let descendant_scroll_transform = active_scroll_transform * scroll_transform;
-            let candidate = input
-                .as_ref()
-                .is_none_or(|q| q.candidates.contains(&node.id.to_u32()));
+            // An inherited clip already excludes this node; transparent wrappers
+            // need exact geometry only when they introduce a clip. Still traverse
+            // descendants so an unclippable child can escape the inherited clip.
+            let candidate = !clipped
+                && (can_receive_hit || clips_content)
+                && input
+                    .as_ref()
+                    .is_none_or(|q| q.candidates.contains(&node.id.to_u32()));
             if candidate {
                 let mut scene = self.scene_geometry.borrow_mut();
                 scene.input.stats.exact_tests += 1;

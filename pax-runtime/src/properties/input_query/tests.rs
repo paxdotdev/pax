@@ -190,7 +190,7 @@ fn bounded_layout_only_nodes_scale_by_candidates_and_reuse_preparation() {
         assert_eq!(tests.get(), count, "prepare each shape once");
         let first = ctx.input_query_stats();
         assert_eq!(first.indexed_queries, 1);
-        assert_eq!(first.exact_tests, 2, "root plus the local candidate");
+        assert_eq!(first.exact_tests, 1, "only the local interactive candidate");
         assert_eq!(query(ctx, None, (21., 22.), false), result);
         let second = ctx.input_query_stats();
         assert_eq!(second.bounds_prepared, first.bounds_prepared);
@@ -258,7 +258,7 @@ fn unbounded_shapes_use_the_same_index_and_skip_unrelated_exact_tests() {
     assert_eq!(calls.get(), 1);
     assert_eq!(known_calls.get(), 128);
     assert_eq!(ctx.input_query_stats().indexed_queries, 1);
-    assert_eq!(ctx.input_query_stats().exact_tests, 2);
+    assert_eq!(ctx.input_query_stats().exact_tests, 1);
     assert_eq!(ctx.input_query_stats().unknown_tests, 1);
     assert_eq!(
         query(ctx, None, (10., 10.), false),

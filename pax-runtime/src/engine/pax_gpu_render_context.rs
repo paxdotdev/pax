@@ -1345,14 +1345,13 @@ impl PaxGpuRenderer {
         self.targeted_replay_surface_bounds(layer, target)
     }
 
-    fn take_replay_layer_ids(&mut self) -> Vec<usize> {
+    fn take_replay_layer_ids(&mut self, include_lower_priorities: bool) -> Vec<usize> {
         let mut replay_layers = self.replay_layers.borrow_mut();
         let mut replay = std::mem::take(&mut *replay_layers);
         replay.sort_unstable();
         replay.dedup();
-        // Native targets retain whole-layer replay. Web incremental targets
-        // share the same ordinal as admission/creation: finish visible replay
-        // globally before spending a frame on a speculative batch.
+        // Legacy native targets retain whole-layer replay. Settled candidates
+        // and web batches share admission/creation's current priority order.
         let states = self.backends.borrow();
         let priorities: Vec<_> = replay
             .iter()
@@ -1385,7 +1384,7 @@ impl PaxGpuRenderer {
                 (*layer, rank, target.incremental_initialization)
             })
             .collect();
-        if priorities.iter().any(|(_, _, global)| *global) {
+        if include_lower_priorities || priorities.iter().any(|(_, _, global)| *global) {
             let minimum = priorities
                 .iter()
                 .map(|(_, rank, _)| *rank)
@@ -1393,7 +1392,7 @@ impl PaxGpuRenderer {
                 .unwrap_or(0);
             replay.retain(|layer| {
                 let (_, rank, _) = priorities.iter().find(|(id, _, _)| id == layer).unwrap();
-                let selected = *rank <= 0 || *rank == minimum;
+                let selected = include_lower_priorities || *rank <= 0 || *rank == minimum;
                 if !selected {
                     replay_layers.push(*layer);
                 }
@@ -1883,7 +1882,10 @@ impl RenderContext for PaxGpuRenderer {
     fn take_settled_surface_replays(&mut self) -> Vec<ReplayCanvasLayerUpdate> {
         let ready = self.take_ready_canvas_layers();
         self.replay_layers.borrow_mut().extend(ready);
-        self.take_replay_layer_ids()
+        // The settled-work scheduler owns eligibility and its time allowance.
+        // Give it all candidates in priority order: a blocked highest-priority
+        // layer must not hide runnable siblings behind the legacy batch gate.
+        self.take_replay_layer_ids(true)
             .into_iter()
             .map(|layer| {
                 let regions = self.replay_region_bounds(layer).or_else(|| {
@@ -2448,11 +2450,11 @@ impl RenderContext for PaxGpuRenderer {
     }
 
     fn take_replay_canvas_layers(&mut self) -> Vec<usize> {
-        self.take_replay_layer_ids()
+        self.take_replay_layer_ids(false)
     }
 
     fn take_replay_canvas_layer_updates(&mut self) -> Vec<ReplayCanvasLayerUpdate> {
-        self.take_replay_layer_ids()
+        self.take_replay_layer_ids(false)
             .into_iter()
             .map(|layer| ReplayCanvasLayerUpdate {
                 layer,
@@ -3766,13 +3768,32 @@ mod tests {
             *renderer.backends.borrow_mut() = states;
             *renderer.replay_layers.borrow_mut() = vec![3, 0, 2, 1, 1];
             if incremental {
-                assert_eq!(renderer.take_replay_layer_ids(), vec![1, 3]);
-                assert_eq!(renderer.take_replay_layer_ids(), vec![2]);
-                assert_eq!(renderer.take_replay_layer_ids(), vec![0]);
+                assert_eq!(renderer.take_replay_layer_ids(false), vec![1, 3]);
+                assert_eq!(renderer.take_replay_layer_ids(false), vec![2]);
+                assert_eq!(renderer.take_replay_layer_ids(false), vec![0]);
             } else {
-                assert_eq!(renderer.take_replay_layer_ids(), vec![0, 1, 2, 3]);
+                assert_eq!(renderer.take_replay_layer_ids(false), vec![0, 1, 2, 3]);
             }
-            assert!(renderer.take_replay_layer_ids().is_empty());
+            assert!(renderer.take_replay_layer_ids(false).is_empty());
+
+            *renderer.replay_layers.borrow_mut() = vec![3, 0, 2, 1, 1];
+            let candidates: Vec<_> = renderer
+                .take_settled_surface_replays()
+                .into_iter()
+                .map(|job| job.layer)
+                .collect();
+            assert_eq!(candidates, vec![1, 3, 2, 0]);
+            // Model a deferred warm head. Its lower-priority sibling must be
+            // returned in the same selection, not hidden until the head runs.
+            renderer.defer_surface_replay(2);
+            renderer.defer_surface_replay(0);
+            let candidates: Vec<_> = renderer
+                .take_settled_surface_replays()
+                .into_iter()
+                .map(|job| job.layer)
+                .collect();
+            assert_eq!(candidates, vec![2, 0]);
+            assert!(renderer.take_settled_surface_replays().is_empty());
         }
     }
 

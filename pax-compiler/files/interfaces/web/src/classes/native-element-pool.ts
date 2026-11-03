@@ -225,6 +225,7 @@ export class NativeElementPool {
     }
 
     dispose() {
+        this.layers.disposeMaskImages();
         this.wheelRegions?.dispose();
         this.wheelRegions = undefined;
         if (this.activePageScrollScrollerId != null) {
@@ -379,9 +380,9 @@ export class NativeElementPool {
         }
     }
 
-    private forgetNativeNode(id: number) {
-        // The SVG registry outlives individual DOM leaves and route branches.
-        this.layers.removeElementMask(id);
+    private forgetNativeElement(id: number) {
+        const element = this.nodesLookup.get(id);
+        if (element) this.layers.removeElementMask(element, id);
         this.nodesLookup.delete(id);
     }
 
@@ -462,7 +463,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.forgetNativeNode(id);
+            this.forgetNativeElement(id);
         }
     }
 
@@ -506,7 +507,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.forgetNativeNode(id);
+            this.forgetNativeElement(id);
         }
     }
 
@@ -557,7 +558,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.forgetNativeNode(id);
+            this.forgetNativeElement(id);
         }
     }
 
@@ -732,7 +733,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.forgetNativeNode(id);
+            this.forgetNativeElement(id);
         }
     }
 
@@ -846,7 +847,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.forgetNativeNode(id);
+            this.forgetNativeElement(id);
         }
     }
 
@@ -924,7 +925,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.forgetNativeNode(id);
+            this.forgetNativeElement(id);
         }
     }
 
@@ -1003,7 +1004,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.forgetNativeNode(id);
+            this.forgetNativeElement(id);
         }
     }
 
@@ -1091,7 +1092,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.forgetNativeNode(id);
+            this.forgetNativeElement(id);
         }
     }
 
@@ -1181,7 +1182,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.forgetNativeNode(id);
+            this.forgetNativeElement(id);
         }
     }
 
@@ -1526,7 +1527,7 @@ export class NativeElementPool {
         if (oldNode){
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
-            this.forgetNativeNode(id);
+            this.forgetNativeElement(id);
         }
     }
 
@@ -2177,6 +2178,7 @@ export class NativeElementPool {
         let policyRevision = this.chassis?.surface_policy_revision?.() ?? 0;
         let devicePixelRatio =
             typeof window !== "undefined" ? Math.max(window.devicePixelRatio || 1, 1) : 1;
+        this.layers.updateMaskPixelRatio(devicePixelRatio);
         let planInputsChanged =
             this.lastLayerCanvasPlanGeneration !== layerCanvasPlanGeneration
             || this.lastSurfacePolicyRevision !== policyRevision
@@ -3213,7 +3215,7 @@ export class NativeElementPool {
         this.scrollerHosts.delete(id);
         let parent = oldNode.parentElement!;
         parent.removeChild(oldNode);
-        this.forgetNativeNode(id);
+        this.forgetNativeElement(id);
     }
 
     eventBlockerCreate(patch: AnyCreatePatch){
@@ -3268,7 +3270,7 @@ export class NativeElementPool {
         }
         let parent = oldNode.parentElement!;
         parent.removeChild(oldNode);
-        this.forgetNativeNode(id);
+        this.forgetNativeElement(id);
     }
 
     async screenshot(patch: ScreenshotPatch, chassis: PaxChassisWeb) {

@@ -522,7 +522,26 @@ hidden pixels and partial opacity; changing text reapplies the mask to the new
 snapshot. Experimental perspective hosts keep their native content live; see
 [perspective support](layout-responsiveness.md#experimental-perspective).
 
-On macOS, those masked Text snapshots include the text's painted overflow when
+Safari and iOS WebKit use prepared bitmap coverage for native punch-through
+masks: decoding an SVG image does not guarantee that WebKit has rasterized it
+for CSS composition. Pax rasterizes the occluding paths and their clips at the
+screen's pixel density, cropped to their conservative bounds. An opaque CSS
+base minus this bitmap preserves the rest of the element without encoding a
+mostly empty viewport-sized image. Partial opacity is preserved; changing
+display density regenerates the bitmap.
+
+Pax keeps the previous ready mask until the replacement bitmap has decoded.
+There is at most one preparation in flight per element; rapid changes coalesce
+to the latest pending request rather than building a queue. Animated coverage
+can therefore lag the scene while preparation is busy. Before the first mask
+is ready, the surface retains its existing presentation. Preparation failure
+retains the last ready mask. Replacement releases the old bitmap and URL;
+clearing a mask, removing its element, or disposing the host cancels pending
+swaps and releases their resources. Other browsers retain their synchronous
+SVG-reference path. This handoff does not change tile budgets or guarantee
+readiness of incoming rendered content.
+
+On macOS, masked Text snapshots include the text's painted overflow when
 `clip=false`; entering an overlap does not itself crop the label to its layout
 box. `clip=true` and ancestor Frame clips still constrain the text. Occlusion
 candidates are currently selected using layout bounds, so give text a box that
