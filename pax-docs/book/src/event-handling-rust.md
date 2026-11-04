@@ -1181,7 +1181,7 @@ Use the fixture to explore ownership and delivery:
 Start reading `src/application.rs` for the initializer and application data,
 `src/work_service.rs` for executor setup and platform I/O, and
 `src/request_panel.rs` for scoped requests, cancellation, and delivery. The
-fixture's README records debug/release qualification and remaining target limits;
+fixture's README describes the interactive scenarios and validation harnesses;
 its existence is not a claim that every mobile lifecycle scenario has passed.
 
 API details: [application lifetime](api/pax-runtime-api/application.md),

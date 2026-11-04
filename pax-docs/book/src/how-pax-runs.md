@@ -732,9 +732,6 @@ after measuring to disable the instrumentation.
 - [Developer Workflow and Tools](developer-workflow.md) — hot reload,
   inspection, screenshots, and local reference.
 - [Public API reference](api/index.md) — Rust types and methods.
-- [Runtime and cartridge design notes](architecture-runtime-cartridge.md) —
-  historical maintainer context, including architectural directions that are
-  not current builder-facing capabilities.
 
 
 ## Shared publication and application lifetime

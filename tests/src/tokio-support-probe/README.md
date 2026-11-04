@@ -6,7 +6,8 @@ These headless probes accompany the application/async spec archived in [PAX-1013
 
 `Property<T>` owns synchronized shared snapshots. `LocalProperty<T>` and untyped dependency handles stay on the UI thread. Workers can clone, read, update and drop shared properties; the owning graph imports revisions and evaluates local bindings. Intermediate publications coalesce.
 
-The original investigation at repository base `090348859` found that a bare thread-local slot-map handle was accidentally transferable. Moving it to a worker could read an unrelated value (`99` instead of `7`). `property_thread_diagnostic` now asserts the corrected behavior: the worker reads `7`, publishes `21`, and the owner's computed value becomes `42` after import. The old incorrect value is not an expected result.
+`property_thread_diagnostic` checks that a worker reads `7`, publishes `21`,
+and the owner's computed value becomes `42` after importing the update.
 
 The library tests additionally exercise a multithread Tokio timer, a continuously driven current-thread runtime/LocalSet, an undriven current-thread runtime, explicit cancellation and closed-channel behavior. Their `block_on`, joins and channel receives are test synchronization, not instructions to block a Pax event handler. Compile-fail examples reject moving local properties into native Tokio tasks.
 
@@ -24,17 +25,12 @@ Repeat correctness checks with `--release`. An explicit `CARGO_TARGET_DIR` can k
 
 ## Cost probe
 
-The probe measures local/shared reads and writes, atomic updates, 100-dependent fan-out, coalesced bursts, and allocation cost. On this Apple Silicon workstation, a 2,000-property optimized batch retained approximately:
+The probe measures local/shared reads and writes, atomic updates, 100-dependent
+fan-out, coalesced bursts, and allocation cost. Its counting allocator adds
+measurement overhead; compare equivalent builds and workloads. The results are
+diagnostic observations, not stable ABI or performance guarantees.
 
-| Representation | Bytes per property | Allocations per property |
-| --- | ---: | ---: |
-| Local literal | 382 | 1 |
-| Shared, unattached | 160 | 2 |
-| Shared with local projection | 1,326 | 14.03 |
-
-Both handles are eight bytes. These figures include amortized table/attachment bookkeeping, exclude allocator metadata, and are diagnostic observations rather than a stable ABI or performance promise. The counting allocator itself adds overhead to the reported timings; do not compare those timings to runs made before instrumentation. Allocation cost is a reason to keep engine/layout bookkeeping local. Measure actual applications before making a frame-rate claim.
-
-## Application proof and remaining qualification
+## Application fixture
 
 [Async Workbench](../../../examples/fixtures/async-workbench/README.md) uses the normal generated host and `#[init(path)]` typed root initializer. It now exercises explicit Tokio/browser executors and scoped tasks, cancellation, guarded publication, bounded callback delivery, local I/O and asynchronous shutdown. The focused `pax-tokio` tests also cover owned/borrowed runtimes, a dedicated current-thread/LocalSet service, panic observation, and non-abortable blocking work.
 
@@ -80,8 +76,8 @@ loaded cartridge whose baked event-handler path must be checked. Real native
 input and embedding focus still need app-level checks.
 
 These headless checks do not establish native visual/input, physical iOS,
-background/resume behavior. Rust logic replacement is no longer supported. See the fixture README for
-the qualification matrix and remaining limits.
+or background/resume behavior. Rust logic replacement is no longer supported.
+See the fixture README for interactive scenarios and run instructions.
 
 ## macOS display-clock startup failure
 

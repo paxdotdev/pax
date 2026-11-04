@@ -2030,8 +2030,9 @@ fn write_api_index(
         out.push_str("<a id=\"internal-crates\"></a>\n\n");
         out.push_str("## Engine and maintainer APIs\n\n");
         out.push_str("For primitive implementations and work on Pax itself, continue with the\n");
-        out.push_str("[Maintainer Reference](internal/index.md). It separates current internal\n");
-        out.push_str("APIs from historical architecture and design notes.\n");
+        out.push_str(
+            "[Maintainer Reference](internal/index.md) for internal APIs and source contracts.\n",
+        );
     }
     let index_path = api_dir.join("index.md");
     write_if_changed(&index_path, &out)?;
@@ -2122,12 +2123,6 @@ fn build_api_summary_block(
             let indent = "  ".repeat(entry.depth as usize);
             lines.push(format!("{indent}- [{}]({})", entry.title, entry.path));
         }
-        // Keep one contiguous child list: a second list after API-END can
-        // replace the first in mdBook's SUMMARY parser.
-        lines.push(
-            "  - [Runtime & Cartridge Notes (historical)](architecture-runtime-cartridge.md)"
-                .to_string(),
-        );
     }
     lines
 }
@@ -2356,6 +2351,31 @@ mod tests {
     }
 
     #[test]
+    fn checked_in_indexes_match_templates() {
+        let api_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("book/src/api");
+        let crates = read_crates_list(&api_dir.join("crates.txt")).unwrap();
+        let public = read_public_crates(&api_dir.join("public_crates.txt")).unwrap();
+        let (public_crates, internal_crates): (Vec<_>, Vec<_>) =
+            crates.into_iter().partition(|krate| public.contains(krate));
+        let dir = TestDirectory::new();
+        write_api_index(
+            &dir.0,
+            &public_crates,
+            &internal_crates,
+            &mut BTreeSet::new(),
+        )
+        .unwrap();
+
+        for path in ["index.md", "internal/index.md"] {
+            assert_eq!(
+                fs::read_to_string(dir.0.join(path)).unwrap(),
+                fs::read_to_string(api_dir.join(path)).unwrap(),
+                "checked-in API index must match its template: {path}"
+            );
+        }
+    }
+
+    #[test]
     fn public_only_index_does_not_link_missing_internal_index() {
         let dir = TestDirectory::new();
         let mut generated = BTreeSet::new();
@@ -2398,7 +2418,9 @@ mod tests {
         assert!(first
             .contains("\n- [Maintainer Reference](api/internal/index.md)\n\n  - [pax-runtime]"));
         assert!(first.contains("\n    - [rendering](api/internal/pax-runtime/rendering.md)"));
-        assert!(first.contains("  - [Runtime & Cartridge Notes (historical)](architecture-runtime-cartridge.md)\n  <!-- API-END -->"));
+        assert!(first.contains(
+            "    - [rendering](api/internal/pax-runtime/rendering.md)\n  <!-- API-END -->"
+        ));
         assert!(first.ends_with("# Further reading\n\n[Team notes](notes.md)\n"));
         update_summary(&summary, &public, &internal).unwrap();
         assert_eq!(first, fs::read_to_string(summary).unwrap());

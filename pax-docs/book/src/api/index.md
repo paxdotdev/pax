@@ -58,5 +58,4 @@ modules when you need more detail than the entry points above:
 ## Engine and maintainer APIs
 
 For primitive implementations and work on Pax itself, continue with the
-[Maintainer Reference](internal/index.md). It separates current internal
-APIs from historical architecture and design notes.
+[Maintainer Reference](internal/index.md) for internal APIs and source contracts.

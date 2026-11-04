@@ -51,50 +51,6 @@ A second swatch combines a nested source mask and feathering. Source-side
 Frame/Mask vector clips are supported. The Scrollers contain masked content;
 source-side Scrollers and native leaves remain outside capture support.
 
-## Validation and coordinate regression
-
-On September 27, 2026, root-level WGPU web debug and baked release runs both
-rendered the component source and direct Path correctly at desktop and 390px
-width. Debug pause/resume, removal/remount, and source-template hot reload were
-verified. No native Handwriter text duplicate appeared in the accessibility
-tree. Those historical checks predate Vello CPU; no Apple-native application check is claimed.
-
-On base `0b5c68be1`, wrapping the fixture in a Scroller made both masks blank,
-even with the old source initialization. Paint was incorrectly positioned
-relative to the intermediate Mask frame, while coverage was positioned relative
-to the owning Scroller. The coordinate fix uses the registered surface owner
-for both. A regression test covers intermediate frames, nested transformed
-owners, and root surfaces; the fixture now exercises the Scroller case directly.
-This is library-fixture validation, not acceptance of the website integration.
-
-After the coordinate fix, the Scroller fixture rendered in both WGPU web debug
-and baked release builds at desktop and narrow widths (390px debug, 354px
-release). Pause/resume and removal/remount passed in both builds. Scrolling the
-nested ring and then the outer page independently preserved mask alignment in
-release. The runtime and standard-library suites passed all 234 tests, including
-the new transform regression; API generation and the book build also passed.
-
-
-## Paint-layer validation (September 28, 2026)
-
-After rebasing onto main, the extended study rendered in WGPU web debug and
-baked release at desktop and 390px widths. Stack reversal, removal/restoration,
-nested paint animation, opacity comparisons, template hot reload, and the
-existing component/Scroller masks were exercised. A temporary vector-only
-mount of `LayerStudies` with `pax-kit/piet` also rendered linear/radial strokes,
-a solid/gradient paint mixture, and the two opacity cases in Canvas2D. That
-historical backend has since been retired; `?pax_renderer=cpu` now selects
-Vello CPU and can run the complete alpha-mask fixture.
-
-The integrated core suites passed 640 tests, Metal pixel/resource suites passed
-16, and clock-driven rendering passed 5. API/source-bundle tests and the book
-build passed; no full macOS/iOS application execution is claimed. At that
-checkpoint alpha-source reveals still rebuilt extracted outlines. The retained
-capture integration below replaces that path. The website's migrated existing
-surfaces compile and render; no new
-website mask composition was introduced.
-
-
 ## Retained alpha-source integration
 
 WGPU alpha sources now record ordinary vector draws in a detached retained
@@ -111,20 +67,7 @@ check nested sources and clips, and read feather contributions beyond a tile.
 Resource counters verify zero new tessellation for warmed source reveals;
 removal checks verify detached draws and captures retire.
 
-## Apple debug smoke checks (September 29, 2026)
+## Control activation
 
-The fixture builds and launches on native macOS and the iPad Pro 13-inch (M5)
-simulator running iOS 26.4. Both show layered linear/radial strokes, the element
-and layer opacity comparison, matching visible/captured group alpha, and nested
-feathered masks. Native paint pause/resume and stroke-stack reversal pass on
-both targets. macOS also passes live handwriting, source removal/remounting,
-outer scrolling, and nested ring scrolling with aligned mask content.
-
-The controls now use `@button_click` and `Event<ButtonClick>`. The earlier
-`@click` bindings happened to work with browser mouse input but did not receive
-Apple native Button activation. See [Events & Rust](../../../pax-docs/book/src/event-handling-rust.md#buttons-and-custom-activation).
-
-Simulator automation could activate Buttons but could not move the page with
-its swipe/scroll attempts. Zack subsequently verified the iPad handwriting,
-source removal/remounting, and nested scrolling manually. These are debug app
-checks, not Apple release or physical-device validation.
+The controls use `@button_click` and `Event<ButtonClick>` for native Button
+activation. See [Events & Rust](../../../pax-docs/book/src/event-handling-rust.md#buttons-and-custom-activation).

@@ -31,41 +31,13 @@ The deliberately slow transitions make the retained lifetime observable.
 350ms; **Theme** changes the background paint while the group is cached. These
 are deterministic content-invalidation probes, independent of network loading.
 
-## Validation in progress
-
-Debug and baked release web builds, iOS simulator builds and Metal pixel
-regressions pass. Web, iPhone and iPad overlap probes match at intermediate
-alpha, and edited text survives opacity changes and movement. The iOS caret
-remains in the field while those buttons are used, including after fading to
-zero and restoring. iPhone rotation preserves the reference probe appearance.
-Metal tests cover nested translucent content, clipping, restoration from zero,
-and content reuse without GPU draw replay, image draw-buffer allocation or
-source-image uploads.
-
-The lifecycle extension verifies rescue without another mount, completed exit
-removal, delayed decoded artwork, and changed paint on web. Runtime regression
-coverage checks stable scope/draw IDs through rescue and final cleanup; a Metal
-pixel regression checks refresh of a shared image without replaying the grouped
-consumer. Full accessibility, network image decoding and catalog performance
-are separate checks. Apple validation uses synchronous native/mask/Metal publication.
-Native macOS and physical Molino also have matching overlap probes and preserve
-edited text through Reverse. The fixture has its own app identity and does not
-replace the physical Paxflix sessions; coordinate further device deployments
-with Zack.
-
-A Metal regression covers the image/gradient seam during fractional vertical
-motion: oversized Fill artwork must stay within its crop at all tested display
-scales. Fractional clips use stencil coverage; pixel-aligned rectangles retain
-the scissor fast path.
+## Backend behavior
 
 Vello CPU composes overlapping shapes before fading and keeps browser-native
 text and controls in their existing hosts. Force it with `?pax_renderer=cpu`;
-use `?pax_renderer=gpu` for the GPU comparison. The former `piet` Cargo feature
-has been removed. Software rendering replays dirty content using reusable
-raster buffers; it does not retain composed group pixels across frames.
-
-The physical Molino seam fix above was
-checked on native WGPU, not browser WebKit.
+use `?pax_renderer=gpu` for the GPU comparison. Software rendering replays dirty
+content using reusable raster buffers; it does not retain composed group pixels
+across frames.
 
 ## Physical-device CPU profiling
 
@@ -90,7 +62,7 @@ and CPU duration. Neither diagnostic measures GPU execution or displayed frames.
 The timing flag is off by default and does not change mask presentation.
 
 This five-row fixture is a bounded regression case. Its measurements cannot
-substitute for Paxflix's larger catalog or Argus's previous mask measurements.
+substitute for measurements of Paxflix's larger catalog.
 
 See the design and validation archive in [PAX-1004](https://linear.app/paxdev/issue/PAX-1004)
 for scope, approximation, and remaining validation.

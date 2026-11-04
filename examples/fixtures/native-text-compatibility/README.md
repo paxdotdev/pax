@@ -41,28 +41,5 @@ uses those changes. Use a window around 900 × 900 points for the checks below.
    selection still work. Restore any input-source or accessibility settings
    changed for testing.
 
-## Recorded macOS pass — 2026-09-28
-
-- Keyboard word selection, copy/paste, and full Unicode-sentence copy/paste
-  passed. Both bound editor values updated correctly.
-- Markdown styling and parent wheel scrolling passed. Real Japanese candidate
-  conversion, commit, cancellation, and preservation while scrolling away/back
-  passed before the empty-editor sizing fix.
-- That IME check exposed vertically clipped preedit in an empty editor. The
-  renderer now preserves the declared editing viewport and uses the declared
-  font's line height for empty-editor measurement. A regression test verifies
-  marked text and the viewport survive a geometry update; all 21 native tests
-  pass in debug and release. Post-fix visual IME verification remains pending:
-  the automation could not reliably switch to Japanese after relaunch.
-- With VoiceOver off at the top, the accessibility tree exposed five nearby
-  numbered labels and omitted the end marker. Enabling VoiceOver exposed all
-  80 labels and the marker; all remained exposed while scrolling. Disabling it
-  resumed culling (16 nearby labels at the tested bottom position).
-- VoiceOver spoken output, navigation order, and cursor-driven reveal remain
-  unverified: desktop automation stalled while inspecting VoiceOver's UI.
-  Accessibility-tree presence alone is not a complete screen-reader pass.
-- Temporary Japanese input/Dictation languages, input-menu and Globe-key
-  preferences, and VoiceOver were restored to their original settings.
-
 See the book's [selection and editing guide](../../../pax-docs/book/src/text-fonts-images.md#selection-and-editing)
 for the public Text behavior.

@@ -1,6 +1,6 @@
 # Async Workbench
 
-A proving fixture for [PAX-1015](../../../pax-docs/book/src/design/PAX-1015-main-entry-spec.md), preserving the PAX-1013 async scenarios. It uses a real Apple Rust `main`, an explicit browser `init_web`, and `#[init(application::init)]` to construct the root without application `@tick` polling.
+A fixture for application initialization, executor ownership, and scoped async work. It uses a real Apple Rust `main`, an explicit browser `init_web`, and `#[init(application::init)]` to construct the root without application `@tick` polling.
 
 The native initializer constructs its own two-worker Tokio runtime and explicitly adopts it with `pax_tokio::Executor::owned`. Web uses `pax-web-async` and browser timers/fetch. Ordinary root-owned resources outlive panel remounts; node/operation scopes revoke stale results. Templates remain declarative.
 
@@ -47,8 +47,7 @@ Request increment button sends UTF-8 `increment` and displays the copied reply.
 The native caller-owned Swift fixture is in `tests/src/host-embedding` and uses
 the same cartridge and host framework as standalone. Both fixtures keep host
 controls alive during Pax work, reject a second mount, and expose explicit close
-and remount. Source directories remain unchanged pending the separate layout
-and example organization phase.
+and remount.
 
 ## Scenarios
 
@@ -76,28 +75,13 @@ The event history retains 100 records and displays the newest 12, with monotonic
 
 Layout uses two columns at 900 px and above, stacked panels below, and full-width actions below 520 px. Initialization/resources are in `src/application.rs`, platform work in `src/work_service.rs`, and task/operation ownership in `src/request_panel.rs`.
 
-## Historical PAX-1013 qualification (2026-10-01)
+## Checks
 
-This table records the pre-refactor baseline. It does not qualify the new main/host APIs. In particular, Rust logic replacement described below has since been retired. Current Phase 1 results are recorded in the PAX-1015 spec.
-
-| Check | Evidence |
-| --- | --- |
-| Core debug/release | Property, runtime, standard component, macro, manifest and Tokio unit suites pass. Runtime integration tests cover actual worker wake, structural unmount before callback dispatch, stale input targets and fatal UI callbacks. |
-| Tokio variants | Owned and borrowed runtimes; native timers/TCP; dedicated continuously driven current-thread runtime with LocalSet/Rc state; cancellation, panic-on-abort, and started blocking-job shutdown pass in adapter tests. |
-| Browser debug | Timer/error, interaction, replace, cancel, unmount/remount, progress burst, 100-event stream, local callback, shared burst and same-origin fetch verified. Phone/stacked/wide layouts inspected. |
-| Browser wake-only | Timer and 100-event stream verified with recurring RAF and hidden-tab fallback disabled in a generated host copy. |
-| Native debug | macOS rendering and native input verified: timer/error, TCP, callbacks, replacement/stale rejection, 100-event stream, task panic, blocking work, shared/progress bursts, in-flight cancellation and unmount/remount. The generated-cartridge C-ABI probe separately covers all scenarios and managed teardown without periodic ticks. |
-| macOS display startup | Injected CoreVideo creation/start failures still allow initial rendering and timer delivery; display startup recovers after availability returns and a wake notification arrives. Debug and release host builds pass. This is a deterministic failure test, not a physical sleep/lock cycle. |
-| Apple metadata | Typed inline and XML/binary source plists, date/data preservation, top-level replacement, iOS→iPadOS inheritance, platform isolation, managed-key diagnostics, and generated-host defaults pass in 16 metadata tests; 28 Apple packaging tests pass. |
-| Native mobile | iOS simulator Rust + Swift debug and release builds pass; packaged plist booleans, arrays and dictionaries retain their types, and only debug receives the development-network usage description. Launch on the existing iPhone 17 Pro simulator was attempted, but the locked desktop prevented interaction and the native dev session did not become inspectable. Simulator/device interaction, background/resume and iPad behavior remain unverified. |
-| Release fixture | Baked web build and timer/stream interactions pass. Universal macOS release build, native UI rendering/timer/stream/input, and the native C-ABI scenario suite pass. The final signature contains the fixture's opt-in network client/server entitlements; the signed release app now completes TCP loopback I/O, and its ordered 100-event stream and native input also pass. The headless C-ABI probe separately runs outside that app sandbox. The synchronous Increment release-web counter also renders and increments. |
-| Reload | Browser Pax-only remount preserves application setup/data and revokes removed scopes. Web and actual macOS dylib replacement during a held request reset application state and leave the new application usable. A web configuration failure after managed registration leaves the old UI usable. Native C-ABI tests additionally cover candidate disposal and instance replacement. |
-
-Run the reproducible wake-only and native-cartridge harnesses described in [the probe README](../../../tests/src/tokio-support-probe/README.md). Managed shutdown unit tests separately prove reverse dependency order, failed setup cleanup and retention after deadline expiry. Physical host close, suspension, or process termination cannot guarantee async cleanup.
-
-macOS interactive checks were completed after unlocking the workstation. Mobile interaction and physical sleep/resume remain unverified; unexecuted targets and lifecycle paths are not claimed as passing. The memory probe reports approximately 382 retained bytes per local literal, 160 per unattached shared property, and 1,326 per shared property with a local projection on this workstation; these include bookkeeping and are not ABI/performance promises.
-
-Phase-one entry/mount qualification and its remaining platform limits are
-recorded in the [PAX-1015 implementation evidence](../../../pax-docs/book/src/design/PAX-1015-main-entry-spec.md#phase-one-implementation-evidence--2026-10-05).
-The native embedding fixture and automated lifecycle probe live in
+Run the reproducible wake-only and native-cartridge harnesses described in
+[the probe README](../../../tests/src/tokio-support-probe/README.md). The native
+embedding fixture and automated lifecycle probe live in
 [`tests/src/host-embedding`](../../../tests/src/host-embedding/README.md).
+
+Headless checks do not establish physical-device interaction or lifecycle
+behavior. Physical host close, suspension, or process termination cannot
+guarantee async cleanup.

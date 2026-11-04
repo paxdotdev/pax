@@ -261,7 +261,8 @@ release representation and its round-trip tests too. A primitive's normal
 property declaration participates in generated descriptors; adding a new
 manifest field or value form entails a broader audit. See
 [How Pax Runs](how-pax-runs.md) for the execution model and the
-[maintainer appendix](architecture-runtime-cartridge.md) for cartridge details.
+[cartridge API reference](api/internal/pax-runtime/cartridge.md) for the current
+runtime boundary.
 
 ### Source examples to study
 

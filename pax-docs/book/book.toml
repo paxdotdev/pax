@@ -5,3 +5,6 @@ src = "src"
 [output.html]
 additional-css = ["theme/pax-docs.css"]
 additional-js = ["theme/pax-version.js", "theme/highlight-pax.js", "theme/pax-examples.js"]
+
+[output.html.redirect]
+"architecture-runtime-cartridge.html" = "how-pax-runs.html"

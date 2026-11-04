@@ -26,21 +26,10 @@ overload, and estimated backing bytes (not total GPU memory). Canvas
 `data-expected-backing-*`, `data-replay-priority`, and
 `data-surface-generation` expose the allocation contract. The cap stays 64.
 
-At 1280×720 and DPR 2, the initial 2026-10-05 comparison was:
-
-| Mode | Before projected density | After projected density |
-| --- | ---: | ---: |
-| One direct | 26.91M pixels / 26 surfaces | 26.91M / 26 |
-| One scaled | 96.58M / 44 | 26.91M / 26 |
-| Two direct | 48.97M / 38 | 48.97M / 38 |
-| Two scaled | 124.45M / 50 | 48.97M / 38 |
-
-These are settled admitted color-backing estimates at the top, including warm
-surfaces, not frame timings or total GPU memory. Wait for density shrink to
-settle after switching modes. The subsequent recursive-coverage checkpoint reduced
-one direct catalog to 7.46M pixels / 5 surfaces and two scaled catalogs to
-11.23M / 8 in the same settled configuration. Physical-pixel admission includes
-initializing and retiring reservations; it is not a frame-time budget.
+Backing estimates include warm surfaces, not frame timings or total GPU memory.
+Wait for density shrink to settle after switching modes. Physical-pixel
+admission includes initializing and retiring reservations; it is not a
+frame-time budget.
 
 Append `?pax_surface_trace=1&pax_scroll_perf=1` to expose the **Surface trace
 snapshot** inspector. Select a visible vertical Scroller and use **Probe down**

@@ -223,42 +223,8 @@ requires page/body focus. Controls use bundled Manrope; the LCD uses local Couri
 can vary between platforms. WGPU provides a broad pointer-following highlight on the chassis; Vello CPU keeps
 the authored colors and bevels without lighting. The LCD stays unlit.
 
-Earlier debug and baked release builds were visually checked on the iPhone
-16 Pro Max simulator (iOS 18.2), in portrait and landscape, including safe-area
-clearance and initial graph positioning. Native tap routing has one activation
-path through the touch observer. Scroller presentation offsets follow authored
-position changes so the initial plot, recentering, and zoom reach the renderer.
-The 2026-10-05 macOS debug check renders a centered opening graph in standalone
-and caller-owned hosts after correcting AppKit layout notifications that
-overwrote the initial offset. Embedded zoom, drag, resize, collapse/restore,
-close and remount pass. Four native scroller regressions pass in debug and
-optimized Swift builds. Manual checks confirm macOS clicks and iPhone 17 Pro
-(iOS 26.4 simulator) taps. The native keyboard bridge now passes keyboard-driven
-`6+2=8` on macOS (debug and release) and the iPhone simulator, including shifted
-`+`, Tab, and Enter;
-iPhone cursor movement and Backspace also work. Separate-host macOS checks
-cover host text-field isolation, canvas/scroller focus, close and remount.
-Zack also passed the iPhone simulator debug embedding script, including host
-text-field isolation, focus transfer, close/remount and background/resume with
-an arrow key held.
-The shared Swift suite passes 52 tests, with four keyboard tests also passing
-under optimization. Hardware keyboards on physical iOS devices are unverified.
-
-The previous physical iPhone zoom-out crash was a separate native surface
-allocation bug: a 4,096-point pane became a 12,288-pixel texture at 3x density.
-Native tiling now accounts for the actual screen density. Runtime regressions
-cover allocation bounds and viewport coverage at 1x, 2x, and 3x, and a scripted
-iOS release check completed zoom-out to 0.25x and back through 2x. The dense
-curve cutoff fixed here was the application sampler's work allocation; it
-required no change to the GPU budget or tiling policy.
-
-For this iteration, the core suite passes in debug and optimized builds,
-including dense-curve coverage, poles, enormous finite slopes, polar circles
-and roses, mode/draft preservation, second-function latching, inverse trig, and editing. Phone-width web interaction
-checks cover polar plotting, `sin(x^2)` after zoom-out, second-function
-calculation, GRAPH submission, and visible error recovery. Physical iOS gestures
-and appearance still need a hands-on device pass; web checks do not establish
-native interaction correctness. Pinch zoom is not implemented yet.
+Pinch zoom is not implemented. Web checks do not establish native interaction
+correctness; physical-device gestures and appearance need their own validation.
 
 ## Embedding the live calculator
 

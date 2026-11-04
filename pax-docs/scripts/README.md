@@ -163,30 +163,10 @@ Also verify the deployed CloudFront cache policy (including minimum TTL) honors
 the origin's intended revalidation policy. These are production checks, not
 properties established by the local mocks.
 
-## PAX-906 / PAX-987 handoff checklist
+## Release integration
 
-1. Checkpoint and integrate the docs/runtime follow-ups before taking the release
-   commit. Do not use a stale worktree build as the release artifact.
-2. PAX-906 aligns **all** crate versions/dependencies for 0.39.0, regenerates the
-   CLI starter archive and docs source snapshot after version rewriting, and
-   checks package inclusion. `scripts/release.py` already invokes both snapshot
-   generators; this publication work does not certify its entire release graph.
-3. Verify packaged `pax-compiler` contains its prebuilt web JS/CSS and bundled
-   starter, and `pax-docs` contains its example source snapshot and docs assets.
-   Validate the candidate package set outside the monorepo. Source patches back
-   to this checkout are not publish-channel proof.
-4. After the approved crate release, install the actual published CLI, create
-   Pax Logo outside the monorepo, and run the documented web build/run path.
-   Check CLI docs and example source visibility. Record the macOS/Linux/Windows
-   first-touch results and hand off to PAX-997 as specified by PAX-906.
-5. PAX-987 reruns the full no-upload docs build from that exact release state,
-   reviews the catalog/latest selection and complete example payloads, then
-   obtains production upload approval. The release script always includes docs
-   publication and returns a distinct failure if that stage fails. See
-   [the release procedure](../../scripts/RELEASING.md)
-   for the exact approval, retry, and recovery commands.
-6. After the approved upload, wait for invalidation completion and verify HTTPS,
-   cache headers, Wasm MIME type, version switching, direct article links,
-   source tabs, and runnable examples at both root and the version prefix.
-   For a ghost patch, include a warm-cache check. Record the release commit,
-   version, deployment time, test results, and recovery artifact in the issues.
+Follow [the release procedure](../../scripts/RELEASING.md) for crate and docs
+publication, approval checkpoints, retries, and recovery. Build documentation
+from the exact release state and verify the published version and latest entry
+points after an approved upload. Record deployment evidence in the release's
+Linear ticket, not in this guide.

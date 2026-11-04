@@ -26,5 +26,6 @@ so existing compiler clients keep their source paths. Ordinary macOS `cargo run`
 and repository `cargo run --example <name>` compile
 Pax through the macros without an application build script. `pax-host` builds
 the generic macOS SDK; this crate packages the same native sources for Apple
-bundles and manages web serving and development sessions. The implementation
-history lives in the [phase-three specification](../pax-docs/book/src/design/PAX-1015-main-entry-spec.md).
+bundles and manages web serving and development sessions. See
+[Targets, Build, and Deployment](../pax-docs/book/src/targets-build-deploy.md)
+for application entry points and supported build workflows.

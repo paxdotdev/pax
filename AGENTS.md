@@ -94,7 +94,26 @@ New features are often proven on one "chassis" at a time (platform target.)  In 
 
 **Binary baking maintenance callout** -- release builds now rely on baked program representations, not just the rich in-memory manifest.  Rule of thumb: if you touch manifest de/serialize behavior for anything the runtime needs in order to execute a program, audit the release cartridge path too unless the change is clearly debug-only or source-only.  More broadly, if you add or change anything that crosses the compiler/runtime boundary, expect to update the binary baking path as well.  Typical triggers include: new manifest fields that affect runtime behavior; new node kinds, control-flow semantics, property/value shapes, expression/PAXEL forms, timelines, event bindings, handler metadata, or asset references; and any change to component/type descriptors used by cartridge generation.  In practice, that usually means checking `pax-manifest`'s `program_ir`, `binary`, and `rust_manifest` paths, plus the compiler's cartridge generation/templates and the corresponding roundtrip tests.  Designtime-only/source-only metadata should usually stay out of the release-baked format unless the runtime truly needs it.
 
-**Take note of the pain points.** Append concise raw findings encountered during work to `pax-docs/book/src/design/pain-points.md`: date, attempted action, expected versus observed behavior, reproduction/evidence, and any workaround or related ticket. This is a temporary inbox, **not required or recommended advance reading for new work**. Periodically discard resolved/obsolete reports, move ongoing or repeated issues with their report details to Pax Core Linear tickets, and remove processed entries so the inbox returns to empty. Preserve only rare, broadly important proactive callouts here in `AGENTS.md`; distill settled user guidance into the appropriate public docs. Do not use the inbox for design specs or implementation journals.
+**Take note of the pain points — in Linear, not the repo.** File concise raw
+findings encountered during work as comments on
+[PAX-1063 — Pain Points: rolling intake](https://linear.app/paxdev/issue/PAX-1063/pain-points-rolling-intake).
+Use one comment per distinct finding: date, attempted action, expected versus
+observed behavior, reproduction/evidence, relevant revision and target, and any
+workaround or related ticket. Reply to an existing finding with additional
+evidence rather than duplicating it. If a dedicated issue already owns the
+problem, put the details there and link it from the intake when useful.
+
+This is a reporting inbox, **not required or recommended advance reading for
+new work**. During periodic triage, mark resolved/obsolete findings in replies
+and move ongoing or repeated problems, with their report details, into dedicated
+Pax Core tickets; reply with the destination link to mark them triaged. Keep
+the rolling ticket open across tasks and triage passes. Preserve only rare,
+broadly important proactive callouts here in `AGENTS.md`; distill settled user
+guidance into the appropriate public docs.
+
+Do not create or append to a source-controlled pain-points file or other agent
+journal in the repository. If Linear is unavailable, report the finding in the
+current chat and flag that filing is pending; do not create a local fallback.
 
 ## Writing Pax
 
@@ -172,7 +191,11 @@ Repository documentation should be polished, maintained guidance for users and c
 
 If there is no relevant ticket or Linear is unavailable, keep the discussion in chat and ask where to record it; do not default to creating a repository design document.
 
-The raw pain-points inbox described above is a short-lived intake exception, not a place to store design exploration.
+Do not keep agent diaries, progress/status journals, or raw findings logs in the
+repository. These intermediate records belong in the relevant Linear discussion
+or chat, not in source control. The rolling Pain Points ticket above is for
+concise findings only; keep design exploration and implementation discussion on
+the task that owns the work.
 
 ## Linear Workflow
 
