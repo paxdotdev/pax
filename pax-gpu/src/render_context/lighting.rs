@@ -1,5 +1,21 @@
 use super::*;
 
+pub(super) fn to_gpu_tile_lighting(
+    lighting: &SceneLighting,
+    surface_transform: Transform2D,
+) -> GpuSceneLighting {
+    let mut gpu = to_gpu_scene_lighting(lighting);
+    // The shader receives transformed (tile-local) positions, not logical-layer
+    // coordinates. Undo only the surface base; authored node transforms remain.
+    // A singular surface has no drawable area, so its mapping cannot contribute.
+    if let Some(inverse) = surface_transform.inverse() {
+        let world = inverse.then(&Transform2D::from_array(lighting.surface_to_world));
+        gpu.surface_to_world_x = [world.m11, world.m21, world.m31, 0.];
+        gpu.surface_to_world_y = [world.m12, world.m22, world.m32, 0.];
+    }
+    gpu
+}
+
 /// Conservative dependencies of retained vector draws. Images and unlit materials
 /// contribute nothing; radius/clip intersection is deliberately not inferred here.
 #[derive(Clone, Copy, Default)]
@@ -75,6 +91,35 @@ impl WgpuRenderer<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tile_lighting_preserves_logical_world_coordinates() {
+        let lighting = SceneLighting {
+            surface_to_world: [0., 2., -2., 0., 1000., 2000.],
+            ..Default::default()
+        };
+        let base = Transform2D::translation(-128., -256.);
+        let gpu = to_gpu_tile_lighting(&lighting, base);
+        let logical = lyon::geom::point(140., 280.);
+        let tile = base.transform_point(logical);
+        let expected = Transform2D::from_array(lighting.surface_to_world).transform_point(logical);
+        assert_eq!(
+            gpu.surface_to_world_x[0] * tile.x
+                + gpu.surface_to_world_x[1] * tile.y
+                + gpu.surface_to_world_x[2],
+            expected.x
+        );
+        assert_eq!(
+            gpu.surface_to_world_y[0] * tile.x
+                + gpu.surface_to_world_y[1] * tile.y
+                + gpu.surface_to_world_y[2],
+            expected.y
+        );
+        assert_eq!(
+            to_gpu_tile_lighting(&lighting, Transform2D::identity()).surface_to_world_x,
+            to_gpu_scene_lighting(&lighting).surface_to_world_x
+        );
+    }
 
     #[test]
     fn dependencies_follow_shader_eligibility_and_ambient_transitions() {

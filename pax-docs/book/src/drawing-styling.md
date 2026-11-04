@@ -754,6 +754,9 @@ Scenes without authored lights do not scan their elements for lighting on redraw
 
 Unchanged surface-local lighting also reuses its GPU uniform without marking
 retained drawing dirty.
+Physical render tiles share the logical canvas's lighting coordinates: highlights
+remain continuous across tile boundaries, including when a tile is reused at a
+new scroll position. Tile placement does not move an authored light.
 
 On the GPU renderer, animating light values repaints only retained surface
 tiles containing vector draws eligible for those lights. Unlit materials and

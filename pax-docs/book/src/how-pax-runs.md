@@ -328,12 +328,16 @@ while running. Dirty tracking reduces work inside those callbacks; it does
 not establish zero CPU usage at rest or suspend the frame loop altogether.
 An otherwise static page can still have clock, lifecycle, or platform work.
 
-Web also has an opt-in cooperative rendering experiment that places browser task
-boundaries between complete rendering units. It does not split application
+Web uses cooperative rendering by default, placing browser task boundaries
+between complete rendering units. It does not split application
 ticks, reactive settlement, or individual inseparable drawing units. The shared
 runtime owns work selection and correctness; the chassis decides when to resume.
-See [experimental cooperative Web rendering](scrolling-viewports.md#experimental-cooperative-web-rendering)
-for the comparison flag, accounting boundaries, and limitations.
+Between application frames, the host observes native scroll movement to refresh
+surface demand without publishing reactive scroll state. The next application
+frame delivers the latest position before ticking, so preparing pixels does not
+itself invoke scroll handlers and invalidate the scene it is about to draw.
+See [cooperative Web rendering](scrolling-viewports.md#experimental-cooperative-web-rendering)
+for accounting boundaries and limitations.
 
 Keep expensive data processing and repeated no-op state writes out of
 per-frame handlers when they are not needed. Use a reactive expression for

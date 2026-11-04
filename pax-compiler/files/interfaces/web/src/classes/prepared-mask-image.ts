@@ -1,8 +1,9 @@
 import type { NativeMaskEntry } from './messages/native-mask-update-patch';
 import { prepareNativeMaskRaster } from './native-mask-raster';
-import type { MaskPreparation, MaskRasterRequest, PreparedMask } from './native-mask-raster';
+import type { MaskBounds, MaskPreparation, MaskRasterRequest, PreparedMask } from './native-mask-raster';
+import { rectangularNativeMaskCoverage } from './rectangular-native-mask';
 
-// One displayed bitmap, one preparation job, and the latest requested geometry.
+// One displayed mask, at most one bitmap job, and the latest requested geometry.
 // Ready coverage is not discarded until its replacement can be presented.
 export class PreparedMaskImage {
     private desired?: MaskRasterRequest;
@@ -20,6 +21,20 @@ export class PreparedMaskImage {
         const snapshot = entries.map(entry => ({...entry, clips: [...entry.clips]}));
         this.desired = {entries: snapshot, width, height, scale,
             key: JSON.stringify([width, height, scale, snapshot])};
+        const rectangle = rectangularNativeMaskCoverage(this.desired);
+        if (rectangle) {
+            // Simple opaque coverage must move in the same host update as its
+            // occluder, not wait behind encoding/decoding an older animation pose.
+            const obsolete = this.pending;
+            this.pending = undefined;
+            obsolete?.dispose();
+            this.applyCoverage('linear-gradient(white, white)', rectangle, this.desired);
+            this.applied = this.desired;
+            this.failedKey = undefined;
+            this.retained?.dispose();
+            this.retained = undefined;
+            return;
+        }
         this.prepare();
     }
 
@@ -49,7 +64,7 @@ export class PreparedMaskImage {
     private async present(job: MaskPreparation, request: MaskRasterRequest) {
         try {
             const ready = await job.ready;
-            if (this.disposed) return;
+            if (this.disposed || this.pending !== job) return;
             // A reversal can return to already-applied geometry while another
             // job is pending. Do not replace it with that obsolete result.
             if (this.desired?.key !== this.applied?.key) {
@@ -60,7 +75,7 @@ export class PreparedMaskImage {
             }
             this.failedKey = undefined;
         } catch {
-            if (!this.disposed) this.failedKey = request.key;
+            if (!this.disposed && this.pending === job) this.failedKey = request.key;
         } finally {
             if (this.retained !== job) job.dispose();
             if (this.pending === job) this.pending = undefined;
@@ -71,16 +86,19 @@ export class PreparedMaskImage {
     }
 
     private apply(ready: PreparedMask, request: MaskRasterRequest) {
+        this.applyCoverage(ready.url ? `url("${ready.url}")` : undefined, ready.bounds, request);
+    }
+
+    private applyCoverage(image: string | undefined, bounds: MaskBounds | undefined, request: MaskRasterRequest) {
         const style = this.element.style;
-        const bounds = ready.bounds;
-        const cropped = ready.url && bounds;
-        style.webkitMaskImage = 'linear-gradient(white, white)' + (cropped ? `, url("${ready.url}")` : '');
+        const cropped = image && bounds;
+        style.webkitMaskImage = 'linear-gradient(white, white)' + (cropped ? `, ${image}` : '');
         style.webkitMaskRepeat = 'no-repeat';
         style.webkitMaskPosition = '0px 0px' + (cropped ? `, ${bounds.left}px ${bounds.top}px` : '');
         style.webkitMaskSize = `${request.width}px ${request.height}px`
             + (cropped ? `, ${bounds.right - bounds.left}px ${bounds.bottom - bounds.top}px` : '');
-        // White is the source, cropped occluder alpha is the destination. This
-        // preserves coverage outside the crop without rasterizing that area.
+        // White is the source, cropped occluder alpha is the destination. Both
+        // the CSS rectangle and raster fallback preserve coverage outside it.
         (style as any).webkitMaskComposite = 'source-out';
         style.maskComposite = 'subtract';
         style.maskMode = 'alpha';

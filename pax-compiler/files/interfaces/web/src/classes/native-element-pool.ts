@@ -301,6 +301,28 @@ export class NativeElementPool {
 
     sampleFrameInputs() {
         this.syncDelegatedPageScrollViewport();
+        this.observeScrollerPositions();
+        // A continuation may have observed the last movement and then marked
+        // the host idle. Publication must not depend on activity or movement
+        // since the last observation; lastSent still owns deduplication.
+        this.scrollerMeasurementStates.forEach((state, id) => {
+            if (state.awaitingInitialConfiguration) return;
+            this.emitScrollerPosition(id, {
+                scrollX: state.lastMeasuredScrollX,
+                scrollY: state.lastMeasuredScrollY,
+                presentationScrollX: state.lastMeasuredPresentationScrollX,
+                presentationScrollY: state.lastMeasuredPresentationScrollY,
+            }, state);
+        });
+    }
+
+    /** Refresh presentation demand without publishing reactive application input. */
+    observeFrameInputs() {
+        this.syncDelegatedPageScrollViewport(false);
+        this.observeScrollerPositions();
+    }
+
+    private observeScrollerPositions() {
         this.scrollerMeasurementStates.forEach((state, id) => {
             let leaf = this.nodesLookup.get(id);
             if (leaf == null) {
@@ -334,10 +356,6 @@ export class NativeElementPool {
             state.lastMeasuredScrollY = measurement.scrollY;
             state.lastMeasuredPresentationScrollX = measurement.presentationScrollX;
             state.lastMeasuredPresentationScrollY = measurement.presentationScrollY;
-
-            if (state.active || moved) {
-                this.emitScrollerPosition(id, measurement, state);
-            }
 
             state.stableFrames = moved ? 0 : state.stableFrames + 1;
             if (state.stableFrames >= 2) {
@@ -2301,7 +2319,7 @@ export class NativeElementPool {
         };
     }
 
-    private syncDelegatedPageScrollViewport() {
+    private syncDelegatedPageScrollViewport(publish = true) {
         if (this.activePageScrollScrollerId == null) {
             return;
         }
@@ -2319,7 +2337,7 @@ export class NativeElementPool {
         let approvedScrollX = pageScroll.scrollX;
         let approvedScrollY = pageScroll.scrollY;
 
-        this.chassis?.interrupt({
+        if (publish) this.chassis?.interrupt({
             "VisualViewportUpdate": {
                 "width": visibleViewport.width,
                 "height": visibleViewport.height,

@@ -522,11 +522,18 @@ hidden pixels and partial opacity; changing text reapplies the mask to the new
 snapshot. Experimental perspective hosts keep their native content live; see
 [perspective support](layout-responsiveness.md#experimental-perspective).
 
-Safari and iOS WebKit use prepared bitmap coverage for native punch-through
-masks: decoding an SVG image does not guarantee that WebKit has rasterized it
-for CSS composition. Pax rasterizes the occluding paths and their clips at the
-screen's pixel density, cropped to their conservative bounds. An opaque CSS
-base minus this bitmap preserves the rest of the element without encoding a
+Safari and iOS WebKit apply native punch-through coverage directly through CSS
+when it is exactly one opaque, axis-aligned rectangle. This includes a panel
+whose other occluding shapes are safely inside that rectangle. Its coverage
+updates synchronously with native patches, without waiting for an image to
+encode or decode. Rounded corners, translucent coverage, protruding shapes,
+and geometry that cannot be proven rectangular retain the bitmap path; no
+authored opt-in or special navigation component is needed.
+
+For that bitmap path, decoding an SVG image does not guarantee that WebKit has
+rasterized it for CSS composition. Pax rasterizes the occluding paths and their
+clips at the screen's pixel density, cropped to their conservative bounds. An
+opaque CSS base minus this bitmap preserves the rest of the element without encoding a
 mostly empty viewport-sized image. Partial opacity is preserved; changing
 display density regenerates the bitmap.
 
@@ -546,8 +553,10 @@ can therefore lag the scene while preparation is busy. Before the first mask
 is ready, the surface retains its existing presentation. Preparation failure
 retains the last ready mask. Replacement releases the old bitmap and URL;
 clearing a mask, removing its element, or disposing the host cancels pending
-swaps and releases their resources. Other browsers retain their synchronous
-SVG-reference path. This handoff does not change tile budgets or guarantee
+swaps and releases their resources. Switching to synchronous rectangular
+coverage also cancels obsolete jobs, whose completions cannot overwrite it.
+Other browsers retain their synchronous SVG-reference path. This handoff does
+not change tile budgets or guarantee
 readiness of incoming rendered content.
 
 Inside browser-owned scrollers, the Web host keeps native content above its

@@ -10,7 +10,10 @@ function load(name, globals = {}) {
         {loader: 'ts', format: 'cjs'}).code, {module, exports: module.exports, require: () => ({}), ...globals});
     return module.exports;
 }
-const {PreparedMaskImage} = load('prepared-mask-image');
+const rasterModule = load('native-mask-raster');
+const rectangleModule = load('rectangular-native-mask', {require: () => rasterModule});
+const {PreparedMaskImage} = load('prepared-mask-image', {require: name =>
+    name === './rectangular-native-mask' ? rectangleModule : rasterModule});
 const drain = async () => {for (let i = 0; i < 6; i++) await Promise.resolve();};
 const entries = (path = 'A') => [{path, opacity: 0.5, clips: []}];
 function preparations() {
@@ -130,7 +133,8 @@ function managerFixture(safari = true) {
         classList = {add() {}, remove() {}, contains: () => false};
         querySelectorAll() {return [];}
     }
-    const maskModule = load('prepared-mask-image', {require: () => ({prepareNativeMaskRaster})});
+    const maskModule = load('prepared-mask-image', {require: name =>
+        name === './rectangular-native-mask' ? rectangleModule : {prepareNativeMaskRaster}});
     const {RenderLayerManager} = load('render-layer-context', {
         HTMLElement: Element,
         navigator: {userAgent: safari ? 'AppleWebKit Version/26 Safari/605' : 'AppleWebKit Chrome/140 Safari/537', platform: 'MacIntel'},
@@ -186,6 +190,54 @@ test('Chrome retains synchronous SVG fragment masks without bitmap work', () => 
     manager.updateElementMask(element, 7, entries(), 100, 100);
     assert.equal(element.style.maskImage, 'url(#pax-native-mask-7)');
     assert.equal(requests.length, 0);
+});
+
+const panel = (bottom = 80) => ({path: `M0,0L200,0L200,${bottom}L0,${bottom}Z`, clips: [], opacity: 1});
+
+test('rectangular Safari masks are synchronous and follow dimensions without preparation', () => {
+    const {manager, element, requests} = managerFixture();
+    manager.updateElementMask(element, 7, [panel()], 200, 150);
+    assert.equal(element.style.webkitMaskImage, 'linear-gradient(white, white), linear-gradient(white, white)');
+    assert.equal(element.style.webkitMaskSize, '200px 150px, 200px 80px');
+    manager.updateElementMask(element, 7, [panel(13)], 200, 160);
+    assert.equal(element.style.webkitMaskSize, '200px 160px, 200px 13px');
+    manager.updateMaskPixelRatio(3);
+    assert.equal(requests.length, 0);
+    manager.removeElementMask(element, 7);
+    assert.equal(element.style.webkitMaskImage, '');
+});
+
+for (const complete of ['resolve', 'reject']) {
+    test(`obsolete raster ${complete} cannot regress synchronous coverage or block a later raster`, async () => {
+        const {handoff, element, requests} = fixture();
+        handoff.update([panel()], 200, 150, 2);
+        handoff.update(entries('old-animation'), 200, 150, 2);
+        handoff.update([panel(), {path: 'M10,10L20,10L15,20Z', clips: []}], 200, 150, 2);
+        assert.equal(requests[0].disposed, true);
+        assert.equal(element.style.webkitMaskSize, '200px 150px, 200px 80px');
+        handoff.update(entries('new-complex-shape'), 200, 150, 2);
+        const pending = handoff.pending;
+        if (complete === 'resolve') requests[0].resolve();
+        else requests[0].reject(new Error('obsolete'));
+        await drain();
+        assert.equal(element.style.webkitMaskSize, '200px 150px, 200px 80px');
+        assert.equal(handoff.pending, pending);
+        assert.equal(handoff.failedKey, undefined);
+        requests[1].resolve(); await drain();
+        applied(element, 'new-complex-shape');
+    });
+}
+
+test('a synchronous replacement releases the previous bitmap and late jobs stay cancelled after disposal', async () => {
+    const {handoff, element, requests} = fixture();
+    handoff.update(entries(), 200, 150, 2); requests[0].resolve(); await drain();
+    handoff.update(entries('pending'), 200, 150, 2);
+    handoff.update([panel()], 200, 150, 2);
+    assert.ok(requests.every(job => job.disposed));
+    assert.equal(handoff.retained, undefined);
+    handoff.dispose(); element.style.webkitMaskImage = 'new owner';
+    requests[1].resolve(); await drain();
+    assert.equal(element.style.webkitMaskImage, 'new owner');
 });
 
 test('native deletion cancels pending masks before forgetting its ID', async () => {

@@ -567,10 +567,11 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
             // callback must not start a tick while a continuation owns Rust borrows.
             if (!fromFrame) frameInProgress = true;
             try {
-                // Sampling can invoke application scroll handlers; this is not
-                // a silent presentation-only input lane.
+                // Keep demand current without invoking application scroll
+                // handlers just before drawing the settled scene. Ordinary
+                // frames publish the latest observations before ticking.
                 if (!fromFrame) {
-                    nativePool.sampleFrameInputs();
+                    nativePool.observeFrameInputs();
                     if (surfaceTraceEnabled) nativePool.recordSurfaceFramePhase(
                         "continuation.input", performance.now() - start);
                     if (chassis.has_pending_properties() || !chassis.render_work_is_settled()) {

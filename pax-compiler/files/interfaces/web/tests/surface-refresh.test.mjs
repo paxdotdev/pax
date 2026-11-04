@@ -440,18 +440,47 @@ test('continuations reuse geometry but still observe time and new submissions', 
     assert.equal(h.reads(), 2, 'ordinary application frames refresh observations');
 });
 
-test('native reversal sampling invalidates geometry even before a new plan generation', () => {
+test('continuation reversal observation refreshes planning without publishing input', () => {
     const h = geometryHarness();
+    h.pool.emitScrollerPosition = () => {throw Error('observation published scroll input');};
     h.pool.syncRenderSurfaceLayouts();
     for (const y of [80, 20, 20.05]) {
         h.state.active = true;
         h.pool.measureScrollerPosition = () => ({
             scrollX: 0, scrollY: y, presentationScrollX: 0, presentationScrollY: y});
-        h.pool.sampleFrameInputs();
+        h.pool.observeFrameInputs();
         h.pool.syncRenderSurfaceLayouts(true);
         assert.equal(h.preparations.at(-1).hosts[0].offset[1], y);
     }
     assert.equal(h.reads(), 4, 'even movement below event tolerance invalidates observations');
+});
+
+test('continuations report nested exposure and local scrolling in the same observation', () => {
+    const h = geometryHarness();
+    const leaf = {clientWidth: 100, clientHeight: 100};
+    const child = {...h.state};
+    h.pool.nodesLookup.set(2, leaf);
+    h.pool.scrollerMeasurementStates.set(2, child);
+    h.pool.scrollerHosts.set(2, {id: 2, leaf, canvasHost: {dataset: {}}});
+    h.pool.getParentScrollerId = hosts => hosts.id === 2 ? 1 : undefined;
+    h.pool.getWarmthPresentationRecord = id => {
+        const top = id === 2 ? 150 - h.state.lastMeasuredPresentationScrollY : 0;
+        const bounds = {left: 0, top, right: 100, bottom: top + 100};
+        return {presentedBounds: bounds, presentedClipBounds: bounds};
+    };
+    h.pool.emitScrollerPosition = () => {throw Error('observation published scroll input');};
+    for (const [outer, inner] of [[100, 80], [30, 20]]) {
+        h.state.active = child.active = true;
+        h.pool.measureScrollerPosition = (_leaf, state) => ({scrollX: state === child ? inner : 0,
+            scrollY: state === h.state ? outer : 0,
+            presentationScrollX: state === child ? inner : 0,
+            presentationScrollY: state === h.state ? outer : 0});
+        h.pool.observeFrameInputs(); h.pool.syncRenderSurfaceLayouts(true);
+        const host = h.preparations.at(-1).hosts.find(host => host.id === 2);
+        assert.equal(host.parent, 1);
+        assert.equal(host.bounds[1], 150 - outer);
+        assert.equal(host.observed[0], inner);
+    }
 });
 
 test('geometry observations expire on resize, plan/policy changes, and native patches', () => {

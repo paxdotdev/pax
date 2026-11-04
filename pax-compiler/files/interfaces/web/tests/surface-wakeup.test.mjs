@@ -10,12 +10,20 @@ import {transformSync} from 'esbuild';
 function harness(search = "") {
     const tasks = [], microtasks = [], frames = [], calls = {tick: 0, layout: 0, render: 0};
     let pool, pending = false, exhausted = false, warm = false, duringRender, time = 0, renderCost = 0;
+    let browserScroll = 0, observedScroll = 0, publishedScroll = 0;
     class Pool {
         constructor() { pool = this; }
         attach() {}
         setPostAsyncInterruptFlush(fn) { this.interrupt = fn; }
         setSurfaceWorkWake(fn) { this.capacity = fn; }
-        sampleFrameInputs() {}
+        observeFrameInputs() {observedScroll = browserScroll;}
+        sampleFrameInputs() {
+            this.observeFrameInputs();
+            if (publishedScroll !== observedScroll) {
+                publishedScroll = observedScroll;
+                pending = true;
+            }
+        }
         invalidateSurfaceHostObservation() {}
         syncRenderSurfaceLayouts() { calls.layout++; }
         beginTraceFrame() {}
@@ -81,8 +89,33 @@ function harness(search = "") {
     return {pool, chassis, calls, controls, drain, tasks, microtasks,
         pending: value => pending = value, exhausted: value => exhausted = value, warm: value => warm = value,
         duringRender: fn => duringRender = fn, renderCost: value => renderCost = value,
+        scroll: value => browserScroll = value,
+        scrollState: () => ({observedScroll, publishedScroll}),
         nextFrame: () => { for (const frame of frames.splice(0)) frame(); }};
 }
+
+test('scroll and reversal update continuation demand, then publish once a normal frame settles', () => {
+    const h = harness();
+    for (const position of [240, 80, 400]) {
+        h.scroll(position); h.pool.capacity(); h.drain();
+        assert.deepEqual(h.scrollState(), {observedScroll: position, publishedScroll: 0});
+    }
+    assert.equal(h.calls.tick, 0);
+    assert.equal(h.calls.render, 3, 'sampling a new position cannot invalidate the continuation');
+    h.controls.frame();
+    assert.deepEqual(h.scrollState(), {observedScroll: 400, publishedScroll: 400});
+    assert.equal(h.calls.tick, 1);
+});
+
+test('scroll publication is not starved by carried visible drawing', () => {
+    const h = harness();
+    h.exhausted(true); h.controls.frame();
+    h.scroll(800); h.pool.capacity(); h.drain();
+    assert.equal(h.scrollState().publishedScroll, 0);
+    h.exhausted(false); h.controls.frame();
+    assert.equal(h.scrollState().publishedScroll, 800);
+    assert.equal(h.calls.tick, 2, 'the ordinary frame settles input before resuming drawing');
+});
 
 for (const search of ["", "?pax_render_yield=0&pax_wheel_passive=0&pax_frame_clip=svg"]) {
     test(`host completion/capacity bursts never run application ticks (query=${search})`, () => {

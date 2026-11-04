@@ -888,10 +888,17 @@ impl<'w> WgpuRenderer<'w> {
         // A logical Pax layer may fan out to multiple physical browser canvases. Keep the tile's
         // content-space translation as the base transform so retained node transforms remain
         // tile-agnostic and flush/reset preserves the per-surface coordinate space.
+        let changed = self.transform_stack.first() != Some(&transform);
         if let Some(base_transform) = self.transform_stack.first_mut() {
             *base_transform = transform;
         } else {
             self.transform_stack.push(transform);
+        }
+        // Geometry includes the physical tile's base transform. Lighting is
+        // authored in logical-layer space, so retargeting must update its inverse
+        // mapping even when no light property changed.
+        if changed && self.last_scene_lighting.is_some() {
+            self.refresh_scene_lighting();
         }
         self.scene_dirty = true;
         self.clip_stack.clear();
@@ -1129,7 +1136,14 @@ impl<'w> WgpuRenderer<'w> {
         if self.last_scene_lighting.as_ref() == Some(&lighting) {
             return false;
         }
-        let gpu_lighting = to_gpu_scene_lighting(&lighting);
+        self.last_scene_lighting = Some(lighting);
+        self.refresh_scene_lighting()
+    }
+
+    fn refresh_scene_lighting(&mut self) -> bool {
+        let lighting = self.last_scene_lighting.as_ref().unwrap();
+        let base = self.transform_stack.first().copied().unwrap_or_default();
+        let gpu_lighting = lighting::to_gpu_tile_lighting(lighting, base);
         let dependencies = self.lighting_dependencies();
         let changed =
             dependencies.signature(&self.scene_lighting) != dependencies.signature(&gpu_lighting);
@@ -1137,7 +1151,6 @@ impl<'w> WgpuRenderer<'w> {
         // latest light values without requiring another lighting property change.
         self.render_backend.set_scene_lighting(gpu_lighting);
         self.scene_lighting = gpu_lighting;
-        self.last_scene_lighting = Some(lighting);
         self.scene_dirty |= changed;
         changed
     }
@@ -4441,7 +4454,8 @@ pub struct SceneLight {
 #[derive(Debug, Clone, PartialEq)]
 /// Resolved lighting state for one retained vector scene.
 pub struct SceneLighting {
-    /// Canvas-content to unscrolled world coordinates, in affine coefficient order.
+    /// Logical canvas-content to unscrolled world coordinates, in affine coefficient order.
+    /// The renderer compensates its physical tile's base transform internally.
     pub surface_to_world: [f32; 6],
     /// World eye position (w=1), or direction toward the viewer (w=0).
     pub view: [f32; 4],

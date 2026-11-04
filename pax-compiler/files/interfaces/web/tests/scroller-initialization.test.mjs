@@ -76,7 +76,7 @@ function harness(ios = false, delegated = false) {
     return {pool, feedback, placements,
         create: (id = 1) => pool.scrollerCreate({id, renderLayerId: 0, parentFrame: delegated ? null : 99}),
         update: patch => pool.scrollerUpdate({id: 1, ...patch}),
-        sample: () => pool.sampleFrameInputs(),
+        sample: () => pool.sampleFrameInputs(), observe: () => pool.observeFrameInputs(),
         leaf: (id = 1) => pool.nodesLookup.get(id),
     };
 }
@@ -86,6 +86,72 @@ const positions = h => h.feedback.map(p => [p.id, p.scroll_x, p.scroll_y]);
 
 for (const ios of [false, true]) {
     const platform = ios ? 'iOS polling' : 'desktop';
+    test(`${platform}: observation coalesces reversals and publishes the final idle position`, () => {
+        const h = harness(ios); h.create(); h.update(initial); h.sample(); h.feedback.length = 0;
+        let invalidations = 0;
+        h.pool.invalidateSurfaceHostObservation = () => invalidations++;
+        for (const [x, y] of [[4200, 4500], [3800, 3900], [4100, 4300]]) {
+            h.leaf().scrollLeft = x; h.leaf().scrollTop = y;
+            h.pool.activateScrollerMeasurement(1); h.observe();
+            const state = h.pool.scrollerMeasurementStates.get(1);
+            assert.equal(state.lastMeasuredPresentationScrollX, x);
+            assert.equal(state.lastMeasuredPresentationScrollY, y);
+            assert.deepEqual(h.feedback, [], 'presentation observation must not run scroll handlers');
+        }
+        assert.equal(invalidations, 3, 'each movement invalidates planning geometry, including reversal');
+        h.observe(); h.observe(); h.observe();
+        assert.equal(h.pool.scrollerMeasurementStates.get(1).active, false);
+        h.sample(); h.sample();
+        assert.deepEqual(positions(h), [[1, 4100, 4300]], 'idle does not discard an unpublished position');
+    });
+
+    test(`${platform}: continuation observations preserve initialization and remount boundaries`, () => {
+        const h = harness(ios); h.create();
+        h.observe(); h.observe(); h.sample();
+        assert.deepEqual(h.feedback, []);
+        h.update(initial);
+        h.observe(); h.observe(); h.observe();
+        assert.deepEqual(h.feedback, []);
+        h.sample();
+        assert.deepEqual(positions(h), [[1, 3949, 4025.6]]);
+        h.leaf().scrollTop = 4500; h.pool.activateScrollerMeasurement(1); h.observe();
+        h.pool.scrollerDelete(1); h.feedback.length = 0;
+        h.create(); h.update({...initial, scrollY: 100}); h.sample();
+        assert.deepEqual(positions(h), [[1, 3949, 100]]);
+    });
+
+    test(`${platform}: authored commands and content rebases supersede unpublished observations`, () => {
+        const h = harness(ios); h.create(); h.update(initial); h.sample(); h.feedback.length = 0;
+        h.leaf().scrollLeft = 4200; h.pool.activateScrollerMeasurement(1); h.observe();
+        h.update({scrollX: 100, contentOriginX: 4000}); h.observe();
+        assert.deepEqual(h.feedback, []);
+        const state = h.pool.scrollerMeasurementStates.get(1);
+        assert.equal(state.lastMeasuredPresentationScrollX, 4100);
+        h.sample(); h.sample();
+        assert.deepEqual(positions(h), [[1, 100, 4025.6]]);
+        assert.equal(h.feedback[0].presentation_scroll_x, 4100);
+    });
+
+    test(`${platform}: delegated viewport observation changes demand without engine feedback`, () => {
+        const h = harness(ios, true); h.create(); h.update(initial); h.sample(); h.feedback.length = 0;
+        delete h.pool.syncDelegatedPageScrollViewport; // Exercise the real viewport method.
+        h.pool.activePageScrollScrollerId = 1;
+        h.pool.mount = {dataset: {}};
+        let height = 140.8;
+        h.pool.readVisiblePageViewport = () => ({width: 294, height, offsetX: 0, offsetY: 12});
+        const interrupts = [];
+        h.pool.chassis.interrupt = m => interrupts.push(m);
+        h.leaf().scrollTop = 4200; h.pool.activateScrollerMeasurement(1); h.observe();
+        height = 170; h.observe(); h.observe();
+        assert.equal(h.pool.mount.dataset.viewportHeight, '170');
+        assert.equal(h.pool.scrollerHosts.get(1).canvasHost.dataset.approvedScrollY, '4200');
+        assert.deepEqual(interrupts, [], 'even visual viewport feedback waits for an application frame');
+        h.sample();
+        assert.equal(interrupts[0].VisualViewportUpdate.height, 170);
+        assert.equal(interrupts[0].VisualViewportUpdate.page_scroll_y, 4200);
+        assert.equal(interrupts[1].ScrollerPosition.scroll_y, 4200);
+    });
+
     for (const delegated of [false, true]) {
         test(`${platform}, ${delegated ? 'page' : 'nested'}: create/configure yield preserves both initial offsets`, () => {
             const h = harness(ios, delegated);

@@ -4809,6 +4809,81 @@ fn spatial_lighting_uses_world_depth_and_normal_without_retessellation() {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+fn planar_strip_lighting_is_continuous_across_rebased_tiles() {
+    use crate::{LightShape, Material, SceneLight, SceneLighting, Transform2D};
+    let make_renderer = |width| {
+        let layer = MetalLayer::new();
+        let backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, width, 32, [1., 1.]),
+            )
+        })
+        .unwrap();
+        let device = backend.device.clone();
+        (layer, device, WgpuRenderer::new(backend))
+    };
+    let lighting = SceneLighting {
+        active: true,
+        ambient_intensity: 0.1,
+        lights: vec![SceneLight {
+            shape: LightShape::Strip,
+            position: [32., 16., 16.],
+            half_extent: [24., -12., 0.],
+            direction: [0., 0., -1.],
+            color: Color::rgba(1., 1., 1., 1.),
+            intensity: 1.,
+            radius: 100.,
+        }],
+        ..Default::default()
+    };
+    let draw = |renderer: &mut WgpuRenderer<'_>, device: &wgpu::Device, frame| {
+        renderer.begin_node(1, 1, 1);
+        renderer.fill_path_with_material_and_opacity(
+            rect(0., 0., 64., 32.),
+            Fill::Solid(Color::rgba(0.2, 0.2, 0.2, 1.)),
+            Material::custom(0.5, 0.08, 3.8, 0.025, Color::rgba(0., 0., 0., 1.), 0.),
+            1.,
+        );
+        renderer.end_node(1);
+        renderer.request_screenshot_capture(frame);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        renderer.take_screenshot_capture(frame).unwrap()
+    };
+    let (_reference_layer, reference_device, mut reference_renderer) = make_renderer(64);
+    reference_renderer.set_scene_lighting(lighting.clone());
+    let reference = draw(&mut reference_renderer, &reference_device, 1);
+    let (_tile_layer, tile_device, mut tile) = make_renderer(32);
+    // Reusing one physical renderer also checks that a new origin updates the
+    // lighting mapping even when the authored light values have not changed.
+    for (frame, origin) in [0., 32., 0.].into_iter().enumerate() {
+        tile.reset_retained_scene();
+        tile.set_surface_transform(Transform2D::translation(-origin, 0.));
+        if frame == 0 {
+            tile.set_scene_lighting(lighting.clone());
+        }
+        let pixels = draw(&mut tile, &tile_device, frame as u32 + 2);
+        for y in 1..31usize {
+            for x in 1..31usize {
+                let a = (y * 32 + x) * 4;
+                let b = (y * 64 + x + origin as usize) * 4;
+                assert!(
+                    pixels.rgba[a..a + 4]
+                        .iter()
+                        .zip(&reference.rgba[b..b + 4])
+                        .all(|(a, b)| a.abs_diff(*b) <= 1),
+                    "lighting seam at origin={origin}, ({x},{y}): {:?} != {:?}",
+                    &pixels.rgba[a..a + 4],
+                    &reference.rgba[b..b + 4]
+                );
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
 fn planar_lighting_shares_a_world_frame_across_canvas_draws() {
     use crate::{LightShape, Material, SceneLight, SceneLighting};
     let layer = MetalLayer::new();

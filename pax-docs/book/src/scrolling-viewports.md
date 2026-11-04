@@ -169,6 +169,13 @@ Use `bind:` to share the Scroller's position with a component property. User
 scrolling updates that property; setting it from Rust requests a new position.
 This also gives buttons and visual indicators one place to read the state.
 
+On web, native scrolling can move between application frames. Pax observes that
+movement for tile preparation without immediately running application callbacks.
+The latest position is published to bound properties and scroll handlers at the
+next application frame; intermediate observations may coalesce, but the final
+position is still delivered when scrolling stops. Wheel-event cancellation is a
+separate [input policy](#wheel-input-policy).
+
 An initial nonzero position applies when the Scroller mounts, including when
 it appears inside an `if` branch. Later property writes move the native host
 and the renderer's viewport together; no user scroll is needed to reveal the
@@ -1142,7 +1149,8 @@ exclude the following settlement pass. These are CPU phase boundaries, not GPU
 completion or compositor-presentation timestamps.
 
 Web cooperative continuations may reuse the preceding application frame's DOM
-geometry observations after sampling native scroll input. Movement (including
+geometry observations after observing native scroll input without publishing it
+to application state. Movement (including
 reversals), resize, viewport changes, native patches, or changed canvas-plan/backend
 policy invalidates those observations. Every ordinary application frame measures
 again. Reuse does not freeze scheduling: preparation observes current time and new
@@ -1252,8 +1260,15 @@ inseparable. Submissions with no dirty nodes, such as lighting-only updates or
 completed retained removals, need no traversal plan.
 
 Application ticks, reactive settlement, native updates, and render setup remain
-atomic. Continuations sample current input and refresh surface demand; changes
-that require scene settlement wait for the next normal tick. They do not advance
+atomic. Continuations observe current scroll positions and visual viewport bounds
+to refresh surface demand, without invoking scroll handlers or publishing bound
+scroll properties. Ordinary application frames publish the latest observations
+before ticking, including the final position of a now-idle scroller. This avoids
+invalidating settled drawing immediately before its continuation. Authored scroll
+commands, initial configuration, and content-coordinate rebases retain their
+existing authority; observation never writes an old position into the browser.
+Other pending properties, effects, geometry changes, and window/layout resize
+still require normal settlement before drawing. Continuations do not advance
 the application clock or resume a saved scene snapshot. Failed submissions and
 removals remain pending, and queued tasks do not retain obsolete node or tile
 selections after resize, replacement, or disposal.
