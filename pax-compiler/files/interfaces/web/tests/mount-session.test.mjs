@@ -11,6 +11,7 @@ function session() {
     const module = {exports: {}};
     let disposals = 0, removals = 0;
     vm.runInNewContext(transformSync(`let liveSession = null, currentChassis = null;
+        function captureStartupProfile() {}
         ${owner}
         export function create(options) { return liveSession = new MountSession(options); }
     `, {loader: 'ts', format: 'cjs'}).code, {
@@ -74,6 +75,7 @@ for (const partial of [false, true]) test(`revealing ${partial ? 'a viewport' : 
     const module = {exports: {}};
     vm.runInNewContext(transformSync(`
         let liveSession = null;
+        function captureStartupProfile() {}
         const currentChassis = {
             prepare_startup_presentation: () => state.ready,
             publish_application() { state.unpaused++; },

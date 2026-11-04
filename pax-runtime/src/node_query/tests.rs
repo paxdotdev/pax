@@ -31,6 +31,7 @@ struct TreeNode {
     key: Option<&'static str>,
     overlay: bool,
     scroll: bool,
+    projected: bool,
 }
 
 impl TreeNode {
@@ -53,6 +54,7 @@ impl TreeNode {
             key,
             overlay: false,
             scroll: false,
+            projected: false,
         })
     }
 
@@ -77,6 +79,7 @@ impl TreeNode {
             key: None,
             overlay: false,
             scroll: false,
+            projected: false,
         })
     }
 
@@ -85,9 +88,22 @@ impl TreeNode {
         Rc::get_mut(&mut node).unwrap().overlay = true;
         node
     }
+
+    fn projected(children: Vec<Rc<dyn InstanceNode>>) -> Rc<Self> {
+        let mut node = Self::new(children, false, None);
+        Rc::get_mut(&mut node).unwrap().projected = true;
+        node
+    }
 }
 
 impl InstanceNode for TreeNode {
+    fn received_children_source(&self) -> crate::ReceivedChildrenSource {
+        if self.projected {
+            crate::ReceivedChildrenSource::Projected
+        } else {
+            crate::ReceivedChildrenSource::Owned
+        }
+    }
     fn scrolls_content(&self, _: &ExpandedNode) -> bool {
         self.scroll
     }
@@ -118,6 +134,7 @@ impl InstanceNode for TreeNode {
             key: None,
             overlay: false,
             scroll: false,
+            projected: false,
         })
     }
     fn base(&self) -> &BaseInstance {
@@ -569,6 +586,332 @@ fn overlay_contributions_escape_owner_geometry_but_keep_owner_lifetime() {
     owner.recurse_unmount(&engine.runtime_context);
     assert!(handle.resolve().is_err());
     assert_eq!(root.presentation_children(&engine.runtime_context).len(), 1);
+}
+
+fn presentation_locality_fixture(unrelated: usize) -> (PaxEngine, Rc<ExpandedNode>) {
+    let mut root_args = args(vec![]);
+    root_args.component_template = Some(RefCell::new(vec![
+        TreeNode::overlay(vec![]),
+        TreeNode::new(vec![TreeNode::new(vec![], false, None)], false, None),
+        TreeNode::new(
+            (0..unrelated)
+                .map(|_| TreeNode::new(vec![], false, None) as Rc<dyn InstanceNode>)
+                .collect(),
+            false,
+            None,
+        ),
+    ]));
+    let mut engine = crate::test_support::empty_engine(
+        (640., 480.),
+        Platform::Web,
+        OS::Mac,
+        Box::new(|| 0),
+        Default::default(),
+    );
+    let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+    engine.tick();
+    (engine, root)
+}
+
+#[test]
+fn presentation_notifications_are_local_with_an_unrelated_overlay() {
+    for unrelated_count in [16, 2048] {
+        let (mut engine, root) = presentation_locality_fixture(unrelated_count);
+        let ctx = engine.runtime_context.clone();
+        let _graph = ctx.property_graph.enter();
+        let children = root.children.get();
+        let edited = &children[1];
+        let unrelated = &children[2];
+        let unrelated_nodes: Vec<_> = std::iter::once(unrelated.clone())
+            .chain(unrelated.children.get())
+            .collect();
+        let before: Vec<_> = unrelated_nodes
+            .iter()
+            .map(|n| n.layout_hull_listener_evaluations.get())
+            .collect();
+        let mut next = edited.children.get();
+        next.extend(edited.create_children_detached(
+            [(
+                TreeNode::new(vec![], false, None) as Rc<dyn InstanceNode>,
+                edited.stack.clone(),
+            )],
+            &ctx,
+            &Rc::downgrade(edited),
+        ));
+        let attached = edited.attach_children(next, &ctx, &edited.parent_frame);
+        let added_properties = attached.last().unwrap().get_common_properties();
+        added_properties
+            .borrow()
+            .width
+            .set(Some(crate::api::Size::Pixels(900.into())));
+        added_properties
+            .borrow()
+            .height
+            .set(Some(crate::api::Size::Pixels(700.into())));
+        edited.children.set(attached);
+        engine.tick();
+        assert_eq!(edited.logical_children(&ctx).len(), 2);
+        assert_eq!(edited.subtree_layout_hull.get().max_x, 900.);
+        for (node, before) in unrelated_nodes.iter().zip(before) {
+            assert_eq!(
+                node.layout_hull_listener_evaluations.get(),
+                before,
+                "a local insertion woke unrelated node {:?} in a {unrelated_count}-node branch",
+                node.id
+            );
+        }
+        assert_hulls_match_full_refresh(&root, &ctx);
+    }
+}
+
+fn mounted_tree(root: &Rc<ExpandedNode>) -> Vec<Rc<ExpandedNode>> {
+    let mut nodes = vec![];
+    let mut pending = vec![root.clone()];
+    let mut seen = std::collections::HashSet::new();
+    while let Some(node) = pending.pop() {
+        if !seen.insert(node.id) {
+            continue;
+        }
+        pending.extend(node.current_attached_children());
+        nodes.push(node);
+    }
+    nodes
+}
+
+fn assert_hulls_match_full_refresh(root: &Rc<ExpandedNode>, ctx: &Rc<RuntimeContext>) {
+    let nodes = mounted_tree(root);
+    let before: Vec<_> = nodes
+        .iter()
+        .map(|node| node.subtree_layout_hull.get())
+        .collect();
+    // Rebuild every hull binding as the oracle, bypassing membership cutoffs.
+    // Missing scoped notifications must not leave different retained geometry.
+    for node in nodes.iter().rev().filter(|node| node.attached.get() > 0) {
+        node.refresh_layout_hull_for_test(ctx);
+    }
+    ctx.drain_node_effects();
+    for (node, before) in nodes.iter().zip(before) {
+        assert!(
+            crate::layout_hulls_equivalent(&before, &node.subtree_layout_hull.get()),
+            "scoped hull differs from full refresh at {:?}",
+            node.id
+        );
+    }
+}
+
+#[test]
+fn received_children_cutoff_preserves_reorder_move_and_remount_notifications() {
+    let (mut engine, root) = presentation_locality_fixture(3);
+    let ctx = engine.runtime_context.clone();
+    let _graph = ctx.property_graph.enter();
+    let children = root.children.get();
+    let source = &children[2];
+    let destination = &children[1];
+    let source_context = source.get_node_context(&ctx);
+    let destination_context = destination.get_node_context(&ctx);
+    let source_view = source_context.received_children;
+    let destination_view = destination_context.received_children;
+    assert_eq!(source_context.received_children_count.get(), 3);
+    assert_eq!(destination_context.received_children_count.get(), 1);
+    let evaluations = Rc::new(std::cell::Cell::new(0));
+    let count = evaluations.clone();
+    let observed = source_view.clone();
+    let listener = LocalProperty::computed(
+        move || {
+            let ids = observed
+                .get()
+                .iter()
+                .map(|node| node.id)
+                .collect::<Vec<_>>();
+            count.set(count.get() + 1);
+            ids
+        },
+        &[source_view.untyped()],
+    );
+    let original = listener.get();
+    let initial = evaluations.get();
+    // A source write without a membership or binding change should cut off.
+    source
+        .active_children_view
+        .set(source.active_children_view.get());
+    ctx.drain_node_effects();
+    assert_eq!(listener.get(), original);
+    assert_eq!(evaluations.get(), initial);
+    let mut reordered = source.children.get();
+    reordered.reverse();
+    source
+        .children
+        .set(source.attach_children(reordered, &ctx, &source.parent_frame));
+    assert_eq!(
+        source_view.get().iter().map(|n| n.id).collect::<Vec<_>>(),
+        original.iter().rev().copied().collect::<Vec<_>>()
+    );
+    ctx.drain_node_effects();
+    assert_eq!(
+        listener.get(),
+        original.iter().rev().copied().collect::<Vec<_>>()
+    );
+    assert_eq!(evaluations.get(), initial + 1);
+    let moved = source.children.get()[0].clone();
+    let destination_before = destination_view.get().len();
+    ctx.move_node(&moved, destination, 0).unwrap();
+    assert_eq!(source_context.received_children_count.get(), 2);
+    assert_eq!(
+        destination_context.received_children_count.get(),
+        destination_before + 1
+    );
+    assert_eq!(source_view.get().len(), 2);
+    ctx.drain_node_effects();
+    assert_eq!(listener.get().len(), 2);
+    assert_eq!(destination_view.get().len(), destination_before + 1);
+    assert_eq!(destination_view.get()[0].id, moved.id);
+    ctx.move_home(&moved).unwrap();
+    assert_eq!(source_context.received_children_count.get(), 3);
+    assert_eq!(
+        destination_context.received_children_count.get(),
+        destination_before
+    );
+    assert_eq!(source_view.get().len(), 3);
+    ctx.drain_node_effects();
+    assert_eq!(listener.get().len(), 3);
+    assert_eq!(destination_view.get().len(), destination_before);
+    let before_remount = evaluations.get();
+    moved.clone().recurse_unmount(&ctx);
+    moved.recurse_mount(&ctx);
+    ctx.drain_node_effects();
+    assert_eq!(listener.get().len(), 3);
+    assert_eq!(
+        evaluations.get(),
+        before_remount + 1,
+        "retained Rc identities must not hide a fresh mount's property handles"
+    );
+    engine.tick();
+    assert_hulls_match_full_refresh(&root, &ctx);
+}
+
+#[test]
+fn projected_received_children_follow_moves_through_control_flow_and_slots() {
+    use pax_runtime_api::pax_value::ToFromPaxAny;
+    let mut conditional = args(vec![TreeNode::new(vec![], false, None)]);
+    conditional.prototypical_properties = PropertiesInit::Factory(Box::new(|_, node| {
+        node.is_none().then(|| {
+            Rc::new(RefCell::new(
+                crate::ConditionalProperties {
+                    boolean_expression: LocalProperty::new(true),
+                    ..Default::default()
+                }
+                .to_pax_any(),
+            ))
+        })
+    }));
+    let mut slot = args(vec![]);
+    slot.prototypical_properties = PropertiesInit::Factory(Box::new(|_, node| {
+        node.is_none().then(|| {
+            Rc::new(RefCell::new(
+                crate::slot::Slot {
+                    is_remainder: LocalProperty::new(true),
+                    ..Default::default()
+                }
+                .to_pax_any(),
+            ))
+        })
+    }));
+    let mut receiver = args(vec![crate::ConditionalInstance::instantiate(conditional)]);
+    receiver.component_template = Some(RefCell::new(vec![TreeNode::projected(vec![
+        crate::SlotInstance::instantiate(slot),
+    ])]));
+    let mut root_args = args(vec![]);
+    root_args.component_template = Some(RefCell::new(vec![
+        ComponentInstance::instantiate(receiver),
+        TreeNode::new(vec![], false, None),
+        TreeNode::overlay(vec![]),
+    ]));
+    let mut engine = crate::test_support::empty_engine(
+        (640., 480.),
+        Platform::Web,
+        OS::Mac,
+        Box::new(|| 0),
+        Default::default(),
+    );
+    let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+    engine.tick();
+    let ctx = engine.runtime_context.clone();
+    let _graph = ctx.property_graph.enter();
+    let children = root.children.get();
+    let receiver = &children[0];
+    let destination = &children[1];
+    let inner = receiver.children.get()[0].clone();
+    let receiver_view = receiver.get_node_context(&ctx).received_children;
+    let inner_view = inner.get_node_context(&ctx).received_children;
+    let destination_view = destination.get_node_context(&ctx).received_children;
+    let leaf = receiver_view.get()[0].clone();
+    let mount = leaf.mount_epoch.get();
+    assert_eq!(inner_view.get()[0].id, leaf.id);
+    assert!(destination_view.get().is_empty());
+    ctx.move_node(&leaf, destination, 0).unwrap();
+    assert!(receiver_view.get().is_empty());
+    assert!(inner_view.get().is_empty());
+    assert_eq!(destination_view.get()[0].id, leaf.id);
+    engine.tick();
+    assert_hulls_match_full_refresh(&root, &ctx);
+    destination.clone().recurse_unmount(&ctx);
+    assert!(ctx.is_detached(leaf.id));
+    assert!(receiver_view.get().is_empty());
+    assert!(inner_view.get().is_empty());
+    ctx.move_home(&leaf).unwrap();
+    assert_eq!(receiver_view.get()[0].id, leaf.id);
+    assert_eq!(inner_view.get()[0].id, leaf.id);
+    assert!(leaf.mount_epoch.get() > mount);
+    engine.tick();
+    assert_hulls_match_full_refresh(&root, &ctx);
+}
+
+#[test]
+fn yielded_startup_hull_listener_work_scales_with_nodes_despite_overlays() {
+    for count in [16, 256] {
+        let mut engine = crate::test_support::empty_engine(
+            (640., 480.),
+            Platform::Web,
+            OS::Mac,
+            Box::new(|| 0),
+            Default::default(),
+        );
+        engine.enable_resumable_startup();
+        let mut root_args = args(vec![]);
+        root_args.component_template = Some(RefCell::new(vec![
+            TreeNode::overlay(vec![]),
+            TreeNode::new(
+                (0..count)
+                    .map(|_| TreeNode::new(vec![], false, None) as Rc<dyn InstanceNode>)
+                    .collect(),
+                false,
+                None,
+            ),
+        ]));
+        let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+        for _ in 0..100_000 {
+            if !engine.startup_pending() {
+                break;
+            }
+            engine.service_startup(0.0, || 0.0);
+            if engine.accept_startup_measurements() {
+                engine.resume_startup_after_presentation();
+            }
+        }
+        assert!(!engine.startup_pending());
+        let nodes = mounted_tree(&root);
+        assert_eq!(nodes.len(), count + 3);
+        let evaluations: usize = nodes
+            .iter()
+            .map(|node| node.layout_hull_listener_evaluations.get())
+            .sum();
+        assert!(
+            evaluations <= 12 * nodes.len(),
+            "{evaluations} hull listener evaluations for {} nodes",
+            nodes.len()
+        );
+        assert_hulls_match_full_refresh(&root, &engine.runtime_context);
+    }
 }
 
 #[test]

@@ -142,6 +142,13 @@ pub enum PropertiesInit {
         descriptor: &'static ErasedComponentDescriptor,
         plan: Rc<TemplatePropertyPlan>,
     },
+    /// Compiler-owned structural inputs (if/repeat/slot/router). Allocate stable
+    /// defaults before binding expressions. Imported settings affect common
+    /// properties only; explicit template reloads still rebind these inputs.
+    ControlFlow {
+        allocate: fn() -> PaxAny,
+        bind: Box<dyn Fn(Rc<RuntimePropertiesStackFrame>, &Rc<ExpandedNode>)>,
+    },
     Factory(PropertiesFactory),
 }
 
@@ -168,7 +175,7 @@ impl PropertiesInit {
                 .values()
                 .any(crate::value_uses_local_property_scope),
             Self::Template { plan, .. } => plan.requires_pre_node_binding,
-            Self::DescriptorDefault(_) => false,
+            Self::DescriptorDefault(_) | Self::ControlFlow { .. } => false,
         }
     }
 
@@ -183,6 +190,7 @@ impl PropertiesInit {
             Self::Factory(factory) => {
                 factory(stack, None).expect("properties factory must allocate properties")
             }
+            Self::ControlFlow { allocate, .. } => Rc::new(RefCell::new(allocate())),
         }
     }
 
@@ -248,6 +256,14 @@ impl PropertiesInit {
                 }
             }
             PropertiesInit::Factory(factory) => factory(stack_frame, expanded_node),
+            PropertiesInit::ControlFlow { allocate, bind } => {
+                if let Some(node) = expanded_node {
+                    bind(stack_frame, &node);
+                    None
+                } else {
+                    Some(Rc::new(RefCell::new(allocate())))
+                }
+            }
         }
     }
 }
@@ -813,11 +829,18 @@ impl BaseInstance {
     // selector and layout subscriptions. Mixed/custom initialization and local
     // scope preparation keep the full recreation ordering.
     pub(crate) fn can_rebind_settings_in_place(&self) -> bool {
-        matches!(
-            (&self.instance_prototypical_common_properties, &self.instance_prototypical_properties),
-            (CommonPropertiesInit::Template(common), PropertiesInit::Template { plan, .. })
-                if Rc::ptr_eq(common, plan)
-        ) && !self.requires_pre_node_binding()
+        let structured = match (
+            &self.instance_prototypical_common_properties,
+            &self.instance_prototypical_properties,
+        ) {
+            (CommonPropertiesInit::Template(common), PropertiesInit::Template { plan, .. }) => {
+                Rc::ptr_eq(common, plan)
+            }
+            (CommonPropertiesInit::Template(_), PropertiesInit::ControlFlow { .. }) => true,
+            (CommonPropertiesInit::Default, PropertiesInit::ControlFlow { .. }) => true,
+            _ => false,
+        };
+        structured && !self.requires_pre_node_binding()
     }
 
     /// Bind after stable slots and selector identity exist, before publishing
@@ -863,9 +886,18 @@ impl BaseInstance {
     // Restricted to ordinary in-place imported-settings updates. Reloads,
     // custom factories, stores and local-scope timelines keep their full bind.
     pub(crate) fn apply_imported_settings_patch(&self, node: &Rc<ExpandedNode>) -> bool {
-        let PropertiesInit::Template { descriptor, plan } = &self.instance_prototypical_properties
-        else {
-            unreachable!("patch requires paired template initializers")
+        let (plan, descriptor) = match (
+            &self.instance_prototypical_common_properties,
+            &self.instance_prototypical_properties,
+        ) {
+            // Compiler transport nodes have no authored/common settings plan.
+            // Their structural expressions already observe their lexical inputs.
+            (CommonPropertiesInit::Default, PropertiesInit::ControlFlow { .. }) => return false,
+            (_, PropertiesInit::Template { descriptor, plan }) => (plan, Some(descriptor)),
+            (CommonPropertiesInit::Template(plan), PropertiesInit::ControlFlow { .. }) => {
+                (plan, None)
+            }
+            _ => unreachable!("patch requires structured template initializers"),
         };
         let previous = Rc::clone(&node.resolved_property_columns.borrow());
         let current = plan.resolve(Some(node));
@@ -879,14 +911,16 @@ impl BaseInstance {
             &node.stack,
             CommonPropertiesBindMode::Patch,
         );
-        let properties = Rc::clone(&node.properties.borrow());
-        (descriptor.apply_defined_properties)(
-            descriptor.typed_descriptor,
-            &mut properties.borrow_mut(),
-            &patch.columns,
-            &node.stack,
-            Some(node),
-        );
+        if let Some(descriptor) = descriptor {
+            let properties = Rc::clone(&node.properties.borrow());
+            (descriptor.apply_defined_properties)(
+                descriptor.typed_descriptor,
+                &mut properties.borrow_mut(),
+                &patch.columns,
+                &node.stack,
+                Some(node),
+            );
+        }
         true
     }
 

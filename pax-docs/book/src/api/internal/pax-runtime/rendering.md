@@ -202,6 +202,11 @@ Structured initialization for node-local typed properties.
 ##### `DescriptorDefault`(&'`static` `ErasedComponentDescriptor`)
 ##### `DescriptorInline` { `descriptor`: &'`static` `ErasedComponentDescriptor`, `defined_properties`: `BTreeMap`<`String`, [`ValueDefinition`](../../../api/internal/pax-manifest/index.md#valuedefinition)> }
 ##### `Template` { `descriptor`: &'`static` `ErasedComponentDescriptor`, `plan`: `Rc`<[`TemplatePropertyPlan`](../../../api/internal/pax-runtime/cartridge.md#templatepropertyplan)> }
+##### `ControlFlow` { `allocate`: `fn`(), `bind`: `Box`<`dyn` `Fn`(`Rc`<[`RuntimePropertiesStackFrame`](../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe)>, &`Rc`<`ExpandedNode`>)> }
+Compiler-owned structural inputs (if/repeat/slot/router). Allocate stable
+defaults before binding expressions. Imported settings affect common
+properties only; explicit template reloads still rebind these inputs.
+
 ##### `Factory`(`PropertiesFactory`)
 #### Implementations
 ##### `adopt`

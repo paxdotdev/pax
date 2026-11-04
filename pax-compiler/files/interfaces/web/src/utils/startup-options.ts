@@ -1,3 +1,19 @@
+export type LoaderExit = 'full_mount' | 'first_viewport';
+
+/** Loader exit policy is independent of the incremental-mount scheduling choice. */
+export function resolveLoaderExit(config: unknown, override?: LoaderExit): LoaderExit {
+    if (override !== undefined && override !== 'full_mount' && override !== 'first_viewport') {
+        throw new Error('loaderExit must be full_mount or first_viewport');
+    }
+    const configured = typeof config === 'object' && config !== null
+        && (config as {loader_exit?: unknown}).loader_exit === 'first_viewport';
+    return override ?? (configured ? 'first_viewport' : 'full_mount');
+}
+
+export function readLoaderExit(override?: LoaderExit): LoaderExit {
+    return resolveLoaderExit(readWebConfig(), override);
+}
+
 /** Resolve once in the host and pass the same scheduling choice into Wasm. */
 export function resolveStartupOptions(config: unknown, search: string, yieldMount?: boolean) {
     if (yieldMount !== undefined && typeof yieldMount !== "boolean") {

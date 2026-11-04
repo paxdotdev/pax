@@ -1,6 +1,7 @@
 import {sharedWorkBudget, requestPreparationFrame} from "./utils/shared-work-budget";
 import {startLoadingApplication} from "./loading";
 import {abortable} from "./utils/abortable";
+import {captureStartupProfile} from "./utils/startup-profile";
 import type {PaxChassisWeb} from "./types/pax-chassis-web";
 import {ObjectManager} from "./pools/object-manager";
 import {
@@ -54,7 +55,7 @@ import { browserRouteLocation, replaceCurrentRouteHistoryState, serializeRouteLo
 import { updateDocumentRouteMetadata } from "./utils/route-metadata";
 
 import { StartupScheduler, StartupWork } from "./utils/startup-scheduler";
-import { readStartupOptions } from "./utils/startup-options";
+import { readStartupOptions, readLoaderExit, type LoaderExit } from "./utils/startup-options";
 import { readWheelEvents, type WheelEvents } from "./utils/input-options";
 import { FrameScheduler } from "./utils/frame-scheduler";
 import { CooperativeRenderScheduler } from "./utils/cooperative-render";
@@ -74,6 +75,8 @@ export interface WebInitOptions {
     documentRouting?: boolean;
     /** Yield initial engine/native work; defaults to generated web metadata, then false. */
     yieldMount?: boolean;
+    /** When a configured loading screen begins its exit; defaults to web metadata, then full_mount. */
+    loaderExit?: LoaderExit;
     /** Wheel delivery defaults to passive. Cancellable delivery can delay native scrolling. */
     wheelEvents?: WheelEvents;
     /** Cancels startup or closes the mounted region; cleanup remains retained. */
@@ -167,6 +170,7 @@ export async function init_web(options: WebInitOptions): Promise<MountedApp> {
     }
     // Retain this snapshot through bootstrap, loader preparation and retries.
     options = {...options, startupData: options.startupData?.slice(),
+        loaderExit: readLoaderExit(options.loaderExit),
         cartridgeUrl: new URL(options.cartridgeUrl, document.baseURI).href};
     const glue = await loadCartridge(options.cartridgeUrl, options.signal);
     options.signal?.throwIfAborted();
@@ -319,8 +323,8 @@ class MountSession implements MountedApp {
     }
     publish() {
         if (!this.reveal()) return false;
-        // Early reveal resumes mounting, not ordinary ticks or input. A loading
-        // screen must wait for `mounted` before beginning its exit transition.
+        // Loader exit may follow first-viewport readiness. Ordinary ticks and
+        // input still require the complete mount, regardless of exit policy.
         if (mountYieldEnabled && !startupPresented) return false;
         this.region.inert = false;
         this.region.removeAttribute("aria-hidden");
@@ -333,6 +337,7 @@ class MountSession implements MountedApp {
     }
     didPrepare() { this.resolvePrepared(); }
     didMount() {
+        if (!this.closing && currentChassis) captureStartupProfile(currentChassis, this.options.loader === true);
         if (!this.options.holdPresentation) this.startPresentation();
         this.didPrepare();
         this.resolveMounted();

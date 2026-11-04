@@ -45,6 +45,8 @@ Mount continuations attempted, including deferred or discarded stale entries.
 ##### `effects`
 Type: `usize`
 
+Queued reactive evaluations, including both effects and cutoff propagation.
+
 ##### `peak_queued_effects`
 Type: `usize`
 

@@ -18,15 +18,17 @@ const source = entry.slice(entry.indexOf('type CartridgeLoad'), entry.indexOf('c
     .replace('import(key)', 'importGlue(key)');
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => {resolve = a; reject = b;}); return {promise, resolve, reject}; };
 const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
-function harness({importGate, installGate, loader = false} = {}) {
-    const document = {baseURI: 'https://example.test/', querySelector: () => element};
+function harness({importGate, installGate, loader = false, config = {}} = {}) {
+    const document = {baseURI: 'https://example.test/', querySelector: () => element,
+        getElementById: () => ({textContent: JSON.stringify(config)})};
+    const {readLoaderExit} = moduleFrom(readFileSync(new URL('../src/utils/startup-options.ts', import.meta.url), 'utf8'), {document});
     class HTMLElement { constructor() { this.ownerDocument = document; } }
     const element = new HTMLElement(), requests = [], mounts = [], loadingCalls = [];
     let imports = 0, installations = 0;
     const glue = {default: async () => { installations++; await installGate?.promise; },
         pax_set_shutdown_waker() {}, ...(loader ? {init_loading_screen() {}} : {})};
     const api = moduleFrom(source, {
-        URL, URLSearchParams, Uint8Array, AbortController, abortable, HTMLElement, document,
+        URL, URLSearchParams, Uint8Array, AbortController, abortable, HTMLElement, document, readLoaderExit,
         window: {location: {search: ''}}, hosts: new Set(), queueMicrotask,
         async importGlue() { imports++; await importGate?.promise; return glue; },
         fetch(_url, {signal}) { const result = deferred(); requests.push({...result, signal}); return result.promise; },
@@ -52,10 +54,20 @@ test('startup data is snapshotted at invocation before bootstrap and loader wait
 
 test('invalid public inputs reject before loading a cartridge', async () => {
     const h = harness();
-    for (const options of [{startupData: []}, {startupData: new Uint8Array(65537)}, {entry: 42}]) {
+    for (const options of [{startupData: []}, {startupData: new Uint8Array(65537)}, {entry: 42}, {loaderExit: true}]) {
         await assert.rejects(h.api.init_web({element: h.element, cartridgeUrl: '/app', ...options}));
     }
     assert.equal(h.imports(), 0);
+});
+
+test('loader exit policy is resolved and snapshotted before asynchronous bootstrap', async () => {
+    const config = {loader_exit: 'first_viewport'};
+    const h = harness({loader: true, config});
+    const pending = h.api.init_web({element: h.element, cartridgeUrl: '/app'});
+    config.loader_exit = 'full_mount';
+    await flush(); h.requests[0].resolve({ok: true});
+    assert.equal((await pending).loaderExit, 'first_viewport');
+    assert.equal((await h.api.init_web({element: h.element, cartridgeUrl: '/app', loaderExit: 'full_mount'})).loaderExit, 'full_mount');
 });
 
 test('abort while importing detaches immediately and never starts the fetch', async () => {

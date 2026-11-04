@@ -157,6 +157,9 @@ A structural invalidation signal for `received_children`.
 
 Prefer this or `received_children` itself for structural subscriptions
 that must react to reorders as well as insertions and removals.
+Unchanged child identities and order cut off propagation, except when a
+child remounts or its parent bindings change. Subscribe to child geometry
+separately for size or position updates.
 
 ##### `retained_received_children`
 Type: `LocalProperty`<`Vec`<`Rc`<`ExpandedNode`>>>

@@ -2,10 +2,13 @@
 //! and phase cursors only; no property evaluation or borrow crosses a host yield.
 use super::occlusion;
 pub mod plan;
+mod profile;
 use crate::{ExpandedNode, ExpandedNodeIdentifier, PaxEngine, RuntimeContext};
 use pax_runtime_api::properties;
 pub use plan::{StartupAxes, StartupDemand, StartupPlan};
 use plan::{StartupRequirements, StartupResolver};
+use profile::{StartupPhaseGuard, StartupPhases, StartupProfile};
+pub use profile::{StartupPhaseProfile, StartupProfileReport, StartupUnitProfile};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     rc::{Rc, Weak},
@@ -18,6 +21,10 @@ const BACKGROUND_EFFECT_LIMIT: usize = 2048;
 
 #[derive(Default)]
 pub(crate) struct Startup {
+    profile: Option<StartupProfile>,
+    // Kept separate while service owns the report, so nested callbacks can record
+    // phases without holding a Startup borrow across application code.
+    profile_phases: Option<Rc<std::cell::RefCell<StartupPhases>>>,
     active: bool,
     ready: bool,
     viewport_published: bool,
@@ -58,6 +65,12 @@ struct PendingMount {
     key: (ExpandedNodeIdentifier, u64, ExpandedNodeIdentifier, u64),
 }
 
+enum MountOutcome {
+    Mounted(Rc<ExpandedNode>),
+    Deferred,
+    Stale,
+}
+
 #[derive(Clone, Copy, Default)]
 enum Phase {
     #[default]
@@ -85,6 +98,7 @@ pub struct StartupReport {
     pub units: usize,
     /// Mount continuations attempted, including deferred or discarded stale entries.
     pub mounted: usize,
+    /// Queued reactive evaluations, including both effects and cutoff propagation.
     pub effects: usize,
     /// Largest queued effect/cutoff count observed during this service call.
     /// Includes entries already settled by synchronous reads but not yet popped.
@@ -95,6 +109,14 @@ pub struct StartupReport {
 }
 
 impl RuntimeContext {
+    pub(crate) fn startup_phase(&self, name: &'static str) -> Option<StartupPhaseGuard> {
+        let state = self.startup.borrow();
+        if !state.active {
+            return None;
+        }
+        state.profile_phases.as_ref().map(|phases| StartupPhaseGuard::new(phases.clone(), name))
+    }
+
     fn startup_demand(&self, node: &ExpandedNode) -> Option<StartupDemand> {
         let demand = if let Some(parent) = node.render_parent_node() {
             let inherited = self.startup_demand(&parent)?;
@@ -176,6 +198,7 @@ impl RuntimeContext {
     }
 
     fn should_defer_startup_child(&self, child: &ExpandedNode) -> bool {
+        let _phase = self.startup_phase("mount.classify");
         if !self.startup.borrow().is_prioritizing() {
             return false;
         }
@@ -238,7 +261,7 @@ impl RuntimeContext {
         true
     }
 
-    fn mount_one_pending(self: &Rc<Self>) -> bool {
+    fn mount_one_pending(self: &Rc<Self>) -> Option<MountOutcome> {
         let pending = {
             let mut state = self.startup.borrow_mut();
             let incoming = std::mem::take(&mut state.incoming);
@@ -246,15 +269,15 @@ impl RuntimeContext {
             state.stack.pop()
         };
         let Some(pending) = pending else {
-            return false;
+            return None;
         };
         let Some(child) = pending.child.upgrade() else {
             self.startup.borrow_mut().queued.remove(&pending.key);
-            return true;
+            return Some(MountOutcome::Stale);
         };
         let Some(parent) = pending.parent.upgrade() else {
             self.startup.borrow_mut().queued.remove(&pending.key);
-            return true;
+            return Some(MountOutcome::Stale);
         };
         if child.attached.get() == 0
             && parent.mount_epoch.get() == pending.parent_epoch
@@ -273,15 +296,16 @@ impl RuntimeContext {
         {
             if self.should_defer_startup_child(&child) {
                 self.startup.borrow_mut().deferred.push_back(pending);
-                return true;
+                return Some(MountOutcome::Deferred);
             }
             self.startup.borrow_mut().queued.remove(&pending.key);
             child.recurse_mount(self);
             parent.finish_pending_child(&child, self);
+            return Some(MountOutcome::Mounted(child));
         } else {
             self.startup.borrow_mut().queued.remove(&pending.key);
         }
-        true
+        Some(MountOutcome::Stale)
     }
 }
 
@@ -304,6 +328,38 @@ impl PaxEngine {
         self.runtime_context.startup.borrow().active
     }
 
+    /// Enable queue and mount attribution after enabling resumable startup and
+    /// before mounting the root. Profiling adds overhead and retains diagnostic
+    /// names in both debug and release; it never changes the scheduling budget.
+    pub fn enable_startup_profiling(&mut self) {
+        assert!(
+            self.root_expanded_node.is_none(),
+            "enable before mounting the root"
+        );
+        let mut state = self.runtime_context.startup.borrow_mut();
+        assert!(state.active, "enable resumable startup first");
+        let profile = StartupProfile::default();
+        state.profile_phases = Some(profile.phases.clone());
+        state.profile = Some(profile);
+        self.runtime_context
+            .property_graph
+            .set_diagnostic_names_enabled(true);
+    }
+
+    /// Consume the completed capture and release diagnostic names. Returns None
+    /// while mounting remains pending, when disabled, or after the capture was taken.
+    pub fn take_startup_profile(&mut self) -> Option<StartupProfileReport> {
+        if self.startup_pending() {
+            return None;
+        }
+        let profile = self.runtime_context.startup.borrow_mut().profile.take()?;
+        self.runtime_context.startup.borrow_mut().profile_phases = None;
+        self.runtime_context
+            .property_graph
+            .set_diagnostic_names_enabled(false);
+        Some(profile.into_report())
+    }
+
     /// Prioritize a new viewport checkpoint after host layout/asset feedback.
     /// Park background admission, settle the mounted graph and its required
     /// dependencies, then let the host measure and present before resuming.
@@ -313,6 +369,9 @@ impl PaxEngine {
         let mut state = self.runtime_context.startup.borrow_mut();
         if !state.active || state.is_prioritizing() {
             return;
+        }
+        if let Some(profile) = &mut state.profile {
+            profile.settlement_requests += 1;
         }
         state.settling_viewport = true;
         state.ready = false;
@@ -397,6 +456,9 @@ impl PaxEngine {
         if !state.ready {
             return;
         }
+        if let Some(profile) = &mut state.profile {
+            profile.presented_checkpoints += 1;
+        }
         state.viewport_published = true;
         state.settling_viewport = false;
         state.plans.clear();
@@ -428,6 +490,9 @@ impl PaxEngine {
         let mut report = StartupReport::default();
         let ctx = Rc::clone(&self.runtime_context);
         let _graph = ctx.property_graph.enter();
+        // No startup-state borrow crosses user callbacks. Labels remain graph-local
+        // while the collector is owned by this service call.
+        let mut profile = ctx.startup.borrow_mut().profile.take();
         // Import once per service, before local work, to accept measurement and
         // application-store changes without keeping a graph guard across yields.
         ctx.property_graph
@@ -446,6 +511,7 @@ impl PaxEngine {
                 .as_ref()
                 .is_some_and(|handlers| !handlers.is_empty());
             let name;
+            let mut mounted_node = None;
             let drain_background = {
                 let mut state = ctx.startup.borrow_mut();
                 if state.is_prioritizing() {
@@ -460,7 +526,8 @@ impl PaxEngine {
                 }
                 state.draining_background_effects && !dispatching_handlers
             };
-            let drained_background = drain_background && properties::drain_effects(1) > 0;
+            let drained_background =
+                drain_background && drain_startup_effects(&mut profile, &mut now_ms) > 0;
             if drain_background && !drained_background {
                 // A queue can contain only entries already settled by reads.
                 // Popping them must release admission before the next mount.
@@ -471,10 +538,21 @@ impl PaxEngine {
             if drained_background {
                 report.effects += 1;
                 name = "effect";
-            } else if ctx.mount_one_pending() {
+            } else if let Some(outcome) = ctx.mount_one_pending() {
                 report.mounted += 1;
                 name = "mount";
-            } else if !dispatching_handlers && properties::drain_effects(1) > 0 {
+                if let Some(profile) = &mut profile {
+                    match outcome {
+                        MountOutcome::Mounted(node) => {
+                            profile.mounts_completed += 1;
+                            mounted_node = Some(node);
+                        }
+                        MountOutcome::Deferred => profile.mounts_deferred += 1,
+                        MountOutcome::Stale => profile.mounts_stale += 1,
+                    }
+                }
+            } else if !dispatching_handlers && drain_startup_effects(&mut profile, &mut now_ms) > 0
+            {
                 report.effects += 1;
                 name = "effect";
             } else {
@@ -613,6 +691,16 @@ impl PaxEngine {
                 ctx.startup.borrow_mut().phase = next;
             }
             let duration = now_ms() - unit_start;
+            if let Some(profile) = &mut profile {
+                profile.units.entry(name).or_default().record(duration);
+                if let Some(node) = mounted_node {
+                    profile
+                        .mounts
+                        .entry(RuntimeContext::startup_node_category(&node))
+                        .or_default()
+                        .record(duration);
+                }
+            }
             if duration > report.longest_unit_ms {
                 report.longest_unit_ms = duration;
                 report.longest_unit = name;
@@ -626,7 +714,27 @@ impl PaxEngine {
         report.ready_to_present = ctx.startup.borrow().ready;
         report.deferred_roots = ctx.startup.borrow().deferred.len();
         report.elapsed_ms = now_ms() - start;
+        if let Some(profile) = &mut profile {
+            profile.services += 1;
+            profile.service_ms += report.elapsed_ms;
+        }
+        // A failing callback may shut down and unmount the engine during service.
+        // Do not resurrect the capture discarded by unmount.
+        if self.root_expanded_node.is_some() {
+            ctx.startup.borrow_mut().profile = profile;
+        }
         report
+    }
+}
+
+fn drain_startup_effects(
+    profile: &mut Option<StartupProfile>,
+    now_ms: &mut impl FnMut() -> f64,
+) -> usize {
+    if let Some(profile) = profile {
+        properties::drain_effects_profiled(1, &mut profile.reactive, now_ms)
+    } else {
+        properties::drain_effects(1)
     }
 }
 
@@ -774,6 +882,85 @@ mod tests {
             );
         }
         panic!("startup did not terminate");
+    }
+
+    #[test]
+    fn startup_profile_preserves_service_and_lifecycle_work() {
+        let run = |profiled| {
+            let mut engine = new_engine();
+            if profiled {
+                engine.enable_startup_profiling();
+            }
+            engine.mount_root_component(component(vec![
+                box_at(0., vec![component(vec![])]),
+                box_at(500., vec![component(vec![])]),
+            ]));
+            assert!(engine.take_startup_profile().is_none());
+            let mut totals = (0, 0, 0);
+            for _ in 0..4000 {
+                if !engine.startup_pending() {
+                    break;
+                }
+                if engine.accept_startup_measurements() {
+                    engine.resume_startup_after_presentation();
+                }
+                let report = engine.service_startup(0., || 0.);
+                totals.0 += report.units;
+                totals.1 += report.mounted;
+                totals.2 += report.effects;
+            }
+            assert!(!engine.startup_pending());
+            let capture = engine.take_startup_profile();
+            assert!(!engine
+                .runtime_context
+                .property_graph
+                .diagnostic_names_enabled());
+            assert!(engine.take_startup_profile().is_none());
+            let calls =
+                CALLS.with_borrow(|calls| calls.iter().map(|(kind, _)| *kind).collect::<Vec<_>>());
+            (totals, calls, capture)
+        };
+        let (normal, calls, capture) = run(false);
+        assert!(capture.is_none());
+        let (profiled, profiled_calls, capture) = run(true);
+        assert_eq!(normal, profiled);
+        assert_eq!(calls, profiled_calls);
+        let capture = capture.unwrap();
+        assert_eq!(capture.reactive.totals.evaluations(), profiled.2);
+        assert_eq!(
+            capture.mounts_completed + capture.mounts_deferred + capture.mounts_stale,
+            profiled.1
+        );
+        assert_eq!(
+            capture.units.values().map(|unit| unit.count).sum::<usize>(),
+            profiled.0
+        );
+        assert!(capture.presented_checkpoints > 0);
+        assert!(capture.mounts_deferred > 0);
+        assert!(!capture.mounts.is_empty());
+        assert!(capture.phases["node.create"].count > 0);
+        assert!(capture.phases["node.mount"].count > 0);
+        assert!(capture.phases.values().all(|phase| phase.self_ms <= phase.total_ms));
+    }
+
+    #[test]
+    fn startup_profile_unmount_discards_capture_and_allows_retry() {
+        let mut engine = new_engine();
+        engine.enable_startup_profiling();
+        engine.mount_root_component(component(vec![box_at(500., vec![])]));
+        engine.service_startup(0., || 0.);
+        engine.unmount();
+        assert!(engine.take_startup_profile().is_none());
+        assert!(!engine
+            .runtime_context
+            .property_graph
+            .diagnostic_names_enabled());
+
+        engine.enable_resumable_startup();
+        engine.enable_startup_profiling();
+        engine.mount_root_component(component(vec![]));
+        finish(&mut engine);
+        assert!(engine.take_startup_profile().is_some());
     }
 
     fn box_at(x: f64, children: Vec<Rc<dyn InstanceNode>>) -> Rc<ComponentInstance> {

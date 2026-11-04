@@ -90,11 +90,10 @@ export async function startLoadingApplication(options: WebInitOptions, glue: Glu
                 void mountFailure.catch(() => {});
                 attempt.signal.throwIfAborted();
                 await waitFrame(attempt.signal);
-                // Acknowledge the first viewport so deferred mounting can resume,
-                // but keep the loader active: the main clock is still held until
-                // the remainder finishes. Exiting now exposes a frozen entry pose.
+                // Both policies require settled native content and submitted
+                // visible surfaces. Revealing also releases deferred mounting.
                 while (!main.reveal()) await waitFrame(attempt.signal);
-                await abortable(main.mounted, attempt.signal);
+                if (options.loaderExit !== 'first_viewport') await abortable(main.mounted, attempt.signal);
                 update('ready');
                 await waitFrame(attempt.signal);
                 update('revealing');
@@ -102,6 +101,10 @@ export async function startLoadingApplication(options: WebInitOptions, glue: Glu
                 loader.chassis!.begin_presentation_exit();
                 do { await waitFrame(attempt.signal); }
                 while (!loader.chassis!.presentation_exit_complete());
+                // A custom loader need not fade every element in its @out.
+                // Retire its visible slot even if the remaining mounts are pending.
+                loaderSlot.hidden = true;
+                await abortable(main.mounted, attempt.signal);
                 while (!main.publish()) await waitFrame(attempt.signal);
                 update('active');
                 loader.close();
@@ -117,6 +120,9 @@ export async function startLoadingApplication(options: WebInitOptions, glue: Glu
                 if (loaderExiting && !options.signal?.aborted) {
                     loader.close();
                     await loader.closed;
+                    // The replacement needs layout for native measurement; its
+                    // own held-presentation region prevents an unprepared flash.
+                    loaderSlot.hidden = false;
                     loader = await prepareLoader();
                     while (!loader.publish()) await waitFrame();
                     loaderExiting = false;

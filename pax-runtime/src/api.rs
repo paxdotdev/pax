@@ -112,6 +112,9 @@ pub struct NodeContext {
     ///
     /// Prefer this or `received_children` itself for structural subscriptions
     /// that must react to reorders as well as insertions and removals.
+    /// Unchanged child identities and order cut off propagation, except when a
+    /// child remounts or its parent bindings change. Subscribe to child geometry
+    /// separately for size or position updates.
     pub received_children_changed: LocalProperty<()>,
     /// Received children retained only so exit transitions can finish.
     ///

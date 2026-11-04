@@ -1,6 +1,6 @@
 use super::*;
 use std::{
-    cell::Cell,
+    cell::{Cell, RefCell},
     rc::Rc,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -8,6 +8,108 @@ use std::{
     },
     thread,
 };
+
+#[test]
+fn startup_profile_counts_cutoffs_without_replaying_effects() {
+    let graph = PropertyGraph::new(|| {});
+    graph.set_diagnostic_names_enabled(true);
+    let _entered = graph.enter();
+    let source = LocalProperty::new(1_u32);
+    let input = source.clone();
+    let cutoff = LocalProperty::computed_with_cutoff_and_name(
+        move || input.get(),
+        &[source.untyped()],
+        u32::eq,
+        "bounds (node id: 7)",
+    );
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let output = seen.clone();
+    let input = cutoff.clone();
+    let effect = LocalProperty::computed_with_name(
+        move || output.borrow_mut().push(input.get()),
+        &[cutoff.untyped()],
+        "native update (node id: 7)",
+    );
+    register_effect_property(&effect);
+    let mut profile = ReactiveWorkProfile::default();
+    let mut time = 0.;
+    let mut now = || {
+        time += 1.;
+        time
+    };
+    assert_eq!(drain_effects_profiled(10, &mut profile, &mut now), 2);
+    source.set(1);
+    assert_eq!(drain_effects_profiled(10, &mut profile, &mut now), 1);
+    source.set(2);
+    assert_eq!(drain_effects_profiled(10, &mut profile, &mut now), 2);
+    assert_eq!(*seen.borrow(), vec![1, 2]);
+    let report = profile.into_report(1);
+    assert_eq!(report.totals.effects, 2);
+    assert_eq!(report.totals.cutoffs_initialized, 1);
+    assert_eq!(report.totals.cutoffs_suppressed, 1);
+    assert_eq!(report.totals.cutoffs_propagated, 1);
+    assert_eq!(report.totals.inclusive_ms, 5.);
+    assert_eq!(report.categories.len(), 2);
+    assert_eq!(report.top_properties[0].0, "bounds (node id: 7)");
+    assert_eq!(report.omitted_labels, 1);
+    assert!(!has_pending_effects());
+    graph.close();
+}
+
+#[test]
+fn startup_profile_names_follow_rebinding_and_remain_graph_local() {
+    let graph = PropertyGraph::new(|| {});
+    let other = PropertyGraph::new(|| {});
+    graph.set_diagnostic_names_enabled(true);
+    let a = {
+        let _entered = graph.enter();
+        let a = LocalProperty::computed_with_name(|| (), &[], "old name");
+        a.replace_with(LocalProperty::computed_with_name(
+            || (),
+            &[],
+            "replacement (node id: 9)",
+        ));
+        register_effect_property(&a);
+        a
+    };
+    let b = {
+        let _entered = other.enter();
+        let b = LocalProperty::computed_with_name(|| (), &[], "must not be retained");
+        register_effect_property(&b);
+        b
+    };
+    let mut profile = ReactiveWorkProfile::default();
+    {
+        let _entered = graph.enter();
+        assert_eq!(drain_effects_profiled(10, &mut profile, || 0.), 1);
+    }
+    let report = profile.into_report(64);
+    assert_eq!(report.top_properties[0].0, "replacement (node id: 9)");
+    assert_eq!(report.totals.effects, 1);
+    let mut profile = ReactiveWorkProfile::default();
+    {
+        let _entered = other.enter();
+        assert_eq!(drain_effects_profiled(10, &mut profile, || 0.), 1);
+    }
+    assert_eq!(
+        profile.into_report(64).top_properties[0].0,
+        "<unnamed effect>"
+    );
+    graph.set_diagnostic_names_enabled(false);
+    {
+        let _entered = graph.enter();
+        a.invalidate();
+        let mut profile = ReactiveWorkProfile::default();
+        drain_effects_profiled(10, &mut profile, || 0.);
+        assert_eq!(
+            profile.into_report(64).top_properties[0].0,
+            "<unnamed effect>"
+        );
+    }
+    drop((a, b));
+    graph.close();
+    other.close();
+}
 
 #[test]
 fn worker_publication_uses_shared_storage_and_only_owner_evaluates() {
@@ -351,8 +453,7 @@ fn pending_work_count_includes_cutoffs_and_unowned_work_without_evaluating() {
         );
         let report = drain_effects_with_report(1);
         assert_eq!(
-            report.cutoffs_evaluated,
-            1,
+            report.cutoffs_evaluated, 1,
             "counting did not evaluate the cutoff"
         );
         assert_eq!(pending_effect_count(), 1);

@@ -557,6 +557,9 @@ impl PaxEngine {
         let Some(root_expanded_node) = self.root_expanded_node.take() else {
             return;
         };
+        self.runtime_context
+            .property_graph
+            .set_diagnostic_names_enabled(false);
 
         #[cfg(feature = "designtime")]
         let root_id = root_expanded_node.id;

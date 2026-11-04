@@ -446,6 +446,11 @@ impl PaxChassisWeb {
         }
         if yield_mount {
             engine.enable_resumable_startup();
+            if query_param_value(&window_location_search(), "pax_startup_profile").as_deref()
+                == Some("1")
+            {
+                engine.enable_startup_profiling();
+            }
         }
         engine
             .runtime_context
@@ -523,6 +528,11 @@ impl PaxChassisWeb {
         }
         if yield_mount {
             engine.enable_resumable_startup();
+            if query_param_value(&window_location_search(), "pax_startup_profile").as_deref()
+                == Some("1")
+            {
+                engine.enable_startup_profiling();
+            }
         }
         if let Some(loading) = &loading {
             engine.mount_loading_component(main_component_instance, loading.controller.context());
@@ -1811,6 +1821,12 @@ impl PaxChassisWeb {
         let report = engine.service_startup(budget_ms, || start.elapsed().as_secs_f64() * 1000.0);
         let messages = engine.runtime_context.take_native_messages();
         js_value_serde::to_value(&(messages, report))
+    }
+
+    /// Consume opt-in CPU startup attribution after mounting completes.
+    /// Returns null when disabled, still pending, or already consumed.
+    pub fn take_startup_profile(&mut self) -> JsValue {
+        js_value_serde::to_value(&self.engine.borrow_mut().take_startup_profile())
     }
 
     /// The same tick with opt-in, CPU-side phase timings in milliseconds.

@@ -114,7 +114,7 @@ pub struct RuntimeContext {
     pub presentation_held: Cell<bool>,
     pub(crate) presentation_entry_prepared: Cell<bool>,
     pub(crate) presentation: RefCell<crate::presentation::PresentationState>,
-    pub(crate) presentation_generation: LocalProperty<u64>,
+    pub(crate) presentation_order_generation: LocalProperty<u64>,
     pub(crate) startup: RefCell<crate::engine::startup::Startup>,
     pub(crate) replaying_startup_input: RefCell<Option<crate::engine::startup::StartupInput>>,
     pub application: pax_runtime_api::application::ApplicationInstance,
@@ -289,7 +289,7 @@ impl RuntimeContext {
             presentation_held: Cell::new(false),
             presentation_entry_prepared: Cell::new(false),
             presentation: Default::default(),
-            presentation_generation: LocalProperty::new(0),
+            presentation_order_generation: LocalProperty::new(0),
             startup: Default::default(),
             replaying_startup_input: Default::default(),
             application,
@@ -356,7 +356,7 @@ impl RuntimeContext {
             presentation_held: Cell::new(false),
             presentation_entry_prepared: Cell::new(false),
             presentation: Default::default(),
-            presentation_generation: LocalProperty::new(0),
+            presentation_order_generation: LocalProperty::new(0),
             startup: Default::default(),
             replaying_startup_input: Default::default(),
             application,
@@ -425,7 +425,7 @@ impl RuntimeContext {
             presentation_held: Cell::new(false),
             presentation_entry_prepared: Cell::new(false),
             presentation: Default::default(),
-            presentation_generation: LocalProperty::new(0),
+            presentation_order_generation: LocalProperty::new(0),
             startup: Default::default(),
             replaying_startup_input: Default::default(),
             wheel_regions: Default::default(),
@@ -481,6 +481,8 @@ impl RuntimeContext {
     /// Store the root expanded node after it has been initialized.
     pub fn register_root_expanded_node(&self, root: &Rc<ExpandedNode>) {
         *borrow_mut!(self.root_expanded_node) = Rc::downgrade(root);
+        // Synchronous mounting may discover overlays before the root is stored.
+        self.authored_order_changed(root);
         #[cfg(feature = "3d")]
         crate::camera::bind_root(root, self.globals().renderer_is_gpu);
     }
@@ -591,6 +593,16 @@ impl RuntimeContext {
         prop: &LocalProperty<()>,
         effect_name: &str,
     ) {
+        if self.property_graph.diagnostic_names_enabled() {
+            let category = self
+                .get_expanded_node_by_eid(node)
+                .map(|node| Self::startup_node_category(&node))
+                .unwrap_or_else(|| "<unknown>".to_owned());
+            pax_runtime_api::properties::set_property_diagnostic_name(
+                &prop.untyped(),
+                &format!("{effect_name} (node id: {}, {category})", node.0),
+            );
+        }
         if effect_drain_instrumentation_enabled() {
             let debug_name = self.node_effect_debug_name(node, effect_name);
             register_effect_property_with_name(prop, &debug_name);
@@ -605,6 +617,16 @@ impl RuntimeContext {
         prop: &LocalProperty<()>,
         effect_name: &str,
     ) {
+        if self.property_graph.diagnostic_names_enabled() {
+            pax_runtime_api::properties::set_property_diagnostic_name(
+                &prop.untyped(),
+                &format!(
+                    "{effect_name} (node id: {}, {})",
+                    node.id.0,
+                    Self::startup_node_category(node)
+                ),
+            );
+        }
         if effect_drain_instrumentation_enabled() {
             let debug_name = Self::expanded_node_effect_debug_name(node, effect_name);
             register_effect_property_with_name(prop, &debug_name);
@@ -747,6 +769,22 @@ impl RuntimeContext {
             .unwrap_or_else(|| "<unknown>".to_owned());
 
         format!("{effect_name} type={type_name}")
+    }
+
+    pub(crate) fn startup_node_category(node: &ExpandedNode) -> String {
+        let instance = node.instance_node.borrow();
+        let base = instance.base();
+        let component = base
+            .template_node_identifier
+            .as_ref()
+            .map(|id| id.get_containing_component_type_id().to_string())
+            .unwrap_or_else(|| "<unknown>".to_owned());
+        let kind = base
+            .template_node_type_id
+            .as_ref()
+            .map(|id| id.get_pascal_identifier().unwrap_or_else(|| id.to_string()))
+            .unwrap_or_else(|| "<unknown>".to_owned());
+        format!("component={component} type={kind}")
     }
 
     pub fn tick_handler_nodes(&self) -> Vec<ExpandedNodeIdentifier> {

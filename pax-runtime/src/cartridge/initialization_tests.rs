@@ -2249,3 +2249,186 @@ fn changed_import_preserves_unmodified_common_bindings_and_defaults() {
     );
     root.recurse_unmount(ctx);
 }
+
+#[test]
+fn compiled_control_flow_keeps_bindings_during_startup_in_rich_and_binary_manifests() {
+    use pax_manifest::{
+        ComponentDefinition, ComponentTemplate, ControlFlowRepeatPredicateDefinition,
+        ControlFlowSettingsDefinition as Flow, PaxManifest,
+    };
+    let expr = |source| ExpressionInfo::new(pax_language::parse_pax_expression(source).unwrap());
+    let root_type = TypeId::build_singleton("test::Root", Some("Root"));
+    let leaf_type = TypeId::build_singleton("test::Probe", Some("Probe"));
+    let mut template = ComponentTemplate::new(root_type.clone(), None);
+    let mut controls = Vec::new();
+    for (type_id, settings, has_child) in [
+        (
+            TypeId::build_if(),
+            Flow {
+                condition_expression: Some(expr("value > 0")),
+                ..Default::default()
+            },
+            true,
+        ),
+        (
+            TypeId::build_repeat(),
+            Flow {
+                repeat_source_expression: Some(expr("value > 7 ? [\"b\", \"c\"] : [\"a\", \"b\"]")),
+                repeat_predicate_definition: Some(ControlFlowRepeatPredicateDefinition::ElemId(
+                    "item".into(),
+                )),
+                repeat_key_expression: Some(expr("item")),
+                ..Default::default()
+            },
+            true,
+        ),
+        (
+            TypeId::build_slot(),
+            Flow {
+                slot_index_expression: Some(expr("value")),
+                ..Default::default()
+            },
+            false,
+        ),
+        (TypeId::build_slot(), Flow::default(), false),
+        (TypeId::build_router(), Flow::default(), false),
+    ] {
+        let id = template.add_root_node_back(TemplateNodeDefinition {
+            type_id,
+            control_flow_settings: Some(settings),
+            ..Default::default()
+        });
+        let id = id.get_template_node_id();
+        if has_child {
+            template.add_child_back(
+                id.clone(),
+                TemplateNodeDefinition {
+                    type_id: leaf_type.clone(),
+                    ..Default::default()
+                },
+            );
+        }
+        controls.push(id);
+    }
+    let component = |type_id, template, is_main_component| ComponentDefinition {
+        document: None,
+        type_id,
+        template,
+        is_main_component,
+        is_primitive: false,
+        is_struct_only_component: false,
+        module_path: "test".into(),
+        primitive_instance_import_path: None,
+        settings: None,
+        camera: None,
+        timelines: vec![],
+        route_branch: None,
+    };
+    let rich = PaxManifest {
+        components: BTreeMap::from([
+            (
+                root_type.clone(),
+                component(root_type.clone(), Some(template), true),
+            ),
+            (leaf_type.clone(), component(leaf_type, None, false)),
+        ]),
+        main_component_type_id: root_type.clone(),
+        type_table: HashMap::new(),
+        assets_dirs: vec![],
+        engine_import_path: "pax_engine".into(),
+    };
+    let baked =
+        pax_manifest::binary::from_slice(&pax_manifest::binary::to_vec(&rich).unwrap()).unwrap();
+    for manifest in [rich, baked] {
+        for resumable in [false, true] {
+            let (mut engine, _) = fixture();
+            engine.unmount();
+            if resumable {
+                engine.enable_resumable_startup();
+            }
+            let traverser = Traverser::new(manifest.clone());
+            let root = engine.mount_root_component(traverser.get_main_component("root"));
+            let nodes = root.children.get();
+            assert_eq!(nodes.len(), 5);
+            let bindings: Vec<_> = nodes
+                .iter()
+                .map(|node| node.parent_binding_rebuilds.get())
+                .collect();
+            for _ in 0..10_000 {
+                if !engine.startup_pending() {
+                    break;
+                }
+                if engine.accept_startup_measurements() {
+                    engine.resume_startup_after_presentation();
+                }
+                engine.service_startup(0., || 0.);
+            }
+            assert!(!engine.startup_pending());
+            assert_eq!(
+                nodes
+                    .iter()
+                    .map(|node| node.parent_binding_rebuilds.get())
+                    .collect::<Vec<_>>(),
+                bindings,
+                "settings refresh must not rebuild control-flow parent bindings"
+            );
+            assert_eq!(nodes[0].children.get().len(), 1);
+            let before = nodes[1].children.get();
+            assert_eq!(before.len(), 2);
+            nodes[2].with_properties_unwrapped(|slot: &mut crate::Slot| {
+                assert_eq!(slot.index.get(), Numeric::from(7))
+            });
+            nodes[3].with_properties_unwrapped(|slot: &mut crate::Slot| {
+                assert!(slot.is_remainder.get())
+            });
+            let location = RouteLocation::root().with_path_segments(vec!["changed".into()]);
+            engine
+                .runtime_context
+                .globals()
+                .route_location
+                .set(location.clone());
+            root.with_properties_unwrapped(|props: &mut Probe| props.value.set(8.));
+            engine.runtime_context.drain_node_effects();
+            let after = nodes[1].children.get();
+            assert_eq!(after.len(), 2);
+            assert_eq!(
+                after[0].id, before[1].id,
+                "repeat keys keep overlapping row identity"
+            );
+            nodes[2].with_properties_unwrapped(|slot: &mut crate::Slot| {
+                assert_eq!(slot.index.get(), Numeric::from(8))
+            });
+            nodes[4].with_properties_unwrapped(|router: &mut crate::RouterProperties| {
+                assert_eq!(router.input_location.get(), location);
+                assert_eq!(router.global_location.get(), location);
+            });
+            root.with_properties_unwrapped(|props: &mut Probe| props.value.set(0.));
+            engine.runtime_context.drain_node_effects();
+            assert!(nodes[0].children.get().is_empty());
+            // Explicit template replacement must still install the new structural expression.
+            let mut edited = manifest.clone();
+            let template = edited
+                .components
+                .get_mut(&root_type)
+                .unwrap()
+                .template
+                .as_mut()
+                .unwrap();
+            let mut conditional = template.get_node(&controls[0]).unwrap().clone();
+            conditional
+                .control_flow_settings
+                .as_mut()
+                .unwrap()
+                .condition_expression = Some(expr("value == 0"));
+            template.set_node(controls[0].clone(), conditional);
+            let edited = Traverser::new(edited);
+            nodes[0].fully_recreate_with_new_data(
+                edited.build_control_flow(&root_type, &controls[0], None),
+                &engine.runtime_context,
+            );
+            engine.runtime_context.drain_node_effects();
+            assert_eq!(nodes[0].children.get().len(), 1);
+            engine.unmount();
+        }
+    }
+}

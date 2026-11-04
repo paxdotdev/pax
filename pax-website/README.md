@@ -10,6 +10,10 @@ Web previews enable the experimental loading screen. Install the qualified
 Wasm splitter and matching wasm-bindgen CLI described in
 [loading-context components](../pax-docs/book/src/components-composition.md#loading-context-components-experimental)
 before running; both the bootstrap and application Wasm are emitted by the same build.
+The website sets `loader_exit = "first_viewport"` under `[package.metadata.pax.web]`:
+the loading screen exits once the initial viewport's native measurements and visible
+surfaces are ready. Remaining content mounts cooperatively after the loader disappears;
+ordinary animations and input still wait for full mounting.
 
 ## Local development
 
@@ -126,15 +130,15 @@ runs the usual reveal. Long startup frames restart that settling interval;
 a five-second ceiling prevents a persistently slow frame rate from suppressing
 the logo indefinitely. There is no fixed delay added to every page load.
 
-The website enables both `package.metadata.pax.loader` and
-`package.metadata.pax.web.yield_mount`. The loading screen stays visible while
-the main application's initial viewport mounts in a hidden, inert region.
-Once its required content, native measurements, and visible surface submissions
-are ready, the page is prepared beneath the still-active loader. Remaining
-content mounts cooperatively, with input and the main animation clock held.
-The loader only fades away once mounting finishes and the hero animation can
-advance, avoiding an exposed, frozen entry pose. Input is enabled after the
-loader exit completes. This handoff does not reduce the total mounting cost. See
+The website enables `package.metadata.pax.loader`,
+`package.metadata.pax.web.yield_mount`, and `loader_exit = "first_viewport"` in
+the web metadata. The loading screen stays visible while the main application's
+initial viewport mounts in a hidden, inert region. Once its required content,
+native measurements, and visible surface submissions are ready, the page appears
+beneath the loader and the loader begins its exit. Remaining content mounts
+cooperatively after the loader disappears. The main animation clock stays held
+until mounting finishes; input is enabled once both mounting and loader exit
+complete. This handoff does not reduce the total mounting cost. See
 [loading screens](../pax-docs/book/src/components-composition.md#loading-context-components-experimental)
 for the build requirements and publication contract.
 

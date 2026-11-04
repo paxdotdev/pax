@@ -99,6 +99,15 @@ pub(super) fn registered_clock(millis: bool) -> Option<LocalProperty<u64>> {
     })
 }
 
+pub(super) fn diagnostic_names_enabled() -> bool {
+    ACTIVE_GRAPH.with(|active| {
+        active
+            .borrow()
+            .as_ref()
+            .is_some_and(PropertyGraph::diagnostic_names_enabled)
+    })
+}
+
 pub(super) fn register_clock(prop: &LocalProperty<u64>, millis: bool) -> bool {
     ACTIVE_GRAPH.with(|active| {
         let active = active.borrow();
@@ -313,6 +322,7 @@ impl<T: SharedPropertyValue> Drop for TypedAttachment<T> {
 
 struct GraphInner {
     id: u64,
+    diagnostic_names: Cell<bool>,
     inbox: Arc<GraphInbox>,
     attachments: RefCell<HashMap<u64, Box<dyn Attachment>>>,
     dormant: RefCell<HashMap<u64, Box<dyn DormantAttachment>>>,
@@ -352,6 +362,7 @@ impl PropertyGraph {
         Self {
             inner: Rc::new(GraphInner {
                 id: next_id(),
+                diagnostic_names: Cell::new(false),
                 inbox: Arc::new(GraphInbox {
                     state: Mutex::new(InboxState::default()),
                     wake: Mutex::new(Arc::new(wake)),
@@ -371,6 +382,20 @@ impl PropertyGraph {
     /// engine pointer and is not reused after this graph closes.
     pub fn id(&self) -> u64 {
         self.inner.id
+    }
+
+    /// Retain diagnostic property names, including in release builds. Enable
+    /// before constructing bindings; disabling releases this graph's extra names.
+    #[doc(hidden)]
+    pub fn set_diagnostic_names_enabled(&self, enabled: bool) {
+        if self.inner.diagnostic_names.replace(enabled) && !enabled {
+            PROPERTY_TABLE.with(|table| table.clear_diagnostic_names(self.id()));
+        }
+    }
+
+    #[doc(hidden)]
+    pub fn diagnostic_names_enabled(&self) -> bool {
+        self.inner.diagnostic_names.get()
     }
 
     /// Whether publications or retirements still need owner-thread servicing.
@@ -645,6 +670,7 @@ impl PropertyGraph {
     }
 
     pub fn close(&self) {
+        self.set_diagnostic_names_enabled(false);
         self.inner.closed.set(true);
         {
             let mut state = lock(&self.inner.inbox.state);

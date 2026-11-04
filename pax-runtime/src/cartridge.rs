@@ -30,7 +30,6 @@ use pax_runtime_api::{
     Rotation, Size, Variable,
 };
 use std::any::Any;
-use std::borrow::Borrow;
 use std::cell::OnceCell;
 use std::collections::{BTreeMap, HashMap};
 use std::marker::PhantomData;
@@ -1712,53 +1711,41 @@ pub trait DefinitionToInstanceTraverser {
                         })
                         .collect()
                 };
-                let prototypical_properties_factory: Box<
-                    dyn Fn(
-                        std::rc::Rc<crate::RuntimePropertiesStackFrame>,
-                        Option<std::rc::Rc<ExpandedNode>>,
-                    )
-                        -> Option<std::rc::Rc<RefCell<pax_runtime_api::pax_value::PaxAny>>>,
-                > = Box::new(move |stack_frame, expanded_node| {
-                    let conditional_branch_properties = conditional_branch_definitions
-                        .iter()
-                        .cloned()
-                        .map(|(branch_kind, condition_expression)| {
-                            build_conditional_branch_property(
-                                branch_kind,
-                                condition_expression,
-                                stack_frame.clone(),
-                            )
-                        })
-                        .collect::<Vec<_>>();
-                    let boolean_expression = conditional_branch_properties
-                        .first()
-                        .cloned()
-                        .unwrap_or_else(|| LocalProperty::new(false));
-
-                    if let Some(expanded_node) = &expanded_node {
-                        let expanded_node = borrow!(**expanded_node);
-                        let outer_ref = expanded_node.properties.borrow();
-                        let rc = Rc::clone(&outer_ref);
-                        let mut inner_ref = (*rc).borrow_mut();
-                        let cp = ConditionalProperties::mut_from_pax_any(&mut inner_ref).unwrap();
-                        cp.boolean_expression.replace_with(boolean_expression);
-                        cp.conditional_branches = conditional_branch_properties;
-                        return None;
-                    }
-
-                    Some(std::rc::Rc::new(RefCell::new({
-                        let mut properties = crate::ConditionalProperties::default();
-                        properties.boolean_expression = boolean_expression;
-                        properties.conditional_branches = conditional_branch_properties;
-                        properties.to_pax_any()
-                    })))
-                });
+                let bind = Box::new(
+                    move |stack_frame: Rc<RuntimePropertiesStackFrame>,
+                          expanded_node: &Rc<ExpandedNode>| {
+                        let conditional_branches = conditional_branch_definitions
+                            .iter()
+                            .cloned()
+                            .map(|(branch_kind, expression)| {
+                                build_conditional_branch_property(
+                                    branch_kind,
+                                    expression,
+                                    stack_frame.clone(),
+                                )
+                            })
+                            .collect::<Vec<_>>();
+                        let boolean_expression = conditional_branches
+                            .first()
+                            .cloned()
+                            .unwrap_or_else(|| LocalProperty::new(false));
+                        let properties = expanded_node.properties.borrow();
+                        let mut properties = properties.borrow_mut();
+                        let conditional =
+                            ConditionalProperties::mut_from_pax_any(&mut properties).unwrap();
+                        conditional
+                            .boolean_expression
+                            .replace_with(boolean_expression);
+                        conditional.conditional_branches = conditional_branches;
+                    },
+                );
                 crate::ConditionalInstance::instantiate_with_branch_child_ranges(
                     crate::rendering::InstantiationArgs {
                         prototypical_common_properties,
-                        prototypical_properties: crate::PropertiesInit::Factory(
-                            prototypical_properties_factory,
-                        ),
+                        prototypical_properties: crate::PropertiesInit::ControlFlow {
+                            allocate: || crate::ConditionalProperties::default().to_pax_any(),
+                            bind,
+                        },
                         handler_registry: None,
                         component_template: None,
                         children: Some(children),
@@ -1806,56 +1793,48 @@ pub trait DefinitionToInstanceTraverser {
                         .collect()
                 };
 
-                let prototypical_properties_factory: Box<
-                    dyn Fn(
-                        std::rc::Rc<crate::RuntimePropertiesStackFrame>,
-                        Option<std::rc::Rc<ExpandedNode>>,
-                    )
-                        -> Option<std::rc::Rc<RefCell<pax_runtime_api::pax_value::PaxAny>>>,
-                > = Box::new(move |stack_frame, expanded_node| {
-                    let global_location = stack_frame
-                        .resolve_symbol_as_erased_property(INTERNAL_ROUTE_LOCATION_SYMBOL)
-                        .map(LocalProperty::<RouteLocation>::new_from_untyped)
-                        .unwrap_or_else(|| LocalProperty::new(RouteLocation::root()));
-                    let input_location = stack_frame
-                        .resolve_symbol_as_erased_property(INTERNAL_ROUTE_MATCH_SYMBOL)
-                        .map(LocalProperty::<RouteMatch>::new_from_untyped)
-                        .map(|route_match| {
-                            let dependency = route_match.untyped();
-                            LocalProperty::computed_with_name(
-                                move || route_match.get().remainder_location(),
-                                &[dependency],
-                                "router input location",
-                            )
-                        })
-                        .unwrap_or_else(|| global_location.clone());
-
-                    if let Some(expanded_node) = &expanded_node {
-                        let expanded_node = borrow!(**expanded_node);
-                        let outer_ref = expanded_node.properties.borrow();
-                        let rc = Rc::clone(&outer_ref);
-                        let mut inner_ref = (*rc).borrow_mut();
+                let bind = Box::new(
+                    move |stack_frame: Rc<RuntimePropertiesStackFrame>,
+                          expanded_node: &Rc<ExpandedNode>| {
+                        let global_location = stack_frame
+                            .resolve_symbol_as_erased_property(INTERNAL_ROUTE_LOCATION_SYMBOL)
+                            .map(LocalProperty::<RouteLocation>::new_from_untyped)
+                            .unwrap_or_else(|| LocalProperty::new(RouteLocation::root()));
+                        // Replacing a stable slot with a literal would snapshot
+                        // the route. Keep navigation live through an input binding.
+                        let dependency = global_location.untyped();
+                        let global_location = LocalProperty::computed_with_name(
+                            move || global_location.get(),
+                            &[dependency],
+                            "router global location",
+                        );
+                        let input_location = stack_frame
+                            .resolve_symbol_as_erased_property(INTERNAL_ROUTE_MATCH_SYMBOL)
+                            .map(LocalProperty::<RouteMatch>::new_from_untyped)
+                            .map(|route_match| {
+                                let dependency = route_match.untyped();
+                                LocalProperty::computed_with_name(
+                                    move || route_match.get().remainder_location(),
+                                    &[dependency],
+                                    "router input location",
+                                )
+                            })
+                            .unwrap_or_else(|| global_location.clone());
+                        let properties = expanded_node.properties.borrow();
+                        let mut properties = properties.borrow_mut();
                         let router =
-                            crate::RouterProperties::mut_from_pax_any(&mut inner_ref).unwrap();
+                            crate::RouterProperties::mut_from_pax_any(&mut properties).unwrap();
                         router.input_location.replace_with(input_location);
                         router.global_location.replace_with(global_location);
-                        return None;
-                    }
-
-                    Some(std::rc::Rc::new(RefCell::new({
-                        let mut properties = crate::RouterProperties::default();
-                        properties.input_location = input_location;
-                        properties.global_location = global_location;
-                        properties.to_pax_any()
-                    })))
-                });
-
+                    },
+                );
                 crate::RouterInstance::instantiate_with_branches(
                     crate::rendering::InstantiationArgs {
                         prototypical_common_properties,
-                        prototypical_properties: crate::PropertiesInit::Factory(
-                            prototypical_properties_factory,
-                        ),
+                        prototypical_properties: crate::PropertiesInit::ControlFlow {
+                            allocate: || crate::RouterProperties::default().to_pax_any(),
+                            bind,
+                        },
                         handler_registry: None,
                         component_template: None,
                         children: Some(children),
@@ -1879,112 +1858,55 @@ pub trait DefinitionToInstanceTraverser {
                     .slot_index_expression
                     .clone();
 
-                let prototypical_properties_factory: Box<
-                    dyn Fn(
-                        std::rc::Rc<crate::RuntimePropertiesStackFrame>,
-                        Option<std::rc::Rc<ExpandedNode>>,
-                    )
-                        -> Option<std::rc::Rc<RefCell<pax_runtime_api::pax_value::PaxAny>>>,
-                > = Box::new(move |stack_frame, expanded_node| {
-                    let Some(expr_info) = expr_info.clone() else {
-                        if let Some(expanded_node) = &expanded_node {
-                            let expanded_node = borrow!(**expanded_node);
-                            let outer_ref = expanded_node.properties.borrow();
-                            let rc = Rc::clone(&outer_ref);
-                            let mut inner_ref = (*rc).borrow_mut();
-                            let slot_properties =
-                                crate::Slot::mut_from_pax_any(&mut inner_ref).unwrap();
-                            slot_properties.is_remainder.set(true);
-                            return None;
+                let bind = Box::new(
+                    move |stack_frame: Rc<RuntimePropertiesStackFrame>,
+                          expanded_node: &Rc<ExpandedNode>| {
+                        let properties = expanded_node.properties.borrow();
+                        let mut properties = properties.borrow_mut();
+                        let slot = crate::Slot::mut_from_pax_any(&mut properties).unwrap();
+                        let Some(expr_info) = expr_info.clone() else {
+                            slot.is_remainder.set(true);
+                            return;
+                        };
+                        let expr_ast = expr_info.expression.clone();
+                        let mut dependencies = Vec::new();
+                        for dependency in &expr_info.dependencies {
+                            if let Some(p) =
+                                stack_frame.resolve_symbol_as_erased_property(dependency)
+                            {
+                                dependencies.push(p);
+                            } else {
+                                log::warn!("Failed to resolve symbol {}", dependency);
+                            }
                         }
-
-                        return Some(std::rc::Rc::new(RefCell::new({
-                            let mut properties = crate::Slot::default();
-                            properties.is_remainder = LocalProperty::new(true);
-                            properties.to_pax_any()
-                        })));
-                    };
-
-                    let cloned_stack = stack_frame.clone();
-                    let expr_ast = expr_info.expression.clone();
-
-                    let mut dependencies = Vec::new();
-                    for dependency in &expr_info.dependencies {
-                        if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
-                            dependencies.push(p);
-                        } else {
-                            log::warn!("Failed to resolve symbol {}", dependency);
-                        }
-                    }
-
-                    if let Some(expanded_node) = &expanded_node {
-                        let expanded_node = borrow!(**expanded_node);
-                        let outer_ref = expanded_node.properties.borrow();
-                        let rc = Rc::clone(&outer_ref);
-                        let mut inner_ref = (*rc).borrow_mut();
-                        let slot_properties =
-                            crate::Slot::mut_from_pax_any(&mut inner_ref).unwrap();
-                        slot_properties
-                            .index
-                            .replace_with(LocalProperty::computed_with_name(
-                                move || {
-                                    let new_value = expr_ast
-                                        .compute(cloned_stack.clone())
-                                        .unwrap_or_else(|op_err| {
-                                            log::warn!(
-                                                "Failed to compute expression: {:?}",
-                                                op_err
-                                            );
-                                            Default::default()
-                                        });
-                                    let coerced: Numeric = Numeric::try_coerce(new_value)
-                                        .unwrap_or_else(|_| {
-                                            log::warn!(
-                                                "Failed to parse slot index expression: {}",
-                                                expr_ast
-                                            );
-                                            Default::default()
-                                        });
-                                    coerced
-                                },
-                                &dependencies,
-                                "slot index",
-                            ));
-                        return None;
-                    }
-
-                    Some(std::rc::Rc::new(RefCell::new({
-                        let mut properties = crate::Slot::default();
-
-                        properties.index = LocalProperty::computed_with_name(
+                        slot.index.replace_with(LocalProperty::computed_with_name(
                             move || {
-                                let new_value = expr_ast
-                                    .compute(cloned_stack.clone())
-                                    .unwrap_or_else(|op_err| {
-                                        log::warn!("Failed to compute expression: {:?}", op_err);
-                                        Default::default()
-                                    });
-                                let coerced: Numeric = Numeric::try_coerce(new_value)
-                                    .unwrap_or_else(|_| {
-                                        log::warn!(
-                                            "Failed to parse slot index expression: {}",
-                                            expr_ast
-                                        );
-                                        Default::default()
-                                    });
-                                coerced
+                                let value =
+                                    expr_ast
+                                        .compute(stack_frame.clone())
+                                        .unwrap_or_else(|error| {
+                                            log::warn!("Failed to compute expression: {:?}", error);
+                                            Default::default()
+                                        });
+                                Numeric::try_coerce(value).unwrap_or_else(|_| {
+                                    log::warn!(
+                                        "Failed to parse slot index expression: {}",
+                                        expr_ast
+                                    );
+                                    Default::default()
+                                })
                             },
                             &dependencies,
                             "slot index",
-                        );
-                        properties.to_pax_any()
-                    })))
-                });
+                        ));
+                    },
+                );
                 crate::SlotInstance::instantiate(crate::rendering::InstantiationArgs {
                     prototypical_common_properties,
-                    prototypical_properties: crate::PropertiesInit::Factory(
-                        prototypical_properties_factory,
-                    ),
+                    prototypical_properties: crate::PropertiesInit::ControlFlow {
+                        allocate: || crate::Slot::default().to_pax_any(),
+                        bind,
+                    },
                     handler_registry: None,
                     component_template: None,
                     children: Some(children),
@@ -2018,49 +1940,39 @@ pub trait DefinitionToInstanceTraverser {
                     .repeat_predicate_definition
                     .clone()
                     .unwrap();
-                let prototypical_properties_factory: Box<
-                    dyn Fn(
-                        std::rc::Rc<crate::RuntimePropertiesStackFrame>,
-                        Option<std::rc::Rc<ExpandedNode>>,
-                    )
-                        -> Option<std::rc::Rc<RefCell<pax_runtime_api::pax_value::PaxAny>>>,
-                > = Box::new(move |stack_frame, expanded_node| {
-                    let cloned_stack = stack_frame.clone();
-                    let expr = source_expression_info.expression.clone();
-                    let deps = source_expression_info.dependencies.clone();
-
-                    let mut dependencies = Vec::new();
-                    for dependency in &deps {
-                        if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
-                            dependencies.push(p);
-                        } else {
-                            log::warn!("Failed to resolve symbol {}", dependency);
+                let bind = Box::new(
+                    move |stack_frame: Rc<RuntimePropertiesStackFrame>,
+                          expanded_node: &Rc<ExpandedNode>| {
+                        let expr = source_expression_info.expression.clone();
+                        let mut dependencies = Vec::new();
+                        for dependency in &source_expression_info.dependencies {
+                            if let Some(p) =
+                                stack_frame.resolve_symbol_as_erased_property(dependency)
+                            {
+                                dependencies.push(p);
+                            } else {
+                                log::warn!("Failed to resolve symbol {}", dependency);
+                            }
                         }
-                    }
-
-                    let (elem, index) = match &predictate_definition {
-                        pax_manifest::ControlFlowRepeatPredicateDefinition::ElemId(id) => {
-                            (Some(id.clone()), None)
-                        }
-                        pax_manifest::ControlFlowRepeatPredicateDefinition::ElemIdIndexId(
-                            t1,
-                            t2,
-                        ) => (Some(t1.clone()), Some(t2.clone())),
-                    };
-
-                    if let Some(expanded_node) = &expanded_node {
-                        let expanded_node = borrow!(**expanded_node);
-                        let outer_ref = expanded_node.properties.borrow();
-                        let rc = Rc::clone(&outer_ref);
-                        let mut inner_ref = (*rc).borrow_mut();
+                        let (elem, index) = match &predictate_definition {
+                            pax_manifest::ControlFlowRepeatPredicateDefinition::ElemId(id) => {
+                                (Some(id.clone()), None)
+                            }
+                            pax_manifest::ControlFlowRepeatPredicateDefinition::ElemIdIndexId(
+                                elem,
+                                index,
+                            ) => (Some(elem.clone()), Some(index.clone())),
+                        };
+                        let properties = expanded_node.properties.borrow();
+                        let mut properties = properties.borrow_mut();
                         let repeat =
-                            crate::RepeatProperties::mut_from_pax_any(&mut inner_ref).unwrap();
+                            crate::RepeatProperties::mut_from_pax_any(&mut properties).unwrap();
                         repeat
                             .source_expression
                             .replace_with(LocalProperty::computed_with_name(
                                 move || {
-                                    expr.compute(cloned_stack.clone()).unwrap_or_else(|op_err| {
-                                        log::warn!("Failed to compute expression: {:?}", op_err);
+                                    expr.compute(stack_frame.clone()).unwrap_or_else(|error| {
+                                        log::warn!("Failed to compute expression: {:?}", error);
                                         Default::default()
                                     })
                                 },
@@ -2074,38 +1986,14 @@ pub trait DefinitionToInstanceTraverser {
                             .iterator_elem_symbol
                             .replace_with(LocalProperty::new(elem));
                         repeat.repeat_key_expression = repeat_key_expression.clone();
-                        return None;
-                    }
-
-                    Some(std::rc::Rc::new(RefCell::new({
-                        let mut properties = crate::RepeatProperties::default();
-
-                        properties.source_expression = LocalProperty::computed_with_name(
-                            move || {
-                                expr.compute(cloned_stack.clone()).unwrap_or_else(|op_err| {
-                                    log::warn!("Failed to compute expression: {:?}", op_err);
-                                    Default::default()
-                                })
-                            },
-                            &dependencies,
-                            "repeat source vec",
-                        );
-
-                        properties
-                            .iterator_i_symbol
-                            .replace_with(LocalProperty::new(index));
-                        properties
-                            .iterator_elem_symbol
-                            .replace_with(LocalProperty::new(elem));
-                        properties.repeat_key_expression = repeat_key_expression.clone();
-                        properties.to_pax_any()
-                    })))
-                });
+                    },
+                );
                 crate::RepeatInstance::instantiate(crate::rendering::InstantiationArgs {
                     prototypical_common_properties,
-                    prototypical_properties: crate::PropertiesInit::Factory(
-                        prototypical_properties_factory,
-                    ),
+                    prototypical_properties: crate::PropertiesInit::ControlFlow {
+                        allocate: || crate::RepeatProperties::default().to_pax_any(),
+                        bind,
+                    },
                     handler_registry: None,
                     component_template: None,
                     children: Some(children),

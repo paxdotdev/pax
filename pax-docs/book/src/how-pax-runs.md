@@ -115,6 +115,13 @@ settings still receive reactive bindings, even when initially inactive. Later
 settings changes or reloads still clear removed values. This optimization applies in
 both development and release builds and does not defer lifecycle handlers.
 
+Compiler-created `if`, repeat, slot, and router nodes also allocate their property
+slots before binding structural expressions. Initial mounting binds those inputs
+once. Imported-settings refresh does not recreate these transport nodes or their
+parent-layout bindings; their expressions continue to observe changes in the
+containing component. Explicit template replacement still installs new structural
+expressions. This applies to both development manifests and release-baked programs.
+
 When imported settings change on an ordinary node, the runtime compares ordered
 shared definitions and their provider scopes, then applies a sparse `SettingsPatch`.
 Omitted properties keep their existing bindings; removed definitions receive an
@@ -340,10 +347,12 @@ frame clock or repeat `@mount`, `@tick`, or `@pre_render` handlers. Wall time st
 passes during ordinary initialization, so this does not pause elapsed-time animations.
 When a [loading screen](components-composition.md#loading-context-components-experimental)
 is configured, the loader and main application instead have independent clocks
-and reactive graphs. The main clock stays paused until mounting completes; the
-loader remains active over the prepared viewport until then, and only begins
-its exit once the main clock can advance. Input stays blocked until mounting
-and loader exit both finish. Their rendering scenes are independent while sharing
+and reactive graphs. The main clock stays paused until mounting completes.
+By default the loader remains active over the prepared viewport until then.
+`loader_exit = "first_viewport"` under `[package.metadata.pax.web]` starts its
+exit as soon as that viewport settles, leaving the prepared scene visible while
+remaining mounts complete. Input stays blocked until mounting and loader exit
+both finish. Their rendering scenes are independent while sharing
 the runtime's GPU device. Cooperative preparation and rendering share a 4 ms
 allowance per animation-frame opportunity across these hosted applications;
 an indivisible callback can exceed this soft budget.
@@ -372,7 +381,7 @@ loading screen, this checkpoint permits the first reveal described below. A
 configured loading screen additionally waits for the initial visible surfaces
 to be submitted before revealing that viewport underneath the active loader.
 The rest of the scene mounts cooperatively with input and ordinary ticks still
-held. Loader exit waits for this mounting to complete; see its
+held. Loader exit follows the configured `loader_exit` policy; see its
 [publication contract](components-composition.md#loading-context-components-experimental).
 A node with a known
 outer box entirely outside that viewport can defer its whole subtree; this
@@ -382,6 +391,13 @@ contributions use their viewport bounds. Their pending
 mounts remain tied to their authored owners even though they have no ordinary
 render parent. An Overlay beneath an entirely deferred ancestor is discovered
 when that ancestor mounts.
+Child reconciliation invalidates layout membership at the affected parent;
+changes to descendant hull values then propagate through their reactive
+dependencies. Overlay and animated-move ordering use a separate viewport-order
+signal, so the presence of an Overlay does not make ordinary child reconciliation
+invalidate layout listeners throughout the application. Moving content updates
+its old and new parents and its projected-content consumers. A deferred child
+finishing its mount also notifies its parent explicitly.
 Selection continues recursively through visible containers: an autosized outer container does not by itself
 require mounting its entire content. A start-aligned Stacker with a fixed cross
 axis resolves a visible prefix, accepting native measurements before deciding
@@ -674,6 +690,52 @@ Screenshots and event driving are useful for repeatable behavior checks.
 They do not establish frame rate, memory use, or accessibility. Keep those
 measurements separate, and compare the same workload before and after a
 change.
+
+### Web startup attribution
+
+For a slow initial mount, reload with `?pax_startup_profile=1&pax_mount_yield=1`.
+This opt-in capture works in debug and release web builds with resumable startup.
+A configured loading screen already enables resumable mounting. The flag does
+not change the work budget, publication gates, or lifecycle ordering.
+
+After mounting completes, inspect `window.paxStartupProfiles` in the browser's
+developer console. Loader and main applications have separate entries; the
+latest eight completed captures are retained across mounts and retries. For
+example, export them from Chrome DevTools with:
+
+```js
+copy(JSON.stringify(window.paxStartupProfiles, null, 2))
+```
+
+Each report includes service time, CPU unit totals, accepted settlement requests,
+presented checkpoints, and completed/deferred/stale mount-continuation counts.
+Completed mount units are grouped by containing template component and node type.
+`phases` breaks node construction and mounting into allocation, property binding,
+scope setup, parent binding, projected children, settings discovery/rebinding,
+property preparation, lifecycle handlers, and instance mounting. Each phase has
+`count`, `total_ms`, `self_ms`, and `max_ms`. Total time includes nested phases;
+self time excludes them, so it is useful for finding the work inside a costly
+mount without counting child construction twice. These phases also cover root
+construction before the first service call.
+`reactive` separates queued effects from cutoff initialization, suppressed
+propagation, and propagated changes. Category totals include all recorded work;
+`top_properties` contains the 64 labels with the most evaluations, with expanded
+node IDs where available. `omitted_labels` reports how many labels were
+excluded from that list. `<unnamed effect>` and `<unnamed cutoff>` retain counts
+for work without diagnostic names. Names are retained for the profiled graph in
+release builds too, then released when its capture is consumed, the application
+unmounts, or the graph closes.
+
+These counters cover work evaluated by startup's reactive queue. A synchronous
+dependency read inside a mount or another evaluator is included in its caller's
+time, but is not counted as a separate queued evaluation. `inclusive_ms` measures
+wall time inside queued evaluators; it overlaps the unit and service totals.
+Do not add those nested timings or phase timings to unit/service totals. Host
+scheduling waits, native patch application and measurement, and GPU work are
+outside this capture. Cancelled or failed mounts do not produce a completed
+capture. Profiling adds overhead and can change slice/checkpoint timing: use a
+separate run without the query flag for baseline wall times, and record viewport
+readiness separately from full mount and input publication.
 
 ### Native render phase timings
 

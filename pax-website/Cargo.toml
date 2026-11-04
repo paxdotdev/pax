@@ -13,6 +13,7 @@ title = "Pax — A declarative language for native and web UI"
 
 [package.metadata.pax.web]
 yield_mount = true
+loader_exit = "first_viewport"
 background_color = "#11110f"
 server_owned_prefixes = ["/blog", "/ai", "/ai.md", "/paxflix", "/calculator", "/oscilloscope", "/space-game"]
 title = "Pax — A declarative language for native and web UI"

@@ -139,6 +139,13 @@ Enable the experimental initial-mount continuation before mounting a root.
 The host must service it to completion before calling ordinary `tick`.
 This changes scheduling only; every initially selected node still mounts.
 
+##### `enable_startup_profiling`
+<pre><code class="api-signature language-rust ignore">pub fn enable_startup_profiling(&amp;mut self)</code></pre>
+
+Enable queue and mount attribution after enabling resumable startup and
+before mounting the root. Profiling adds overhead and retains diagnostic
+names in both debug and release; it never changes the scheduling budget.
+
 ##### `prepare_startup_presentation`
 <pre><code class="api-signature language-rust ignore">pub fn prepare_startup_presentation(&amp;mut self) -&gt; bool</code></pre>
 
@@ -169,6 +176,12 @@ Service part of the first logical tick without advancing it once per host
 slice. Native patches may be drained between calls for measurement, but
 rendering waits for `prepare_startup_presentation`. A ready checkpoint can
 still have deferred work; the host resumes it after presenting the scene.
+
+##### `take_startup_profile`
+<pre><code class="api-signature language-rust ignore">pub fn take_startup_profile(&amp;mut self) -&gt; Option&lt;StartupProfileReport&gt;</code></pre>
+
+Consume the completed capture and release diagnostic names. Returns None
+while mounting remains pending, when disabled, or after the capture was taken.
 
 Central instance of the PaxEngine and runtime, intended to be created by a particular chassis.
 Contains all rendering and runtime logic.

@@ -624,6 +624,10 @@ The frame's private background and layout structure stay inside its template.
 Caller content and private implementation structure serve different roles;
 container code should use `NodeContext::received_children` for its semantic
 content rather than treating all runtime descendants as supplied children.
+Its structural subscriptions follow insertions, removals, reorders, moves, and
+fresh mount or parent bindings. Reconciliation that leaves those facts unchanged
+does not notify consumers again. Subscribe to each child's geometry separately
+when layout also depends on changes to its size or position.
 Custom container internals are beyond this chapter.
 
 ## Component actions
@@ -897,18 +901,35 @@ complete source. Viewport selection uses the conservative, approximate
 layouts require more content before they can settle.
 
 The prepared canvas and native elements become visible together beneath the
-loader, which remains active while the remaining scene mounts cooperatively.
-Only after mounting completes and the main animation clock can advance does
-the loader run its `@out`. The default loader fades over 250 ms. This avoids
-exposing a motionless entry pose while offscreen content is still mounting.
-The main application's `@in` starts as mounting completes, underneath the
-exiting loader. Application input and accessibility remain blocked until both
-mounting and loader exit finish. A custom loader with a transparent background
-can still expose the preparing application's paused entry pose underneath it.
-The `init_web` promise resolves after that full handoff. This does not wait for
-every offscreen asset or application-defined async task. A failure during the
-remaining mount closes the partial application and leaves the active loader
-to display the error and any available retry action.
+loader. By default, `loader_exit = "full_mount"` keeps the loader active until
+mounting completes and the main animation clock can advance. The loader then
+runs its `@out`; the default loader fades over 250 ms. The main application's
+`@in` starts underneath that exit.
+
+To end the loading screen as soon as the first viewport is settled, configure:
+
+```toml
+[package.metadata.pax.web]
+loader_exit = "first_viewport" # default: "full_mount"
+```
+
+This starts the loader's `@out` at the first settled viewport, after native
+measurement and visible surface submission. Once the exit finishes, the host
+hides the loader even if background mounting is still pending. Ordinary
+animations remain at their prepared entry pose until full mounting completes;
+input and accessibility remain blocked until both mounting and loader exit
+finish. Choose an initial composition that is useful while stationary. This
+option works in debug and release web builds with a configured loader; it does
+not affect Apple targets or applications without a loader. Rebuild after changing
+metadata. A custom JavaScript host can override it with
+`init_web({..., loaderExit: "first_viewport"})` or `"full_mount"`.
+
+The `init_web` promise resolves after the full mounting and input handoff under
+either policy. This does not wait for every offscreen asset or
+application-defined async task. A failure during the remaining mount closes the
+partial application and displays the error and any retry action in the active
+loader. If that loader has started exiting or has disappeared, the host prepares
+a fresh loader for the error and retry.
 
 During remaining mount work, viewport resize and native layout/asset feedback
 pause background admission for another viewport checkpoint. The mounted graph
@@ -959,9 +980,11 @@ Its fields are:
 | `error` | Optional failure message. |
 | `can_retry`, `can_cancel` | Actions the host can currently accept safely. |
 
-`preparing` includes the initial viewport and remaining mount work. `ready`
-means mounting is complete and the loader can begin its exit. `revealing`
-covers that exit transition; only `active` means the input handoff has finished.
+`preparing` lasts until the selected `loader_exit` boundary. `ready` means that
+boundary has been reached and the loader can begin its exit. With
+`"first_viewport"`, remaining mounts may still be pending. `revealing` covers
+the exit and any remaining wait for full mounting, including time after the
+loader disappears; only `active` means the input handoff has finished.
 
 A completed download is not a ready application. There is no overall percentage
 for compilation, mounting or rendering. The default screen dedicates the first

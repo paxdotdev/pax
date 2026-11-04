@@ -4,6 +4,33 @@
 * @returns {any}
 */
 export function wasm_memory(): any;
+export interface ReactiveWorkCounts {
+  effects: number;
+  cutoffs_initialized: number;
+  cutoffs_suppressed: number;
+  cutoffs_propagated: number;
+  inclusive_ms: number;
+}
+export interface StartupUnitProfile { count: number; total_ms: number; max_ms: number; }
+export interface StartupProfile {
+  services: number;
+  service_ms: number;
+  settlement_requests: number;
+  presented_checkpoints: number;
+  mounts_completed: number;
+  mounts_deferred: number;
+  mounts_stale: number;
+  units: Record<string, StartupUnitProfile>;
+  mounts: Record<string, StartupUnitProfile>;
+  phases: Record<string, StartupUnitProfile & { self_ms: number }>;
+  reactive: {
+    totals: ReactiveWorkCounts;
+    categories: [string, ReactiveWorkCounts][];
+    top_properties: [string, ReactiveWorkCounts][];
+    distinct_labels: number;
+    omitted_labels: number;
+  };
+}
 export interface InputQueryWork {
   topology_rebuilds: number;
   bounds_prepared: number;
@@ -77,6 +104,7 @@ export class PaxChassisWeb {
   prepare_startup_presentation(): boolean;
   finish_startup_presentation(): void;
   service_startup(budget_ms: number): [any[], {pending: boolean; units: number; mounted: number; effects: number; peak_queued_effects: number; elapsed_ms: number; longest_unit_ms: number; longest_unit: string}];
+  take_startup_profile(): StartupProfile | null;
   tick(): any;
   tick_profiled(): [any, [string, number][], {passes: number; rebuilds: number; structural_reconciliations: number; records_retained: number; orders_updated: number; records_updated: number; masks_evaluated: number; mask_candidates: number; rebuild_reason: string | null; rebuild_node: number | null; rebuild_origins: ({file: string; line: number; node: number | null; count: number} | null)[]}, InputQueryWork];
   set_surface_ready_callback(callback: (() => void) | undefined): void;

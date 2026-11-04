@@ -112,6 +112,7 @@ pub(crate) struct PropertyTable {
     #[cfg(debug_assertions)]
     debug_names: RefCell<SparseSecondaryMap<PropertyId, String>>,
     effect_debug_names: RefCell<HashMap<PropertyId, String>>,
+    diagnostic_names: RefCell<HashMap<PropertyId, (u64, Rc<str>)>>,
     effect_properties: RefCell<HashSet<PropertyId>>,
     queued_effects: RefCell<super::work_queue::WorkQueue>,
     queued_cutoffs: RefCell<super::work_queue::WorkQueue>,
@@ -127,6 +128,27 @@ pub struct Entry {
 }
 
 impl PropertyTable {
+    pub(crate) fn set_diagnostic_name(&self, id: PropertyId, name: &str) {
+        if super::shared_graph::diagnostic_names_enabled() {
+            if let Some(owner) = self
+                .work_owner(id)
+                .filter(|owner| Some(*owner) == super::shared_graph::current_graph_id())
+            {
+                self.diagnostic_names
+                    .borrow_mut()
+                    .insert(id, (owner, Rc::from(name)));
+            }
+        }
+    }
+
+    pub(crate) fn clear_diagnostic_names(&self, graph: u64) {
+        let mut names = self.diagnostic_names.borrow_mut();
+        names.retain(|_, (owner, _)| *owner != graph);
+        if names.is_empty() {
+            *names = HashMap::new();
+        }
+    }
+
     pub(super) fn watch_retirement(
         &self,
         local: PropertyId,
@@ -256,9 +278,6 @@ impl PropertyTable {
         data: PropertyType<T>,
         debug_name: Option<&str>,
     ) -> PropertyId {
-        #[cfg(not(debug_assertions))]
-        let _ = debug_name;
-
         let is_cutoff = matches!(
             &data,
             PropertyType::Computed {
@@ -306,6 +325,9 @@ impl PropertyTable {
             if let Some(name) = debug_name {
                 self.debug_names.borrow_mut().insert(id, name.to_owned());
             }
+        }
+        if let Some(name) = debug_name {
+            self.set_diagnostic_name(id, name);
         }
         self.connect_inbound(id);
         id
@@ -533,6 +555,14 @@ impl PropertyTable {
         }
 
         self.enqueue_effect_if_registered(source_id);
+        {
+            let mut names = self.diagnostic_names.borrow_mut();
+            if let Some(name) = names.get(&target_id).cloned() {
+                names.insert(source_id, name);
+            } else {
+                names.remove(&source_id);
+            }
+        }
         if !self.is_dirty(source_id) {
             self.publish_stored::<T>(source_id);
         }
@@ -634,6 +664,7 @@ impl PropertyTable {
 
     // drop a properties underlying data, making any subsequent calls invalid by panic
     pub fn remove_entry(&self, id: PropertyId) {
+        self.diagnostic_names.borrow_mut().remove(&id);
         let res = {
             self.unregister_effect(id);
             self.queued_cutoffs.borrow_mut().remove(&id);
@@ -705,6 +736,48 @@ impl PropertyTable {
     }
 
     pub(crate) fn drain_effects(&self, max_iterations: usize) -> usize {
+        self.drain_effects_observed(max_iterations, |_, _| (), |_, _| {})
+    }
+
+    pub(crate) fn drain_effects_profiled(
+        &self,
+        max_iterations: usize,
+        profile: &mut super::ReactiveWorkProfile,
+        now_ms: impl FnMut() -> f64,
+    ) -> usize {
+        let clock = RefCell::new(now_ms);
+        self.drain_effects_observed(
+            max_iterations,
+            |id, cutoff| {
+                // Capture before evaluation: a callback may retire its own binding.
+                let name = self
+                    .diagnostic_names
+                    .borrow()
+                    .get(&id)
+                    .map(|(_, name)| name.clone());
+                (name, cutoff, (clock.borrow_mut())())
+            },
+            |(name, cutoff, start), outcome| {
+                let elapsed = (clock.borrow_mut())() - start;
+                profile.record(
+                    name.as_deref().unwrap_or(if cutoff {
+                        "<unnamed cutoff>"
+                    } else {
+                        "<unnamed effect>"
+                    }),
+                    outcome,
+                    elapsed,
+                );
+            },
+        )
+    }
+
+    fn drain_effects_observed<T>(
+        &self,
+        max_iterations: usize,
+        mut before: impl FnMut(PropertyId, bool) -> T,
+        mut after: impl FnMut(T, CutoffEvaluation),
+    ) -> usize {
         let mut work_ran = 0;
         while work_ran < max_iterations {
             if let Some(id) = self.pop_queued_cutoff() {
@@ -716,7 +789,9 @@ impl PropertyTable {
                     continue;
                 }
                 let settler = self.cutoff_settler(id);
-                settler(self, id);
+                let sample = before(id, true);
+                let outcome = settler(self, id);
+                after(sample, outcome);
                 work_ran += 1;
                 continue;
             }
@@ -732,7 +807,9 @@ impl PropertyTable {
                 continue;
             }
             if dirty {
+                let sample = before(id, false);
                 self.update_value::<()>(id);
+                after(sample, CutoffEvaluation::NotCutoff);
                 work_ran += 1;
             }
         }

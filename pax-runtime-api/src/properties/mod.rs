@@ -1,4 +1,6 @@
+mod diagnostics;
 mod work_queue;
+pub use diagnostics::{ReactiveWorkCounts, ReactiveWorkProfile, ReactiveWorkReport};
 use serde::{Deserialize, Serialize};
 use std::{marker::PhantomData, rc::Rc};
 
@@ -106,6 +108,22 @@ pub fn pending_effect_count() -> usize {
 #[doc(hidden)]
 pub fn drain_effects(max_iterations: usize) -> usize {
     PROPERTY_TABLE.with(|t| t.drain_effects(max_iterations))
+}
+
+/// Drain the same queue with opt-in attribution and inclusive evaluator timings.
+/// Includes the entered graph and unowned work, just like `drain_effects`.
+#[doc(hidden)]
+pub fn drain_effects_profiled(
+    max_iterations: usize,
+    profile: &mut ReactiveWorkProfile,
+    now_ms: impl FnMut() -> f64,
+) -> usize {
+    PROPERTY_TABLE.with(|t| t.drain_effects_profiled(max_iterations, profile, now_ms))
+}
+
+#[doc(hidden)]
+pub fn set_property_diagnostic_name(property: &UntypedProperty, name: &str) {
+    PROPERTY_TABLE.with(|t| t.set_diagnostic_name(property.id, name));
 }
 
 #[doc(hidden)]

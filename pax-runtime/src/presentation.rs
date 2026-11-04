@@ -327,13 +327,82 @@ impl RuntimeContext {
 
     pub(crate) fn register_overlay(&self, node: &ExpandedNode) {
         self.presentation.borrow_mut().overlays.insert(node.id);
+        self.overlay_order_changed();
+    }
+
+    pub(crate) fn logical_children_changed(&self, parent: &ExpandedNode) {
+        parent
+            .presentation_children_generation
+            .update(|generation| {
+                *generation = generation.wrapping_add(1);
+            });
+        // Incoming placements flatten transport nodes. Notify the consumer of
+        // that flattened sequence too; ordinary ancestors follow the hull DAG.
+        if crate::node_query::transparent(parent) {
+            if let Some(parent) = parent.render_parent_node() {
+                self.logical_children_changed(&parent);
+            }
+        }
+    }
+
+    pub(crate) fn projected_membership_changed(&self, node: &ExpandedNode) {
+        let owner = node
+            .projected_membership_owner
+            .get()
+            .and_then(|id| self.get_expanded_node_by_eid(id));
+        if let Some(owner) = owner {
+            owner.projected_placement_generation.update(|generation| {
+                *generation = generation.wrapping_add(1);
+            });
+        }
+    }
+
+    pub(crate) fn authored_order_changed(&self, parent: &ExpandedNode) {
+        self.logical_children_changed(parent);
+        let overlays: Vec<_> = self
+            .presentation
+            .borrow()
+            .overlays
+            .iter()
+            .copied()
+            .collect();
+        // Editing an Overlay's contents cannot reorder that Overlay. Only a
+        // reconciliation on an authored ancestor can change viewport order.
+        if overlays.into_iter().any(|id| {
+            id != parent.id
+                && self
+                    .get_expanded_node_by_eid(id)
+                    .is_some_and(|overlay| authored_within(&overlay, parent.id))
+        }) {
+            self.overlay_order_changed();
+        }
+    }
+
+    pub(crate) fn overlay_order_changed(&self) {
+        if let Some(root) = self.get_root_expanded_node() {
+            self.logical_children_changed(&root);
+        }
         self.presentation_changed();
     }
 
-    pub(crate) fn authored_order_changed(&self) {
-        if !self.presentation.borrow().overlays.is_empty() {
-            self.presentation_changed();
+    fn placement_changed(&self, node: &ExpandedNode, old_parent: Option<Rc<ExpandedNode>>) {
+        let mut parents = old_parent.into_iter().collect::<Vec<_>>();
+        parents.extend(node.render_parent_node());
+        parents.extend(
+            node.authored_attachment
+                .borrow()
+                .as_ref()
+                .and_then(|a| a.parent.upgrade()),
+        );
+        let mut seen = HashSet::new();
+        for parent in parents {
+            if seen.insert(parent.id) {
+                self.logical_children_changed(&parent);
+            }
         }
+        self.projected_membership_changed(node);
+        self.mark_occlusion_dirty();
+        self.viewport_structure_changed();
     }
 
     pub(crate) fn is_transferred(&self, node: ExpandedNodeIdentifier) -> bool {
@@ -484,6 +553,7 @@ impl RuntimeContext {
         }
         children.insert(index, node.clone());
 
+        let old_parent = node.render_parent_node();
         node.mark_canvas_subtree_dirty_for_reparent(self, true);
         self.cancel_move_flight(node);
         if node.move_origin.get().is_some() {
@@ -531,7 +601,7 @@ impl RuntimeContext {
         }
         node.rebind_parent_bounds_for_mounted_subtree(self);
         node.mark_canvas_subtree_dirty_for_reparent(self, false);
-        self.presentation_changed();
+        self.placement_changed(node, old_parent);
         Ok(())
     }
 
@@ -560,6 +630,7 @@ impl RuntimeContext {
         if parent.id == node.id || parent.is_descendant_of(&node.id) {
             return Err(NodeError::Cycle);
         }
+        let old_parent = node.render_parent_node();
         node.mark_canvas_subtree_dirty_for_reparent(self, true);
         self.cancel_move_flight(node);
         if node.move_origin.get().is_some() {
@@ -575,13 +646,15 @@ impl RuntimeContext {
         }
         node.rebind_parent_bounds_for_mounted_subtree(self);
         node.mark_canvas_subtree_dirty_for_reparent(self, false);
-        self.presentation_changed();
+        self.placement_changed(node, old_parent);
         Ok(())
     }
 
     fn presentation_changed(&self) {
-        self.presentation_generation
-            .set(self.presentation_generation.get().wrapping_add(1));
+        // Only viewport contributions subscribe here. Layout and received
+        // children subscribe to their own parent/source membership instead.
+        self.presentation_order_generation
+            .set(self.presentation_order_generation.get().wrapping_add(1));
         self.mark_occlusion_dirty();
         self.viewport_structure_changed();
     }
@@ -594,10 +667,14 @@ impl RuntimeContext {
         preserve_recovery: bool,
     ) {
         self.cancel_move_flight(node);
-        let (removed, abandoned) = {
+        let (removed, overlay_removed, abandoned) = {
             let mut state = self.presentation.borrow_mut();
-            let removed = (!preserve_recovery && state.placements.remove(&node.id).is_some())
-                | state.overlays.remove(&node.id);
+            let removed = if preserve_recovery {
+                None
+            } else {
+                state.placements.remove(&node.id)
+            };
+            let overlay_removed = state.overlays.remove(&node.id);
             let abandoned: Vec<_> = state
                 .placements
                 .iter()
@@ -611,10 +688,14 @@ impl RuntimeContext {
                 placement.detached = true;
                 placement.parent = Weak::new();
             }
-            (removed, abandoned)
+            (removed, overlay_removed, abandoned)
         };
-        if !removed && abandoned.is_empty() {
+        self.projected_membership_changed(node);
+        if removed.is_none() && !overlay_removed && abandoned.is_empty() {
             return;
+        }
+        if let Some(placement) = removed {
+            self.placement_changed(node, placement.parent.upgrade());
         }
         for (_, child) in abandoned {
             let Some(child) = child.filter(|n| n.attached.get() > 0) else {
@@ -633,7 +714,11 @@ impl RuntimeContext {
                 child.recurse_unmount(self);
             }
         }
-        self.presentation_changed();
+        if overlay_removed {
+            self.overlay_order_changed();
+        }
+        self.mark_occlusion_dirty();
+        self.viewport_structure_changed();
     }
 }
 

@@ -51,6 +51,7 @@ struct CommonMetadata {
 #[derive(Debug, Clone, Default)]
 struct WebMetadata {
     yield_mount: bool,
+    loader_exit: Option<String>,
     wheel_events: Option<String>,
     background_color: Option<String>,
     title: Option<String>,
@@ -431,6 +432,14 @@ fn parse_common_metadata(
 }
 
 fn parse_web_metadata(table: &Table, path: &str) -> Result<WebMetadata, eyre::Report> {
+    let loader_exit = string_field(table, "loader_exit", &format!("{path}.loader_exit"))?;
+    if let Some(mode) = loader_exit.as_deref() {
+        if !matches!(mode, "full_mount" | "first_viewport") {
+            return Err(eyre!(
+                "`{path}.loader_exit` must be `full_mount` or `first_viewport`"
+            ));
+        }
+    }
     let wheel_events = string_field(table, "wheel_events", &format!("{path}.wheel_events"))?;
     if let Some(mode) = wheel_events.as_deref() {
         if !matches!(mode, "passive" | "cancellable") {
@@ -441,6 +450,7 @@ fn parse_web_metadata(table: &Table, path: &str) -> Result<WebMetadata, eyre::Re
     }
     let metadata = WebMetadata {
         wheel_events,
+        loader_exit,
         yield_mount: table
             .get("yield_mount")
             .map(|value| {
@@ -645,17 +655,20 @@ fn apply_web_metadata(pax_dir: &Path, metadata: &PaxProjectMetadata) -> Result<(
     }
     html = set_web_background_color(&html, metadata.web.background_color.as_deref())?;
     let wheel_events = metadata.web.wheel_events.as_deref().unwrap_or("passive");
+    let loader_exit = metadata.web.loader_exit.as_deref().unwrap_or("full_mount");
     html = set_web_config(
         &html,
         metadata.web_server_owned_prefixes(),
         metadata.web.yield_mount,
         wheel_events,
+        loader_exit,
     )?;
     fs::write(
         interface_path.join("pax-web-config.json"),
         serde_json::to_vec(&json!({
             "server_owned_prefixes": metadata.web_server_owned_prefixes(),
             "yield_mount": metadata.web.yield_mount,
+            "loader_exit": loader_exit,
             "wheel_events": wheel_events
         }))?,
     )?;
@@ -710,6 +723,7 @@ fn set_web_config(
     prefixes: &[String],
     yield_mount: bool,
     wheel_events: &str,
+    loader_exit: &str,
 ) -> Result<String, eyre::Report> {
     const START: &str = "<!-- pax-web-config:start -->";
     const END: &str = "<!-- pax-web-config:end -->";
@@ -718,6 +732,7 @@ fn set_web_config(
     let json = serde_json::to_string(&json!({
         "server_owned_prefixes": prefixes,
         "yield_mount": yield_mount,
+        "loader_exit": loader_exit,
         "wheel_events": wheel_events
     }))?
     .replace('<', "\\u003c");
@@ -1106,19 +1121,21 @@ mod tests {
             &["/</script><script>alert(1)</script>".into()],
             false,
             "passive",
+            "full_mount",
         )
         .unwrap();
         assert_eq!(updated.matches("</script>").count(), 1);
         assert!(updated.contains("\\u003c/script>"));
-        let updated = set_web_config(&updated, &["/blog".into()], false, "passive").unwrap();
+        let updated =
+            set_web_config(&updated, &["/blog".into()], false, "passive", "full_mount").unwrap();
         assert_eq!(updated.matches("id=\"pax-web-config\"").count(), 1);
         assert!(updated.contains(
-            r#"{"server_owned_prefixes":["/blog"],"wheel_events":"passive","yield_mount":false}"#
+            r#"{"loader_exit":"full_mount","server_owned_prefixes":["/blog"],"wheel_events":"passive","yield_mount":false}"#
         ));
         assert!(!updated.contains("alert"));
         assert_eq!(
             updated,
-            set_web_config(&updated, &["/blog".into()], false, "passive").unwrap()
+            set_web_config(&updated, &["/blog".into()], false, "passive", "full_mount").unwrap()
         );
     }
 
@@ -1147,6 +1164,39 @@ mod tests {
             .contains("\"yield_mount\":false"));
         for invalid in ["\"true\"", "1", "[]"] {
             let source = format!("[package.metadata.pax.web]\nyield_mount = {invalid}");
+            assert!(load_project_metadata_from_toml(dir.path(), &source).is_err());
+        }
+    }
+
+    #[test]
+    fn loader_exit_policy_is_validated_exported_and_reset_on_rebuild() {
+        let dir = tempfile::tempdir().unwrap();
+        let interface = dir.path().join(INTERFACE_DIR_NAME).join("web");
+        fs::create_dir_all(&interface).unwrap();
+        fs::write(interface.join("index.html"), "<html><head></head></html>").unwrap();
+        for mode in ["full_mount", "first_viewport"] {
+            let metadata = load(&format!(
+                "[package.metadata.pax.web]\nloader_exit = \"{mode}\""
+            ));
+            apply_web_metadata(dir.path(), &metadata).unwrap();
+            let config: serde_json::Value =
+                serde_json::from_slice(&fs::read(interface.join("pax-web-config.json")).unwrap())
+                    .unwrap();
+            assert_eq!(config["loader_exit"], mode);
+            assert!(fs::read_to_string(interface.join("index.html"))
+                .unwrap()
+                .contains(&format!("\"loader_exit\":\"{mode}\"")));
+        }
+        apply_web_metadata(dir.path(), &load("[package]\nname = \"app\"")).unwrap();
+        let config: serde_json::Value =
+            serde_json::from_slice(&fs::read(interface.join("pax-web-config.json")).unwrap())
+                .unwrap();
+        assert_eq!(config["loader_exit"], "full_mount");
+        assert!(fs::read_to_string(interface.join("index.html"))
+            .unwrap()
+            .contains("\"loader_exit\":\"full_mount\""));
+        for invalid in ["true", "1", "[]", "\"viewport\"", "\"\""] {
+            let source = format!("[package.metadata.pax.web]\nloader_exit = {invalid}");
             assert!(load_project_metadata_from_toml(dir.path(), &source).is_err());
         }
     }
@@ -1204,7 +1254,7 @@ mod tests {
         );
         let html = fs::read_to_string(interface.join("index.html")).unwrap();
         assert!(html.contains(
-            r#"{"server_owned_prefixes":["/blog"],"wheel_events":"passive","yield_mount":false}"#
+            r#"{"loader_exit":"full_mount","server_owned_prefixes":["/blog"],"wheel_events":"passive","yield_mount":false}"#
         ));
         apply_web_metadata(dir.path(), &load("[package]\nname = \"app\"")).unwrap();
         assert!(load_web_server_owned_prefixes(&interface)

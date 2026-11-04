@@ -55,6 +55,21 @@ struct ChildStructure {
     exiting: Vec<ExpandedNodeIdentifier>,
 }
 
+fn received_children_signature(
+    nodes: &[Rc<ExpandedNode>],
+) -> Vec<(ExpandedNodeIdentifier, u64, u64)> {
+    nodes
+        .iter()
+        .map(|node| {
+            (
+                node.id,
+                node.mount_epoch.get(),
+                node.layout_binding_generation.get(),
+            )
+        })
+        .collect()
+}
+
 use crate::api::{
     Accel, Axis, ButtonClick, CheckboxChange, Click, CommonProperties, ContextMenu, DoubleClick,
     Drop, Event, Gyro, KeyDown, KeyPress, KeyUp, LayoutRole, MouseCancel, MouseDown, MouseMove,
@@ -322,6 +337,10 @@ pub struct ExpandedNode {
     /// Reactive mirror of `active_children` for consumers that need the active
     /// semantic set.
     pub active_children_view: LocalProperty<Vec<Rc<ExpandedNode>>>,
+    // Placement can change effective membership without changing authored children.
+    pub(crate) presentation_children_generation: LocalProperty<u64>,
+    pub(crate) projected_placement_generation: LocalProperty<u64>,
+    pub(crate) projected_membership_owner: Cell<Option<ExpandedNodeIdentifier>>,
 
     /// Children retained only so exit transitions can finish before unmount.
     ///
@@ -463,6 +482,8 @@ pub struct ExpandedNode {
     pub(crate) parent_binding_rebuilds: Cell<usize>,
     #[cfg(test)]
     pub(crate) layout_hull_rebuilds: Cell<usize>,
+    #[cfg(test)]
+    pub(crate) layout_hull_listener_evaluations: Cell<usize>,
     #[cfg(test)]
     pub(crate) structural_children_updates: Cell<usize>,
     /// Reactive content-measurement effect used by autosize-style container features.
@@ -1119,6 +1140,8 @@ impl ExpandedNode {
         containing_component: Weak<ExpandedNode>,
         parent: Weak<ExpandedNode>,
     ) -> Rc<Self> {
+        let _phase = context.startup_phase("node.create");
+        let allocation_phase = context.startup_phase("node.allocate");
         let _graph = context.property_graph.enter();
         let property_binding_scope = context.property_graph.binding_scope();
         let _scope = property_binding_scope.enter();
@@ -1260,6 +1283,9 @@ impl ExpandedNode {
             mounted_children: RefCell::new(Vec::new()),
             active_children: RefCell::new(Vec::new()),
             active_children_view: LocalProperty::new(Vec::new()),
+            presentation_children_generation: LocalProperty::new(0),
+            projected_placement_generation: LocalProperty::new(0),
+            projected_membership_owner: Cell::new(None),
             exiting_children: RefCell::new(Vec::new()),
             exiting_child_generations: RefCell::new(HashMap::new()),
             exiting_children_view: LocalProperty::new(Vec::new()),
@@ -1309,6 +1335,8 @@ impl ExpandedNode {
             #[cfg(test)]
             layout_hull_rebuilds: Cell::new(0),
             #[cfg(test)]
+            layout_hull_listener_evaluations: Cell::new(0),
+            #[cfg(test)]
             structural_children_updates: Cell::new(0),
             content_measurement_listener: LocalProperty::default(),
             content_measurement_rebind_listener: LocalProperty::default(),
@@ -1349,6 +1377,8 @@ impl ExpandedNode {
             resolved_property_provenance: RefCell::new(BTreeMap::new()),
             reset_removed_runtime_properties: Cell::new(false),
         });
+        drop(allocation_phase);
+        let binding_phase = context.startup_phase("node.bind.properties");
         // Only the allocation-only path guarantees that absent common slots
         // are untouched defaults. Full rebinds clear omitted values and their
         // dependencies; sparse imported-settings patches carry explicit resets.
@@ -1365,7 +1395,11 @@ impl ExpandedNode {
             *res.selector_metadata.borrow_mut() =
                 RuntimeSelectorMetadata::from_base(template.base(), &common_properties, &res.stack);
         }
+        drop(binding_phase);
+        let scope_phase = context.startup_phase("node.scope");
         res.refresh_properties_scope(&template);
+        drop(scope_phase);
+        let _listeners_phase = context.startup_phase("node.bind.listeners");
         res.bind_selector_classes_listener(context);
         res.bind_occlusion_listener(context);
         res.bind_children_listener(context);
@@ -1619,6 +1653,7 @@ impl ExpandedNode {
         context: &Rc<RuntimeContext>,
     ) {
         self.sync_mounted_children_from_active_and_exiting();
+        context.authored_order_changed(self);
         child.trigger_bound_enter_transitions_for_mounted_sources_recursive(context);
         self.mark_non_reactive_update_subtree_dirty();
         context.mark_occlusion_dirty();
@@ -1632,7 +1667,7 @@ impl ExpandedNode {
         a.len() == b.len() && a.iter().zip(b).all(|(a, b)| Rc::ptr_eq(a, b))
     }
 
-    fn detach_child_for_reparent(&self, target: &Rc<ExpandedNode>) {
+    fn detach_child_for_reparent(&self, target: &Rc<ExpandedNode>, context: &RuntimeContext) {
         let mut removed = false;
         {
             let active_children = &mut *borrow_mut!(self.active_children);
@@ -1648,6 +1683,7 @@ impl ExpandedNode {
         }
         if removed {
             self.sync_mounted_children_from_active_and_exiting();
+            context.authored_order_changed(self);
             self.mark_non_reactive_update_subtree_dirty();
         }
     }
@@ -2253,7 +2289,7 @@ impl ExpandedNode {
             }
             if context.is_transferred(child.id) {
                 if let Some(previous) = previous_authored.filter(|p| p.id != self.id) {
-                    previous.detach_child_for_reparent(child);
+                    previous.detach_child_for_reparent(child, context);
                 }
                 // Structural updates still own this child's lifetime and scope;
                 // its current presentation attachment survives reconciliation.
@@ -2271,7 +2307,7 @@ impl ExpandedNode {
             // the previous parent's list would publish them twice after mounting.
             if parent_changed {
                 if let Some(previous_parent) = previous_parent.as_ref() {
-                    previous_parent.detach_child_for_reparent(child);
+                    previous_parent.detach_child_for_reparent(child, context);
                 }
             }
 
@@ -2342,7 +2378,7 @@ impl ExpandedNode {
             child.trigger_bound_enter_transitions_for_mounted_sources_recursive(context);
         }
         self.mark_non_reactive_update_subtree_dirty();
-        context.authored_order_changed();
+        context.authored_order_changed(self);
         mounted
     }
 
@@ -2502,10 +2538,15 @@ impl ExpandedNode {
     }
 
     fn bind_to_parent_bounds(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
+        let _phase = ctx.startup_phase("node.bind.parent");
         // Explicit reload/reparent rebuilds invalidate the attachment fast path.
         self.parent_binding_sources.borrow_mut().take();
         self.layout_binding_generation
             .set(self.layout_binding_generation.get().wrapping_add(1));
+        if let Some(parent) = self.render_parent_node() {
+            ctx.logical_children_changed(&parent);
+        }
+        ctx.projected_membership_changed(self);
         self.subtree_layout_hull_listener.invalidate();
         self.children_listener.invalidate();
         #[cfg(test)]
@@ -2515,9 +2556,9 @@ impl ExpandedNode {
         if self.instance_node.borrow().is_overlay() || self.move_in_flight.get() {
             let context = Rc::downgrade(ctx);
             let id = self.id;
-            let deps = [ctx.presentation_generation.untyped()];
+            let deps = [ctx.presentation_order_generation.untyped()];
             self.presentation_layer
-                .replace_with(LocalProperty::computed(
+                .replace_with(LocalProperty::computed_with_cutoff_and_name(
                     move || {
                         context
                             .upgrade()
@@ -2525,6 +2566,8 @@ impl ExpandedNode {
                             .unwrap_or(0)
                     },
                     &deps,
+                    u32::eq,
+                    &format!("presentation domain (node id: {})", self.id.0),
                 ));
         } else {
             let domain = render_parent
@@ -3049,7 +3092,7 @@ impl ExpandedNode {
         self.rebind_subtree_layout_hull(ctx);
         let deps = [
             self.children.untyped(),
-            ctx.presentation_generation.untyped(),
+            self.presentation_children_generation.untyped(),
         ];
         let weak_self = Rc::downgrade(self);
         let context = Rc::clone(ctx);
@@ -3060,6 +3103,9 @@ impl ExpandedNode {
                     let Some(node) = weak_self.upgrade() else {
                         return;
                     };
+                    #[cfg(test)]
+                    node.layout_hull_listener_evaluations
+                        .set(node.layout_hull_listener_evaluations.get() + 1);
                     if node.child_structure_changed(&previous, &context) {
                         node.rebind_subtree_layout_hull(&context);
                     }
@@ -3098,6 +3144,11 @@ impl ExpandedNode {
         }
         *previous = Some(current);
         true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn refresh_layout_hull_for_test(self: &Rc<Self>, context: &RuntimeContext) {
+        self.rebind_subtree_layout_hull(context);
     }
 
     fn rebind_subtree_layout_hull(self: &Rc<Self>, context: &RuntimeContext) {
@@ -3363,6 +3414,7 @@ impl ExpandedNode {
     }
 
     fn rebind_imported_settings(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        let _phase = context.startup_phase("settings.rebind");
         let instance = Rc::clone(&*borrow!(self.instance_node));
         self.reset_removed_runtime_properties.set(true);
         if self.stores.has_providers() || !instance.base().can_rebind_settings_in_place() {
@@ -3434,6 +3486,7 @@ impl ExpandedNode {
     }
 
     pub fn recurse_mount(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        let _phase = context.startup_phase("node.mount");
         let _graph = context.property_graph.enter();
         if self.attached.get() == 0 && self.stores.is_closed() {
             self.prepare_remount(context);
@@ -3441,6 +3494,7 @@ impl ExpandedNode {
         self.property_binding_scope.borrow().resume();
         let _scope = self.property_binding_scope.borrow().enter();
         if self.attached.get() == 0 {
+            let settings_phase = context.startup_phase("mount.imported_settings");
             if context.startup.borrow().is_active() {
                 // A projected child can have been constructed before its owner's
                 // ImportSettings subtree was prepared. Refresh that dependency
@@ -3459,6 +3513,8 @@ impl ExpandedNode {
                     self.rebind_imported_settings(context);
                 }
             }
+            drop(settings_phase);
+            let prepare_phase = context.startup_phase("mount.prepare_properties");
             self.stores.mount(self.template_parent.upgrade().as_deref());
             // All bindings are installed before mount. Prepare values so shared
             // snapshots seen by handlers are initialized; common properties do
@@ -3467,6 +3523,8 @@ impl ExpandedNode {
             for property in scope {
                 property.prepare();
             }
+            drop(prepare_phase);
+            let projected_phase = context.startup_phase("mount.projected_children");
             // Materialize projected children before mount so Slot can resolve them.
             borrow!(self.instance_node)
                 .clone()
@@ -3480,6 +3538,8 @@ impl ExpandedNode {
                 // This is needed to resolve slot connections in a single tick.
                 self.compute_flattened_projected_children();
             }
+            drop(projected_phase);
+            let lifecycle_phase = context.startup_phase("mount.lifecycle");
             self.mount_epoch.set(self.mount_epoch.get().wrapping_add(1));
             self.attached.set(self.attached.get() + 1);
             if self.instance_node.borrow().is_overlay() {
@@ -3488,6 +3548,8 @@ impl ExpandedNode {
             self.start_self_enter_transition(context);
             context.add_to_cache(&self);
             self.run_lifecycle_handlers_for_key("mount", context);
+            drop(lifecycle_phase);
+            let instance_phase = context.startup_phase("mount.instance");
             // Native source leaves have no GPU coverage. Keep their properties
             // available to component logic, but create no native surfaces or
             // native update subscriptions.
@@ -3496,12 +3558,17 @@ impl ExpandedNode {
                     .clone()
                     .handle_mount(&self, context);
             }
+            drop(instance_phase);
             context.register_expanded_node_effect_property_named(
                 self,
                 &self.changed_listener,
                 "changed listener",
             );
             context.register_viewport_proximity(self);
+            if let Some(parent) = self.render_parent_node() {
+                context.logical_children_changed(&parent);
+            }
+            context.projected_membership_changed(self);
         }
     }
 
@@ -3633,6 +3700,7 @@ impl ExpandedNode {
             self.content_measurement_bound.set(false);
             borrow_mut!(self.sidecar_children).clear();
             borrow_mut!(self.expanded_projected_children).take();
+            self.clear_projected_membership_index();
             self.expanded_and_flattened_projected_children
                 .set(Vec::new());
             self.flattened_projected_children_count.set(0);
@@ -3790,6 +3858,7 @@ impl ExpandedNode {
     }
 
     pub fn sync_imported_settings(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        let _phase = context.startup_phase("settings.discover");
         #[cfg(test)]
         self.settings_discoveries
             .set(self.settings_discoveries.get() + 1);
@@ -4108,6 +4177,7 @@ impl ExpandedNode {
     }
 
     pub fn get_node_context(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) -> NodeContext {
+        let _phase = ctx.startup_phase("node.context");
         let globals = ctx.globals();
         let viewport = super::viewport_info_property(&globals.viewport);
         let target = LocalProperty::new(globals.target);
@@ -4200,16 +4270,28 @@ impl ExpandedNode {
         };
         let owned =
             borrow!(self.instance_node).received_children_source() == ReceivedChildrenSource::Owned;
-        let deps = [
-            received_children.untyped(),
-            ctx.presentation_generation.untyped(),
-        ];
+        let membership_generation = if owned {
+            self.presentation_children_generation.clone()
+        } else if owns_projected_children {
+            self.projected_placement_generation.clone()
+        } else {
+            self.containing_component
+                .upgrade()
+                .map(|owner| owner.projected_placement_generation.clone())
+                .unwrap_or_default()
+        };
+        let deps = [received_children.untyped(), membership_generation.untyped()];
         let weak_node = Rc::downgrade(self);
         let context = Rc::clone(ctx);
-        let received_children = LocalProperty::computed(
+        // Keep generations by value: old Rc values observe a later remount too.
+        // Put the cutoff directly on the public property so an immediate get()
+        // after a move resolves it without waiting for queued propagation.
+        let identities = Rc::new(RefCell::new(None));
+        let initial_identities = identities.clone();
+        let received_children = LocalProperty::computed_with_cutoff_and_name(
             move || {
                 let children = received_children.get();
-                if owned {
+                let children = if owned {
                     weak_node
                         .upgrade()
                         .map(|node| context.placed_children(&node, children))
@@ -4219,14 +4301,30 @@ impl ExpandedNode {
                         .into_iter()
                         .filter(|child| !context.is_transferred(child.id))
                         .collect()
+                };
+                if initial_identities.borrow().is_none() {
+                    *initial_identities.borrow_mut() = Some(received_children_signature(&children));
                 }
+                children
             },
             &deps,
+            move |_, new| {
+                let current = received_children_signature(new);
+                let mut previous = identities.borrow_mut();
+                let unchanged = previous.as_ref() == Some(&current);
+                *previous = Some(current);
+                unchanged
+            },
+            &format!("received children membership (node id: {})", self.id.0),
         );
         let received_children_count_source = received_children.clone();
-        let received_children_count = LocalProperty::computed(
+        // Share the raw membership dependencies so direct count reads also
+        // resolve a pending change before the reactive queue is drained.
+        let received_children_count = LocalProperty::computed_with_cutoff_and_name(
             move || received_children_count_source.get().len(),
-            &[received_children.untyped()],
+            &[received_children.untyped(), deps[0].clone(), deps[1].clone()],
+            usize::eq,
+            &format!("received children count (node id: {})", self.id.0),
         );
         let received_children_signal = received_children.clone();
         let received_children_changed = LocalProperty::computed(
@@ -4348,6 +4446,16 @@ impl ExpandedNode {
         true
     }
 
+    fn clear_projected_membership_index(&self) {
+        self.expanded_and_flattened_projected_children.read(|old| {
+            for child in old {
+                if child.projected_membership_owner.get() == Some(self.id) {
+                    child.projected_membership_owner.set(None);
+                }
+            }
+        });
+    }
+
     pub fn compute_flattened_projected_children(&self) {
         // All of this should ideally be reactively updated,
         // but currently doesn't exist a way to "listen to"
@@ -4365,6 +4473,13 @@ impl ExpandedNode {
                     });
 
             if !old_and_new_filtered_same {
+                // Index the semantic source once when projection changes. A
+                // later move/remount can notify its consumers without scanning
+                // their children or forcing structural work during teardown.
+                self.clear_projected_membership_index();
+                for child in &new_flattened {
+                    child.projected_membership_owner.set(Some(self.id));
+                }
                 self.flattened_projected_children_count
                     .set(new_flattened.len());
                 self.expanded_and_flattened_projected_children

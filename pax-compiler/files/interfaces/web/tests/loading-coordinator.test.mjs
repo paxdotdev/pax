@@ -10,8 +10,8 @@ const source = readFileSync(new URL('../src/loading.ts', import.meta.url), 'utf8
     .replace("import(new URL('./__wasm_split.js', new URL(options.cartridgeUrl, document.baseURI)).href)", 'getSplit()');
 const abortSource = readFileSync(new URL('../src/utils/abortable.ts', import.meta.url), 'utf8').replace('export function', 'function');
 const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
-function harness({cancelOnFirstMount = false, ready = true, exitComplete = true, mounting = false, splitAdapter} = {}) {
-    const jobs = new Map(), phases = [], applications = [];
+function harness({cancelOnFirstMount = false, ready = true, exitComplete = true, mounting = false, splitAdapter, loaderExit} = {}) {
+    const jobs = new Map(), phases = [], applications = [], elements = [];
     let nextJob = 0, action, loaderClosed = false, exits = 0, retired = 0, loaders = 0;
     const frame = callback => { const id = ++nextJob; jobs.set(id, callback); return id; };
     const controller = new AbortController();
@@ -24,15 +24,21 @@ function harness({cancelOnFirstMount = false, ready = true, exitComplete = true,
     const module = {exports: {}};
     vm.runInNewContext(transformSync(abortSource + '\n' + source, {loader: 'ts', format: 'cjs'}).code, {
         module, exports: module.exports, AbortController, WebAssembly, URL,
-        document: {baseURI: 'https://example.test/', createElement: () => ({style: {}, dataset: {}, appendChild() {}, remove() {}})},
+        document: {baseURI: 'https://example.test/', createElement: () => {
+            const element = {style: {}, dataset: {}, hidden: false, appendChild() {}, remove() {}};
+            elements.push(element); return element;
+        }},
         requestAnimationFrame: frame, cancelAnimationFrame: id => jobs.delete(id), requestPreparationFrame: frame,
         getSplit: async () => ({loader: adapter, acquire: () => {
             let released = false; return () => { if (!released) { released = true; retired++; } };
         }}),
     });
     const pending = module.exports.startLoadingApplication({element: {appendChild() {}}, cartridgeUrl: '/app', signal: controller.signal,
-        startupData: new Uint8Array([7])}, {}, () => ({initApplication: async options => {
-        if (options.loader) { loaders++; return makeLoader(); }
+        startupData: new Uint8Array([7]), loaderExit}, {}, () => ({initApplication: async options => {
+        if (options.loader) {
+            assert.equal(elements[2].hidden, false, 'loader preparation needs a slot that participates in layout');
+            loaders++; return makeLoader();
+        }
         let acknowledge, finish, fail;
         const app = {closed: new Promise(resolve => { acknowledge = resolve; }), isClosed: false, reveals: 0, publishes: 0,
             mounted: new Promise((resolve, reject) => { finish = resolve; fail = reject; }),
@@ -49,6 +55,8 @@ function harness({cancelOnFirstMount = false, ready = true, exitComplete = true,
         return app;
     }}));
     return {pending, controller, phases, applications, request(value) { action = value; },
+        loaderHidden: () => elements[2].hidden,
+        setReady(value) { ready = value; }, setExitComplete(value) { exitComplete = value; },
         exits: () => exits, retired: () => retired, loaders: () => loaders, loaderClosed: () => loaderClosed,
         async frame() { const callbacks = [...jobs.values()]; jobs.clear(); for (const callback of callbacks) { callback(); await flush(); } },
     };
@@ -95,6 +103,59 @@ test('viewport readiness resumes mounting without exiting the loader onto a paus
     await h.pending;
     assert.equal(h.phases.at(-1), 'active');
     assert.equal(h.applications[0].publishes, 1);
+});
+
+test('first-viewport policy exits at settled readiness but keeps publication pending until full mount', async () => {
+    const h = harness({loaderExit: 'first_viewport', mounting: true, ready: false, exitComplete: false});
+    await flush(); await h.frame();
+    assert.equal(h.phases.at(-1), 'preparing');
+    assert.equal(h.exits(), 0, 'unsettled native content cannot start exit');
+    h.setReady(true); await h.frame();
+    assert.equal(h.phases.at(-1), 'ready');
+    await h.frame();
+    assert.equal(h.exits(), 1);
+    assert.equal(h.phases.at(-1), 'revealing');
+    assert.equal(h.loaderHidden(), false, 'authored exit must finish before hiding the loader slot');
+    let finished = false; h.pending.then(() => { finished = true; });
+    h.setExitComplete(true); await h.frame();
+    assert.equal(h.loaderHidden(), true, 'even a loader without a fade ends before the full mount');
+    assert.equal(finished, false);
+    assert.equal(h.applications[0].publishes, 0);
+    h.applications[0].finish(); await flush();
+    const mounted = await h.pending;
+    assert.equal(h.applications[0].publishes, 1);
+    assert.equal(h.phases.at(-1), 'active');
+    mounted.close(); await mounted.closed;
+});
+
+for (const exited of [false, true]) test(`first-viewport failure ${exited ? 'after' : 'during'} exit restores a visible loader and retries`, async () => {
+    const h = harness({loaderExit: 'first_viewport', mounting: true, exitComplete: exited});
+    await flush(); await h.frame(); await h.frame(); await h.frame();
+    assert.equal(h.exits(), 1);
+    assert.equal(h.loaderHidden(), exited);
+    h.applications[0].fail(new Error('late mount failure')); await flush();
+    assert.equal(h.phases.at(-1), 'failed');
+    assert.equal(h.loaders(), 2);
+    assert.equal(h.loaderHidden(), false);
+    assert.equal(h.applications[0].isClosed, true);
+    assert.equal(h.applications[0].publishes, 0);
+    h.request('retry'); await h.frame();
+    assert.equal(h.applications.length, 2);
+    h.setExitComplete(true); h.applications[1].finish();
+    for (let i = 0; i < 4 && h.phases.at(-1) !== 'active'; i++) await h.frame();
+    const mounted = await h.pending;
+    assert.equal(h.phases.at(-1), 'active');
+    assert.equal(h.applications[1].publishes, 1);
+    mounted.close(); await mounted.closed;
+});
+
+test('abort after first-viewport loader exit cancels remaining mounts without publishing input', async () => {
+    const h = harness({loaderExit: 'first_viewport', mounting: true});
+    await flush(); await h.frame(); await h.frame(); await h.frame();
+    assert.equal(h.loaderHidden(), true);
+    h.controller.abort(); await assert.rejects(h.pending, {name: 'AbortError'});
+    assert.equal(h.applications[0].isClosed, true);
+    assert.equal(h.applications[0].publishes, 0);
 });
 
 test('failure during remaining mounts keeps the existing loader for error and retry', async () => {
