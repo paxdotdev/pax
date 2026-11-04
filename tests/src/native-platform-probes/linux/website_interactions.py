@@ -43,7 +43,18 @@ class WebsiteInteractions:
         self.pointer_owner()
 
     def click(self, n, clip=None):
-        x, y, w, h = self.node(n["id"])["bounds"]
+        # Wheel and drawer animations can move a target after seek() sees it.
+        # Wait for observed geometry to settle before using X11 coordinates.
+        observed = {"bounds": None, "since": time.monotonic(), "frame": None}
+
+        def stationary(value):
+            bounds = self.node(n["id"], value)["bounds"]
+            if observed["bounds"] is None or any(abs(a - b) > .5 for a, b in zip(bounds, observed["bounds"])):
+                observed.update(bounds=bounds, since=time.monotonic(), frame=value.get("frames"))
+            return time.monotonic() - observed["since"] >= .35 and value.get("frames") != observed["frame"]
+
+        value = self.wait(stationary, "native click target geometry settles", 5)
+        x, y, w, h = self.node(n["id"], value)["bounds"]
         cx, cy, cw, ch = clip or self.state()["sceneBoundsInSurface"]
         left, top = max(x, cx + 3), max(y, cy + 3)
         right, bottom = min(x + w, cx + cw - 3), min(y + h, cy + ch - 3)
@@ -115,6 +126,49 @@ class WebsiteInteractions:
                 self.save("interaction-" + name + "-failure-state.json", self.state())
                 self.screenshot("interaction-" + name + "-failure")
                 raise
+
+    def returned_home(self, value, old_ids, requested_y, label):
+        root = max((n for n in self.nodes(value) if n["kind"] == "Scroller"),
+                   key=lambda n: n["bounds"][2] * n["bounds"][3])
+        self.outer_id = root["id"]
+        maximum = max(0, root["scrollUpper"] - root["scrollPage"])
+        expected = min(max(0, requested_y), maximum)
+        self.check(self.outer_id not in old_ids and abs(root.get("scrollY", 0) - expected) <= 1,
+                   "home remount applies persisted bound scroll with allocation-time clamping",
+                   route=label, requestedY=requested_y, firstY=root.get("scrollY", 0),
+                   firstRangeMax=maximum, expectedY=expected)
+        observations = []
+        stable = {"range": None, "since": time.monotonic(), "frame": None}
+
+        def settled(state):
+            current = self.outer(state)
+            extent = (current["scrollUpper"], current["scrollPage"])
+            if extent != stable["range"]:
+                stable["range"], stable["since"] = extent, time.monotonic()
+            if state.get("frames") != stable["frame"]:
+                stable["frame"] = state.get("frames")
+                observations.append({"frames": state.get("frames"), "id": current["id"],
+                                     "scrollY": current.get("scrollY", 0),
+                                     "upper": extent[0], "page": extent[1],
+                                     "nativeImagePending": state.get("nativeImagePending")})
+                self.save("website-" + label + "-return-scroll.json", observations)
+            images = [n for n in self.nodes(state) if n["kind"] == "NativeImage" and n.get("url")]
+            return (time.monotonic() - stable["since"] >= 1 and images
+                    and all(n.get("imageReady") for n in images))
+
+        value = self.wait(settled, "remounted home layout and native images settle")
+        root = self.outer(value)
+        maximum = max(0, root["scrollUpper"] - root["scrollPage"])
+        offset = root.get("scrollY", 0)
+        self.check(-1 <= offset <= maximum + 1, "settled remount retains a legal bound scroll offset",
+                   route=label, requestedY=requested_y, finalY=offset, finalRangeMax=maximum,
+                   exactOriginalOffsetRestored=abs(offset - requested_y) <= 1)
+        # The page owns its persisted offset. A native clamp is fed back to that
+        # binding, so later extent growth does not resurrect the earlier request.
+        self.outer_wheel(5 if offset < maximum - 5 else 4, 2)
+        self.wait(lambda state: abs(self.outer(state).get("scrollY", 0) - offset) > 5,
+                  "remounted home remains scrollable")
+        self.check(True, "remounted home responds to native wheel input", route=label)
 
     def calculator(self):
         heading = self.seek_text("PAX-83+", 180)
@@ -225,11 +279,13 @@ class WebsiteInteractions:
         self.check(True, "embedded calculator graph and calculate mode lifecycle")
 
     def paxflix(self):
-        launch = self.seek_text("Open Paxflix full screen ↗", 300)
+        launch = self.seek(lambda s: self.text("OPEN PAXFLIX FULL SCREEN  ↗", value=s)
+                           or self.text("TRY PAXFLIX  ↗", value=s), "authored Paxflix route", 300)
         before_ids = {n["id"] for n in self.nodes()}
-        outer_before = self.outer().get("scrollY", 0)
+        old_outer = self.outer_id
+        requested_home_y = self.outer().get("scrollY", 0)
         self.click(launch)
-        opened = self.wait(lambda s: any(n.get("text") == "PAXFLIX / LIVE DEMO" for n in self.nodes(s)),
+        opened = self.wait(lambda s: any(n.get("text") == "PAXFLIX / LIVE" for n in self.nodes(s)),
                            "full-screen Paxflix opens")
         new_ids = {n["id"] for n in self.nodes(opened)} - before_ids
 
@@ -253,8 +309,9 @@ class WebsiteInteractions:
         self.wheel_at(self.node(catalog["id"])["bounds"], 5, 3)
         moved = self.wait(lambda s: self.node(catalog["id"], s).get("scrollY", 0) > 50,
                           "Paxflix catalog scrolls independently")
-        self.check(abs(self.outer(moved).get("scrollY", 0) - outer_before) <= 1,
-                   "full-screen catalog scroll leaves website position unchanged")
+        self.wait(lambda s: all(n["id"] != old_outer for n in self.nodes(s)),
+                  "Paxflix route retires the home scroller")
+        self.check(True, "Paxflix route replaces the home scroller")
         # A shelf belongs to this newly mounted demo and is clipped by its
         # catalog. The old inline demos' report nodes can lie at similar y values.
         cb = self.node(catalog["id"])["bounds"]
@@ -271,16 +328,16 @@ class WebsiteInteractions:
         self.wheel_at(clipped, 7, 2)
         moved = self.wait(lambda s: self.node(shelf["id"], s).get("scrollX", 0) > shelf_x + 5,
                           "Paxflix shelf scrolls horizontally")
-        self.check(abs(self.node(catalog["id"], moved).get("scrollY", 0) - catalog_y) <= 1
-                   and abs(self.outer(moved).get("scrollY", 0) - outer_before) <= 1,
-                   "Paxflix shelf wheel preserves catalog and website vertical positions")
-        self.click(self.text("× Close demo")[0])
-        self.wait(lambda s: not ({n["id"] for n in self.nodes(s)} & new_ids), "full-screen Paxflix subtree retires")
-        self.check(abs(self.outer().get("scrollY", 0) - outer_before) <= 1,
-                   "full-screen Paxflix closes and restores the website position")
+        self.check(abs(self.node(catalog["id"], moved).get("scrollY", 0) - catalog_y) <= 1,
+                   "Paxflix shelf wheel preserves catalog vertical position")
+        self.click(self.text("← BACK TO PAX")[0])
+        restored = self.wait(lambda s: not ({n["id"] for n in self.nodes(s)} & new_ids)
+                             and any(n["kind"] == "Scroller" for n in self.nodes(s)),
+                             "Paxflix route retires and home remounts")
+        self.returned_home(restored, before_ids, requested_home_y, "paxflix")
 
     def gallery(self):
-        title = self.seek_text("Meet your creative toolkit", 180)
+        title = self.seek_text("Meet Pax's creative toolkit:", 180)
         # The gallery's full-width rail is the only below-title horizontal
         # scroller with a current offset spanning several card widths.
         rail = min((n for n in self.nodes() if n["kind"] == "Scroller"
@@ -321,7 +378,7 @@ class WebsiteInteractions:
         self.check(True, "gallery resumes after hover ends")
 
     def resize(self):
-        self.seek_text("A declarative language", 200)
+        self.seek_text("A PORTABLE RUNTIME", 200)
         for width, height in ((640, 900), (1280, 960)):
             self.xdo("windowsize", "--sync", self.window, width, height)
             value = self.wait(lambda s: len(s.get("sceneBoundsInSurface", [])) == 4
@@ -330,7 +387,7 @@ class WebsiteInteractions:
                               "native website resize")
             time.sleep(1)
             value = self.fresh()
-            nav = "Get started →" if width < 760 else "Get started"
+            nav = "Get Started"
             self.check(bool(self.text(nav, value=value)), "website responsive navigation", width=width, height=height)
             root = self.outer(value)
             self.check(abs(root["bounds"][2] - width) <= 1 and root["bounds"][3] > height - 100,
@@ -343,75 +400,15 @@ class WebsiteInteractions:
             self.screenshot(f"website-resize-{width}")
         self.check(True, "native narrow/wide resize preserves live scrolling")
 
-    def path_studies(self):
-        headings = sorted((n for n in self.nodes() if n.get("text") == "PATH DRAWING"),
-                          key=lambda n: n["bounds"][1])
-        self.check(len(headings) == 2, "both authored path studies are mounted", count=len(headings))
-        for index, heading in enumerate(headings):
-            self.seek(lambda s: [self.node(heading["id"], s)], "path study heading", 170)
-            hx, hy, hw, _ = self.node(heading["id"])["bounds"]
-            sliders = [n for n in self.nodes() if n["kind"] == "Slider"
-                       and abs(n["bounds"][0] - hx) < 2 and abs(n["bounds"][2] - hw) < 2
-                       and hy < n["bounds"][1] < hy + 600
-                       and n.get("min") == 0 and n.get("max") == 1]
-            self.check(len(sliders) == 1, "path study owns one native scrubber", study=index)
-            slider_id = sliders[0]["id"]
-            self.seek(lambda s: [self.node(slider_id, s)], "path study scrubber", 400)
-            sx, sy, sw, sh = self.node(slider_id)["bounds"]
-            toggles = [n for n in self.nodes() if n.get("text") in ("PAUSE  Ⅱ", "PLAY  →")
-                       and abs(n["bounds"][0] - sx) < 2 and abs(n["bounds"][2] - sw) < 2
-                       and sy + sh < n["bounds"][1] < sy + sh + 50]
-            self.check(len(toggles) == 1, "path study owns one playback toggle", study=index)
-            toggle_id = toggles[0]["id"]
-            if self.node(toggle_id).get("text") == "PAUSE  Ⅱ":
-                self.click(self.node(toggle_id))
-            self.wait(lambda s: self.node(toggle_id, s).get("text") == "PLAY  →",
-                      "path playback pauses")
-            paused = self.node(slider_id)["value"]
-            time.sleep(.8)
-            value = self.fresh()
-            self.check(abs(self.node(slider_id, value)["value"] - paused) < .002,
-                       "paused path keeps its bound native slider value", study=index, value=paused)
-            self.click(self.node(toggle_id))
-            self.wait(lambda s: self.node(toggle_id, s).get("text") == "PAUSE  Ⅱ",
-                      "path playback resumes")
-            start = self.node(slider_id)["value"]
-            self.wait(lambda s: abs(self.node(slider_id, s)["value"] - start) > .025,
-                      "playing path advances its bound native slider")
-            self.check(True, "playing path advances its bound native slider", study=index)
-            # Focus the genuine GtkScale, then use its native range keyboard
-            # actions. The application's scrub handler must also pause playback.
-            before_events = self.node(slider_id).get("controlEvents", 0)
-            self.click(self.node(slider_id))
-            self.key("Home")
-            value = self.wait(lambda s: abs(self.node(slider_id, s)["value"]) < .002
-                              and self.node(toggle_id, s).get("text") == "PLAY  →",
-                              "native scrub to start pauses the path")
-            self.check(self.node(slider_id, value).get("controlEvents", 0) > before_events,
-                       "native path scrub invokes its Rust change handler", study=index)
-            self.key("End")
-            value = self.wait(lambda s: abs(self.node(slider_id, s)["value"] - 1) < .002,
-                              "native path scrub reaches its end")
-            time.sleep(.8)
-            value = self.fresh()
-            self.check(abs(self.node(slider_id, value)["value"] - 1) < .002
-                       and self.node(toggle_id, value).get("text") == "PLAY  →",
-                       "scrubbed path remains paused at its end", study=index)
-            self.save(f"website-path-study-{index}-state.json", value)
-            self.screenshot(f"website-path-study-{index}")
-            self.click(self.node(toggle_id))
-            self.wait(lambda s: self.node(toggle_id, s).get("text") == "PAUSE  Ⅱ"
-                      and self.node(slider_id, s)["value"] < .95,
-                      "path resumes from the scrubbed endpoint")
-            self.check(True, "path resumes from its scrubbed endpoint", study=index)
-
     def source_tabs(self):
         drawers = sorted((n for n in self.nodes() if n.get("text") == "View Source"),
                          key=lambda n: n["bounds"][1])
         self.check(len(drawers) == 6, "website exposes all six section source drawers", count=len(drawers))
         receipts = []
         for index, toggle in enumerate(drawers):
-            self.seek(lambda s: [self.node(toggle["id"], s)], "section source drawer", 130)
+            # Keep the target clear of the website's fixed 80px navigation;
+            # seek's tolerance and native wheel settling can shift it upward.
+            self.seek(lambda s: [self.node(toggle["id"], s)], "section source drawer", 200)
             old_ids = {n["id"] for n in self.nodes()}
             self.click(toggle)
             value = self.wait(lambda s: any(n["id"] not in old_ids and n.get("richTextRunCount", 0) > 1
@@ -429,7 +426,7 @@ class WebsiteInteractions:
                           key=lambda n: n["bounds"][0])
             if not tabs:
                 raise RuntimeError("Source drawer has no reported source tabs")
-            close = next(n for n in added if n.get("text") == "x" and n["bounds"][1] < by)
+            close = next(n for n in added if n.get("text") == "×" and n["bounds"][1] < by)
             for tab in tabs:
                 for _ in range(90):
                     strip = self.node(strip_id)
@@ -443,9 +440,13 @@ class WebsiteInteractions:
                 else:
                     raise RuntimeError("Could not scroll to source tab " + tab["text"])
                 self.click(target, strip["bounds"])
-                selected = self.wait(lambda s: any(n["id"] not in old_ids and n["id"] != tab["id"]
-                                                   and n.get("text") == tab["text"]
-                                                   and n["bounds"][1] < by for n in self.nodes(s)),
+                # ExampleSourceViewer's heading is the section title. The
+                # authored selected tab uses black native text; idle tabs are
+                # white. Verify that state, then independently check copied
+                # content against the frozen source catalogue.
+                selected = self.wait(lambda s: self.node(tab["id"], s).get("textStyle", {}).get("fill") == [0, 0, 0, 1]
+                                     and sum(self.node(t["id"], s).get("textStyle", {}).get("fill") == [0, 0, 0, 1]
+                                             for t in tabs) == 1,
                                      "source tab becomes active: " + tab["text"])
                 rich = next(n for n in self.nodes(selected) if n["id"] not in old_ids
                             and n.get("richTextRunCount", 0) > 0 and n.get("selectable"))
@@ -477,6 +478,7 @@ class WebsiteInteractions:
                 encoded = text.encode("utf-8")
                 receipt = {"drawer": index, "tab": tab["text"], "bytes": len(encoded),
                            "sha256": hashlib.sha256(encoded).hexdigest(), "clipboardOwner": owner,
+                           "selectedNativeTextFill": self.node(tab["id"], selected)["textStyle"]["fill"],
                            "exactUTF8Match": copied == encoded,
                            "nonASCIICharacters": sum(ord(c) > 127 for c in text)}
                 receipts.append(receipt)
@@ -488,15 +490,18 @@ class WebsiteInteractions:
         self.check(True, "all six website source drawers and every discovered tab", tabs=len(receipts))
 
     def route(self):
-        notes = self.seek_text("PAX NOTES →", 400)
+        link = self.seek(lambda s: self.text("OPEN CALCULATOR FULL SCREEN  ↗", value=s)
+                         or self.text("TRY THE CALCULATOR  ↗", value=s),
+                         "authored calculator route", 400)
         old_scrollers = {n["id"] for n in self.nodes() if n["kind"] == "Scroller"}
+        requested_home_y = self.outer().get("scrollY", 0)
         navigation_started = time.monotonic()
-        self.click(notes)
-        missing = self.wait(lambda s: bool(self.text("404 / WRONG TURN", value=s)),
-                            "the authored /blog route reaches the site's native fallback")
-        self.save("website-route-first-not-found-state.json", missing)
-        first_pending = old_scrollers & {n["id"] for n in self.nodes(missing)}
-        first_frame = missing["frames"]
+        self.click(link)
+        calculator = self.wait(lambda s: bool(self.text("CALCULATOR / LIVE", value=s)),
+                            "the authored /calculator route mounts the full calculator")
+        self.save("website-route-first-calculator-state.json", calculator)
+        first_pending = old_scrollers & {n["id"] for n in self.nodes(calculator)}
+        first_frame = calculator["frames"]
         started = time.monotonic()
         retirement = []
 
@@ -511,27 +516,20 @@ class WebsiteInteractions:
                                    "nodeCount": len(value["nodes"]),
                                    "pending": [{"id": n["id"], "bounds": n.get("bounds")} for n in pending]})
                 self.save("website-route-retirement.json", retirement)
-            return not pending and any(n.get("text") == "404 / WRONG TURN" for n in value["nodes"])
+            return not pending and any(n.get("text") == "CALCULATOR / LIVE" for n in value["nodes"])
 
         # Gallery studies author exit timelines. New route controls may mount
         # before outgoing descendants finish; require actual node retirement.
-        missing = self.wait(retired, "native route retires all previous home scrollers")
+        calculator = self.wait(retired, "native route retires all previous home scrollers")
         self.check(True, "native route navigation retires the previous home scrollers",
-                   pendingAtFirstFallbackReport=len(first_pending),
+                   pendingAtFirstRouteReport=len(first_pending),
                    navigationToRetirementSeconds=time.monotonic() - navigation_started,
                    retirementWaitSeconds=time.monotonic() - started,
-                   retirementFrameDelta=missing["frames"] - first_frame)
-        self.save("website-route-not-found-state.json", missing)
-        self.click(self.text("Return home  →")[0])
+                   retirementFrameDelta=calculator["frames"] - first_frame)
+        self.save("website-route-calculator-state.json", calculator)
+        self.click(self.text("← BACK TO PAX")[0])
         restored = self.wait(lambda s: any(n["kind"] == "Scroller" for n in self.nodes(s))
-                             and not self.text("404 / WRONG TURN", value=s),
+                             and not self.text("CALCULATOR / LIVE", value=s),
                              "native Return home remounts the website")
-        root = max((n for n in self.nodes(restored) if n["kind"] == "Scroller"),
-                   key=lambda n: n["bounds"][2] * n["bounds"][3])
-        self.outer_id = root["id"]
-        self.check(self.outer_id not in old_scrollers and abs(root.get("scrollY", 0)) <= 1,
-                   "native route roundtrip remounts home at its initial position")
-        self.outer_wheel(5, 2)
-        self.wait(lambda s: self.outer(s).get("scrollY", 0) > 5,
-                  "remounted home remains scrollable")
-        self.check(True, "owned native /blog fallback and Return home route roundtrip")
+        self.returned_home(restored, old_scrollers, requested_home_y, "calculator")
+        self.check(True, "owned native /calculator and Back to Pax route roundtrip")

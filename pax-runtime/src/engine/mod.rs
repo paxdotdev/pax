@@ -58,6 +58,17 @@ fn saturating_u128_to_u64(value: u128) -> u64 {
 
 const MAX_COMPOSITING_PASSES: usize = 16;
 
+// Startup spans report work performed, not the live cache gauges or last-rebuild
+// attribution carried by the full OcclusionStats snapshot.
+#[cfg(target_os = "windows")]
+#[derive(Clone, Copy, Debug)]
+struct StartupOcclusionDelta {
+    rebuilds: u64,
+    records_updated: u64,
+    masks_evaluated: u64,
+    mask_candidates: u64,
+}
+
 #[cfg(target_os = "windows")]
 #[derive(Clone, Copy)]
 struct StartupReconciliationRecord {
@@ -69,7 +80,7 @@ struct StartupReconciliationRecord {
     unattributed_ms: f64,
     outcome: &'static str,
     geometry_delta: crate::scene_geometry::SceneGeometryStats,
-    occlusion_delta: occlusion::OcclusionStats,
+    occlusion_delta: StartupOcclusionDelta,
 }
 
 #[cfg(target_os = "windows")]
@@ -176,7 +187,7 @@ impl StartupReconciliationTiming {
                     .candidate_tests
                     .saturating_sub(self.geometry_before.candidate_tests),
             },
-            occlusion_delta: occlusion::OcclusionStats {
+            occlusion_delta: StartupOcclusionDelta {
                 rebuilds: occlusion_after
                     .rebuilds
                     .saturating_sub(self.occlusion_before.rebuilds),

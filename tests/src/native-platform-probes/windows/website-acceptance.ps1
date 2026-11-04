@@ -1,7 +1,7 @@
 ﻿# Companion to check-native-scroll.ps1. Uses its owned input, lifecycle and logging
 # helpers; never sets application properties or substitutes content.
 function Invoke-WebsiteAcceptance {
- $report.websiteInteractionScope=if($WebsiteRouteOnly){'route'}elseif($WebsiteSourcesOnly){'sources-and-route'}elseif($WebsiteDemosOnly){'demos'}else{'full'};$report.websiteInteractionIssues=@();$report.websiteInteractionSteps=@();$report.websiteSourceTabs=@();$report.websiteSourceClicks=@();$report.websiteRevealSamples=@();Save
+ $report.websiteInteractionScope=if($WebsiteRouteOnly){'route'}elseif($WebsiteSourcesOnly){'sources-and-route'}elseif($WebsiteDemosOnly){'demos'}else{'full'};$report.websiteInteractionIssues=@();$report.websiteInteractionSteps=@();$report.websiteSourceTabs=@();$report.websiteSourceClicks=@();$report.websiteClickObservations=@();$report.websiteRevealSamples=@();Save
  $sourceRows=Get-Content $WebsiteSourceManifest -Raw|ConvertFrom-Json
  $sourceTruth=@{};foreach($row in $sourceRows){
   if($sourceTruth.ContainsKey($row.label) -and $sourceTruth[$row.label].displaySha256Utf8 -cne $row.displaySha256Utf8){throw ('Conflicting frozen source identity: '+$row.label)}
@@ -47,27 +47,42 @@ function Invoke-WebsiteAcceptance {
   $b.Intersect($viewport)
   return $null -ne (Get-IntegerClickPoint $b)
  }
- function Click-Visible($item){$b=Visible-Scroll-Bounds $item;$point=Get-IntegerClickPoint $b;if($null -eq $point){throw 'Requested item has no visible integer hit point'};Point $point.x $point.y $true;Start-Sleep -Milliseconds 500}
+ function Click-Visible($item){
+  # Read fresh bounds immediately before input. Authored animations need not
+  # stop for a control to be clickable; Reveal keeps page targets below nav.
+  $b=Visible-Scroll-Bounds $item;$point=Get-IntegerClickPoint $b
+  if($null -eq $point){throw 'Requested item has no visible integer hit point'}
+  $report.websiteClickObservations+=@{name=$item.Current.Name;bounds=$b.ToString();point=$point;utc=[DateTime]::UtcNow.ToString('o')};Save
+  Point $point.x $point.y $true;Start-Sleep -Milliseconds 500
+ }
  # Diagnostics are separate from acceptance: a failed frontier click remains a
  # failure even if a later, more interior physical click selects the right tab.
- function Source-Selected-Metadata($strip,$names){
-  $conditions=@($names|ForEach-Object{[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$_)})
-  $match=if($conditions.Count -eq 1){$conditions[0]}else{[System.Windows.Automation.OrCondition]::new([System.Windows.Automation.Condition[]]$conditions)}
-  $bounds=$strip.Current.BoundingRectangle;$found=@()
-  foreach($item in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$match)){
-   $b=$item.Current.BoundingRectangle
-   # ExampleHost's selected-source metadata is directly above its tab strip.
-   # Keep every candidate instead of guessing when the UIA geometry is ambiguous.
-   if(!$b.IsEmpty -and $b.Bottom -le $bounds.Top+1 -and $b.Top -ge $bounds.Top-60 -and $b.Right -gt $bounds.Left -and $b.Left -lt $bounds.Right){
-    $found+=@{name=$item.Current.Name;bounds=$b.ToString();runtimeId=($item.GetRuntimeId() -join '-')}
-   }
+ function Source-Native-Scroller($item){
+  # A template presenter can be the observed tab peer. Resolve its owning Pax
+  # scroller instead of treating that internal peer as another authored node.
+  for($depth=0;$null -ne $item -and $depth -lt 24;$depth++){
+   if($item.Current.ProcessId -ne $process.Id){return $null}
+   if($item.Current.AutomationId -like 'pax-node-*' -and $item.GetCurrentPropertyValue([System.Windows.Automation.AutomationElement]::IsScrollPatternAvailableProperty)){return $item}
+   $item=[System.Windows.Automation.TreeWalker]::RawViewWalker.GetParent($item)
   }
-  return ,$found
+  return $null
+ }
+ function Source-Body-Patterns($codeScroll){
+  # Only this drawer's native code scroller owns the document. Do not fetch
+  # every offscreen Text.Name (including other large documents) in the page.
+  if($null -eq $codeScroll -or $codeScroll.Current.ProcessId -ne $process.Id -or $codeScroll.Current.AutomationId -notlike 'pax-node-*'){throw 'Source code scroller identity is unavailable'}
+  $match=New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Text)
+  foreach($item in $codeScroll.FindAll([System.Windows.Automation.TreeScope]::Descendants,$match)){
+   $pattern=$null
+   if($item.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern,[ref]$pattern)){,$pattern}
+  }
  }
  function Source-Click-State($label,$strip,$names,[int]$x,[int]$y){
   $state=[ordered]@{utc=[DateTime]::UtcNow.ToString('o');point=@{x=$x;y=$y}}
   try{$state.labelBounds=$label.Current.BoundingRectangle.ToString();$state.labelRuntimeId=$label.GetRuntimeId() -join '-';$state.stripBounds=$strip.Current.BoundingRectangle.ToString();$state.viewport=(Visible-Scroll-Bounds $strip).ToString();$state.intersection=(Visible-Scroll-Bounds $label).ToString();$state.scrollPercent=$strip.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern).Current.HorizontalScrollPercent}catch{$state.geometryError=$_.Exception.Message}
-  try{$state.selectedMetadata=Source-Selected-Metadata $strip $names}catch{$state.metadataError=$_.Exception.Message}
+  # The current viewer has no separate selected-file metadata label. Selection
+  # is proved by the exact document hash after the physical tab click below.
+  $state.selectedMetadata=@();$state.selectedMetadataScope='No separate selected-file label is authored'
   $state.hitAncestry=@()
   try{
    $hit=[System.Windows.Automation.AutomationElement]::FromPoint([Windows.Point]::new($x,$y))
@@ -80,7 +95,7 @@ function Invoke-WebsiteAcceptance {
   }catch{$state.hitError=$_.Exception.Message}
   return $state
  }
- function Source-Interior-Diagnostic($strip,[string]$name,$names,$expected){
+ function Source-Interior-Diagnostic($strip,$codeScroll,[string]$name,$names,$expected){
   $diagnostic=[ordered]@{diagnosticOnly=$true;acceptanceResultUnchanged=$true;label=$name;expectedSha256=$expected.displaySha256Utf8;reveal=@();clicked=$false;matchedExpected=$false;observed=@()}
   try{
    $pattern=$strip.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
@@ -101,9 +116,7 @@ function Invoke-WebsiteAcceptance {
       Point $x $y $true;$diagnostic.clicked=$true;Start-Sleep -Milliseconds 500
       for($attempt=0;$attempt -lt 8 -and !$diagnostic.matchedExpected;$attempt++){
        Start-Sleep -Milliseconds 250
-       foreach($row in @(Text-Snapshot|Where-Object{$_.name.Length -gt 80 -and $_.name.Contains("`n")})){
-        $textPattern=$null
-        if(!$row.item.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern,[ref]$textPattern)){continue}
+       foreach($textPattern in @(Source-Body-Patterns $codeScroll)){
         $content=$textPattern.DocumentRange.GetText(-1)
         if($content.Length -le 80 -or !$content.Contains("`n")){continue}
         $bytes=[Text.Encoding]::UTF8.GetBytes($content.Replace("`r`n","`n"));$hash=[BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-','').ToLowerInvariant()
@@ -165,7 +178,9 @@ function Invoke-WebsiteAcceptance {
    # unclipped left edge enter the viewport can cause repeated end-to-end scans.
    if($horizontal){$visible=Visible-Scroll-Bounds $item;if(!$visible.IsEmpty -and $visible.Width -ge [Math]::Min(20,$b.Width) -and $visible.Height -ge 3){return}}
    if($horizontal){$center=$b.X+[Math]::Min($b.Width,80)/2;$low=$viewport.Left+10;$high=$viewport.Right-10}
-   else{$center=$b.Y+$b.Height/2;$low=$viewport.Top+10;$high=$viewport.Top+[Math]::Min(400,$viewport.Height-30)}
+   # The website's fixed 80px navigation can cover otherwise visible native
+   # bounds. Reveal ordinary page targets below that authored overlay.
+   else{$center=$b.Y+$b.Height/2;$low=$viewport.Top+120*$scale;$high=$viewport.Top+[Math]::Min(400*$scale,$viewport.Height-30)}
    if(!$horizontal -and $targetFraction -gt 0){$low=$viewport.Top+$viewport.Height*$targetFraction-65;$high=$low+130}
    if($center -ge $low -and $center -le $high -and (Visible-Item $item)){return}
    $direction=if($center -lt $low){if($horizontal){-1}else{1}}else{if($horizontal){1}else{-1}}
@@ -235,20 +250,24 @@ function Invoke-WebsiteAcceptance {
  Observe 'Graph drag retains outer page position' ([Math]::Abs($outerPattern.Current.VerticalScrollPercent-$outerBeforeDrag) -lt .05) @{before=$outerBeforeDrag;after=$outerPattern.Current.VerticalScrollPercent}
  Mark 'calculator-graph-zoom-pan'
 
- $launch=@(Items ([System.Windows.Automation.ControlType]::Button)|Where-Object{$_.Current.Name -ceq 'Open Paxflix full screen ↗'})|Select-Object -First 1
+ $launch=Named 'OPEN PAXFLIX FULL SCREEN  ↗'|Select-Object -First 1;if($null -eq $launch){$launch=Named 'TRY PAXFLIX  ↗'|Select-Object -First 1}
  Check 'Paxflix authored full-screen launch exists' ($null -ne $launch) 'Open Paxflix full screen';Reveal $launch $outer;Click-Visible $launch;Start-Sleep -Seconds 2
- [void](Assert-Visible 'PAXFLIX / LIVE DEMO');Mark 'paxflix-open'
+ [void](Assert-Visible 'PAXFLIX / LIVE');Mark 'paxflix-open'
  Click-Text 'Play film';[void](Assert-Visible 'Paxflix / FEATURE');Click-Text 'Play';[void](Assert-Visible 'You found your next watch. Playback is a demo.')
  Click-Text '↓   Download';[void](Assert-Visible 'Saved for an imaginary journey. Download is a demo.');Mark 'paxflix-detail-feedback';Click-Text '×'
  $profile=Visible-Named 'P'|Sort-Object {$_.Current.BoundingRectangle.Right} -Descending|Select-Object -First 1;Check 'Paxflix profile input exists' ($null -ne $profile) 'P';Click-Visible $profile
  [void](Assert-Visible 'YOUR Paxflix');Click-Text 'Dark mode';[void](Assert-Visible 'Light mode');Mark 'paxflix-light-theme'
  Click-Text 'Manage profiles';[void](Assert-Visible "You're watching as the demo profile.");Click-Text 'Light mode';[void](Assert-Visible 'Dark mode');Click-Text '×'
- $closeDemo=@(Items ([System.Windows.Automation.ControlType]::Button)|Where-Object{$_.Current.Name -ceq '× Close demo'})|Select-Object -First 1;Click-Visible $closeDemo;Start-Sleep -Seconds 2
- Check 'Paxflix overlay retires after close' (@(Visible-Named 'PAXFLIX / LIVE DEMO').Count -eq 0) 'overlay title absent';Mark 'paxflix-closed'
+ Click-Text '← BACK TO PAX';Start-Sleep -Seconds 2
+ Check 'Paxflix route retires after return' (@(Visible-Named 'PAXFLIX / LIVE').Count -eq 0) 'route title absent'
+ $homeScrolls=@($root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition))
+ $outer=@($homeScrolls|Where-Object{Visible-Item $_}|Sort-Object @{Expression={$b=Visible-Scroll-Bounds $_;$b.Width*$b.Height};Descending=$true})|Select-Object -First 1
+ Check 'Paxflix Back to Pax remounts home' ($null -ne $outer) 'new native home scroller'
+ $outerPattern=$outer.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern);Mark 'paxflix-returned-home'
 
  # Gallery hover pauses its authored marquee; real horizontal wheel must move
  # that native scroller while retaining the outer vertical position.
- $gallery=Named 'Meet your creative toolkit'|Select-Object -First 1;Reveal $gallery $outer
+ $gallery=Named "Meet Pax's creative toolkit:"|Select-Object -First 1;Reveal $gallery $outer
  Wheel-At $outer -1 $false 3
  $allScrolls=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)
  $galleryScroll=@($allScrolls|Where-Object{(Visible-Item $_) -and $_.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern).Current.HorizontallyScrollable}|Sort-Object @{Expression={(Visible-Scroll-Bounds $_).Width};Descending=$true})|Select-Object -First 1
@@ -276,8 +295,11 @@ function Invoke-WebsiteAcceptance {
  Check 'Section inventory has six unique authored sections' ($drawerPlan.Count -eq 6 -and @($drawerPlan.id|Sort-Object -Unique).Count -eq 6) @($drawerPlan.id)
  $plannedOccurrences=@($drawerPlan|ForEach-Object{$_.sources}|ForEach-Object{$_.label+'|'+$_.displaySha256Utf8}|Sort-Object)
  $frozenOccurrences=@($sourceRows|ForEach-Object{$_.label+'|'+$_.displaySha256Utf8}|Sort-Object)
- Check 'Section inventory preserves all 72 frozen source occurrences' ($frozenOccurrences.Count -eq 72 -and ($plannedOccurrences -join "`n") -ceq ($frozenOccurrences -join "`n")) @{expected=$frozenOccurrences.Count;actual=$plannedOccurrences.Count}
+ Check 'Section inventory preserves all 92 frozen source occurrences' ($frozenOccurrences.Count -eq 92 -and ($plannedOccurrences -join "`n") -ceq ($frozenOccurrences -join "`n")) @{expected=$frozenOccurrences.Count;actual=$plannedOccurrences.Count}
  $report.websiteSourceTraversalProvenance=@{sectionManifestSha256=(Get-FileHash -LiteralPath $sectionPath -Algorithm SHA256).Hash.ToLowerInvariant();sourceManifestSha256=$sourceHash;sourceProvenance=$sectionManifest.sourceProvenance;expectedSectionCounts=@($drawerPlan|ForEach-Object{@($_.sources).Count})}
+ # Source discovery below uses the website's wide layout, where every section
+ # kicker is adjacent to its drawer. OpenSource stacks these below 1000px.
+ Check 'Source drawer qualification uses the wide website layout' ($report.clientViewport.width -ge 1000) $report.clientViewport
  $report.websiteSourceDrawerObservations=@();$report.websiteSourceSections=@();Save
  Check 'All six authored source drawers exist' ((@(Named 'View Source')).Count -eq 6) (@(Named 'View Source')).Count
  function Finite-Source-Bounds($b){return !$b.IsEmpty -and $b.Width -gt 0 -and $b.Height -gt 0 -and ![double]::IsInfinity($b.Top) -and ![double]::IsInfinity($b.Left) -and ![double]::IsNaN($b.Top) -and ![double]::IsNaN($b.Left)}
@@ -322,10 +344,30 @@ function Invoke-WebsiteAcceptance {
  for($section=0;$section -lt $drawerPlan.Count;$section++){
   $drawer=$drawerPlan[$section]
   $toggle=Source-Drawer-Toggle $drawer
+  $beforeSourceScrollIds=@($root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)|Where-Object{$_.Current.AutomationId -like 'pax-node-*'}|ForEach-Object{$_.Current.AutomationId})
   Click-Visible $toggle;Start-Sleep -Seconds 1
   $allScrolls=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)
   $tabs=@($allScrolls|Where-Object{(Visible-Item $_) -and $_.Current.BoundingRectangle.Height -ge 25 -and $_.Current.BoundingRectangle.Height -le 35})|Sort-Object {$_.Current.BoundingRectangle.Right} -Descending|Select-Object -First 1
   Check "Section $section source tab strip exists" ($null -ne $tabs) $section
+  $nativeTabs=Source-Native-Scroller $tabs
+  Check 'Source tab peer has an owned native scroller' ($null -ne $nativeTabs) $(if($nativeTabs){$nativeTabs.Current.AutomationId}else{'absent'})
+  $nativeTabId=$nativeTabs.Current.AutomationId;$nativeTabBounds=$nativeTabs.Current.BoundingRectangle
+  Check 'Opened source tab scroller is newly mounted' ($nativeTabId -notin $beforeSourceScrollIds) @{id=$nativeTabId;before=$beforeSourceScrollIds}
+  $codeCandidates=@();$newSourceScrolls=@();$alignmentTolerance=2*$scale
+  foreach($candidate in $allScrolls){
+   $id=$candidate.Current.AutomationId
+   if($id -notlike 'pax-node-*' -or $id -in $beforeSourceScrollIds -or $id -eq $nativeTabId){continue}
+   $b=$candidate.Current.BoundingRectangle
+   # The authored code viewport starts directly below the tab strip, with
+   # the same left/right edges. Groups between them do not form native peers.
+   $aligned=(Finite-Source-Bounds $b) -and [Math]::Abs($b.Left-$nativeTabBounds.Left) -le $alignmentTolerance -and [Math]::Abs($b.Right-$nativeTabBounds.Right) -le $alignmentTolerance -and [Math]::Abs($b.Top-$nativeTabBounds.Bottom) -le $alignmentTolerance
+   $visible=$aligned -and (Visible-Item $candidate)
+   $newSourceScrolls+=@{id=$id;bounds=$b.ToString();aligned=$aligned;visible=$visible}
+   if($visible -and $candidate.Current.ProcessId -eq $process.Id){$codeCandidates+=,$candidate}
+  }
+  Check 'Opened source drawer has one new code scroller below tabs' ($codeCandidates.Count -eq 1) @{tabId=$nativeTabId;tabBounds=$nativeTabBounds.ToString();candidates=$newSourceScrolls}
+  $codeScroll=$codeCandidates[0]
+  $report.websiteSourceDrawerObservations[-1].codeScroller=@{id=$codeScroll.Current.AutomationId;bounds=$codeScroll.Current.BoundingRectangle.ToString();runtimeId=($codeScroll.GetRuntimeId() -join '-');tabId=$nativeTabId};Save
   $inventory=@(Tab-Snapshot $tabs)
   $expectedNames=@($inventory|ForEach-Object{$_.name})
   Check "Section $section has distinct source tab identities" (($expectedNames.Count -gt 0) -and (@($expectedNames|Sort-Object -Unique).Count -eq $expectedNames.Count)) $expectedNames
@@ -372,7 +414,7 @@ function Invoke-WebsiteAcceptance {
     Start-Sleep -Milliseconds 250
     $patterns=@()
     if($null -ne $sourcePattern){$patterns+=,$sourcePattern}
-    else{foreach($row in @(Text-Snapshot|Where-Object{$_.name.Length -gt 80 -and $_.name.Contains("`n")})){$pattern=$null;if($row.item.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern,[ref]$pattern)){$patterns+=,$pattern}}}
+    else{$patterns=@(Source-Body-Patterns $codeScroll)}
     foreach($pattern in $patterns){
       $content=$pattern.DocumentRange.GetText(-1)
       if($content.Length -gt 80 -and $content.Contains("`n")){
@@ -389,14 +431,14 @@ function Invoke-WebsiteAcceptance {
     # Snapshot that state before the diagnostic changes the viewport or selection.
     $clickReceipt.firstFailureScreenshot="source-first-failure-section-$section-tab-$tab.png"
     try{Shot "source-first-failure-section-$section-tab-$tab"}catch{$clickReceipt.firstFailureScreenshotError=$_.Exception.Message}
-    try{$clickReceipt.interiorDiagnostic=Source-Interior-Diagnostic $tabs $name $expectedNames $expected}catch{$clickReceipt.interiorDiagnosticError=$_.Exception.Message}
+    try{$clickReceipt.interiorDiagnostic=Source-Interior-Diagnostic $tabs $codeScroll $name $expectedNames $expected}catch{$clickReceipt.interiorDiagnosticError=$_.Exception.Message}
     Save;throw $originalFailure
    }
    $visited[$name]=$true
    $report.websiteSourceTabs+=@{section=$section;tab=$tab;label=$name;sha256=$expected.displaySha256Utf8;utc=[DateTime]::UtcNow.ToString('o')};[void](Website-Sample 'source-tab');Save
   }
   Mark "source-section-$section"
-  $closers=@(Visible-Named 'x');Check 'Source close control visible' ($closers.Count -gt 0) $closers.Count;Click-Visible ($closers|Sort-Object {$_.Current.BoundingRectangle.Right} -Descending|Select-Object -First 1);Start-Sleep -Seconds 1
+  $closers=@(Visible-Named '×');Check 'Source close control visible' ($closers.Count -gt 0) $closers.Count;Click-Visible ($closers|Sort-Object {$_.Current.BoundingRectangle.Right} -Descending|Select-Object -First 1);Start-Sleep -Seconds 1
   $report.websiteSourceSections+=@{section=$section;id=$drawer.id;tabs=$visited.Count;utc=[DateTime]::UtcNow.ToString('o')};Save
  }
  Check 'All authored source tabs qualified' ($report.websiteSourceTabs.Count -eq $sourceRows.Count) @{expected=$sourceRows.Count;actual=$report.websiteSourceTabs.Count}
@@ -405,7 +447,7 @@ function Invoke-WebsiteAcceptance {
  $actualVisits=@($report.websiteSourceTabs|ForEach-Object{[string]$_.section+'|'+$_.label+'|'+$_.sha256})|Sort-Object
  Check 'Every authored source occurrence qualified in its own section' (($actualVisits -join "`n") -ceq ($expectedVisits -join "`n")) @{expected=$expectedVisits;actual=$actualVisits}
  }
- $route=Named 'PAX NOTES →'|Select-Object -First 1;Check 'Authored local route link exists' ($null -ne $route) '/blog';Reveal $route $outer $false 0 $true
+ $route=Named 'OPEN CALCULATOR FULL SCREEN  ↗'|Select-Object -First 1;if($null -eq $route){$route=Named 'TRY THE CALCULATOR  ↗'|Select-Object -First 1};Check 'Authored local route link exists' ($null -ne $route) '/calculator/';Reveal $route $outer $false 0 $true
  $oldScrollIds=@($root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)|ForEach-Object{Scroll-Id $_})
  $routeBounds=Visible-Scroll-Bounds $route;$routeViewport=Visible-Scroll-Bounds $outer
  $routePoint=Get-VisibleViewportPoint $routeBounds $routeViewport
@@ -416,18 +458,24 @@ function Invoke-WebsiteAcceptance {
  while($routeWatch.Elapsed.TotalSeconds -lt 10){
   $currentIds=@($root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)|ForEach-Object{Scroll-Id $_})
   $remaining=@($currentIds|Where-Object{$_ -in $oldScrollIds})
-  if((@(Visible-Named '404 / WRONG TURN')).Count -gt 0 -and !$remaining.Count){$retired=$true;break}
+  if((@(Visible-Named 'CALCULATOR / LIVE')).Count -gt 0 -and !$remaining.Count){$retired=$true;break}
   Start-Sleep -Milliseconds 250
  }
  # Visited gallery content has authored exit timelines. Require actual eventual
- # retirement rather than incorrectly insisting it vanish on the first 404 tick.
+ # retirement rather than incorrectly insisting it vanish on the first calculator tick.
  Check 'Local route retires old native scrollers after authored exit' $retired @{elapsedSeconds=$routeWatch.Elapsed.TotalSeconds;remaining=$remaining}
- Mark 'route-not-found';Click-Text 'Return home  →';Start-Sleep -Seconds 2
+ Mark 'route-calculator';Click-Text '← BACK TO PAX';Start-Sleep -Seconds 2
  $newScrolls=@($root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition))
  $outer=@($newScrolls|Where-Object{Visible-Item $_}|Sort-Object @{Expression={$b=Visible-Scroll-Bounds $_;$b.Width*$b.Height};Descending=$true})|Select-Object -First 1
  Check 'Return home mounts a new native outer scroller' ($null -ne $outer -and (Scroll-Id $outer) -notin $oldScrollIds) $(if($outer){Scroll-Id $outer}else{'absent'})
- $outerPattern=$outer.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern);$beforeHome=$outerPattern.Current.VerticalScrollPercent;Wheel-At $outer -1 $false 3
- Check 'Returned home responds to actual native wheel' ($outerPattern.Current.VerticalScrollPercent -gt $beforeHome) @{before=$beforeHome;after=$outerPattern.Current.VerticalScrollPercent}
+ $outerPattern=$outer.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern);$beforeHome=$outerPattern.Current.VerticalScrollPercent
+ # HomePage binds its offset to the surviving Example.page_scroll_y property.
+ # A remount can therefore begin near the bottom; exercise available scroll
+ # range rather than assuming the authored state reset to the top.
+ Check 'Returned home has a native vertical scroll range' ($outerPattern.Current.VerticallyScrollable -and $beforeHome -ge 0 -and $beforeHome -le 100) $beforeHome
+ $homeDirection=if($beforeHome -ge 50){1}else{-1};Wheel-At $outer $homeDirection $false 3
+ $afterHome=$outerPattern.Current.VerticalScrollPercent
+ Check 'Returned home responds to actual native wheel' $(if($homeDirection -gt 0){$afterHome -lt $beforeHome}else{$afterHome -gt $beforeHome}) @{before=$beforeHome;after=$afterHome;direction=$homeDirection}
  Mark 'route-returned-home'
  $report.websiteInteractionAcceptance=($report.websiteInteractionIssues.Count -eq 0);Mark 'website-interactions-complete';if($report.websiteInteractionIssues.Count){throw ($report.websiteInteractionIssues -join '; ')}
 }

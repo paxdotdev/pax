@@ -54,11 +54,12 @@ variable "dcv_ipv4_cidr" {
 }
 variable "machine" {
   type = object({
-    os            = string
-    ami_id        = string
-    image_source  = optional(string, "baked")
-    recipe_sha256 = optional(string)
-    expires_at    = string
+    os              = string
+    ami_id          = string
+    image_source    = optional(string, "baked")
+    recipe_sha256   = optional(string)
+    expires_at      = string
+    root_volume_gib = optional(number)
   })
   default     = null
   nullable    = true
@@ -72,5 +73,15 @@ variable "machine" {
       can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", var.machine.expires_at))
     )
     error_message = "Supply OS, explicit AMI, source (baked/vendor), and UTC expiry; recipe SHA256 is required only for baked images."
+  }
+  validation {
+    condition = var.machine == null ? true : (
+      var.machine.root_volume_gib == null ? true : (
+        var.machine.root_volume_gib == floor(var.machine.root_volume_gib) &&
+        var.machine.root_volume_gib >= (var.machine.os == "windows" ? 100 : 60) &&
+        var.machine.root_volume_gib <= 200
+      )
+    )
+    error_message = "Root storage must be an integer between the OS default (Windows 100 GiB, Linux 60 GiB) and 200 GiB."
   }
 }

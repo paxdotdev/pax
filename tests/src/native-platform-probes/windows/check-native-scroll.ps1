@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Executable,[Parameter(Mandatory=$true)][string]$OutputDirectory,[ValidateRange(10,900)][int]$Seconds=60,[string]$ExpectedFonts='',[switch]$AnimationOnly,[switch]$MemoryPhases,[string]$ExpectedHostSha256='',[string]$ExpectedExecutableSha256='',[string]$ExpectedCartridgeSha256='',[ValidateRange(0,4096)][int]$ClientWidth=0,[ValidateRange(0,4096)][int]$ClientHeight=0,[switch]$WebsitePhases,[switch]$OpenSource,[switch]$PreserveStartupViewport,[switch]$StartupSequence,[switch]$SourceOnly,[string]$NativeSelectionExecutable='',[switch]$WebsiteInteractionsOnly,[string]$WebsiteSourceManifest='',[switch]$WebsiteSourcesOnly,[switch]$WebsiteDemosOnly,[switch]$WebsiteRouteOnly,[ValidateSet('none','memory','stationary')][string]$WebsiteMeasurement='none',[ValidateSet('existing','enabled','disabled')][string]$WebsiteDiagnosticsMode='existing',[ValidateRange(1,100)][int]$LaunchOrdinal=1)
+﻿param([Parameter(Mandatory=$true)][string]$Executable,[Parameter(Mandatory=$true)][string]$OutputDirectory,[ValidateRange(10,900)][int]$Seconds=60,[string]$ExpectedFonts='',[switch]$AnimationOnly,[switch]$MemoryPhases,[string]$ExpectedHostSha256='',[string]$ExpectedExecutableSha256='',[string]$ExpectedCartridgeSha256='',[ValidateRange(0,4096)][int]$ClientWidth=0,[ValidateRange(0,4096)][int]$ClientHeight=0,[switch]$WebsitePhases,[switch]$OpenSource,[switch]$PreserveStartupViewport,[switch]$StartupSequence,[switch]$SourceOnly,[string]$NativeSelectionExecutable='',[switch]$WebsiteInteractionsOnly,[string]$WebsiteSourceManifest='',[switch]$WebsiteSourcesOnly,[switch]$WebsiteDemosOnly,[switch]$WebsiteRouteOnly,[ValidateSet('none','memory','stationary')][string]$WebsiteMeasurement='none',[ValidateSet('existing','enabled','disabled')][string]$WebsiteDiagnosticsMode='existing',[ValidateRange(1,100)][int]$LaunchOrdinal=1)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 if($WebsitePhases -and ($AnimationOnly -or $MemoryPhases)){throw 'WebsitePhases has its own stationary and traversal phases'}
@@ -327,6 +327,27 @@ try {
  }
 
  if($ClientWidth -gt 0){Check 'Requested client viewport established' ([Math]::Abs($report.clientViewport.width-$ClientWidth) -lt 1 -and [Math]::Abs($report.clientViewport.height-$ClientHeight) -lt 1) $report.clientViewport}
+ if($WebsitePhases -and $WebsiteDiagnosticsMode -ne 'disabled'){
+  # Native image loads complete independently of the first canvas frame. Keep
+  # this functional gate out of explicitly uninstrumented performance runs.
+  $imageDeadline=[DateTime]::UtcNow.AddSeconds(60);$imagesReady=$false;$imageState=$null
+  do {
+   $process.Refresh();if($process.HasExited){throw 'Website exited while native images were loading'}
+   $imageRows=[regex]::Matches((Read-ProbeLog $env:PAX_WINDOWS_HOST_LOG),'native_images sources=(\d+) ready=(\d+) failed=(\d+) pending=(\d+) queued=(\d+) bitmap_bytes=(\d+)[^\r\n]*')
+   if($imageRows.Count){
+    $row=$imageRows[$imageRows.Count-1]
+    $imageState=@{sources=[int]$row.Groups[1].Value;ready=[int]$row.Groups[2].Value;failed=[int]$row.Groups[3].Value;pending=[int]$row.Groups[4].Value;queued=[int]$row.Groups[5].Value;bitmapBytes=[long]$row.Groups[6].Value;observation=$row.Value}
+    $consumers=[regex]::Match($row.Value,' consumers=(\d+) layout_ready=(\d+)$')
+    $imageState.consumers=if($consumers.Success){[int]$consumers.Groups[1].Value}else{0}
+    $imageState.layoutReady=if($consumers.Success){[int]$consumers.Groups[2].Value}else{0}
+    if($imageState.failed){throw 'Website NativeImage decode failed'}
+    $imagesReady=$imageState.sources -gt 0 -and $imageState.ready -eq $imageState.sources -and $imageState.pending -eq 0 -and $imageState.queued -eq 0 -and $imageState.consumers -gt 0 -and $imageState.layoutReady -eq $imageState.consumers
+   }
+   if(!$imagesReady){Start-Sleep -Milliseconds 200}
+  }while(!$imagesReady -and [DateTime]::UtcNow -lt $imageDeadline)
+  $report.nativeImages=$imageState
+  Check 'Website native images decoded and laid out' $imagesReady $imageState
+ }
  Save
  $root=[System.Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle);Focus;Settle;Shot 'initial'
  $report.nativeCounts=@{};foreach($type in @([System.Windows.Automation.ControlType]::Button,[System.Windows.Automation.ControlType]::Slider,[System.Windows.Automation.ControlType]::ComboBox,[System.Windows.Automation.ControlType]::RadioButton,[System.Windows.Automation.ControlType]::Edit)){$report.nativeCounts[$type.ProgrammaticName]=@(Items $type).Count}
@@ -503,7 +524,7 @@ try {
    $second=$source.pattern.DocumentRange.GetText(-1)
    Check 'Second source tab updates native document' ($second.Length -gt 0 -and $second -cne $source.content) @{characters=$second.Length}
    Shot 'source-second-tab'
-   $close=@(Items ([System.Windows.Automation.ControlType]::Text)|Where-Object{$_.Current.Name -ceq 'x' -and -not $_.Current.IsOffscreen}|Sort-Object @{Expression={[Math]::Abs($_.Current.BoundingRectangle.Left-$codeBounds.Right)}})
+   $close=@(Items ([System.Windows.Automation.ControlType]::Text)|Where-Object{$_.Current.Name -ceq '×' -and -not $_.Current.IsOffscreen}|Sort-Object @{Expression={[Math]::Abs($_.Current.BoundingRectangle.Left-$codeBounds.Right)}})
    Check 'Source drawer close control is visible' ($close.Count -gt 0) $close.Count
    Click-Item $close[0];Start-Sleep -Seconds 2
    $closedCount=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition).Count

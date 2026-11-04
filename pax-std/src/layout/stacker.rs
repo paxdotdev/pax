@@ -92,6 +92,10 @@ impl InstanceNode for StackerInstance {
         true
     }
 
+    fn layout_measurement_uses_bounds(&self) -> bool {
+        true
+    }
+
     fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
         false
     }
@@ -2286,6 +2290,77 @@ mod tests {
         assert!((x_positions[0] - 0.0).abs() < 1e-9);
         assert!((x_positions[1] - 36.666666666666664).abs() < 1e-9);
         assert!((x_positions[2] - 73.33333333333333).abs() < 1e-9);
+    }
+
+    #[test]
+    fn nested_autosize_waits_for_intrinsic_children_without_feedback_from_fallback_cells() {
+        fn width_args(mut args: InstantiationArgs, height: Option<f64>) -> InstantiationArgs {
+            args.prototypical_common_properties =
+                CommonPropertiesInit::Factory(Box::new(move |_, _| {
+                    Some(Rc::new(RefCell::new(CommonProperties {
+                        width: LocalProperty::new(Some(Size::Pixels(100.into()))),
+                        height: LocalProperty::new(height.map(|value| Size::Pixels(value.into()))),
+                        ..Default::default()
+                    })))
+                }));
+            args
+        }
+        let mut leaves = (0..6)
+            .map(|_| {
+                TestLeaf::instantiate(width_args(primitive_args(Vec::new()), None))
+                    as Rc<dyn InstanceNode>
+            })
+            .collect::<Vec<_>>();
+        leaves.push(TestLeaf::instantiate(width_args(
+            primitive_args(Vec::new()),
+            Some(48.0),
+        )));
+        let inner = StackerInstance::instantiate(width_args(
+            stacker_args_with(
+                leaves,
+                Stacker {
+                    autosize: Property::new(true),
+                    gutter: Property::new(Size::Pixels(24.into())),
+                    ..Default::default()
+                },
+            ),
+            None,
+        ));
+        let tail = TestLeaf::instantiate(width_args(primitive_args(Vec::new()), Some(200.0)));
+        let outer = StackerInstance::instantiate(width_args(
+            stacker_args_with(
+                vec![inner, tail],
+                Stacker {
+                    autosize: Property::new(true),
+                    gutter: Property::new(Size::Pixels(16.into())),
+                    ..Default::default()
+                },
+            ),
+            None,
+        ));
+        let context = Rc::new(crate::test_support::runtime_context());
+        let root = ExpandedNode::initialize_root(
+            ComponentInstance::instantiate(width_args(component_args(vec![outer]), Some(1004.0))),
+            &context,
+        );
+        root.recurse_update(&context);
+        let outer = root.children.get()[0].clone();
+        let inner = outer.children.get()[0].clone();
+        assert_eq!(inner.measured_size.get(), None);
+        assert_eq!(
+            inner.subtree_layout_hull.get().forward_extent_y(),
+            None,
+            "a trailing fixed-height child in provisional cells is not an intrinsic stack height"
+        );
+        assert_eq!(outer.measured_size.get(), None,
+            "an ancestor must wait rather than feed provisional child placement back into its own height");
+        for child in inner.children.get().iter().take(6) {
+            child.set_measured_size(100.0, 20.0);
+        }
+        context.drain_node_effects();
+        assert_eq!(inner.measured_size.get(), Some((100.0, 312.0)));
+        assert_eq!(outer.measured_size.get(), Some((100.0, 528.0)));
+        root.recurse_unmount(&context);
     }
 
     #[test]

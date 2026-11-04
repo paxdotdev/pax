@@ -356,6 +356,14 @@ impl std::fmt::Debug for dyn InstanceNode {
 ///
 /// (See `RepeatInstance::expand_node` where we visit a singular `InstanceNode` several times, producing multiple [`ExpandedNode`]s.)
 pub trait InstanceNode {
+    /// Whether intrinsic layout measurement uses this node's explicit or measured
+    /// bounds without unioning descendants. Flow containers that assign child
+    /// positions must opt in so provisional placements cannot feed back into
+    /// ancestor autosizing. Unresolved axes remain unavailable for measurement.
+    fn layout_measurement_uses_bounds(&self) -> bool {
+        false
+    }
+
     /// Describe dependencies required for initial presentation. The default
     /// traverses visible children and conservatively resolves exact extents.
     /// Override in the component, not in the scheduler; the hook must not mount

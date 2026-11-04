@@ -69,9 +69,14 @@ public:
         else font_roots_ = roots_;
     }
     std::pair<size_t,std::filesystem::path> resolve(winrt::hstring const& path) const {
-        std::filesystem::path relative(path.c_str());
+        // The web-facing asset-root spelling is portable; other rooted paths
+        // and network URLs remain outside the packaged Windows asset policy.
+        std::wstring spelling(path);
+        if (spelling.starts_with(L"/assets/")) spelling.erase(0, 1);
+        std::filesystem::path relative(spelling);
         if (relative.empty()) throw std::invalid_argument("Empty Pax asset path");
         if (relative.is_absolute() || relative.has_root_name()) throw std::invalid_argument("Pax assets must be relative to a configured asset root");
+        if (spelling.find(L':') != std::wstring::npos) throw std::invalid_argument("Pax asset paths cannot contain a URI scheme or alternate stream");
         relative = relative.lexically_normal();
         if (*relative.begin() == L"assets") relative = relative.lexically_relative(L"assets");
         for (auto const& part : relative) if (part == L"..") throw std::invalid_argument("Pax asset path escapes its root");
@@ -80,6 +85,18 @@ public:
             if (std::filesystem::is_regular_file(candidate)) return {i, relative};
         }
         throw std::runtime_error("Pax asset not found: " + winrt::to_string(path));
+    }
+    std::filesystem::path native_image(winrt::hstring const& path) const {
+        auto [index, relative] = resolve(path);
+        auto root = std::filesystem::canonical(roots_[index]);
+        auto file = std::filesystem::canonical(root / relative);
+        auto component = file.begin();
+        for (auto const& part : root) {
+            if (component == file.end() || _wcsicmp(component->c_str(), part.c_str()) != 0)
+                throw std::invalid_argument("Native image asset resolves outside its configured root");
+            ++component;
+        }
+        return file;
     }
     winrt::hstring font(json::JsonObject const& metadata) const {
         auto path = metadata.GetNamedString(L"path");

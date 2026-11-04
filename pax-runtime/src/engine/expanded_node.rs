@@ -3301,7 +3301,13 @@ impl ExpandedNode {
                 common_props.padding_y.clone(),
             )
         };
-        let children = self.logical_children(context);
+        // A flow container owns its measurement. Its provisional child cells
+        // depend on available parent space and are not intrinsic content extents.
+        let children = if borrow!(self.instance_node).layout_measurement_uses_bounds() {
+            Vec::new()
+        } else {
+            self.logical_children(context)
+        };
         let has_children = !children.is_empty();
         let bounds_name = format!("layout bounds (node id: {})", self.id.0);
         let bounds_transform_and_bounds = self_transform_and_bounds.clone();

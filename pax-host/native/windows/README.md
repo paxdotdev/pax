@@ -221,13 +221,18 @@ for the phase list, checkpoint cadence, and website acceptance procedure.
 ## Assets and controls
 
 The initial application path implements Text, Textbox, Button, Checkbox, Slider,
-Dropdown, RadioList, Frame, Scroller, and EventBlocker. The new form controls use
+Dropdown, RadioList, Frame, Scroller, EventBlocker, and NativeImage. The new form controls use
 WinUI Slider, ComboBox, and RadioButtons. Programmatic updates suppress native
 input callbacks; option replacement retains its requested index, with no
 selection or sentinel event for an empty list or invalid index. Authored slider
 values clamp to the finite range, while user input applies the positive step
 anchored at the minimum. Native dropdown popups are separate surfaces and need
 their own transformed-placement and clipping qualification.
+NativeImage uses WinUI Image with shared BitmapImage/SvgImageSource resources,
+asynchronous local-file loading, and contain/cover/fill sizing. It participates
+in the existing native placement, clipping, opacity, and mask hierarchy. Source
+changes and removal release the mounted resource and cancel unused loads.
+See [native image assets and limits](../../../pax-docs/book/src/text-fonts-images.md#native-images-and-target-boundaries).
 Read-only Markdown and the supported source-highlighter HTML subset are normalized
 by the shared desktop parser into native TextBlock runs and Hyperlinks. Native
 selection, Unicode, range colors, emphasis, monospace spans, relative heading sizes,
@@ -415,7 +420,14 @@ must stay together. Cargo/CLI integrations build a scratch copy of authored
 sources so NuGet caches do not become embedded SDK input. The build script handles
 Rust's canonical extended drive and UNC spelling for PowerShell's filesystem
 provider; this does not establish support for arbitrary long paths or network
-build environments.
+build environments. Pinned packages restore into `%LOCALAPPDATA%\Pax\NuGet`,
+shared across projects, to keep WinAppSDK's deeply nested files out of the
+project's own path. Builds running as SYSTEM use `%PROGRAMDATA%\Pax\NuGet\SYSTEM`
+to avoid Windows' redirection of that account's System32 profile. Direct SDK
+builds can select a different short path with
+`-PackagesDirectory`. The generated `host-packages.json` records that path for
+native contract probes; keep it with the SDK source when running those probes.
+The cache contains build dependencies and is not part of a shipped app.
 
 For a same-package application library and launcher, CLI packaging freezes the
 selected cartridge before the launcher build can overwrite Cargo's shared PDB

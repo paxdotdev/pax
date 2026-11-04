@@ -488,7 +488,7 @@ impl RuntimeContext {
         // Synchronous mounting may discover overlays before the root is stored.
         self.authored_order_changed(root);
         #[cfg(feature = "3d")]
-        crate::camera::bind_root(root, self.globals().renderer_is_gpu);
+        crate::camera::bind_root(root, &self.globals());
     }
 
     #[cfg(not(feature = "3d"))]
@@ -503,7 +503,7 @@ impl RuntimeContext {
         #[cfg(not(feature = "designtime"))]
         let root = self.get_root_expanded_node();
         if root.as_ref().is_some_and(|root| root.id == node.id) {
-            crate::camera::bind_root(node, self.globals().renderer_is_gpu);
+            crate::camera::bind_root(node, &self.globals());
         }
     }
 
@@ -3118,7 +3118,7 @@ impl RuntimeContext {
                     .replace_with(LocalProperty::new(None));
             }
             if let Some(root) = &root {
-                crate::camera::bind_root(root, self.globals().renderer_is_gpu);
+                crate::camera::bind_root(root, &self.globals());
             }
         }
         *borrow_mut!(self.userland_root_expanded_node) = root;

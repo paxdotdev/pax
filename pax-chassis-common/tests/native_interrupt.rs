@@ -1,6 +1,7 @@
 use pax_chassis_common::native_interrupt::NativeInterruptDispatcher;
 use pax_message::{
     FormCheckboxToggleArgs, FormSliderChangeArgs, FormTextboxChangeArgs, FormTextboxInputArgs,
+    FormTextboxSubmitArgs,
     KeyDownInterruptArgs, KeyPressInterruptArgs, KeyUpInterruptArgs, ModifierKeyMessage,
     NativeInterrupt, RenderSurfaceUpdateArgs, ScrollerPositionInterruptArgs,
     TouchCancelInterruptArgs, TouchEndInterruptArgs, TouchMessage, TouchMoveInterruptArgs,
@@ -24,6 +25,7 @@ impl ImplToFromPaxAny for ControlState {}
 enum Observation {
     Input(String, ControlState),
     Change(String, ControlState),
+    Submit(u32, SubmitTrigger, ControlState),
     Checkbox(bool, ControlState),
     Slider(f64, ControlState),
     Scroll((f64, f64), ControlState),
@@ -74,6 +76,7 @@ impl InstanceNode for NativeControl {
     fn handle_native_interrupt(&self, node: &Rc<ExpandedNode>, interrupt: &NativeInterrupt) {
         node.with_properties_unwrapped(|state: &mut ControlState| match interrupt {
             NativeInterrupt::FormTextboxInput(args) => state.text = args.text.clone(),
+            NativeInterrupt::FormTextboxSubmit(args) => state.text = args.text.clone(),
             NativeInterrupt::FormCheckboxToggle(args) => state.checked = args.state,
             NativeInterrupt::FormSliderChange(args) => state.value = args.value,
             NativeInterrupt::ScrollerPosition(args) => {
@@ -132,6 +135,14 @@ fn change(owner: Rc<RefCell<PaxAny>>, context: &NodeContext, event: Option<PaxAn
     record(
         owner,
         Observation::Change(event.text.clone(), control_state(context)),
+    );
+}
+
+fn submit(owner: Rc<RefCell<PaxAny>>, context: &NodeContext, event: Option<PaxAny>) {
+    let event = Event::<Submit>::from_pax_any(event.unwrap()).unwrap();
+    record(
+        owner,
+        Observation::Submit(event.origin, event.trigger, control_state(context)),
     );
 }
 
@@ -272,9 +283,10 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         type HandlerFn = fn(Rc<RefCell<PaxAny>>, &NodeContext, Option<PaxAny>);
-        let handlers: [(&str, HandlerFn); 9] = [
+        let handlers: [(&str, HandlerFn); 10] = [
             ("textbox_input", input),
             ("textbox_change", change),
+            ("submit", submit),
             ("checkbox_change", checkbox),
             ("slider_change", slider),
             ("scroll", scroll),
@@ -399,6 +411,30 @@ fn native_values_are_updated_before_inline_handlers_run() {
                 }
             ),
         ]
+    );
+}
+
+#[test]
+fn native_textbox_submission_updates_value_before_emitting_return() {
+    let fixture = Fixture::new();
+    let id = fixture.id();
+    assert_eq!(
+        fixture.dispatch(NativeInterrupt::FormTextboxSubmit(FormTextboxSubmitArgs {
+            id,
+            text: "final composed value".into(),
+        })),
+        Some(false)
+    );
+    assert_eq!(
+        fixture.calls(),
+        vec![Observation::Submit(
+            id,
+            SubmitTrigger::Return,
+            ControlState {
+                text: "final composed value".into(),
+                ..Default::default()
+            },
+        )]
     );
 }
 

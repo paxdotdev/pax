@@ -271,7 +271,9 @@ app-relative URL for a bundled font file. Select the file's actual family:
 />
 ```
 
-Supply that licensed font file in the application's assets. The default Roboto
+Supply that licensed font file in the application's assets. Both desktop hosts
+also accept `/assets/fonts/Manrope.ttf` as a bundled-asset alias; it does not
+request a file from the operating system's root directory. The default Roboto
 family works offline without an explicit font declaration, including bold and
 italic styles on text and controls. Its two licensed font files add about 1 MiB
 to the Windows/Linux asset inventory; web and Apple application bundles do not include
@@ -579,6 +581,9 @@ You can substitute your own image and keep the same layout. The path is
 relative to the app's asset layout, not the directory containing its `.pax`
 template.
 
+On Windows and Linux, `/assets/spaceship.png` is also accepted as a
+bundled-asset alias, with the same resolution as `assets/spaceship.png`.
+
 `Image` is drawn through Pax's GPU/canvas rendering path. Its intrinsic pixel
 dimensions determine its proportions, but do not automatically size the
 node. Set width and height for the area the image should occupy.
@@ -726,8 +731,40 @@ changing the URL or unmounting releases that view's reference. These images rema
 inside the native scrolling and clipping hierarchy. Animated playback is not
 supported by this bitmap-loading path.
 
-The fit values are shared with Image. Web, Android, and iOS/iPadOS implement contain,
-cover, and stretch behavior. The current macOS NativeImage maps Fill to
+On Windows and Linux, `NativeImage` creates a WinUI `Image` or GTK `Picture`
+inside the native scrolling, clipping, and masking hierarchy. Use packaged
+asset paths such as `assets/spaceship.png`; `/assets/spaceship.png` is also
+accepted as an asset-root alias. Windows requires a path inside a configured
+asset root. Linux also accepts local filesystem paths and file URLs. These
+desktop loaders do not fetch HTTP or HTTPS URLs.
+
+As on web, Windows and Linux native image widgets do not intercept pointer
+input. Pax routes image events through scene hit-testing, while native scrollers
+retain wheel handling.
+
+Desktop native images load asynchronously. Mounted images sharing a source
+reuse the native image resource; changing `url` or removing an image releases
+that view's reference. An empty URL clears the image. Source replacement does
+not let an earlier load overwrite the new image. Missing or unsupported assets
+report a host error rather than silently substituting artwork.
+
+PNG, JPEG, and SVG use the platform decoders. Linux SVG support requires the
+GdkPixbuf SVG loader, included in the tested GNOME runtime. Linux decodes SVG
+once at its intrinsic or decoder-default raster size; later scaling resizes
+those pixels rather than rerasterizing the vector artwork. Windows uses
+`SvgImageSource`. Format features can differ between these decoders, especially
+for SVG; test the actual artwork on each target. The desktop paths do not
+provide animated-image playback. Encoded files and nominal decoded raster pixels
+are limited to 32 MiB per asset. These checks do not bound total decoder or GPU
+memory. Windows fixes each SVG's shared raster size after its initial WinUI
+layout; later enlargement or display-scale changes reuse those pixels and can
+soften the image. Its initial SVG decode and toolkit backing storage are separate
+from the decoded-bitmap accounting. Linux also limits retained decoded pixels
+for mounted images to 256 MiB and each decoded axis to 16,384 pixels; exceeding
+a limit reports an error.
+
+The fit values are shared with Image. Web, Android, Windows, Linux, and
+iOS/iPadOS implement contain, cover, and stretch behavior. The current macOS NativeImage maps Fill to
 stretching; use the canvas Image path when proportional fill cropping is
 required there.
 

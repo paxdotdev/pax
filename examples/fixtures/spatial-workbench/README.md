@@ -53,6 +53,11 @@ intersections and intersections across independently composited scroller layers
 are not general spatial composition. GPU group fades preserve interleaving within one logical canvas layer using
 a bounded compositor (up to eight scene views per tile); native transparency
 stacking remains approximate. Multiple cameras remain deferred. Perspective is experimental.
+Native Windows, Linux, and Android currently support the orthographic path only.
+Selecting perspective there emits an unsupported-capability diagnostic and uses
+the default orthographic view; Reset pose restores the authored orthographic
+camera. On Windows, a native child under an edge-on native parent is temporarily
+hidden until its parent recovers, while its text and selection stay mounted.
 Opaque `Ellipsoid` solids support non-default orthographic and perspective
 cameras, near/far clipping, native-control occlusion, and pointer depth. GPU
 effects and vector mask sources preserve camera projection, and lighting follows

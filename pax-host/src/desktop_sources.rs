@@ -21,6 +21,7 @@ const WINDOWS: &[(&str, &[u8])] = &[
     source!("windows", "json_helpers.h"),
     source!("windows", "keyboard.h"),
     source!("windows", "native_scene.h"),
+    source!("windows", "native_images.h"),
     source!("windows", "navigation.h"),
     source!("windows", "snap_canvas.h"),
     source!("windows", "wheel_input.h"),

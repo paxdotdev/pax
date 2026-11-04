@@ -115,10 +115,10 @@ int main(int argc,char **argv) {
   gtk_window_set_child(GTK_WINDOW(window),label);gtk_window_present(GTK_WINDOW(window));
   PangoFontMap *map=pango_context_get_font_map(gtk_widget_get_pango_context(label));
   g_print("GTK font map type=%s same_as_default=%d\n",G_OBJECT_TYPE_NAME(map),map==pango_cairo_font_map_get_default());
-  check(pax_linux_font_load(roots,"Roboto.ttf",map,&error),"register normal bundled face");
+  check(pax_linux_font_load(roots,"/assets/Roboto.ttf",map,&error),"register normal bundled face through /assets alias");
   if(error){g_printerr("%s\n",error->message);g_clear_error(&error);}
   style(GTK_LABEL(label),PANGO_STYLE_NORMAL);inspect(GTK_LABEL(label),"Roboto.ttf",PANGO_STYLE_NORMAL);
-  check(pax_linux_font_load(roots,"Roboto-Italic.ttf",map,&error),"register italic after normal family was already resolved");
+  check(pax_linux_font_load(roots,"assets/Roboto-Italic.ttf",map,&error),"register italic through assets alias after normal family was already resolved");
   if(error){g_printerr("%s\n",error->message);g_clear_error(&error);}
   style(GTK_LABEL(label),PANGO_STYLE_ITALIC);inspect(GTK_LABEL(label),"Roboto-Italic.ttf",PANGO_STYLE_ITALIC);
   style(GTK_LABEL(label),PANGO_STYLE_NORMAL);inspect(GTK_LABEL(label),"Roboto.ttf",PANGO_STYLE_NORMAL);

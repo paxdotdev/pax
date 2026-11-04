@@ -65,8 +65,14 @@ When using an external CPU sampler, verify Rust caller chains and ELF module
 bias before relying on inclusive attribution. The tested perf 7.0.14/libdw
 combination reported this cartridge's module bias one page too high and selected
 incorrect unwind rules. Missing callers in that report do not establish a Pax
-stack or allocation defect. The separate host phase timings remain usable;
-keep raw sampling evidence and validate any corrected offline report separately.
+stack or allocation defect. Leaf instruction-pointer samples can be checked
+independently: match loaded-module hashes to the packaged ELF, translate each
+sample through its `/proc/<pid>/maps` entry and executable ELF `PT_LOAD` segment,
+and verify symbol containment before using `addr2line`. The segment's virtual
+address need not equal its file offset; assuming equality reproduced a 4 KiB
+error in the 2026-11-03 cartridge. This validates self CPU attribution only, not
+caller chains. The separate host phase timings remain usable; keep raw sampling
+evidence and validate any corrected offline report separately.
 The runner uses the same opt-in host diagnostics as the focused fixtures, actual
 X11 wheel input, and isolated output directories. It records executable/loaded
 library hashes, native state and process CPU/RSS. Six GiB RSS is a probe stop
@@ -98,7 +104,7 @@ application checks separately, for example:
 python3 tests/src/native-platform-probes/linux/check-native-website.py \
   pax-website/.pax/build/release/linux/pax-website \
   --flatpak-app org.paxlang.WebsiteAcceptance --flatpak-branch pilot \
-  --interactions-only --interaction-cases calculator paxflix gallery resize path-studies source-tabs route \
+  --interactions-only --interaction-cases calculator paxflix gallery resize source-tabs route \
   --screenshots --output /tmp/pax-website-interactions
 ```
 
@@ -106,8 +112,10 @@ python3 tests/src/native-platform-probes/linux/check-native-website.py \
 shutdown checks while skipping the stationary and traversal timing phases. Omit
 it to run the selected interactions after those phases. Cases can be run
 individually; `website-interactions.json` records each assertion and the runner
-retains the state at a failure. The helper's source hash is recorded alongside
-the main runner's hash in `checks.json`.
+retains the state at a failure. Clicks wait for observed target bounds to settle
+so native wheel and drawer animations cannot move a target between seeking and
+clicking it. The helper's source hash is recorded alongside the main runner's
+hash in `checks.json`.
 
 - `calculator` clicks the embedded calculator's actual keys, checks `7+8=15`,
   checks that its centered initial graph resolves the default curve and responds
@@ -116,28 +124,33 @@ the main runner's hash in `checks.json`.
   remains stationary, then switches back to calculation mode. These are authored
   Pax controls with native text labels, not GTK Button widgets.
 - `paxflix` opens the full-screen demo, opens movie details, checks playback-demo
-  feedback, scrolls its catalog and horizontal shelf independently, then closes
-  the demo and checks that the website's scroll position is preserved. Playback
+  feedback, scrolls its catalog and horizontal shelf independently, then follows
+  Back to Pax and checks that home remounts with its persisted bound scroll position,
+  clamped to the first allocated range. Playback
   is the example's local feedback action; no media service is contacted.
 - `gallery` checks automatic motion, hover pause/resume, horizontal wheel input
   and vertical propagation to the enclosing website.
 - `resize` changes the actual X11 window from 640×900 back to 1280×960 and checks
   responsive navigation, native scroller bounds and continued wheel input.
-- `path-studies` visits both authored path demos, pauses and resumes playback,
-  and checks the bound native slider value. It focuses each genuine GTK slider
-  and uses Home/End to exercise the Rust scrub handler, requiring playback to
-  pause at the chosen endpoint and resume when the authored toggle is clicked.
 - `source-tabs` opens all six section drawers, reaches every reported tab with
   native horizontal wheel input, and copies each complete rendered source as
   exact UTF-8. It requires `xclip`; receipts in `website-source-tabs.json` identify
   each source, its byte count and hash. The application owns source selection;
   this probe does not set engine properties or scroll offsets.
-- `route` clicks the footer's `PAX NOTES →` link, checks the site's authored
-  `/blog` fallback, then uses `Return home →` to remount a scrollable home page.
-  This native site defines home and a default route; the fallback itself is
-  expected. Outgoing native nodes must retire after authored exit timelines;
+- `route` clicks the authored full-screen calculator link, checks the
+  `/calculator/` route, then uses `← BACK TO PAX` to remount a scrollable home page. Outgoing native nodes must retire after authored exit timelines;
   the probe records their IDs, bounds and frame progression while waiting.
   No external browser is opened by this case.
+
+The website binds `HomePage.scroll_y` to the persistent root
+`Example.page_scroll_y`; route roundtrips do not request a reset to the top.
+The return checks compare that departing offset with the first returned legal
+range, then require a settled legal offset, decoded native images, and responsive
+wheel input. GTK reports allocation-time clamping back to the binding. A
+provisional short range can therefore lose restoration precision: one observed
+return requested 4955, clamped to 3214, and remained at 3214 after the range grew
+to allow 4955. The host does not retain a deferred request to restore that older
+position. This limitation is distinct from a failed route or an unusable scroller.
 
 To check authored source content independently of the native copy operation,
 generate the catalogue with
@@ -145,13 +158,19 @@ generate the catalogue with
 from the exact source snapshot used for the package. Compare each drawer index,
 tab label and UTF-8 hash in `website-source-tabs.json` with that catalogue's
 section manifest. Repeated sources must match in each authored drawer. The
-Release CLI package qualified on 2026-10-25 passed all 106 assertions in the
-calculator, Paxflix, gallery, resize, source-tab and route matrix; all 72 copied
-tabs matched the frozen authored sources in their six drawers. A separate
-`path-studies` pass qualified both demos with 15 assertions. These are named
-matrix results; `fullWebsiteAcceptance` remains false. The website build used a
-reviewed host SDK override. The native-wheel qualification below separately
-checks the automatic embedded SDK build path.
+ordinary Release CLI package qualified on 2026-11-03 passed all 130 assertions in
+the calculator, Paxflix, gallery, resize, source-tab and route matrix; all 92
+copied source occurrences matched the frozen authored sources in their six
+drawers. Fresh Debug startup and calculator route checks also passed. Both builds
+used the automatic embedded host SDK; the final SDK extraction test included
+the Windows NativeImage build inputs. These are named matrix results;
+`fullWebsiteAcceptance` remains false. The native-wheel qualification below
+separately checks scrolling and reports commit cadence rather than display FPS.
+
+The former `path-studies` case has been removed: the current gallery renders
+`FeatureStudy(kind="path")` with an animated canvas path, without the old native
+slider and playback controls. Use the focused native controls probes for Slider
+qualification; old path-study receipts do not qualify the current website.
 
 These cases do not qualify touch, physical-display frame rate, broad accessibility,
 external navigation or every capability illustrated by gallery cards. The website's
@@ -322,6 +341,41 @@ outer page, a second source tab, and drawer close.
 fixtures shared with the parser and Windows contract, including source markup
 captured from the actual ExampleHost highlighter. Markdown syntax is tested in
 Rust; the C host consumes the normalized document and owns native shaping.
+
+## Native image contract
+
+`native-images.c` exercises real `GtkPicture` controls and final rendered pixels
+without a Pax cartridge. From the repository root, with GTK 4.14 or newer,
+JSON-GLib, Fontconfig/Pango development packages, and PNG/JPEG/SVG decoders:
+
+```sh
+cc -std=c11 -O1 -g -Wall -Wextra -Werror \
+  -Ipax-host/native/linux \
+  tests/src/native-platform-probes/linux/native-images.c \
+  pax-host/native/linux/native-scene.c pax-host/native/linux/assets.c \
+  $(pkg-config --cflags --libs gtk4 json-glib-1.0 fontconfig pangoft2) -lm \
+  -o /tmp/pax-native-images
+GSK_RENDERER=ngl timeout 45s /tmp/pax-native-images
+```
+
+Use `GSK_RENDERER=gl` with GTK 4.22. The probe can also run under
+`xvfb-run -a` with `LIBGL_ALWAYS_SOFTWARE=1`; that checks GTK behavior, not
+hardware GPU import or frame rate. Cairo does not render this host's general
+matrix scene nodes. Pixel readback is confined to this test.
+
+The 27 checks cover shared PNG decoding, JPEG and transparent SVG, both bundled
+asset aliases, ordinary absolute paths and file URIs, contain/cover/fill,
+fractional and opaque masks, ancestor clipping,
+source replacement, deletion/recreation, empty URLs, unsupported remote URLs,
+oversized-image rejection, and bounded decode workers. Retained native widgets
+outlive deletion and scene destruction in the probe, verifying that their images
+are cleared and released before the scene disappears. A deliberately rejected
+remote URL and oversized SVG print expected error diagnostics.
+
+These checks pass on GTK 4.14.5 and the GNOME 50 runtime's GTK 4.22.5. The
+separate packaged website workload checks hardware presentation, native image
+readiness, scrolling, and application interaction. Neither this focused probe
+nor a first GPU frame alone establishes full website acceptance.
 
 ## Hardware capability preflight
 
@@ -1000,3 +1054,20 @@ sources. The receiver check ran from `/tmp` in a private mount namespace on the
 same machine, not on a separately provisioned distribution. The original
 scaffold, Cargo-only path adjustment, package hashes, runtime/app commits and
 loaded-library identities accompany the acceptance evidence.
+
+## Orthographic spatial smoke test
+
+Build `examples/fixtures/spatial-workbench` with the ordinary CLI for Linux,
+then run `check-native-spatial.py PACKAGE/spatial-workbench --output NEW_DIRECTORY`
+on the native X11 session. The shared `--flatpak-app` and `--flatpak-branch`
+options select an installed GTK 4.22 runtime package. Run separately for Debug
+and Release; neither result implies the other.
+
+The probe types into the tilted native editor, activates its native button,
+zooms the orthographic camera, checks the explicit perspective fallback, and
+uses keyboard input on the Y-tilt slider to reach an exact 90-degree pose with
+clipping enabled. The collapsed placement must hide without destroying the native
+control. Recovery must preserve its identity, edited text, and selection and restore
+button input. GTK/Pango critical diagnostics fail the check. Composed screenshots
+require visual review; these functional checks
+do not establish perspective support, pixel-perfect depth compositing, or FPS.

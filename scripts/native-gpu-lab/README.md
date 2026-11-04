@@ -70,6 +70,13 @@ bit-identical image rebuilds, indefinitely available upstream downloads, identic
 EC2 host placement, or identical performance. Repeated runs should launch the
 same retained AMI. Archive reviewed inputs before their upstream retention ends.
 
+Root disks default to 60 GiB on Linux and 100 GiB on Windows. Set
+`machine.root_volume_gib` to retain a larger build cache (up to 200 GiB), and review
+the Terraform plan for an in-place volume update before applying. Existing EBS
+volumes can grow but cannot shrink in place. Extend the guest partition and
+filesystem after a capacity increase; retain the value in later run inputs.
+Storage remains billable while the instance is stopped.
+
 ## Access and sessions
 
 Instances have ephemeral public IPv4 addresses for outbound SSM/download access.

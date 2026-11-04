@@ -24,6 +24,11 @@ for example `<Button width=120px height=40px>Save</Button>`. This sets the exist
 continue to use the existing Markdown renderer. Text bodies do not change a
 control's native accessibility or editing behavior.
 
+On experimental Android, Button labels use the authored box without Android's
+default internal button padding. Choose a height that fits the selected font and
+leaves an appropriate touch target; a compact desktop-style button does not
+automatically receive a larger invisible touch area.
+
 `Toast` accepts its `message` as a body, and `ConfirmationDialog` accepts its
 prompt `text` the same way:
 
@@ -515,7 +520,7 @@ use [Android fonts](text-fonts-images.md#fonts-on-android).
 
 The alpha Windows and Linux hosts provide plain Text,
 Textbox, Button, Checkbox, Slider, Dropdown, RadioList, Frame, Scroller, and
-EventBlocker. They use real
+EventBlocker, and [NativeImage](text-fonts-images.md#native-images-and-target-boundaries). They use real
 WinUI or GTK controls; styling and rich-text capabilities remain narrower than
 the web/Apple paths described in this chapter. Other native control families
 report unsupported errors. Do not infer full input-method, touch, screen-reader,
@@ -534,6 +539,10 @@ selection and does not generate a sentinel selection event.
 Dropdown popups are separate native UI surfaces. A correctly transformed or
 masked closed control does not establish popup placement or clipping; test
 those interactions separately on the intended desktop.
+Windows Textbox input reaches Pax synchronously with the native edit, before
+rendering can echo an older bound value. Application-driven text replacements
+do not emit another `@textbox_input` event; an unchanged value preserves the
+native selection. This ordering does not expand the IME qualification below.
 The Windows host applies Button `color`, `hover_color`, `outline_stroke_color`,
 and `outline_stroke_width` to the genuine WinUI control. Hover and pressed states
 both use `hover_color`; reactive changes update the existing native brushes.

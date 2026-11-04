@@ -205,6 +205,15 @@ fn fixture_with_camera(
     Rc<ExpandedNode>,
     Rc<ExpandedNode>,
 ) {
+    fixture_with_camera_on(camera, Platform::Web, OS::Mac, true)
+}
+
+fn fixture_with_camera_on(
+    camera: Option<pax_manifest::LiteralBlockDefinition>,
+    platform: Platform,
+    os: OS,
+    gpu: bool,
+) -> (PaxEngine, Rc<ExpandedNode>, Rc<ExpandedNode>, Rc<ExpandedNode>) {
     let leaf = Surface::instantiate(args(vec![]));
     let a = Surface::instantiate(args(vec![leaf]));
     let b = Surface::instantiate(args(vec![]));
@@ -213,11 +222,12 @@ fn fixture_with_camera(
     root_args.component_camera = camera;
     let mut engine = crate::test_support::empty_engine(
         (640., 480.),
-        Platform::Web,
-        OS::Mac,
+        platform,
+        os,
         Box::new(|| 0),
         Default::default(),
     );
+    engine.runtime_context.edit_globals(|g| g.renderer_is_gpu = gpu);
     let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
     engine.runtime_context.resize_canvas_layers_to(1);
     engine.tick();
@@ -1189,6 +1199,50 @@ fn perspective_camera_binds_lens_preserves_layout_and_matches_input() {
         before.world_transform().coeffs()[12],
         world.world_transform().coeffs()[12]
     );
+}
+
+#[test]
+fn affine_native_chassis_guard_initial_reactive_and_reloaded_perspective() {
+    for os in [OS::Windows, OS::Linux, OS::Android] {
+        for platform in [Platform::Native, Platform::Web] {
+            let (mut engine, _, _, child) = fixture_with_camera_on(
+                Some(camera(&[("projection", "CameraMode::Perspective"), ("z", "600px")])),
+                platform, os, true,
+            );
+            let supported = platform == Platform::Web;
+            assert_eq!(child.has_perspective_camera(), supported, "initial {platform:?}/{os:?}");
+            let root = engine.root_expanded_node.as_ref().unwrap().clone();
+            let mode = LocalProperty::new(pax_runtime_api::CameraMode::Perspective);
+            let mut updated = args(vec![]);
+            updated.component_camera = Some(camera(&[
+                ("projection", "camera_mode"), ("z", "600px"), ("zoom", "2"),
+            ]));
+            let binding = mode.clone();
+            updated.properties_scope = PropertiesScopeInit::Factory(Box::new(move |_| {
+                std::collections::HashMap::from([(
+                    "camera_mode".into(),
+                    pax_runtime_api::Variable::new_from_typed_property(binding.clone()),
+                )])
+            }));
+            root.recreate_with_new_data(ComponentInstance::instantiate(updated), &engine.runtime_context);
+            engine.tick();
+            assert_eq!(child.has_perspective_camera(), supported, "reloaded {platform:?}/{os:?}");
+            for _ in 0..2 {
+                mode.set(pax_runtime_api::CameraMode::Orthographic);
+                engine.tick();
+                assert!(!child.has_perspective_camera());
+                close(child.presentation_transform_and_bounds.get().transform.m[0], 2.);
+                mode.set(pax_runtime_api::CameraMode::Perspective);
+                engine.tick();
+                assert_eq!(child.has_perspective_camera(), supported, "reactive {platform:?}/{os:?}");
+                if !supported {
+                    assert_eq!(child.presentation_transform_and_bounds.get().transform,
+                        child.transform_and_bounds.get().transform);
+                }
+            }
+            assert!(Rc::ptr_eq(&child, &root.children.get()[0].children.get()[0]));
+        }
+    }
 }
 
 #[test]

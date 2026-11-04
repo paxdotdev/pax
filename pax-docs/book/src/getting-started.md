@@ -255,6 +255,8 @@ see [When something goes wrong](#when-something-goes-wrong).
 Leave the command running while you use the app. To stop the development session,
 press **Ctrl-C** in its terminal. You can start it again with
 `pax-cli run --target web` from the project directory.
+On macOS and Linux, cancellation terminates the command's tracked child process
+groups without signaling other development sessions.
 
 ## Run it natively on macOS
 

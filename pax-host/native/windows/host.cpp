@@ -236,6 +236,7 @@ struct Session : std::enable_shared_from_this<Session> {
         }
     }
     float logged_width = 0, logged_height = 0, logged_scale = 0;
+    std::string logged_native_images;
     void log_timings() {
         log_phase_timings();
         if (!timing_enabled) return;
@@ -453,6 +454,13 @@ struct Session : std::enable_shared_from_this<Session> {
                     reinterpret_cast<uint8_t const*>(image.path.data()), image.path.size(),
                     image.rgba.data(), image.rgba.size(), image.width, image.height));
             });
+            if (scene && status < 3) {
+                scene->poll_native_images();
+                if (timing_enabled) {
+                    auto images = scene->native_image_diagnostics();
+                    if (images != logged_native_images) { log(images); logged_native_images = std::move(images); }
+                }
+            }
             phases.mark(Phase::DecodeImages);
             if (status == 3) {
                 // A terminal render error does not revoke release/close. The
@@ -554,6 +562,11 @@ struct Session : std::enable_shared_from_this<Session> {
             [weak](auto const& value) { auto self = weak.lock(); return self ? self->interrupt(value) : false; },
             [weak](auto const& metadata) { auto self = weak.lock(); if (!self) throw std::runtime_error("Font requested after session release"); return self->assets.font(metadata); },
             [weak](auto const& path) { if (auto self = weak.lock()) self->assets.request(path); });
+        scene->set_native_image_path([weak](auto const& path) {
+            auto self = weak.lock();
+            if (!self) throw std::runtime_error("Native image requested after session release");
+            return self->assets.native_image(path);
+        });
         scene->set_navigation([weak](auto const& destination) { if (auto self = weak.lock()) self->navigate(destination); });
         Grid layout; layout.RequestedTheme(ElementTheme::Light); layout.Children().Append(scene->root());
         window.Content(layout); window.Activate();

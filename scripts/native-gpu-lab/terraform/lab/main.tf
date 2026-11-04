@@ -180,7 +180,7 @@ resource "aws_instance" "machine" {
   }
   root_block_device {
     volume_type           = "gp3"
-    volume_size           = var.machine.os == "windows" ? 100 : 60
+    volume_size           = coalesce(var.machine.root_volume_gib, var.machine.os == "windows" ? 100 : 60)
     encrypted             = true
     delete_on_termination = true
     tags                  = { PaxGpuLab = var.lab_name, ManagedBy = "pax-gpu-lab" }

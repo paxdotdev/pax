@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Freeze the canonical website's authored source tabs for native UI readback.
 
-This recognizes the two include_str forms used by home_page.rs; it is a fixture
-catalogue, not a Rust parser. Regenerate when that canonical source list changes.
+This recognizes literal pairs, language tuples, and ExampleSource structs in
+home_page.rs; it is a fixture catalogue, not a Rust parser. Regenerate when that canonical source list changes.
 """
 import argparse
 from collections import Counter
@@ -19,19 +19,19 @@ root = args.repository.resolve()
 source = root / "pax-website/src/home_page.rs"
 text = source.read_text()
 def source_pairs(fragment):
-    return (re.findall(r'"([^"\n]+)",\s*include_str!\("([^"\n]+)"\)', fragment)
-            + re.findall(r'label:\s*"([^"\n]+)"[^}]*?code:\s*include_str!\("([^"\n]+)"\)', fragment))
+    # Preserve authored order, including the optional language in source tuples.
+    pattern = (r'"(?P<pair>[^"\n]+)",\s*(?:"(?:rust|pax|wgsl)",\s*)?'
+               r'include_str!\("(?P<pair_path>[^"\n]+)"\)'
+               r'|label:\s*"(?P<struct>[^"\n]+)"[^}]*?'
+               r'code:\s*include_str!\("(?P<struct_path>[^"\n]+)"\)')
+    matches = list(re.finditer(pattern, fragment))
+    if len(matches) != fragment.count("include_str!("):
+        raise ValueError("Unrecognized authored source include; update the fixture catalogue")
+    return [(m["pair"] or m["struct"], m["pair_path"] or m["struct_path"])
+            for m in matches]
+
 
 pairs = source_pairs(text)
-# These six sources are appended to both authored drawers. The fixture catalogue
-# must count rendered tabs, not just textual include_str occurrences.
-shared = text.split("for sources in [&self.framework_sources, &self.authoring_sources] {", 1)
-if len(shared) != 2:
-    raise ValueError("Canonical shared source-drawer loop changed")
-shared_pairs = source_pairs(shared[1].split("fn section_sources(", 1)[0])
-if len(shared_pairs) != 6:
-    raise ValueError("Canonical shared source-drawer list changed")
-pairs += shared_pairs
 rows = []
 seen = {}
 for label, relative in pairs:
@@ -51,8 +51,8 @@ for label, relative in pairs:
         raise ValueError(f"Conflicting authored source label {label}")
     seen[label] = row
     rows.append(row)
-if len(rows) != 72:
-    raise ValueError(f"Canonical website source catalogue changed: expected 72 tabs, found {len(rows)}")
+if len(rows) != 92:
+    raise ValueError(f"Canonical website source catalogue changed: expected 92 tabs, found {len(rows)}")
 # Section membership is part of the acceptance oracle: repeated labels must be
 # clicked in each authored drawer, not merely counted anywhere on the page.
 # These boundaries intentionally recognize this fixture's source construction;
@@ -65,33 +65,33 @@ def fragment(start, end):
 
 sections = [
     ("hero", "hero_sources", None, "hero_section.pax",
-     "let mut hero_sources =", "let mut resource_sources =", 14),
+     "let mut hero_sources =", "let mut open_source_sources =", 25),
     ("runtime", "runtime_sources", "A PORTABLE RUNTIME", "runtime_section.pax",
      "let mut runtime_sources =", "self.feature_gallery_sources.set", 20),
     ("framework", "framework_sources", "BUILT FOR CREATIVE FREEDOM", "framework_section.pax",
-     "self.framework_sources.set", "let mut runtime_sources =", 8),
-    ("authoring", "authoring_sources", "THE LANGUAGE / THE LOGIC", "authoring_section.pax",
-     "self.authoring_sources.set", "self.framework_sources.set", 8),
-    ("gallery", "feature_gallery_sources", "EXPLORE / CURRENT CAPABILITIES", "feature_gallery/gallery.pax",
-     "self.feature_gallery_sources.set", "for sources in [&self.framework_sources", 8),
+     "self.framework_sources.set", "let mut runtime_sources =", 16),
+    ("gallery", "feature_gallery_sources", "A love poem to the pixel", "feature_gallery/gallery.pax",
+     "self.feature_gallery_sources.set", "\nfn section_sources(", 8),
+    ("open_source", "open_source_sources", "More room for making.", "open_source_section.pax",
+     "let mut open_source_sources =", "let mut resource_sources =", 7),
     ("resource", "resource_sources", "PAX IS READY FOR BUILDERS", "resource_section.pax",
-     "let mut resource_sources =", "self.authoring_sources.set", 14),
+     "let mut resource_sources =", "self.framework_sources.set", 16),
 ]
+
 template = source.with_suffix(".pax")
 authored_order = re.findall(r"<ExampleHost\b[^>]*?sources=\{self\.(\w+)\}", template.read_text())
 if authored_order != [section[1] for section in sections]:
     raise ValueError(f"Canonical authored section order changed: {authored_order}")
 inventory = []
-provenance = {source, template, root / "pax-std/src/reference/example_host.pax"}
+provenance = {source, template, root / "pax-std/src/reference/example_host.pax",
+              root / "pax-std/src/reference/example_source_viewer.pax"}
 for key, field, anchor, anchor_source, start, end, count in sections:
     section_pairs = source_pairs(fragment(start, end))
-    if key in ("framework", "authoring"):
-        section_pairs += shared_pairs
     labels = [label for label, _ in section_pairs]
     if len(labels) != count or len(set(labels)) != count:
         raise ValueError(f"Canonical {key} drawer changed: expected {count} distinct tabs")
     anchor_path = source.parent / anchor_source
-    if anchor is not None and anchor_path.read_text().count(f'text="{anchor}"') != 1:
+    if anchor is not None and anchor_path.read_text().count(f'>{anchor}</Text>') != 1:
         raise ValueError(f"Canonical {key} section anchor changed")
     provenance.add(anchor_path)
     inventory.append({"id": key, "anchor": anchor, "sources": [

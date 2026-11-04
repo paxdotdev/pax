@@ -7,6 +7,23 @@
 
 typedef struct _PaxNode PaxNode;
 typedef struct {
+  gint references;
+  guint users;
+  char *filename;
+  GCancellable *cancel;
+  GdkTexture *texture;
+  gsize bytes;
+  gboolean failed;
+} NativeImage;
+typedef struct {
+  GWeakRef scene;
+  NativeImage *image;
+} NativeImageJob;
+#define NATIVE_IMAGE_ASSET_LIMIT (32u * 1024u * 1024u)
+#define NATIVE_IMAGE_CACHE_LIMIT (256u * 1024u * 1024u)
+#define NATIVE_IMAGE_WORKERS 4
+
+typedef struct {
   GskPath *path;
   GPtrArray *clips;
   double opacity;
@@ -31,6 +48,8 @@ struct _PaxNode {
   char *kind, *tile_key;
   GtkWidget *control, *content, *input;
   GdkTexture *texture;
+  NativeImage *native_image;
+  char *image_url;
   GPtrArray *mask;
   GskPath *clip_path;
   double matrix[6], width, height, radius, opacity, inner_width, inner_height;
@@ -82,6 +101,10 @@ struct _PaxNativeScene {
   gboolean stopped, text_metrics_dirty;
   gboolean commit_open, placement_pending;
   char **assets;
+  GHashTable *native_images;
+  GQueue image_queue;
+  guint image_pending;
+  gsize image_bytes;
 };
 G_DEFINE_TYPE(PaxNativeScene, pax_native_scene, GTK_TYPE_WIDGET)
 G_DEFINE_TYPE(PaxNode, pax_node, GTK_TYPE_WIDGET)
@@ -99,6 +122,231 @@ static const char *string(JsonObject *o, const char *key,
 }
 static gboolean boolean(JsonObject *o, const char *key, gboolean fallback) {
   return has(o, key) ? json_object_get_boolean_member(o, key) : fallback;
+}
+static NativeImage *native_image_ref(NativeImage *image) {
+  // GTask may release task data on a worker after its UI completion callback.
+  // Pixel sources are immutable; only ownership crosses that thread boundary.
+  g_atomic_int_inc(&image->references);
+  return image;
+}
+static void native_image_unref(gpointer data) {
+  NativeImage *image = data;
+  if (!g_atomic_int_dec_and_test(&image->references)) return;
+  g_clear_object(&image->texture);
+  g_clear_object(&image->cancel);
+  g_free(image->filename);
+  g_free(image);
+}
+static void native_image_release(PaxNode *node) {
+  NativeImage *image = node->native_image;
+  if (!image) return;
+  node->native_image = NULL;
+  if (node->control)
+    gtk_picture_set_paintable(GTK_PICTURE(node->control), NULL);
+  if (!--image->users) {
+    g_cancellable_cancel(image->cancel);
+    // A queued/running decode owns its own reference and is retired separately.
+    node->scene->image_bytes -= image->bytes;
+    g_hash_table_remove(node->scene->native_images, image->filename);
+  }
+  native_image_unref(image);
+}
+static void native_image_size(GdkPixbufLoader *loader, int width, int height,
+                               gboolean *oversized) {
+  if (width <= 0 || height <= 0 || width > 16384 || height > 16384 ||
+      (guint64)width * height * 4 > NATIVE_IMAGE_ASSET_LIMIT) {
+    *oversized = TRUE;
+    // size-prepared runs before the decoded pixel allocation. The result is
+    // rejected, not displayed at reduced quality or accepted as a large image.
+    gdk_pixbuf_loader_set_size(loader, 1, 1);
+  }
+}
+static void native_image_decode(GTask *task, gpointer source, gpointer data,
+                                 GCancellable *cancel) {
+  (void)source;
+  NativeImageJob *job = data;
+  GError *error = NULL;
+  GFile *file = g_file_new_for_path(job->image->filename);
+  GFileInputStream *input = g_file_read(file, cancel, &error);
+  g_object_unref(file);
+  GdkPixbufLoader *loader = gdk_pixbuf_loader_new();
+  gboolean oversized = FALSE;
+  g_signal_connect(loader, "size-prepared", G_CALLBACK(native_image_size), &oversized);
+  guint8 buffer[8192];
+  gsize total = 0;
+  while (input && !error) {
+    gssize count = g_input_stream_read(G_INPUT_STREAM(input), buffer,
+                                       sizeof buffer, cancel, &error);
+    if (count <= 0) break;
+    total += count;
+    if (total > NATIVE_IMAGE_ASSET_LIMIT) {
+      g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_NO_SPACE,
+                           "NativeImage encoded file exceeds 32 MiB");
+      break;
+    }
+    if (!gdk_pixbuf_loader_write(loader, buffer, count, &error)) break;
+    if (oversized) {
+      g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_NO_SPACE,
+                           "NativeImage decoded pixels exceed 32 MiB or 16384 pixels per axis");
+      break;
+    }
+  }
+  g_clear_object(&input);
+  GError *close_error = NULL;
+  gboolean closed = gdk_pixbuf_loader_close(loader, &close_error);
+  if (!error && !closed) error = g_steal_pointer(&close_error);
+  g_clear_error(&close_error);
+  GdkPixbuf *pixbuf = !error ? gdk_pixbuf_loader_get_pixbuf(loader) : NULL;
+  if (pixbuf && !oversized &&
+      gdk_pixbuf_get_byte_length(pixbuf) <= NATIVE_IMAGE_ASSET_LIMIT) {
+    g_task_return_pointer(task, g_object_ref(pixbuf), g_object_unref);
+  } else {
+    if (!error) g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+                                    "NativeImage has no valid bounded bitmap");
+    g_task_return_error(task, error);
+  }
+  g_object_unref(loader);
+}
+static void native_image_job_free(gpointer data) {
+  NativeImageJob *job = data;
+  g_weak_ref_clear(&job->scene);
+  native_image_unref(job->image);
+  g_free(job);
+}
+static void native_image_start(PaxNativeScene *scene);
+static void native_image_ready(GObject *source, GAsyncResult *result, gpointer data) {
+  (void)source;
+  (void)data;
+  GTask *task = G_TASK(result);
+  NativeImageJob *job = g_task_get_task_data(task);
+  NativeImage *image = job->image;
+  GError *error = NULL;
+  GdkPixbuf *pixbuf = g_task_propagate_pointer(task, &error);
+  PaxNativeScene *scene = g_weak_ref_get(&job->scene);
+  if (scene) {
+    scene->image_pending--;
+    // Identity, not the URL alone, rejects a deleted/recreated request for the
+    // same path. No task retains a widget or a live engine session.
+    if (!scene->stopped && image->users &&
+        g_hash_table_lookup(scene->native_images, image->filename) == image) {
+      if (pixbuf) {
+        gsize bytes = gdk_pixbuf_get_byte_length(pixbuf);
+        if (bytes > NATIVE_IMAGE_CACHE_LIMIT - scene->image_bytes) {
+          g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_NO_SPACE,
+                               "Mounted NativeImage pixels exceed the 256 MiB cache budget");
+        } else {
+          GBytes *pixels = gdk_pixbuf_read_pixel_bytes(pixbuf);
+          image->texture = gdk_memory_texture_new(
+              gdk_pixbuf_get_width(pixbuf), gdk_pixbuf_get_height(pixbuf),
+              gdk_pixbuf_get_has_alpha(pixbuf) ? GDK_MEMORY_R8G8B8A8 : GDK_MEMORY_R8G8B8,
+              pixels, gdk_pixbuf_get_rowstride(pixbuf));
+          g_bytes_unref(pixels);
+          image->bytes = bytes;
+          scene->image_bytes += bytes;
+          GHashTableIter iterator;
+          gpointer value;
+          g_hash_table_iter_init(&iterator, scene->nodes);
+          while (g_hash_table_iter_next(&iterator, NULL, &value)) {
+            PaxNode *node = value;
+            if (node->native_image == image)
+              gtk_picture_set_paintable(GTK_PICTURE(node->control), GDK_PAINTABLE(image->texture));
+          }
+        }
+      }
+      if (error) {
+        image->failed = TRUE;
+        if (scene->error) {
+          char *message = g_strdup_printf("NativeImage %s: %s", image->filename, error->message);
+          scene->error(scene->data, message);
+          g_free(message);
+        }
+      }
+    }
+    native_image_start(scene);
+    g_object_unref(scene);
+  }
+  g_clear_object(&pixbuf);
+  g_clear_error(&error);
+}
+static void native_image_start(PaxNativeScene *scene) {
+  while (!scene->stopped && scene->image_pending < NATIVE_IMAGE_WORKERS &&
+         !g_queue_is_empty(&scene->image_queue)) {
+    NativeImage *image = g_queue_pop_head(&scene->image_queue);
+    if (!image->users) { native_image_unref(image); continue; }
+    NativeImageJob *job = g_new0(NativeImageJob, 1);
+    g_weak_ref_init(&job->scene, scene);
+    job->image = image;
+    GTask *task = g_task_new(NULL, image->cancel, native_image_ready, NULL);
+    g_task_set_task_data(task, job, native_image_job_free);
+    scene->image_pending++;
+    g_task_run_in_thread(task, native_image_decode);
+    g_object_unref(task);
+  }
+}
+static void native_images_stop(PaxNativeScene *scene) {
+  GHashTableIter iterator;
+  gpointer value;
+  g_hash_table_iter_init(&iterator, scene->native_images);
+  while (g_hash_table_iter_next(&iterator, NULL, &value))
+    g_cancellable_cancel(((NativeImage *)value)->cancel);
+  g_queue_clear_full(&scene->image_queue, native_image_unref);
+  // A toolkit/accessibility client can retain detached widgets beyond the
+  // scene. Retire image references now, while node->scene is still valid.
+  g_hash_table_iter_init(&iterator, scene->nodes);
+  while (g_hash_table_iter_next(&iterator, NULL, &value))
+    native_image_release(value);
+}
+static gboolean native_image_update(PaxNode *node, JsonObject *patch, GError **error) {
+  if (has(patch, "fit")) {
+    const char *fit = string(patch, "fit", "contain");
+    GtkContentFit content_fit;
+    if (!strcmp(fit, "contain")) content_fit = GTK_CONTENT_FIT_CONTAIN;
+    else if (!strcmp(fit, "cover")) content_fit = GTK_CONTENT_FIT_COVER;
+    else if (!strcmp(fit, "fill")) content_fit = GTK_CONTENT_FIT_FILL;
+    else {
+      g_set_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+                   "Unknown NativeImage fit: %s", fit);
+      return FALSE;
+    }
+    gtk_picture_set_content_fit(GTK_PICTURE(node->control), content_fit);
+  }
+  if (!has(patch, "url") || !g_strcmp0(node->image_url, string(patch, "url", "")))
+    return TRUE;
+  const char *url = string(patch, "url", "");
+  char *filename = *url ? pax_linux_asset_path(node->scene->assets, url, error) : NULL;
+  if (*url && !filename) return FALSE;
+  if (filename) {
+    char *canonical = g_canonicalize_filename(filename, NULL);
+    g_free(filename);
+    filename = canonical;
+  }
+  if (filename && node->native_image &&
+      !strcmp(filename, node->native_image->filename)) {
+    g_free(node->image_url);
+    node->image_url = g_strdup(url);
+    g_free(filename);
+    return TRUE;
+  }
+  native_image_release(node);
+  g_free(node->image_url);
+  node->image_url = g_strdup(url);
+  if (!filename) return TRUE;
+  NativeImage *image = g_hash_table_lookup(node->scene->native_images, filename);
+  if (!image) {
+    image = g_new0(NativeImage, 1);
+    image->references = 1;
+    image->filename = g_strdup(filename);
+    image->cancel = g_cancellable_new();
+    g_hash_table_insert(node->scene->native_images, g_strdup(filename), image);
+    g_queue_push_tail(&node->scene->image_queue, native_image_ref(image));
+  }
+  image->users++;
+  node->native_image = native_image_ref(image);
+  if (image->texture)
+    gtk_picture_set_paintable(GTK_PICTURE(node->control), GDK_PAINTABLE(image->texture));
+  native_image_start(node->scene);
+  g_free(filename);
+  return TRUE;
 }
 static void mask_free(gpointer data) {
   MaskEntry *entry = data;
@@ -532,6 +780,13 @@ static void node_matrix(PaxNode *node, graphene_matrix_t *matrix) {
   graphene_matrix_init_from_2d(matrix, node->matrix[0], node->matrix[1],
                                node->matrix[2], node->matrix[3],
                                node->matrix[4], node->matrix[5]);
+}
+static gboolean node_matrix_invertible(PaxNode *node) {
+  for (guint i = 0; i < 6; i++)
+    if (!isfinite(node->matrix[i])) return FALSE;
+  double determinant = node->matrix[0] * node->matrix[3] -
+                       node->matrix[1] * node->matrix[2];
+  return isfinite(determinant) && fabs(determinant) >= 1e-12;
 }
 static gboolean path_contains(GskPath *path, double x, double y) {
   graphene_point_t p = GRAPHENE_POINT_INIT(x, y);
@@ -1074,6 +1329,7 @@ static void node_snapshot(GtkWidget *widget, GtkSnapshot *snapshot) {
 static void node_dispose(GObject *object) {
   PaxNode *node = (PaxNode *)object;
   node->updating = TRUE;
+  native_image_release(node);
   snap_disconnect_window(node);
   snap_cancel(node);
   if (node->form_css) {
@@ -1101,6 +1357,7 @@ static void node_finalize(GObject *object) {
     g_clear_pointer(&node->snap_points[axis], g_array_unref);
   }
   g_clear_pointer(&node->snap_touches, g_hash_table_unref);
+  g_free(node->image_url);
   g_free(node->kind);
   g_free(node->tile_key);
   g_strfreev(node->options);
@@ -1176,6 +1433,7 @@ static void scene_system_setting_changed(GtkWidget *widget,
 static void scene_dispose(GObject *object) {
   PaxNativeScene *scene = (PaxNativeScene *)object;
   scene->stopped = TRUE;
+  native_images_stop(scene);
   restore_pointer_focus_reveal(scene);
   memset(scene->pointer_buttons, 0, sizeof scene->pointer_buttons);
   g_hash_table_remove_all(scene->wheel_pointers);
@@ -1190,6 +1448,7 @@ static void scene_finalize(GObject *object) {
   PaxNativeScene *scene = (PaxNativeScene *)object;
   g_strfreev(scene->assets);
   g_hash_table_unref(scene->nodes);
+  g_hash_table_unref(scene->native_images);
   g_hash_table_unref(scene->tiles);
   g_hash_table_unref(scene->layer_owners);
   g_hash_table_unref(scene->pressed_keys);
@@ -1222,6 +1481,7 @@ static void pax_native_scene_init(PaxNativeScene *scene) {
                                              (GDestroyNotify)json_object_unref);
   scene->wheel_pointers = g_hash_table_new_full(g_direct_hash, g_direct_equal,
                                                g_object_unref, wheel_pointer_free);
+  scene->native_images = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, native_image_unref);
   scene->layer_count = 1;
   GtkWidget *root = gtk_fixed_new();
   gtk_widget_set_parent(root, GTK_WIDGET(scene));
@@ -1374,6 +1634,13 @@ static PaxNode *create_node(PaxNativeScene *scene, const char *kind,
     // Keep a stable, unparented group head: a single visible option must retain
     // GTK's native radio role/indicator when other options are removed.
     node->radio_group = GTK_CHECK_BUTTON(g_object_ref_sink(gtk_check_button_new()));
+  } else if (strcmp(kind, "NativeImage") == 0) {
+    node->control = gtk_picture_new();
+    // Native images have no GTK interaction of their own. Scene ray-casting
+    // still delivers Pax events; underlying native scrollers keep wheel input.
+    gtk_widget_set_can_target(GTK_WIDGET(node), FALSE);
+    gtk_picture_set_can_shrink(GTK_PICTURE(node->control), TRUE);
+    gtk_picture_set_content_fit(GTK_PICTURE(node->control), GTK_CONTENT_FIT_CONTAIN);
   } else if (strcmp(kind, "EventBlocker") == 0)
     node->control = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   else {
@@ -1993,6 +2260,8 @@ static gboolean rich_text_attributes(PaxNode *node, GError **error) {
 }
 static gboolean update_node(PaxNode *node, JsonObject *patch, GError **error) {
   gboolean text_control_replaced = FALSE;
+  if (!strcmp(node->kind, "NativeImage") && !native_image_update(node, patch, error))
+    return FALSE;
   if (strcmp(node->kind, "Text") == 0) {
     if (has(patch, "rich_text") && !validate_rich_text(json_object_get_object_member(patch, "rich_text"), error))
       return FALSE;
@@ -2365,12 +2634,21 @@ static void reconcile(PaxNativeScene *scene) {
     graphene_matrix_t world, relative;
     node_matrix(node, &world);
     relative = world;
+    gboolean visible = node->tile_key || node_matrix_invertible(node);
     if (parent && !node->tile_key) {
       graphene_matrix_t parent_world, inverse;
       node_matrix(parent, &parent_world);
-      if (graphene_matrix_inverse(&parent_world, &inverse))
+      if (node_matrix_invertible(parent) &&
+          graphene_matrix_inverse(&parent_world, &inverse))
         graphene_matrix_multiply(&world, &inverse, &relative);
+      else
+        visible = FALSE;
     }
+    // Pango cannot reload fonts at a zero projected scale. Retain the native
+    // subtree, but keep a singular plane out of GTK's paint/input hierarchy
+    // with a safe transform until its placement is representable again.
+    if (!visible) graphene_matrix_init_identity(&relative);
+    gtk_widget_set_child_visible(GTK_WIDGET(node), visible);
     GskTransform *transform = gsk_transform_matrix(NULL, &relative);
     gtk_fixed_set_child_transform(GTK_FIXED(container), GTK_WIDGET(node),
                                   transform);
@@ -2428,6 +2706,7 @@ gboolean pax_native_scene_apply(PaxNativeScene *scene, JsonArray *messages,
     } else if (g_str_has_suffix(kind, "Delete")) {
       guint id = json_node_get_int(payload);
       PaxNode *node = g_hash_table_lookup(scene->nodes, GUINT_TO_POINTER(id));
+      if (node) native_image_release(node);
       if (node && gtk_widget_get_parent(GTK_WIDGET(node)))
         gtk_widget_unparent(GTK_WIDGET(node));
       g_hash_table_remove(scene->nodes, GUINT_TO_POINTER(id));
@@ -2566,6 +2845,7 @@ void pax_native_scene_stop(PaxNativeScene *scene) {
   restore_pointer_focus_reveal(scene);
   pax_native_scene_release_keys(scene);
   scene->stopped = TRUE;
+  native_images_stop(scene);
   memset(scene->pointer_buttons, 0, sizeof scene->pointer_buttons);
   g_hash_table_remove_all(scene->wheel_pointers);
   g_hash_table_remove_all(scene->tiles);
@@ -2690,6 +2970,10 @@ JsonObject *pax_native_scene_report(PaxNativeScene *scene) {
                              scene->placement_reconciliations);
   json_object_set_int_member(report, "scenePlacementVisits",
                              scene->placement_visits);
+  json_object_set_int_member(report, "nativeImageSources", g_hash_table_size(scene->native_images));
+  json_object_set_int_member(report, "nativeImageBytes", scene->image_bytes);
+  json_object_set_int_member(report, "nativeImagePending", scene->image_pending);
+  json_object_set_int_member(report, "nativeImageQueued", g_queue_get_length(&scene->image_queue));
   JsonArray *nodes = json_array_new();
   GtkNative *native = gtk_widget_get_native(GTK_WIDGET(scene));
   GtkWidget *coordinates = native ? GTK_WIDGET(native) : GTK_WIDGET(scene);
@@ -2722,6 +3006,16 @@ JsonObject *pax_native_scene_report(PaxNativeScene *scene) {
     GtkWidget *focus = root ? gtk_root_get_focus(root) : NULL;
     json_object_set_boolean_member(item, "focused",
         focus && (focus == node->control || gtk_widget_is_ancestor(focus, node->control)));
+    if (GTK_IS_PICTURE(node->control)) {
+      NativeImage *image = node->native_image;
+      json_object_set_string_member(item, "url", node->image_url ? node->image_url : "");
+      json_object_set_boolean_member(item, "imageReady", image && image->texture);
+      json_object_set_boolean_member(item, "imageFailed", image && image->failed);
+      json_object_set_int_member(item, "imageWidth", image && image->texture ? gdk_texture_get_width(image->texture) : 0);
+      json_object_set_int_member(item, "imageHeight", image && image->texture ? gdk_texture_get_height(image->texture) : 0);
+      json_object_set_int_member(item, "imageUsers", image ? image->users : 0);
+      json_object_set_int_member(item, "contentFit", gtk_picture_get_content_fit(GTK_PICTURE(node->control)));
+    }
     if (is_form(node)) {
       json_object_set_int_member(item, "controlEvents", node->control_events);
       if (GTK_IS_SCALE(node->control)) {
@@ -2763,6 +3057,8 @@ JsonObject *pax_native_scene_report(PaxNativeScene *scene) {
       json_object_set_array_member(item, "bounds", rect);
     }
     json_object_set_int_member(item, "maskEntries", node->mask->len);
+    json_object_set_boolean_member(item, "placementVisible",
+                                  gtk_widget_get_child_visible(GTK_WIDGET(node)));
     graphene_point_t local = GRAPHENE_POINT_INIT(node->width * .8,
                                                  node->height * .75),
                      scene_point;

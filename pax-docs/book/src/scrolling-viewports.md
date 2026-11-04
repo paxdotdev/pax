@@ -202,6 +202,10 @@ that changes content size and position together. GTK then reports the actual
 clamped offset back to the binding; it does not reset the binding against an
 unallocated or previous content range. Multiple writes before allocation keep
 the latest request on each axis.
+That allocated range can still be provisional while autosized text settles.
+If it clamps a saved offset, later content growth does not restore the original
+request. Keeping the offset in a persistent component therefore does not yet
+guarantee an exact return position when remounting autosized content on Linux.
 
 On Apple hosts, content-size changes preserve the requested position while
 clamping the visible viewport to the available content. If the content grows

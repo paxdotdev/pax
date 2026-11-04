@@ -20,7 +20,11 @@ Copy-Item (Join-Path $PSScriptRoot 'app.manifest') $scratch
 [xml]$project=Get-Content (Join-Path $sdk 'PaxHost.vcxproj') -Raw
 $ns=New-Object Xml.XmlNamespaceManager($project.NameTable)
 $ns.AddNamespace('m','http://schemas.microsoft.com/developer/msbuild/2003')
-$project.SelectSingleNode('//m:HostPackagesRoot',$ns).InnerText=(Join-Path $sdk 'native-packages')+'\'
+$packages=Join-Path $sdk 'native-packages'
+$receipt=Join-Path $sdk 'host-packages.json'
+if(Test-Path $receipt){$packages=(Get-Content $receipt -Raw|ConvertFrom-Json).packagesDirectory}
+if(-not (Test-Path $packages -PathType Container)){throw 'Build the host SDK dependencies before this contract.'}
+$project.SelectSingleNode('//m:HostPackagesRoot',$ns).InnerText=$packages.TrimEnd('\','/')+'\'
 $project.SelectSingleNode('//m:ConfigurationType',$ns).InnerText='Application'
 $project.SelectSingleNode('//m:TargetName',$ns).InnerText='PlacementContract'
 $definitions=$project.SelectSingleNode('//m:ItemDefinitionGroup',$ns)

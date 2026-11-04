@@ -778,22 +778,31 @@ fn perform_cleanup(
 
 #[cfg(unix)]
 fn kill_process(pid: u32) -> Result<(), std::io::Error> {
-    use std::process::Command;
+    use nix::errno::Errno;
+    use nix::sys::signal::{kill, killpg, Signal};
+    use nix::unistd::Pid;
 
-    // Prefer the process group so descendants do not leak, but fall back to the
-    // concrete pid for processes we did not launch in their own group.
-    for target in [format!("-{}", pid), pid.to_string()] {
-        let output = Command::new("kill").arg("-9").arg(&target).output()?;
-
-        if output.status.success() {
-            return Ok(());
+    // Zero and negative IDs have broadcast semantics. Do not encode group IDs
+    // as `kill` command options: procps can reinterpret a negative operand.
+    let raw = i32::try_from(pid)
+        .ok()
+        .filter(|pid| *pid > 1)
+        .ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid child PID")
+        })?;
+    let pid = Pid::from_raw(raw);
+    match killpg(pid, Signal::SIGKILL) {
+        Ok(()) => Ok(()),
+        Err(nix::Error::Sys(Errno::ESRCH)) => {
+            // Some platform launchers do not own a process group. An already
+            // reaped child is also a successful, idempotent cleanup.
+            match kill(pid, Signal::SIGKILL) {
+                Ok(()) | Err(nix::Error::Sys(Errno::ESRCH)) => Ok(()),
+                Err(error) => Err(std::io::Error::new(std::io::ErrorKind::Other, error)),
+            }
         }
+        Err(error) => Err(std::io::Error::new(std::io::ErrorKind::Other, error)),
     }
-
-    Err(std::io::Error::new(
-        std::io::ErrorKind::Other,
-        "Failed to kill process",
-    ))
 }
 
 #[cfg(windows)]
@@ -820,6 +829,71 @@ fn kill_process(pid: u32) -> Result<(), std::io::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    struct CleanupChild(std::process::Child);
+
+    #[cfg(unix)]
+    impl Drop for CleanupChild {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cleanup_limits_signals_to_the_owned_group() {
+        use std::os::unix::process::{CommandExt, ExitStatusExt};
+        let mut leader = CleanupChild(
+            std::process::Command::new("sleep")
+                .arg("30")
+                .process_group(0)
+                .spawn()
+                .unwrap(),
+        );
+        let mut member = CleanupChild(
+            std::process::Command::new("sleep")
+                .arg("30")
+                .process_group(leader.0.id() as i32)
+                .spawn()
+                .unwrap(),
+        );
+        let mut sentinel = CleanupChild(
+            std::process::Command::new("sleep")
+                .arg("30")
+                .process_group(0)
+                .spawn()
+                .unwrap(),
+        );
+        kill_process(leader.0.id()).unwrap();
+        assert_eq!(leader.0.wait().unwrap().signal(), Some(9));
+        assert_eq!(member.0.wait().unwrap().signal(), Some(9));
+        assert!(sentinel.0.try_wait().unwrap().is_none());
+        kill_process(leader.0.id()).unwrap();
+        assert!(sentinel.0.try_wait().unwrap().is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cleanup_supports_ungrouped_children_and_rejects_broadcast_ids() {
+        use std::os::unix::process::ExitStatusExt;
+        let mut child = CleanupChild(
+            std::process::Command::new("sleep")
+                .arg("30")
+                .spawn()
+                .unwrap(),
+        );
+        for pid in [0, 1, u32::MAX] {
+            assert_eq!(
+                kill_process(pid).unwrap_err().kind(),
+                std::io::ErrorKind::InvalidInput
+            );
+        }
+        kill_process(child.0.id()).unwrap();
+        assert_eq!(child.0.wait().unwrap().signal(), Some(9));
+        kill_process(child.0.id()).unwrap();
+    }
 
     #[test]
     fn explicit_port_is_only_accepted_for_web() {

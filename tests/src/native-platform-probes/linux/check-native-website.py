@@ -105,7 +105,7 @@ def main():
     parser.add_argument("--open-source", action="store_true",
                         help="Check the first View Source drawer, including native copy (requires xclip)")
     parser.add_argument("--interaction-cases", nargs="+", default=[],
-                        choices=("calculator", "paxflix", "gallery", "resize", "source-tabs", "route", "path-studies"),
+                        choices=("calculator", "paxflix", "gallery", "resize", "source-tabs", "route"),
                         help="Run specified real-input application checks after timing phases")
     parser.add_argument("--interactions-only", action="store_true",
                         help="Keep startup/identity/cleanup checks but skip stationary and traversal timing phases")
@@ -167,7 +167,9 @@ def main():
         summary = {key: value.get(key) for key in
                    ("frames", "ticks", "changedFrames", "cleanFrames", "backpressure",
                     "glLiveImages", "glLiveBytes", "timings", "runtime",
-                    "sceneReconciliations", "scenePlacementVisits")}
+                    "sceneReconciliations", "scenePlacementVisits",
+                    "nativeImageSources", "nativeImageBytes",
+                    "nativeImagePending", "nativeImageQueued")}
         summary["nativeNodeCount"] = len(value.get("nodes", []))
         summary["scrollers"] = [{key: node.get(key) for key in
                                  ("id", "scrollX", "scrollY", "scrollUpper", "scrollPage")}
@@ -299,6 +301,20 @@ def main():
             time.sleep(.25)
         fresh()
         milestones["sustainedStartupObservedSeconds"] = time.monotonic() - started
+        # NativeImage loads independently of the canvas frame. A published GPU
+        # frame can therefore coexist with blank device screenshots and fades.
+        def native_images_ready(value):
+            images = [node for node in value.get("nodes", [])
+                      if node["kind"] == "NativeImage" and node.get("url")]
+            if any(node.get("imageFailed") for node in images):
+                raise RuntimeError("Website NativeImage decode failed")
+            return bool(images) and all(node.get("imageReady") for node in images)
+
+        image_state = wait(native_images_ready, "website native images decoded", 60)
+        save("native-images.json", {"elapsedSeconds": time.monotonic() - started,
+                                   "images": [node for node in image_state["nodes"]
+                                              if node["kind"] == "NativeImage"],
+                                   "decodedBytes": image_state.get("nativeImageBytes")})
         if not args.startup_only:
             xdo("windowsize", "--sync", window, 1280, 960)
             xdo("windowraise", window)
@@ -522,7 +538,7 @@ def main():
                                              for n in s.get("nodes", [])),
                                "source tab replaces native styled content")
                 save("source-second-tab-state.json", changed)
-                close = next(n for n in changed["nodes"] if n.get("text") == "x"
+                close = next(n for n in changed["nodes"] if n.get("text") == "×"
                              and cx <= n["bounds"][0] < cx + cw
                              and 0 <= n["bounds"][1] < cy)
                 x, y, width, height = close["bounds"]

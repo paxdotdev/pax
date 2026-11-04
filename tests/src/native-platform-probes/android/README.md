@@ -49,6 +49,26 @@ presentation counters to the `Pax` log tag every 120 display ticks. Compare
 native pending bytes, GPU frame count, window count and retired surfaces during
 scrolling and after settling; emulator timing is not a device performance claim.
 
+## Orthographic spatial-workbench smoke test
+
+Build and install `examples/fixtures/spatial-workbench` for Android, then run:
+
+```sh
+python3 tests/src/native-platform-probes/android/check-native-spatial.py --profile debug --output /tmp/pax-spatial-debug
+```
+
+Use a viewport at least 1000 logical pixels wide so the fixture's controls are
+visible together. Set `ANDROID_HOME`, `JAVA_HOME`, and `ANDROID_SERIAL` as above.
+The probe uses the fixture's development signing key and injects native touch and
+keyboard events. It checks retained editor identity/text, transformed button
+input, orthographic zoom, the unsupported-perspective fallback, and clipping
+toggle/recovery. It leaves the fixture open. Run separately with `--profile release`
+after installing the Release development APK. The screenshots require visual
+review; this does not qualify perspective, exact edge-on poses, pixel-perfect
+depth compositing, or physical-device performance. Add `--edge-on` to request an
+additional exact 90-degree native tilt and recovery check; review its separate
+capture and require `edgeOnQualified=true` in the instrumentation result.
+
 ## Native/canvas scroll alignment
 
 After building and installing the development-signed fixture, run:

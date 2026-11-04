@@ -262,6 +262,12 @@ from a child at `height=100%` leaves the calculation circular. Use concrete
 child sizes or intrinsic measurements on the axis being measured. When the
 axis cannot be resolved, current containers can fall back to top-down layout.
 Empty measured content collapses to zero on managed axes.
+Stackers contribute their explicit or completed measured bounds to ancestor
+autosizing. While child measurements are pending, temporary equal-sized cells
+can arrange the children, but their positions do not count as an intrinsic
+stack size. Once the children report usable measurements, nested stacks resize
+from those measurements without feeding provisional cell positions back into
+their own sizes.
 Nonfinite geometry is not a content measurement. If a parent transform becomes
 singular, such as at zero scale, affected measurements are unavailable until
 the transform permits projection again; autosize then recomputes.
@@ -432,6 +438,9 @@ The default 50-percent anchors keep this rectangle centered as it turns and
 scales. Use explicit anchors when an object should rotate around another
 point. A parent's transform also transforms its children, so group pieces
 that should move together.
+Native text, images, and controls follow ancestor placement and size changes
+even when their own authored properties remain unchanged. This includes
+layout settling after text measurement and resizing the window.
 
 An assigned Stacker cell does not automatically rearrange its siblings to
 avoid visual overlap caused by a transform. Flow-space measurement excludes
@@ -504,6 +513,10 @@ platform ownership through pose changes. On the web, changing projected scale
 allows native text and controls to rerasterize, including when a face arrives
 from an edge-on pose; permanent `will-change: transform` overrides can prevent
 that refresh. Unmounting a native element releases its mask and clip resources.
+On Windows and Linux, a native subtree beneath a collapsed or edge-on native parent stays
+mounted but suspends painting and input until its affine placement recovers.
+A counter-rotated child cannot remain visible through that singular native
+parent; its text and selection survive recovery.
 The engine compares logical hit
 geometry at the pointer; it does not infer extra hit regions from shader pixels.
 See [Events and coordinates](event-handling-rust.md#events-and-coordinates).
@@ -867,6 +880,12 @@ adapter.
 CPU renderers diagnose perspective as
 unsupported and display the default orthographic view. This includes a web session
 that falls back to CPU rendering; selecting perspective does not enable WebGPU.
+The native Windows, Linux, and Android chassis also diagnose perspective as
+unsupported and display the default orthographic view, even with a GPU renderer.
+The guard applies at launch, after template reload, and when a reactive camera
+changes projection. Switching back to orthographic restores the authored camera
+pose and zoom without remounting controls. Browser targets on those operating
+systems retain GPU perspective support.
 
 ### Spatial math for engine integrations
 

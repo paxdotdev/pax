@@ -23,7 +23,7 @@ software adapter or CPU presentation fallback. `PAX_GPU_DEVICE_UUID` selects the
 exact Vulkan device using 32 hexadecimal digits; a failed selection is terminal.
 
 The retained GTK scene provides plain Text/selection, single-line Textbox,
-Button, Checkbox, Slider, Dropdown, RadioList, Frame, Scroller, and EventBlocker
+Button, Checkbox, Slider, Dropdown, RadioList, Frame, Scroller, EventBlocker, and NativeImage
 nodes. Slider uses GtkScale, Dropdown uses GtkDropDown, and RadioList uses
 grouped native GtkCheckButtons with radio accessibility roles. Programmatic
 updates suppress input callbacks. Option replacement retains the requested
@@ -31,6 +31,10 @@ index; invalid or empty choices have no selected item and emit no sentinel.
 Authored slider values clamp to the finite range; user changes apply the
 positive, min-anchored step. Native dropdown popovers are separate surfaces,
 so leaf masking does not establish popup composition or transformed placement.
+NativeImage uses GtkPicture and asynchronous GdkPixbuf decoding with shared
+mounted textures. Its contain/cover/fill modes use the same retained placement,
+clipping, opacity, and mask hierarchy as other native nodes. SVG requires the
+GdkPixbuf SVG loader. See [native image assets and limits](../../../pax-docs/book/src/text-fonts-images.md#native-images-and-target-boundaries).
 EventBlocker's solid `background` paints within the retained native node's
 transform, clipping and occlusion mask. Background alpha and node opacity each
 apply once; an omitted background update retains the previous color. A fully

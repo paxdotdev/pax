@@ -530,7 +530,11 @@ final class PaxScene extends FrameLayout {
                     }
                 };break;
                 case "Textbox": control=new EditText(activity);break;
-                case "Button": control=new Button(activity);((Button)control).setAllCaps(false);break;
+                case "Button":
+                    control=new Button(activity);((Button)control).setAllCaps(false);
+                    // Android's default vertical padding assumes its larger
+                    // platform button height and clips labels in authored compact boxes.
+                    control.setPadding(0,0,0,0);break;
                 case "Checkbox": control=new CheckBox(activity);break;
                 case "Slider": control=new SeekBar(activity);break;
                 case "Dropdown": control=new Spinner(activity);break;

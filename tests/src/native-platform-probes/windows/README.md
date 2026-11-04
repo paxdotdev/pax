@@ -941,8 +941,9 @@ Actual source-drawer, nested demo, and responsive-layout interactions still need
 functional checks in addition to this general scrolling probe.
 
 `make-website-source-manifest.py REPOSITORY OUTPUT.json` freezes the canonical
-website's 72 authored source-tab identities without copying their contents. The
-six shared framework/authoring entries occur once in each drawer. It also writes
+website's 92 authored source-tab identities without copying their contents. It
+recognizes literal pairs, language tuples, and `ExampleSource` entries, preserving
+the six drawers' authored order and repeated source occurrences. It also writes
 `OUTPUT.sections.json`, binding the authored section order, unique visible
 section anchors, per-drawer inventory, and source provenance to the exact source
 manifest hash. Stage both files together. The scenario rewinds the native page
@@ -952,13 +953,17 @@ Pass
 that file with `-WebsitePhases -WebsiteInteractionsOnly -WebsiteSourceManifest
 OUTPUT.json` for the companion `website-acceptance.ps1` scenario: calculator
 keypad/graph switching, Paxflix demo feedback and theme controls, gallery wheel
-input, exact native source text for every tab, and the authored `/blog` fallback
-and return-home route. Route retirement allows authored exit timelines to finish
+input, exact native source text for every tab, and the authored `/calculator/`
+and Back to Pax route roundtrip. Route retirement allows authored exit timelines to finish
 before requiring old native scrollers to disappear. This mode skips the separately
 measured traversal/resize phases. Preserve each failed probe attempt and its
 geometry diagnostics; a harness failure does not establish an application defect.
 Source-tab clicks record fresh label and viewport bounds, the physical click
-point, UIA hit ancestry, scroll position, and selected-source metadata. A failed
+point, UIA hit ancestry, and scroll position. The current drawer has no separate
+selected-file label; the exact document hash establishes selection. Source text
+discovery stays inside the newly mounted native code scroller, identified by
+its new native identity and its alignment immediately below the tab scroller.
+An ambiguous or missing code viewport fails the probe. A failed
 exact-text check preserves its assertion and screenshot before trying a bounded
 interior click as a separate diagnostic. That later click cannot turn the original
 failure into an acceptance pass or count the tab as qualified.
@@ -994,6 +999,13 @@ revalidation receipt without changing historical run results.
 Add `-WebsiteSourcesOnly` to isolate the six drawers, all source tabs, and the
 route roundtrip on a fresh launch. That restricted pass does not qualify the
 calculator, Paxflix, or gallery interactions; retain their separate results.
+Source drawer traversal requires a wide layout of at least 1000 logical pixels;
+use `-ClientWidth 1280 -ClientHeight 960`. Below that breakpoint, OpenSource's
+stacked layout moves its source-discovery anchor and needs a separate oracle.
+Ordinary page targets are revealed below the website's fixed navigation.
+General control clicks read fresh visible bounds immediately before input and
+record their coordinates; authored animations need not stop before a click.
+Clipped source-tab frontier clicks retain their separate exact containment checks.
 The route reveal explicitly accepts the full visible viewport because a footer
 at maximum scroll may never enter the default upper targeting band. It asserts
 the final integer click is inside both visible label and viewport; source reveal
@@ -1001,10 +1013,13 @@ and frontier rules retain their existing behavior. `./check-route-point.ps1`
 checks this pure geometry, including the bottom footer, clipped one-pixel edges,
 unclickable fractional slices, and excluded edges. Its seven checks and native
 parsing passed; the October 26 route-only application replay also passed below.
-Add `-WebsiteRouteOnly` instead to replay only the corrected footer target,
-`/blog` fallback, old-scroller retirement, and return-home wheel response on a
+Add `-WebsiteRouteOnly` instead to replay only the authored calculator link,
+old-scroller retirement, and Back to Pax wheel response on a
 fresh launch. Its report scope is `route`; it does not qualify source drawers or
 embedded demos, and it cannot be combined with either other restricted scope.
+HomePage binds its scroll offset to the surviving root component, so returning
+home need not start at zero. The wheel check chooses the direction with room to
+scroll and requires movement in that direction after the new scroller mounts.
 Conversely, `-WebsiteDemosOnly` isolates the embedded interactions, skipping both
 source traversal and the route roundtrip. Graph-wheel
 diagnostics compare the chart center with a blank interior point, record the
@@ -1234,6 +1249,43 @@ This contract test needs no interactive desktop; it verifies image loading, not
 native composition or scrolling. The output directory is test scratch space and
 contains a deliberately corrupt image for the error-propagation case.
 
+### Native image surfaces
+
+`build-native-image-contract.ps1` builds an interactive `NativeScene` probe and
+generates small deterministic PNG/SVG fixtures. It exercises native
+`BitmapImage`/`SvgImageSource` loading, asset-root aliases and rejected paths,
+shared sources, an eight-operation decode queue, source replacement/deletion,
+asynchronous decode failures, and close. Its pixel checks cover centered crop,
+contain letterboxing (including downscaling), and stretched SVG alpha gradients
+in differently sized consumers after native layout has settled. It also checks
+zero-size-before-decode, source-change remeasurement, and resized mask space.
+A 10,000-by-10,000 authored SVG records initial native layout dimensions and
+checks the final pinned raster bounds and colors; this is not a GPU peak-memory
+measurement. Placement, opacity, occlusion clipping, and hit transparency are checked
+on the real XAML objects. Native images defer input to Pax raycasting and native
+scrollers; they do not take independent toolkit input ownership.
+
+```powershell
+.\build-native-image-contract.ps1 -SdkSourceDirectory C:\pax\pax-host\native\windows `
+    -OutputDirectory C:\PaxGpuLab\native-image-contract -Configuration Release
+$env:PAX_NATIVE_IMAGE_CONTRACT_ROOT = 'C:\PaxGpuLab\native-image-contract\assets'
+$env:PAX_NATIVE_IMAGE_CONTRACT_OUTPUT = 'C:\PaxGpuLab\native-image-contract'
+& C:\PaxGpuLab\native-image-contract\NativeImageContract.exe
+```
+
+Run in an unlocked interactive desktop. Require exit code zero and every row in
+`result.jsonl` to pass; inspect `native-image.png` as well. Retain the source and
+executable hashes with this evidence. `RenderTargetBitmap` is used only for the
+test's pixel readback, never for host presentation. The probe does not establish
+desktop website acceptance or broad SVG feature/animated-image support.
+
+For a generated native app, `PAX_WINDOWS_TIMINGS=1` also logs `native_images`
+records when source/load state changes. These distinguish mounted, ready,
+failed, active, and queued sources and list their resolved asset paths.
+`consumers` and `layout_ready` distinguish a decoded source from consumers whose
+native layout has settled. The `bitmap_bytes` value estimates first-frame RGBA
+storage; it excludes native decoder/GPU overhead and SVG raster storage.
+
 
 ### Native scrolling and rich-text contracts
 
@@ -1277,7 +1329,9 @@ touchpads, and open native popups need separate qualification.
 rectangular clips without skipping the placement pass. It checks empty updates,
 child and ancestor movement/rotation, reparenting, clip bounds and toggles,
 autosized text remeasurement, and deletion/recreation using actual XAML object
-identity and matrix values. Set `PAX_PLACEMENT_CONTRACT_LOG` for JSONL output.
+identity and matrix values. Edge-on parent and clipped-node cases require paint
+and input suspension without losing editor text or selection, then recovery when
+the transform becomes invertible. Set `PAX_PLACEMENT_CONTRACT_LOG` for JSONL output.
 A retained transform must still recompute the child's relative matrix whenever
 its ancestor changes; child-only dirty flags do not establish this contract.
 
@@ -1343,3 +1397,31 @@ and the complete 3,928-character document at bounded `4096` and `-1` lengths.
 This isolates a working native client path; the managed client crash remains
 unresolved and is not evidence that changing apartment alone fixes it. A supervisor must still close the test app if the checker
 terminates in native code before its PowerShell `finally` block runs.
+
+### Orthographic spatial fixture
+
+Build `examples/fixtures/spatial-workbench` for Windows through the ordinary CLI,
+then run `check-native-spatial.ps1 -Executable <packaged-spatial-workbench.exe> -OutputDirectory <fresh-directory>` in an unlocked interactive desktop, under an
+external ten-minute process deadline. The probe needs a working area of at least
+1340 × 1010 pixels. Repeat with Debug and baked Release packages.
+
+The probe sends real mouse/keyboard input to transformed controls, checks edited
+value and native identity across zoom and clipping recovery, and captures the
+composed window for visual review. It also checks the explicit orthographic
+fallback when the application selects unsupported perspective, and normal GPU
+export retirement. A passing report requires visual review of its captures;
+it does not qualify perspective, occluded hit testing, physical input latency,
+or frame rate. The lower-level placement contract separately covers retained
+controls through singular transforms.
+
+## Text input callback ordering
+
+Build `build-text-input-contract.ps1` against the same native SDK source and
+run `TextInputContract.exe` in an interactive desktop. Set
+`PAX_TEXT_INPUT_CONTRACT_LOG` to a fresh JSONL evidence path and require exit 0.
+The contract checks synchronous native edit delivery, consecutive edit order,
+selection-preserving identical echoes, silent application replacements (including
+after the dispatcher advances), and event revocation after deletion. It uses
+native TextBox setters to isolate callback ordering; `check-native-spatial.ps1`
+separately supplies real keyboard input to the packaged Rust fixture. Qualify
+Debug and Release independently. Neither test establishes additional IME coverage.

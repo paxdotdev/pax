@@ -1,6 +1,7 @@
 #pragma once
 #include "json_helpers.h"
 #include "native_mask.h"
+#include "native_images.h"
 #include "keyboard.h"
 #include "snap_canvas.h"
 #include "wheel_input.h"
@@ -63,6 +64,14 @@ private:
         controls::Grid host{nullptr};
         xaml::FrameworkElement control{nullptr};
         controls::TextBlock text_content{nullptr};
+        controls::Image native_image_control{nullptr};
+        media::MatrixTransform native_image_transform{nullptr};
+        media::Stretch native_image_fit = media::Stretch::Uniform;
+        bool image_measure_dirty = true, image_layout_dirty = true;
+        bool image_opened = false;
+        double image_natural_width = 0, image_natural_height = 0;
+        std::shared_ptr<NativeImageResource> native_image;
+        winrt::hstring image_url;
         controls::Canvas children{nullptr};
         winrt::com_ptr<SnapCanvas> snap_content;
         std::map<std::wstring, media::SolidColorBrush> button_brushes;
@@ -111,6 +120,14 @@ private:
         std::optional<uint64_t> measure_generation;
         std::optional<uint64_t> latest_measure_generation;
         EventHandlers events, mask_events, rich_text_events;
+        ~Node() {
+            events.retire();
+            // UI Automation may retain a detached image control. Retirement
+            // must still release its decoded source and stop late publication.
+            if (native_image_control) {
+                try { native_image_control.Source(nullptr); } catch (...) {}
+            }
+        }
     };
     winrt::com_ptr<SceneCanvas> root_impl_ = winrt::make_self<SceneCanvas>();
     controls::Canvas root_ = root_impl_.as<controls::Canvas>();
@@ -126,6 +143,9 @@ private:
     Interrupt interrupt_;
     std::function<winrt::hstring(json::JsonObject const&)> local_font_;
     std::function<void(winrt::hstring const&)> load_image_;
+    std::function<std::filesystem::path(winrt::hstring const&)> native_image_path_;
+    NativeImages native_images_;
+    bool native_image_layout_pending_ = false;
     std::function<void(winrt::hstring const&)> navigate_;
     bool applying_ = false;
     bool initial_focus_pending_ = true;
@@ -278,14 +298,17 @@ private:
         }
         return retained;
     }
-    static media::Matrix relative(media::Matrix const& child, media::Matrix const& parent) {
+    static std::optional<media::Matrix> relative(media::Matrix const& child, media::Matrix const& parent) {
         double det = parent.M11 * parent.M22 - parent.M12 * parent.M21;
-        if (!std::isfinite(det) || std::abs(det) < 1e-12) throw std::invalid_argument("Singular native parent transform");
+        if (!std::isfinite(det) || std::abs(det) < 1e-12) return std::nullopt;
         double a = parent.M22 / det, b = -parent.M12 / det, c = -parent.M21 / det, d = parent.M11 / det;
         double x = -(parent.OffsetX * a + parent.OffsetY * c), y = -(parent.OffsetX * b + parent.OffsetY * d);
-        return {child.M11 * a + child.M12 * c, child.M11 * b + child.M12 * d,
+        media::Matrix matrix{child.M11 * a + child.M12 * c, child.M11 * b + child.M12 * d,
             child.M21 * a + child.M22 * c, child.M21 * b + child.M22 * d,
             child.OffsetX * a + child.OffsetY * c + x, child.OffsetX * b + child.OffsetY * d + y};
+        for (double value : {matrix.M11, matrix.M12, matrix.M21, matrix.M22, matrix.OffsetX, matrix.OffsetY})
+            if (!std::isfinite(value)) return std::nullopt;
+        return matrix;
     }
     void send(wchar_t const* kind, uint32_t id, wchar_t const* field = nullptr, json::IJsonValue const& value = nullptr) {
         if (applying_) return;
@@ -355,6 +378,58 @@ private:
         if (node.attached_to.Children().IndexOf(node.host, index)) node.attached_to.Children().RemoveAt(index);
         node.attached_to = nullptr;
     }
+    void image_layout(Node& node) {
+        if (!node.native_image_control || !node.image_layout_dirty) return;
+        if (!node.native_image) { node.image_layout_dirty = false; return; }
+        if (!node.native_image->ready || !node.image_opened) { native_image_layout_pending_ = true; return; }
+        auto image = node.native_image_control;
+        image.Opacity(1);
+        if (node.image_measure_dirty) {
+            // Native decoding owns orientation and SVG intrinsic sizing. Only
+            // source changes require measurement; resizing reuses that ratio.
+            auto automatic = std::numeric_limits<double>::quiet_NaN();
+            image.Width(automatic); image.Height(automatic); image.InvalidateMeasure();
+            node.control.UpdateLayout();
+            auto natural = winrt::Windows::Foundation::Size{float(image.ActualWidth()), float(image.ActualHeight())};
+            if (!std::isfinite(natural.Width) || !std::isfinite(natural.Height) ||
+                natural.Width <= 0 || natural.Height <= 0)
+                throw std::runtime_error("Native image has no finite intrinsic dimensions: id=" + std::to_string(node.id) +
+                    " desired=" + std::to_string(natural.Width) + "x" + std::to_string(natural.Height) +
+                    " actual=" + std::to_string(image.ActualWidth()) + "x" + std::to_string(image.ActualHeight()) +
+                    " source=" + winrt::to_string(node.image_url));
+            // Automatic SVG rasterization includes the final render transform
+            // when choosing its decode viewport, reintroducing letterboxing
+            // for nonuniform fill. Pin the native raster to its intrinsic ratio
+            // before fitting; shared consumers then use the same stable source.
+            if (auto svg = image.Source().try_as<winrt::Microsoft::UI::Xaml::Media::Imaging::SvgImageSource>();
+                svg && !std::isfinite(svg.RasterizePixelWidth()) && !std::isfinite(svg.RasterizePixelHeight())) {
+                // WinUI returns infinity for its unspecified dimensions on
+                // some versions, although its API docs describe NaN.
+                double scale = std::min({1.0, 8192.0 / natural.Width, 8192.0 / natural.Height,
+                    std::sqrt((32.0 * 1024 * 1024 / 4) / (double(natural.Width) * natural.Height))});
+                image.Opacity(0);
+                native_images_.rasterize_svg(node.native_image,
+                    std::max(1.0, std::floor(natural.Width * scale)),
+                    std::max(1.0, std::floor(natural.Height * scale)));
+                native_image_layout_pending_ = true;
+                return;
+            }
+            node.image_natural_width = natural.Width; node.image_natural_height = natural.Height;
+            image.Width(natural.Width); image.Height(natural.Height);
+            node.image_measure_dirty = false;
+        }
+        double sx = node.width / node.image_natural_width, sy = node.height / node.image_natural_height;
+        if (node.native_image_fit == media::Stretch::Uniform) sx = sy = std::min(sx, sy);
+        else if (node.native_image_fit == media::Stretch::UniformToFill) sx = sy = std::max(sx, sy);
+        // WinUI Image/Viewbox can arrange outside their requested bounds and
+        // choose a top-left cover crop. Explicit native placement preserves
+        // Pax's centered fit and leaves masks in the full wrapper's coordinates.
+        node.native_image_transform.Matrix({sx, 0, 0, sy,
+            (node.width - node.image_natural_width * sx) * 0.5,
+            (node.height - node.image_natural_height * sy) * 0.5});
+        image.Opacity(1);
+        node.image_layout_dirty = false;
+    }
     void placement(Node& node) {
         auto target = root_;
         media::Matrix parent{1, 0, 0, 1, 0, 0};
@@ -366,7 +441,16 @@ private:
         if (node.attached_to != target) { detach(node); target.Children().Append(node.host); node.attached_to = target; }
         // Recompute relative placement even for unchanged children: a parent
         // may have moved or the node may have been reparented this frame.
-        auto matrix = relative(node.world, parent);
+        auto local = relative(node.world, parent);
+        auto invertible = relative(media::Matrix{1, 0, 0, 1, 0, 0}, node.world).has_value();
+        // An affine XAML subtree cannot represent a child below an edge-on
+        // parent. Keep the controls mounted, but collapse paint/input until
+        // relative placement is representable again; every batch retries it.
+        auto visible = local.has_value() && invertible;
+        auto matrix = visible ? *local : media::Matrix{0, 0, 0, 0, 0, 0};
+        // Native images have no toolkit interaction. Pax raycasting routes
+        // their events while native scrollers underneath keep wheel ownership.
+        node.host.IsHitTestVisible(visible && node.kind != L"NativeImage");
         if (!node.placement_transform) {
             node.placement_transform = media::MatrixTransform(); ++placement_transforms_created_;
             node.placement_transform.Matrix(matrix); node.placed_matrix = matrix;
@@ -381,6 +465,7 @@ private:
         }
         node.host.Width(node.width); node.host.Height(node.height);
         node.control.Width(node.width); node.control.Height(node.height);
+        image_layout(node);
         if (auto label = node.text_content) {
             if (node.text_layout_dirty) {
                 // The authored box and the content block are separate. Measure
@@ -623,8 +708,13 @@ private:
             editor_impl->before = [this, live](auto const& args) { if (*live) wheel(args); };
             auto editor = editor_impl.as<controls::TextBox>();
             node->events.revoke.push_back([editor_impl] { editor_impl->retire_wheel(); });
-            auto changed = editor.TextChanged([this, id, live](auto const& sender, auto const&) { if (*live) send(L"FormTextboxInput", id, L"text", text(sender.template as<controls::TextBox>().Text())); });
-            node->events.revoke.push_back([editor, changed] { editor.TextChanged(changed); });
+            // TextChanged is asynchronous: a render tick can echo stale text
+            // before the engine sees the edit, resetting text and selection.
+            // TextChanging observes the new value synchronously. The interrupt
+            // only updates Rust state; XAML patches wait for the next tick, and
+            // applying_ suppresses programmatic updates within this callback.
+            auto changed = editor.TextChanging([this, id, live](auto const& sender, auto const&) { if (*live) send(L"FormTextboxInput", id, L"text", text(sender.template as<controls::TextBox>().Text())); });
+            node->events.revoke.push_back([editor, changed] { editor.TextChanging(changed); });
             auto focus = editor.LostFocus([this, id, live](auto const& sender, auto const&) { if (*live) send(L"FormTextboxChange", id, L"text", text(sender.template as<controls::TextBox>().Text())); });
             node->events.revoke.push_back([editor, focus] { editor.LostFocus(focus); });
             auto selected = editor.SelectionChanged([this, live](auto const&, auto const&) { if (*live && !applying_) interrupt_(event(L"SelectStart", json::JsonObject())); });
@@ -801,6 +891,33 @@ private:
                 });
                 node->control = scroll;
             }
+        } else if (kind == L"NativeImage") {
+            controls::Image image;
+            image.Stretch(media::Stretch::None);
+            image.HorizontalAlignment(xaml::HorizontalAlignment::Left);
+            image.VerticalAlignment(xaml::VerticalAlignment::Top);
+            image.Opacity(0);
+            node->native_image_transform = media::MatrixTransform();
+            ++placement_transforms_created_;
+            image.RenderTransform(node->native_image_transform);
+            auto opened = image.ImageOpened([this, id, live](auto const&, auto const&) {
+                if (!*live) return;
+                auto& current = require(id);
+                current.image_opened = true; current.image_measure_dirty = true; current.image_layout_dirty = true;
+                native_image_layout_pending_ = true;
+            });
+            node->events.revoke.push_back([image, opened] { image.ImageOpened(opened); });
+            // Image's arranged bounds follow its aspect ratio (and cover can
+            // exceed the authored box). Keep the mask source in authored space,
+            // and fit an intrinsic image with a retained native transform. SVG
+            // decodes at its own aspect before any nonuniform authored stretch.
+            // Canvas gives the intrinsic image an unconstrained layout slot.
+            // Grid can clip a large image to the authored slot before its
+            // downscale transform, losing source pixels needed by the fit.
+            controls::Canvas content; content.Children().Append(image);
+            node->native_image_control = image;
+            node->control = content;
+            node->clip_content = true;
         } else if (kind == L"EventBlocker") {
             controls::Grid blocker; blocker.Background(media::SolidColorBrush(winrt::Microsoft::UI::Colors::Transparent())); node->control = blocker;
         } else throw std::invalid_argument("Unsupported native control family: " + winrt::to_string(kind));
@@ -849,7 +966,39 @@ private:
         }
         if (present(patch, L"z_index")) controls::Canvas::SetZIndex(node.host, int(number(patch, L"z_index")));
         if (present(patch, L"opacity")) node.host.Opacity(std::clamp(number(patch, L"opacity"), 0.0, 1.0));
-        if (auto editor = node.control.try_as<controls::TextBox>()) {
+        if (auto image = node.native_image_control) {
+            if (previous_width != node.width || previous_height != node.height) node.image_layout_dirty = true;
+            if (present(patch, L"url")) {
+                auto url = patch.GetNamedString(L"url");
+                if (url != node.image_url) {
+                    std::shared_ptr<NativeImageResource> resource;
+                    if (!url.empty()) {
+                        if (!native_image_path_) throw std::runtime_error("Native image asset resolver is not configured");
+                        resource = native_images_.acquire(native_image_path_(url));
+                    }
+                    auto source = resource ? resource->source : nullptr;
+                    // A cached native source need not raise ImageOpened again
+                    // when a new consumer attaches; its completed load is enough.
+                    if (image.Source() != source) node.image_opened = resource && resource->ready;
+                    node.native_image = std::move(resource); node.image_url = url;
+                    image.Opacity(0);
+                    node.image_measure_dirty = true; node.image_layout_dirty = true;
+                    // ImageOpened can follow SetSourceAsync completion on a
+                    // later XAML turn. Keep this consumer's current source and
+                    // flags installed before it can publish that notification.
+                    image.Source(source);
+                }
+            }
+            if (present(patch, L"fit")) {
+                auto fit = patch.GetNamedString(L"fit");
+                if (fit == L"cover") node.native_image_fit = media::Stretch::UniformToFill;
+                else if (fit == L"contain") node.native_image_fit = media::Stretch::Uniform;
+                else if (fit == L"fill") node.native_image_fit = media::Stretch::Fill;
+                else throw std::invalid_argument("Unknown native image fit");
+                node.image_layout_dirty = true;
+            }
+            native_image_layout_pending_ |= node.image_layout_dirty;
+        } else if (auto editor = node.control.try_as<controls::TextBox>()) {
             if (present(patch, L"text") && editor.Text() != patch.GetNamedString(L"text")) editor.Text(patch.GetNamedString(L"text"));
             if (present(patch, L"placeholder")) editor.PlaceholderText(patch.GetNamedString(L"placeholder"));
             if (present(patch, L"is_text_area")) { editor.AcceptsReturn(boolean(patch, L"is_text_area")); editor.TextWrapping(boolean(patch, L"is_text_area") ? xaml::TextWrapping::Wrap : xaml::TextWrapping::NoWrap); }
@@ -1166,8 +1315,11 @@ private:
                 // FramePatch.clip_path is world-space; NativeMaskUpdate coverage
                 // is already local. Keep these two established contracts distinct.
                 auto inverse = relative(media::Matrix{1, 0, 0, 1, 0, 0}, node.world);
-                auto local_clip = masks_.transform(*node.clip_path, D2D1::Matrix3x2F(float(inverse.M11), float(inverse.M12),
-                    float(inverse.M21), float(inverse.M22), float(inverse.OffsetX), float(inverse.OffsetY)));
+                // Placement has hidden this collapsed plane. Keep the mask
+                // dirty so recovery rebuilds the world-space ancestor clip.
+                if (!inverse) return;
+                auto local_clip = masks_.transform(*node.clip_path, D2D1::Matrix3x2F(float(inverse->M11), float(inverse->M12),
+                    float(inverse->M21), float(inverse->M22), float(inverse->OffsetX), float(inverse->OffsetY)));
                 MaskHole outside;
                 outside.shape = masks_.combine(masks_.rectangle(float(node.width), float(node.height)), local_clip, D2D1_COMBINE_MODE_EXCLUDE);
                 holes.push_back(std::move(outside));
@@ -1347,6 +1499,25 @@ public:
     }
     ~NativeScene() { root_events_.retire(); for (auto& [id, node] : nodes_) { node->events.retire(); node->mask_events.retire(); node->rich_text_events.retire(); } }
     controls::Canvas root() const { return root_; }
+    void set_native_image_path(std::function<std::filesystem::path(winrt::hstring const&)> resolve) {
+        native_image_path_ = std::move(resolve);
+    }
+    void poll_native_images() {
+        native_images_.poll();
+        if (native_image_layout_pending_) {
+            native_image_layout_pending_ = false;
+            for (auto& [id, node] : nodes_) image_layout(*node);
+        }
+    }
+    std::string native_image_diagnostics() const {
+        size_t consumers = 0, layout_ready = 0;
+        for (auto const& [id, node] : nodes_) if (node->native_image) {
+            ++consumers;
+            layout_ready += node->native_image->ready && node->image_opened && !node->image_layout_dirty;
+        }
+        return native_images_.diagnostics() + " consumers=" + std::to_string(consumers) +
+            " layout_ready=" + std::to_string(layout_ready);
+    }
     void set_navigation(std::function<void(winrt::hstring const&)> navigate) { navigate_ = std::move(navigate); }
     std::string composition_diagnostics() const {
         uint64_t masks = 0, mask_bytes = 0, captures = 0, rounded = 0;
@@ -1370,7 +1541,10 @@ public:
             " created_surface_brushes=" + std::to_string(surface_brushes_created_) +
             " created_input_paths=" + std::to_string(input_paths_created_) +
             " created_capture_surfaces=" + std::to_string(capture_surfaces_created_) +
-            " mask_updates=" + std::to_string(mask_updates_);
+            " mask_updates=" + std::to_string(mask_updates_) +
+            " native_image_sources=" + std::to_string(native_images_.source_count()) +
+            " native_image_decodes=" + std::to_string(native_images_.pending_count()) +
+            " native_image_bitmap_bytes=" + std::to_string(native_images_.bitmap_bytes());
     }
     bool focus_canvas() {
         initial_focus_pending_ = false;
@@ -1551,6 +1725,7 @@ public:
         } catch (...) { applying_ = false; throw; }
     }
     void close() {
+        native_images_.close();
         release_keys();
         applying_ = true;
         root_events_.retire();

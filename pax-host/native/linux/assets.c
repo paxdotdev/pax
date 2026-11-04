@@ -11,6 +11,9 @@ char *pax_linux_asset_path(char *const *roots, const char *path,
                 "Empty Pax asset path");
     return NULL;
   }
+  // Web-authored components use /assets/ for the same bundled asset root.
+  // Normalize it before absolute-file handling for images and native fonts alike.
+  if (g_str_has_prefix(path, "/assets/")) path++;
   if (g_path_is_absolute(path) && g_file_test(path, G_FILE_TEST_IS_REGULAR))
     return g_strdup(path);
   if (g_str_has_prefix(path, "file:")) {

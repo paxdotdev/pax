@@ -7,7 +7,7 @@ use pax_runtime_api::{
     math::{ProjectedPlane, Transform3, Vector3},
     properties::PropertyValue,
     Axis, CameraMode, CoercionRules, Depth, Interpolatable, LocalProperty, Numeric, Rotation, Size,
-    ToPaxValue, Window,
+    Platform, ToPaxValue, Window, OS,
 };
 
 use crate::{
@@ -89,7 +89,11 @@ fn bind<T: CoercionRules + PropertyValue + ToPaxValue>(
 }
 
 /// Activate only the application root. Dormant declarations never bind to a runtime scope.
-pub(crate) fn bind_root(node: &Rc<ExpandedNode>, gpu: bool) {
+pub(crate) fn bind_root(node: &Rc<ExpandedNode>, globals: &crate::Globals) {
+    let gpu = globals.renderer_is_gpu;
+    // Test the selected chassis, not the build host or browser's operating system.
+    let affine_native = globals.platform == Platform::Native
+        && matches!(globals.os, OS::Windows | OS::Linux | OS::Android);
     let definition = node.instance_node.borrow().base().component_camera.clone();
     let Some(camera) = definition else {
         node.own_camera_view.replace_with(LocalProperty::new(None));
@@ -142,11 +146,15 @@ pub(crate) fn bind_root(node: &Rc<ExpandedNode>, gpu: bool) {
         // Minimized / not-yet-sized viewports do not constitute an authored error.
         if bounds.0 <= 0. || bounds.1 <= 0. { return Some(PresentationView::default()); }
         let mode = projection.get();
-        let cpu_perspective = mode == Some(CameraMode::Perspective) && !gpu;
-        if unsupported.replace(cpu_perspective) != cpu_perspective && cpu_perspective {
-            log::error!("Perspective @camera requires a GPU renderer; CPU perspective is unsupported. Presenting the default orthographic view.");
+        let unsupported_perspective = mode == Some(CameraMode::Perspective) && (!gpu || affine_native);
+        if unsupported.replace(unsupported_perspective) != unsupported_perspective && unsupported_perspective {
+            if affine_native {
+                log::error!("Perspective @camera is unsupported by the native Windows, Linux and Android chassis. Presenting the default orthographic view; use an orthographic camera or a supported GPU web/Apple chassis.");
+            } else {
+                log::error!("Perspective @camera requires a GPU renderer; CPU perspective is unsupported. Presenting the default orthographic view.");
+            }
         }
-        if cpu_perspective { return Some(PresentationView::default()); }
+        if unsupported_perspective { return Some(PresentationView::default()); }
         let resolved = (|| {
             resolve_lens(geometry, [x.get()?.evaluate(bounds, Axis::X), y.get()?.evaluate(bounds, Axis::Y), z.get()?.to_float()],
                 [rx.get()?.get_as_radians(), ry.get()?.get_as_radians(), rz.get()?.get_as_radians()], zoom.get()?.to_float(),

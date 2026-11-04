@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <HostPackagesRoot>$(MSBuildThisFileDirectory)native-packages\</HostPackagesRoot>
+    <HostPackagesRoot Condition="'$(HostPackagesRoot)' == ''">$(MSBuildThisFileDirectory)native-packages\</HostPackagesRoot>
     <MSBuildProjectExtensionsPath>$(MSBuildThisFileDirectory)out\restore\</MSBuildProjectExtensionsPath>
   </PropertyGroup>
   <ImportGroup Label="ExtensionSettings">
