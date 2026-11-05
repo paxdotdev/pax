@@ -34,7 +34,8 @@ keyboard focus and clipboard ownership against the launched process before
 reading, and records byte counts and hashes in `source-clipboard.json`.
 It then wheels the code pane on both axes while the outer page stays still,
 switches to a second visible source tab, and closes the drawer.
-These interactions cover one drawer and two sources, not every source tab.
+These interactions copy one complete source and switch to a second source in
+one drawer; they do not copy every source tab.
 The source drawer needs a cartridge and host that both implement normalized
 rich text.
 `startup.json` records a bracketed monotonic/wall-clock anchor for correlating
@@ -101,10 +102,13 @@ The default traversal probe does not qualify nested scrolling or selection/copy;
 application checks separately, for example:
 
 ```sh
+python3 tests/src/native-platform-probes/windows/make-website-source-manifest.py \
+  . /tmp/website-sources.json
 python3 tests/src/native-platform-probes/linux/check-native-website.py \
   pax-website/.pax/build/release/linux/pax-website \
   --flatpak-app org.paxlang.WebsiteAcceptance --flatpak-branch pilot \
-  --interactions-only --interaction-cases calculator paxflix gallery resize source-tabs route \
+  --interactions-only --interaction-cases calculator paxflix playgrounds gallery resize source-tabs route \
+  --source-sections /tmp/website-sources.sections.json \
   --screenshots --output /tmp/pax-website-interactions
 ```
 
@@ -117,11 +121,12 @@ so native wheel and drawer animations cannot move a target between seeking and
 clicking it. The helper's source hash is recorded alongside the main runner's
 hash in `checks.json`.
 
-- `calculator` clicks the embedded calculator's actual keys, checks `7+8=15`,
+- `calculator` follows the authored link from the screenshot preview to the
+  full-screen calculator, clicks its actual keys, checks `7+8=15`,
   checks that its centered initial graph resolves the default curve and responds
   to native wheel movement while its parent remains stationary, zooms while
   preserving the world center, and drags the plot on both axes while its parent
-  remains stationary, then switches back to calculation mode. These are authored
+  remains stationary, then switches back to calculation mode and returns home. These are authored
   Pax controls with native text labels, not GTK Button widgets.
 - `paxflix` opens the full-screen demo, opens movie details, checks playback-demo
   feedback, scrolls its catalog and horizontal shelf independently, then follows
@@ -130,12 +135,21 @@ hash in `checks.json`.
   is the example's local feedback action; no media service is contacted.
 - `gallery` checks automatic motion, hover pause/resume, horizontal wheel input
   and vertical propagation to the enclosing website.
+- `playgrounds` follows the authored oscilloscope and space-game links and
+  returns home after each. The oscilloscope check edits its message through the
+  native textbox, confirms it, and reopens the editor to verify persistence.
+  The game restarts through its native Play Again button if the round has already
+  ended, then must own canvas keyboard focus in an active round before receiving
+  real steering/fire keys. It must continue publishing frames afterward;
+  this bounded smoke does not assert vector ship or projectile positions.
 - `resize` changes the actual X11 window from 640×900 back to 1280×960 and checks
   responsive navigation, native scroller bounds and continued wheel input.
-- `source-tabs` opens all six section drawers, reaches every reported tab with
+- `source-tabs` opens every section drawer from the frozen authored catalogue, reaches every tab with
   native horizontal wheel input, and copies each complete rendered source as
-  exact UTF-8. It requires `xclip`; receipts in `website-source-tabs.json` identify
-  each source, its byte count and hash. The application owns source selection;
+  exact UTF-8. It requires `xclip` and `--source-sections`; drawer membership,
+  order, count and copied hashes must match that exact source snapshot. Receipts
+  in `website-source-tabs.json` identify each source, its byte count and both
+  observed and expected hashes. The application owns source selection;
   this probe does not set engine properties or scroll offsets.
 - `route` clicks the authored full-screen calculator link, checks the
   `/calculator/` route, then uses `← BACK TO PAX` to remount a scrollable home page. Outgoing native nodes must retire after authored exit timelines;
@@ -158,12 +172,16 @@ generate the catalogue with
 from the exact source snapshot used for the package. Compare each drawer index,
 tab label and UTF-8 hash in `website-source-tabs.json` with that catalogue's
 section manifest. Repeated sources must match in each authored drawer. The
-ordinary Release CLI package qualified on 2026-11-03 passed all 130 assertions in
-the calculator, Paxflix, gallery, resize, source-tab and route matrix; all 92
+ordinary Release CLI package qualified on 2026-11-04 passed all 151 assertions in
+the calculator, Paxflix, gallery, resize, source-tab and route matrix; all 98
 copied source occurrences matched the frozen authored sources in their six
-drawers. Fresh Debug startup and calculator route checks also passed. Both builds
-used the automatic embedded host SDK; the final SDK extraction test included
-the Windows NativeImage build inputs. These are named matrix results;
+drawers. A separate bounded playground smoke passed oscilloscope message
+persistence and focused keyboard input during an active game round; it did not
+qualify the conditional game-restart path or vector ship/projectile movement.
+Fresh Debug startup, calculator routing, and the one-source copy/two-tab drawer
+check also passed. Both builds used the automatic embedded host SDK, with
+matching extracted host source and loaded package hashes; the SDK extraction
+test included the Windows NativeImage build inputs. These are named matrix results;
 `fullWebsiteAcceptance` remains false. The native-wheel qualification below
 separately checks scrolling and reports commit cadence rather than display FPS.
 

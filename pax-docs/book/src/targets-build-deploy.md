@@ -1127,18 +1127,15 @@ fixtures on that same core passed 36 checks each in ordinary Debug
 and workspace-default baked Release (opt-level `z`, LTO on, one codegen unit),
 using the ordinary CLI and automatic embedded SDK without an override.
 
-The October 26 CLI Release website checks cover embedded demos, all 72 exact
-source occurrences in six ordered drawers, and local-route retirement and
-return-home wheel response. The package with the D3D12 cache allocation-budget
-correction and startup reconciliation diagnostics qualified that scope across
-two runs: an interrupted combined run and a successful resource-section/route
-replay. Exact source occurrence union and normal retirement were audited; this
-is aggregate coverage, not a single uninterrupted pass. The earlier package
-passed a single 1,213-check combined matrix. Both used the standalone opt-level
-`3`, LTO-off, 16-codegen-unit profile and automatic SDK without an override.
-Separate earlier-package checks cover native text selection and clipboard copy,
-code scrolling, responsive resize, and timed traversal. Optional extended demo
-interactions and exhaustive whole-website behavior remain outside these matrices.
+The bundled website is a desktop robustness fixture. Its acceptance probes
+exercise the authored calculator and Paxflix routes, graph wheel and drag,
+gallery input, exact native source text across six drawers, route retirement,
+and return-home scrolling. The homepage's calculator and Paxflix previews are
+images; their links open the live demos. Separate probes cover native text
+selection and clipboard copy, code scrolling, responsive resize, and timed
+traversal. Qualification is tied to an exact source snapshot and package;
+these named scenarios do not establish exhaustive whole-website behavior or
+performance on other machines.
 The [Windows probe guide](https://github.com/paxdotdev/pax/blob/main/tests/src/native-platform-probes/windows/README.md#website-acceptance-workload)
 records exact package provenance, profiles, scope and measurement limits.
 A nonempty inner viewport currently consumes same-axis wheel input at its start

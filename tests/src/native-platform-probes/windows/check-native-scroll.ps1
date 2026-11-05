@@ -46,6 +46,52 @@ public static class PaxControlsInput {
     [StructLayout(LayoutKind.Explicit)] public struct UNION { [FieldOffset(0)] public MOUSEINPUT Mouse; [FieldOffset(0)] public KEYBDINPUT Keyboard; }
     [StructLayout(LayoutKind.Sequential)] public struct INPUT { public uint Type; public UNION Data; }
     [DllImport("user32.dll",SetLastError=true)] static extern uint SendInput(uint count, INPUT[] inputs, int size);
+    [DllImport("kernel32.dll")] static extern void SetLastError(uint error);
+    public sealed class InputReceipt {
+        public string Operation,Utc; public uint Requested,Inserted; public int Win32Error,StructureBytes,X,Y;
+    }
+    public static InputReceipt LastInput,LastFailedInput;
+    static uint Inject(string operation,INPUT[] inputs,int x=0,int y=0) {
+        int size=Marshal.SizeOf(typeof(INPUT)); SetLastError(0);
+        uint inserted=SendInput((uint)inputs.Length,inputs,size);
+        int error=Marshal.GetLastWin32Error();
+        LastInput=new InputReceipt { Operation=operation,Utc=DateTime.UtcNow.ToString("o"),Requested=(uint)inputs.Length,Inserted=inserted,Win32Error=error,StructureBytes=size,X=x,Y=y };
+        if(inserted!=(uint)inputs.Length) LastFailedInput=LastInput;
+        return inserted;
+    }
+    [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] static extern IntPtr GetThreadDesktop(uint thread);
+    [DllImport("user32.dll")] static extern IntPtr GetProcessWindowStation();
+    [DllImport("user32.dll",SetLastError=true)] static extern IntPtr OpenInputDesktop(uint flags,bool inherit,uint access);
+    [DllImport("user32.dll",SetLastError=true)] static extern bool CloseDesktop(IntPtr desktop);
+    [DllImport("user32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool GetUserObjectInformationW(IntPtr handle,int index,System.Text.StringBuilder value,uint bytes,out uint needed);
+    [DllImport("wtsapi32.dll",SetLastError=true)] static extern bool WTSQuerySessionInformation(IntPtr server,int session,int info,out IntPtr buffer,out uint bytes);
+    [DllImport("wtsapi32.dll")] static extern void WTSFreeMemory(IntPtr buffer);
+    public sealed class DesktopReceipt {
+        public string Utc,WindowStation,ThreadDesktop,InputDesktop; public int SessionId,InputDesktopOpenError;
+        public int WindowStationNameError,ThreadDesktopNameError,InputDesktopNameError; public bool InputDesktopClosed;
+        public int VirtualLeft,VirtualTop,VirtualWidth,VirtualHeight;
+        public int SessionConnectionState=-1,SessionQueryError;
+    }
+    static string DesktopName(IntPtr handle,out int error) {
+        var value=new System.Text.StringBuilder(256); uint needed;
+        bool ok=GetUserObjectInformationW(handle,2,value,512,out needed);
+        error=ok?0:Marshal.GetLastWin32Error(); return ok?value.ToString():null;
+    }
+    public static DesktopReceipt ReadInputDesktop() {
+        var result=new DesktopReceipt { Utc=DateTime.UtcNow.ToString("o"),SessionId=System.Diagnostics.Process.GetCurrentProcess().SessionId,
+            VirtualLeft=GetSystemMetrics(76),VirtualTop=GetSystemMetrics(77),VirtualWidth=GetSystemMetrics(78),VirtualHeight=GetSystemMetrics(79) };
+        result.WindowStation=DesktopName(GetProcessWindowStation(),out result.WindowStationNameError);
+        result.ThreadDesktop=DesktopName(GetThreadDesktop(GetCurrentThreadId()),out result.ThreadDesktopNameError);
+        IntPtr state; uint bytes;
+        if(WTSQuerySessionInformation(IntPtr.Zero,result.SessionId,8,out state,out bytes)) {
+            try { if(bytes==4) result.SessionConnectionState=Marshal.ReadInt32(state); } finally { WTSFreeMemory(state); }
+        } else result.SessionQueryError=Marshal.GetLastWin32Error();
+        // Query only: this never switches desktops, changes ACLs or logs in.
+        IntPtr input=OpenInputDesktop(0,false,1); result.InputDesktopOpenError=input==IntPtr.Zero?Marshal.GetLastWin32Error():0;
+        if(input!=IntPtr.Zero) { try { result.InputDesktop=DesktopName(input,out result.InputDesktopNameError); } finally { result.InputDesktopClosed=CloseDesktop(input); } }
+        return result;
+    }
     [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
@@ -66,22 +112,22 @@ public static class PaxControlsInput {
     [DllImport("user32.dll")] public static extern IntPtr LoadCursor(IntPtr instance,IntPtr id);
     public static uint Key(ushort key,bool up) {
         INPUT value=new INPUT(); value.Type=1; value.Data.Keyboard.Key=key; value.Data.Keyboard.Flags=up?2u:0u;
-        return SendInput(1,new INPUT[]{value},Marshal.SizeOf(typeof(INPUT)));
+        return Inject(up?"key-up":"key-down",new INPUT[]{value});
     }
     [DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
     public static uint Move(int x,int y) {
         INPUT value=new INPUT(); value.Data.Mouse.Flags=0xC001;
         value.Data.Mouse.X=(int)Math.Round((x-GetSystemMetrics(76))*65535.0/(GetSystemMetrics(78)-1));
         value.Data.Mouse.Y=(int)Math.Round((y-GetSystemMetrics(77))*65535.0/(GetSystemMetrics(79)-1));
-        return SendInput(1,new INPUT[]{value},Marshal.SizeOf(typeof(INPUT)));
+        return Inject("absolute-move",new INPUT[]{value},x,y);
     }
     public static uint Mouse(uint flags, int data=0) {
         INPUT value=new INPUT(); value.Data.Mouse.Flags=flags; value.Data.Mouse.Data=unchecked((uint)data);
-        return SendInput(1,new INPUT[]{value},Marshal.SizeOf(typeof(INPUT)));
+        return Inject("mouse-"+flags,new INPUT[]{value});
     }
     public static uint Click() {
         INPUT down=new INPUT(),up=new INPUT(); down.Data.Mouse.Flags=2; up.Data.Mouse.Flags=4;
-        return SendInput(2,new INPUT[]{down,up},Marshal.SizeOf(typeof(INPUT)));
+        return Inject("click",new INPUT[]{down,up});
     }
 }
 '@
@@ -180,11 +226,27 @@ function Focus {
  Check 'Fixture owns foreground' ([PaxControlsInput]::GetForegroundWindow() -eq $process.MainWindowHandle) $process.Id
 }
 function Point([int]$x,[int]$y,[bool]$click=$false){
+ $report.lastPointerTarget=@{x=$x;y=$y;click=$click;utc=[DateTime]::UtcNow.ToString('o')}
  $p=New-Object PaxControlsInput+POINT;$p.X=$x;$p.Y=$y;$owner=[PaxControlsInput]::GetAncestor([PaxControlsInput]::WindowFromPoint($p),2)
  if($owner -ne $process.MainWindowHandle){throw "Input target is occluded: $x,$y owner=$owner"}
  if([PaxControlsInput]::Move($x,$y) -ne 1){throw 'Absolute pointer movement injection failed'};Start-Sleep -Milliseconds 80;$actual=New-Object PaxControlsInput+POINT
  if(-not [PaxControlsInput]::GetCursorPos([ref]$actual) -or $actual.X -ne $x -or $actual.Y -ne $y){throw 'Pointer did not reach target'}
  if($click -and [PaxControlsInput]::Click() -ne 2){throw 'Click injection failed'};Start-Sleep -Milliseconds 100
+}
+function Record-Input-Failure {
+ # One bounded, read-only snapshot; retain the original failure even if a
+ # diagnostic fails. SendInput's error does not identify UIPI as the cause.
+ $receipt=[ordered]@{utc=[DateTime]::UtcNow.ToString('o');lastInput=[PaxControlsInput]::LastInput;lastFailedInput=[PaxControlsInput]::LastFailedInput}
+ try{$receipt.desktop=[PaxControlsInput]::ReadInputDesktop()}catch{$receipt.desktopError=$_.Exception.Message}
+ try{
+  $receipt.foreground=[PaxControlsInput]::GetForegroundWindow().ToInt64()
+  $receipt.helperSession=[Diagnostics.Process]::GetCurrentProcess().SessionId
+  $receipt.applicationSession=if($process){$process.SessionId}else{$null}
+  $receipt.applicationWindow=if($process){$process.MainWindowHandle.ToInt64()}else{$null}
+  $cursor=New-Object PaxControlsInput+POINT;$receipt.cursorRead=[PaxControlsInput]::GetCursorPos([ref]$cursor);$receipt.cursor=@{x=$cursor.X;y=$cursor.Y}
+  $receipt.logonUiPids=@(Get-Process -Name LogonUI -ErrorAction SilentlyContinue|Where-Object{$_.SessionId -eq $receipt.helperSession}|ForEach-Object{$_.Id})
+ }catch{$receipt.stateError=$_.Exception.Message}
+ $report.inputFailure=$receipt
 }
 function Local([double]$x,[double]$y,[bool]$click=$false){$p=New-Object PaxControlsInput+POINT;if(-not [PaxControlsInput]::ClientToScreen($process.MainWindowHandle,[ref]$p)){throw 'No client origin'};Point ([int][Math]::Round($p.X+$x*$scale)) ([int][Math]::Round($p.Y+$y*$scale)) $click}
 function Tap([int]$key){if([PaxControlsInput]::GetForegroundWindow() -ne $process.MainWindowHandle){throw 'Lost foreground'};if([PaxControlsInput]::Key($key,$false) -ne 1 -or [PaxControlsInput]::Key($key,$true) -ne 1){throw 'Key injection failed'};Settle}
@@ -440,13 +502,21 @@ try {
   }else{$report.sourceOnly=[bool]$SourceOnly}
   if($WebsiteInteractionsOnly){. (Join-Path $PSScriptRoot 'website-acceptance.ps1');Invoke-WebsiteAcceptance}
   if($OpenSource){
-   $labels=@(Items ([System.Windows.Automation.ControlType]::Text)|Where-Object{$_.Current.Name -ceq 'View Source' -and -not $_.Current.IsOffscreen}|Sort-Object @{Expression={$_.Current.BoundingRectangle.Top}})
+   $labels=@(Items ([System.Windows.Automation.ControlType]::Button)|Where-Object{$_.Current.Name -ceq 'VIEW SOURCE' -and -not $_.Current.IsOffscreen}|Sort-Object @{Expression={$_.Current.BoundingRectangle.Top}})
    Check 'Visible View Source control exists' ($labels.Count -gt 0) $labels.Count
-   $beforeCount=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition).Count
+   $beforePeers=@($root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition));$beforeCount=$beforePeers.Count
+   $beforeSourceIds=@($beforePeers|ForEach-Object{Scroll-Id $_})
    Click-Item $labels[0];Start-Sleep -Seconds 2;Shot 'source-drawer'
-   $afterCount=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition).Count
+   $afterPeers=@($root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition));$afterCount=$afterPeers.Count
    Check 'Source drawer adds tab and code scrollers' ($afterCount -ge $beforeCount+2) @{before=$beforeCount;after=$afterCount}
-   $documents=@(foreach($item in (Items ([System.Windows.Automation.ControlType]::Text))){
+   $newAuthoredScrolls=@($afterPeers|Where-Object{$_.Current.AutomationId -like 'pax-node-*' -and (Scroll-Id $_) -notin $beforeSourceIds})
+   $sourceTabs=@($newAuthoredScrolls|Where-Object{[Math]::Abs($_.Current.BoundingRectangle.Height-48*$scale) -le 2*$scale})
+   Check 'Opened source has one authored 48-pixel tab viewport' ($sourceTabs.Count -eq 1) $sourceTabs.Count
+   $tabBounds=$sourceTabs[0].Current.BoundingRectangle
+   $sourceCodes=@($newAuthoredScrolls|Where-Object{$b=$_.Current.BoundingRectangle;(Scroll-Id $_) -ne (Scroll-Id $sourceTabs[0]) -and !$b.IsEmpty -and [Math]::Abs($b.Left-$tabBounds.Left) -le 2*$scale -and [Math]::Abs($b.Right-$tabBounds.Right) -le 2*$scale -and [Math]::Abs($b.Top-$tabBounds.Bottom) -le 2*$scale})
+   Check 'Opened source has one owned code viewport below tabs' ($sourceCodes.Count -eq 1) $sourceCodes.Count
+   $sourceTextCondition=New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Text)
+   $documents=@(foreach($item in $sourceCodes[0].FindAll([System.Windows.Automation.TreeScope]::Descendants,$sourceTextCondition)){
     $pattern=$null
     if($item.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern,[ref]$pattern)){
      $content=$pattern.DocumentRange.GetText(-1)
@@ -514,7 +584,7 @@ try {
     Native-Selection 'select-all' $source.content
    }finally{if($clipboardBefore){[Windows.Forms.Clipboard]::SetDataObject($clipboardBefore,$true)}else{[Windows.Forms.Clipboard]::Clear()}}
    Shot 'source-drawer-select-all'
-   $newScrolls=@($root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)|Where-Object{($_.Current.AutomationId -like 'pax-node-*' -or $_.Current.AutomationId -eq 'PART_ScrollPresenter') -and (Scroll-Id $_) -ne (Scroll-Id $code) -and $_.Current.BoundingRectangle.Height -ge 25 -and $_.Current.BoundingRectangle.Height -le 35 -and -not $_.Current.IsOffscreen})
+   $newScrolls=@($root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)|Where-Object{$_.Current.AutomationId -like 'pax-node-*' -and (Scroll-Id $_) -ne (Scroll-Id $code) -and [Math]::Abs($_.Current.BoundingRectangle.Height-48*$scale) -le 2*$scale -and -not $_.Current.IsOffscreen})
    $tabs=$newScrolls|Sort-Object @{Expression={[Math]::Abs($_.Current.BoundingRectangle.Top-$codeBounds.Top)}}|Select-Object -First 1
    Check 'Source tab strip is native and visible' ($null -ne $tabs) $newScrolls.Count
    $textCondition=New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Text)
@@ -524,7 +594,7 @@ try {
    $second=$source.pattern.DocumentRange.GetText(-1)
    Check 'Second source tab updates native document' ($second.Length -gt 0 -and $second -cne $source.content) @{characters=$second.Length}
    Shot 'source-second-tab'
-   $close=@(Items ([System.Windows.Automation.ControlType]::Text)|Where-Object{$_.Current.Name -ceq '×' -and -not $_.Current.IsOffscreen}|Sort-Object @{Expression={[Math]::Abs($_.Current.BoundingRectangle.Left-$codeBounds.Right)}})
+   $close=@(Items ([System.Windows.Automation.ControlType]::Button)|Where-Object{$_.Current.Name -ceq '×' -and -not $_.Current.IsOffscreen}|Sort-Object @{Expression={[Math]::Abs($_.Current.BoundingRectangle.Left-$codeBounds.Right)}})
    Check 'Source drawer close control is visible' ($close.Count -gt 0) $close.Count
    Click-Item $close[0];Start-Sleep -Seconds 2
    $closedCount=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition).Count
@@ -577,6 +647,7 @@ try {
  Shot 'after-scroll';$report.result='passed'
 } catch {
  $report.result='failed';$report.error=$_.ToString();$failure=$_
+ try{Record-Input-Failure}catch{$report.inputFailureDiagnosticError=$_.ToString()}
  if($process){$process.Refresh();if(-not $process.HasExited -and $process.MainWindowHandle -ne [IntPtr]::Zero){try{Shot 'failure'}catch{$report.failureCaptureError=$_.ToString()}}}
  throw $failure
 } finally {

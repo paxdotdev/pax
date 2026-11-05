@@ -941,18 +941,28 @@ Actual source-drawer, nested demo, and responsive-layout interactions still need
 functional checks in addition to this general scrolling probe.
 
 `make-website-source-manifest.py REPOSITORY OUTPUT.json` freezes the canonical
-website's 92 authored source-tab identities without copying their contents. It
+website's 98 authored source-tab identities without copying their contents. It
 recognizes literal pairs, language tuples, and `ExampleSource` entries, preserving
-the six drawers' authored order and repeated source occurrences. It also writes
+the six drawers' authored order and repeated source occurrences: hero 29,
+runtime 32, framework 20, gallery 8, open source 7, and resources 2. The runtime
+drawer includes the separately constructed 12-file calculator catalogue. It also writes
 `OUTPUT.sections.json`, binding the authored section order, unique visible
 section anchors, per-drawer inventory, and source provenance to the exact source
 manifest hash. Stage both files together. The scenario rewinds the native page
 once, then finds each next section through real wheel input; it never sorts empty
 offscreen UIA bounds. Every repeated source label must qualify in its own drawer.
+Section positioning uses ordinary page reveal, then reveals the actual toggle and
+rechecks its unique association and runtime identity. Both heading and toggle
+must be visible below the authored 80-pixel navigation and inside the viewport;
+there is no requirement to hit a narrow centered strip. Native wheel steps can
+skip such a strip entirely. `./check-source-anchor.ps1` covers that oscillation,
+viewport/navigation clipping, and missing, duplicate or stale toggle identities.
 Pass
 that file with `-WebsitePhases -WebsiteInteractionsOnly -WebsiteSourceManifest
-OUTPUT.json` for the companion `website-acceptance.ps1` scenario: calculator
-keypad/graph switching, Paxflix demo feedback and theme controls, gallery wheel
+OUTPUT.json` for the companion `website-acceptance.ps1` scenario: the homepage's
+authored calculator link opens the live `/calculator/` route for keypad, graph
+zoom, native wheel and drag checks; its homepage preview is a static image.
+The scenario returns home before Paxflix demo feedback and theme controls, gallery wheel
 input, exact native source text for every tab, and the authored `/calculator/`
 and Back to Pax route roundtrip. Route retirement allows authored exit timelines to finish
 before requiring old native scrollers to disappear. This mode skips the separately
@@ -963,10 +973,23 @@ point, UIA hit ancestry, and scroll position. The current drawer has no separate
 selected-file label; the exact document hash establishes selection. Source text
 discovery stays inside the newly mounted native code scroller, identified by
 its new native identity and its alignment immediately below the tab scroller.
+The open/close affordance is a native Button named `VIEW SOURCE` or `×`;
+source labels remain Text peers inside a 48-pixel viewport with 36-pixel tabs.
 An ambiguous or missing code viewport fails the probe. A failed
 exact-text check preserves its assertion and screenshot before trying a bounded
 interior click as a separate diagnostic. That later click cannot turn the original
 failure into an acceptance pass or count the tab as qualified.
+Source traversal first moves the real pointer without clicking, so WinUI's
+native auto-scrollbars expose their geometry. It queries only scrollbar children
+of the tab strip's native scroller ancestors and subtracts their observed visible
+rectangles from the label/viewport intersection. The final point must also be
+outside that chrome; no fixed inset is assumed. Missing required scrollbar peers,
+ambiguous ownership or invalid bounds fail closed. If no integer content point
+remains, the ordinary horizontal wheel search continues without skipping the tab.
+`./check-source-chrome.ps1` exercises this pure subtraction and native-owner
+validation, including the intercepted right-edge point, one-pixel remainders,
+fractional coordinates, complete occlusion and malformed inventories.
+
 Physical click coordinates must remain inside the half-open visible rectangle.
 The shared helper floors the center and clamps it between `ceil(left)` and
 `ceil(right)-1`, with the same rule for Y. This preserves one-pixel clipped-tab
@@ -1000,11 +1023,16 @@ Add `-WebsiteSourcesOnly` to isolate the six drawers, all source tabs, and the
 route roundtrip on a fresh launch. That restricted pass does not qualify the
 calculator, Paxflix, or gallery interactions; retain their separate results.
 Source drawer traversal requires a wide layout of at least 1000 logical pixels;
-use `-ClientWidth 1280 -ClientHeight 960`. Below that breakpoint, OpenSource's
-stacked layout moves its source-discovery anchor and needs a separate oracle.
+use `-ClientWidth 1280 -ClientHeight 960`. Compact source sheets and stacked
+section layouts need a separate geometry oracle.
 Ordinary page targets are revealed below the website's fixed navigation.
 General control clicks read fresh visible bounds immediately before input and
 record their coordinates; authored animations need not stop before a click.
+An input failure retains SendInput's requested/inserted counts and immediate
+Win32 error, the last pointer target, cursor and foreground window, helper/app
+session IDs, session connection state, and read-only window-station/input-desktop
+names. A zero Win32 error does not rule out UIPI blocking. Diagnostics do not
+retry input, switch desktops, log in, or substitute UIA invocation for a click.
 Clipped source-tab frontier clicks retain their separate exact containment checks.
 The route reveal explicitly accepts the full visible viewport because a footer
 at maximum scroll may never enter the default upper targeting band. It asserts
@@ -1016,12 +1044,13 @@ parsing passed; the October 26 route-only application replay also passed below.
 Add `-WebsiteRouteOnly` instead to replay only the authored calculator link,
 old-scroller retirement, and Back to Pax wheel response on a
 fresh launch. Its report scope is `route`; it does not qualify source drawers or
-embedded demos, and it cannot be combined with either other restricted scope.
+demo interactions, and it cannot be combined with either other restricted scope.
 HomePage binds its scroll offset to the surviving root component, so returning
 home need not start at zero. The wheel check chooses the direction with room to
 scroll and requires movement in that direction after the new scroller mounts.
-Conversely, `-WebsiteDemosOnly` isolates the embedded interactions, skipping both
-source traversal and the route roundtrip. Graph-wheel
+Conversely, `-WebsiteDemosOnly` exercises the live calculator route, returns home
+for Paxflix route feedback and theme controls, then checks gallery wheel input.
+It skips source traversal and the separate final route-retirement replay. Graph-wheel
 diagnostics compare the chart center with a blank interior point, record the
 native hit ancestry and offset samples, and test authored dragging. Failed graph
 checks remain failures while the remaining demo checks continue, so a hit-routing

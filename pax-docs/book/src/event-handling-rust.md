@@ -215,6 +215,10 @@ Multiline Return inserts a newline. Blur and `@textbox_change` do not submit.
 Submission does not itself dismiss the keyboard or move focus; an application
 may change its UI in response.
 
+Windows, Linux, and Android do not yet emit Textbox submission on Return.
+Their explicit `submit=true` buttons and `ctx.submit()` use the shared submit
+event path; native Textbox activation still needs platform support.
+
 Buttons submit only with `submit=true` (the default is false). Activation
 first delivers `@button_click`, then emits a fresh `@submit` from the button.
 Calling `prevent_default()` on that click suppresses submission; calling

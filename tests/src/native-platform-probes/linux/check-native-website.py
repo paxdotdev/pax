@@ -105,14 +105,19 @@ def main():
     parser.add_argument("--open-source", action="store_true",
                         help="Check the first View Source drawer, including native copy (requires xclip)")
     parser.add_argument("--interaction-cases", nargs="+", default=[],
-                        choices=("calculator", "paxflix", "gallery", "resize", "source-tabs", "route"),
+                        choices=("calculator", "paxflix", "playgrounds", "gallery", "resize", "source-tabs", "route"),
                         help="Run specified real-input application checks after timing phases")
+    parser.add_argument("--source-sections", type=Path,
+                        help="Frozen authored .sections.json inventory required for source-tabs")
     parser.add_argument("--interactions-only", action="store_true",
                         help="Keep startup/identity/cleanup checks but skip stationary and traversal timing phases")
     add_launch_arguments(parser)
     args = parser.parse_args()
     if args.interactions_only and (not args.interaction_cases or args.startup_only):
         parser.error("--interactions-only requires --interaction-cases and cannot use --startup-only")
+    if "source-tabs" in args.interaction_cases and not args.source_sections:
+        parser.error("source-tabs requires --source-sections from make-website-source-manifest.py")
+    source_sections = json.loads(args.source_sections.read_text()) if args.source_sections else None
     if args.stationary_only and (args.startup_only or args.interactions_only or args.interaction_cases or args.open_source):
         parser.error("--stationary-only cannot be combined with startup-only or interaction checks")
     if args.post_eviction_seconds and (not args.stationary_only or args.screenshots or
@@ -397,11 +402,12 @@ def main():
             if args.open_source:
                 wheel(4, 40)
                 time.sleep(1)
-                labels = [n for n in state()["nodes"] if n.get("text") == "View Source"
+                labels = [n for n in state()["nodes"] if n.get("text") == "VIEW SOURCE"
                           and len(n.get("bounds", [])) == 4 and 0 <= n["bounds"][1] < 960]
                 if not labels:
                     raise RuntimeError("No visible View Source label to exercise")
                 label = min(labels, key=lambda n: n["bounds"][1])
+                toggle_id = label["id"]
                 old_scrollers = {n["id"] for n in state()["nodes"] if n["kind"] == "Scroller"}
                 x, y, width, height = label["bounds"]
                 xdo("mousemove", "--window", window, round(x + width / 2), round(y + height / 2))
@@ -538,9 +544,7 @@ def main():
                                              for n in s.get("nodes", [])),
                                "source tab replaces native styled content")
                 save("source-second-tab-state.json", changed)
-                close = next(n for n in changed["nodes"] if n.get("text") == "×"
-                             and cx <= n["bounds"][0] < cx + cw
-                             and 0 <= n["bounds"][1] < cy)
+                close = next(n for n in changed["nodes"] if n["id"] == toggle_id and n.get("text") == "×")
                 x, y, width, height = close["bounds"]
                 point(x + width / 2, y + height / 2)
                 xdo("click", 1)
@@ -556,7 +560,8 @@ def main():
                 WebsiteInteractions(state=state, wait=wait, fresh=fresh, xdo=xdo,
                                     pointer_owner=verify_pointer_owner, key=owned_key,
                                     save=save, screenshot=screenshot, window=window,
-                                    outer_id=main_id, clipboard=lambda: read_owned_clipboard(app.pid)
+                                    outer_id=main_id, clipboard=lambda: read_owned_clipboard(app.pid),
+                                    source_sections=source_sections
                                     ).run(args.interaction_cases)
         app.terminate()
         if app.wait(timeout=30) != 0:
@@ -597,6 +602,8 @@ def main():
                              "probeSHA256": probe_hash,
                              "interactionHelperSHA256": hashlib.sha256(
                                  Path(__file__).with_name("website_interactions.py").read_bytes()).hexdigest(),
+                             "sourceSectionManifestSHA256": hashlib.sha256(args.source_sections.read_bytes()).hexdigest()
+                                 if args.source_sections else None,
                              "requestedInteractionCases": args.interaction_cases,
                              "interactionsOnly": args.interactions_only,
                              "exitCode": app.poll() if app else None,

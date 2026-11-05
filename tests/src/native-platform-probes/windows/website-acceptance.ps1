@@ -1,7 +1,7 @@
 ﻿# Companion to check-native-scroll.ps1. Uses its owned input, lifecycle and logging
 # helpers; never sets application properties or substitutes content.
 function Invoke-WebsiteAcceptance {
- $report.websiteInteractionScope=if($WebsiteRouteOnly){'route'}elseif($WebsiteSourcesOnly){'sources-and-route'}elseif($WebsiteDemosOnly){'demos'}else{'full'};$report.websiteInteractionIssues=@();$report.websiteInteractionSteps=@();$report.websiteSourceTabs=@();$report.websiteSourceClicks=@();$report.websiteClickObservations=@();$report.websiteRevealSamples=@();Save
+ $report.websiteInteractionScope=if($WebsiteRouteOnly){'route'}elseif($WebsiteSourcesOnly){'sources-and-route'}elseif($WebsiteDemosOnly){'demos'}else{'full'};$report.websiteInteractionIssues=@();$report.websiteInteractionSteps=@();$report.websiteSourceTabs=@();$report.websiteSourceClicks=@();$report.websiteClickObservations=@();$report.websiteRevealSamples=@();$report.websiteSourceChromeHits=@();Save
  $sourceRows=Get-Content $WebsiteSourceManifest -Raw|ConvertFrom-Json
  $sourceTruth=@{};foreach($row in $sourceRows){
   if($sourceTruth.ContainsKey($row.label) -and $sourceTruth[$row.label].displaySha256Utf8 -cne $row.displaySha256Utf8){throw ('Conflicting frozen source identity: '+$row.label)}
@@ -9,21 +9,22 @@ function Invoke-WebsiteAcceptance {
  }
  function Observe([string]$name,[bool]$ok,$detail){$report.checks+=@{name=$name;passed=$ok;detail=$detail};if(!$ok){$report.websiteInteractionIssues+=,$name};Save}
  function Visible-Item($item){$b=Visible-Scroll-Bounds $item;return (!$b.IsEmpty -and $b.Width -ge 3 -and $b.Height -ge 3)}
- function Named([string]$name){
-  $type=New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Text)
+ function Named([string]$name,$controlType=[System.Windows.Automation.ControlType]::Text){
+  $type=New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty,$controlType)
   $label=New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty,$name)
   $match=New-Object System.Windows.Automation.AndCondition($type,$label)
   $items=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$match)
   for($i=0;$i -lt $items.Count;$i++){,$items.Item($i)}
  }
- function Visible-Named([string]$name){return @(Named $name|Where-Object{Visible-Item $_})}
- function Text-Snapshot {
-  # Bulk-fetch names for this observation. Current-property calls and ancestor
-  # walks for every offscreen text peer can dominate a whole-site UIA test.
+ function Visible-Named([string]$name,$controlType=[System.Windows.Automation.ControlType]::Text){return @(Named $name $controlType|Where-Object{Visible-Item $_})}
+ function Text-Snapshot($container) {
+  # Fetch only the current calculator's text, never the entire home page.
+  if($null -eq $container -or $container.Current.ProcessId -ne $process.Id){throw 'Text observation has no owned native container'}
   $cache=New-Object System.Windows.Automation.CacheRequest
   $cache.Add([System.Windows.Automation.AutomationElement]::NameProperty)
   $cache.TreeScope=[System.Windows.Automation.TreeScope]::Element;$active=$cache.Activate()
-  try{foreach($item in (Items ([System.Windows.Automation.ControlType]::Text))){[pscustomobject]@{item=$item;name=$item.Cached.Name}}}finally{$active.Dispose()}
+  $match=New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Text)
+  try{foreach($item in $container.FindAll([System.Windows.Automation.TreeScope]::Descendants,$match)){[pscustomobject]@{item=$item;name=$item.Cached.Name}}}finally{$active.Dispose()}
  }
  function Tab-Snapshot($strip){
   # Clipped text peers may have Empty bounds. Fetch a fresh viewport-sized
@@ -76,6 +77,85 @@ function Invoke-WebsiteAcceptance {
    $pattern=$null
    if($item.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern,[ref]$pattern)){,$pattern}
   }
+ }
+ function Get-UnobscuredSourcePoint($label,$viewport,$exclusions){
+  $region=[pscustomobject]@{Left=[Math]::Max($label.Left,$viewport.Left);Top=[Math]::Max($label.Top,$viewport.Top);Right=[Math]::Min($label.Right,$viewport.Right);Bottom=[Math]::Min($label.Bottom,$viewport.Bottom)}
+  if($null -eq (Get-IntegerClickPoint $region)){return $null}
+  $regions=@($region)
+  foreach($bar in $exclusions){
+   foreach($edge in @($bar.Left,$bar.Top,$bar.Right,$bar.Bottom)){if([double]::IsNaN($edge) -or [double]::IsInfinity($edge)){throw 'Nonfinite native scrollbar bounds'}}
+   if($bar.Right -le $bar.Left -or $bar.Bottom -le $bar.Top){throw 'Empty native scrollbar exclusion'}
+   $next=@()
+   foreach($r in $regions){
+    $l=[Math]::Max($r.Left,$bar.Left);$t=[Math]::Max($r.Top,$bar.Top);$right=[Math]::Min($r.Right,$bar.Right);$bottom=[Math]::Min($r.Bottom,$bar.Bottom)
+    if($right -le $l -or $bottom -le $t){$next+=,$r;continue}
+    # Disjoint rectangles preserve every content pixel outside actual chrome.
+    foreach($edges in @(@($r.Left,$r.Top,$l,$r.Bottom),@($right,$r.Top,$r.Right,$r.Bottom),@($l,$r.Top,$right,$t),@($l,$bottom,$right,$r.Bottom))){
+     if($edges[2] -gt $edges[0] -and $edges[3] -gt $edges[1]){$next+=,[pscustomobject]@{Left=$edges[0];Top=$edges[1];Right=$edges[2];Bottom=$edges[3]}}
+    }
+   }
+   if($next.Count -gt 128){throw 'Source chrome fragmentation bound exceeded'};$regions=$next
+  }
+  foreach($r in @($regions|Sort-Object @{Expression={($_.Right-$_.Left)*($_.Bottom-$_.Top)};Descending=$true},Left,Top)){
+   $point=Get-IntegerClickPoint $r;if($null -ne $point){return @{point=$point;region=$r}}
+  }
+  return $null
+ }
+ function Select-SourceChromeExclusions($owner,$peers){
+  if($owner.id -notmatch '^pax-node-[0-9]+$'){throw 'Scrollbar owner is not an authored native scroller'}
+  if(@($peers).Count -gt 2){throw 'Ambiguous native scrollbar peer count'}
+  $orientations=@{}
+  foreach($bar in $peers){
+   if($bar.ownerId -cne $owner.id){throw 'Scrollbar is not owned by the observed ancestor'}
+   if($bar.orientation -notin @('Horizontal','Vertical') -or $bar.id -cne ($bar.orientation+'ScrollBar') -or $orientations.ContainsKey($bar.orientation)){throw 'Ambiguous native scrollbar orientation or identity'}
+   $orientations[$bar.orientation]=$true
+   if($bar.offscreen){continue}
+   if($null -eq $bar.bounds){throw 'Visible native scrollbar has no bounds'}
+   $b=$bar.bounds;$o=$owner.bounds
+   foreach($edge in @($b.Left,$b.Top,$b.Right,$b.Bottom,$o.Left,$o.Top,$o.Right,$o.Bottom)){if([double]::IsNaN($edge) -or [double]::IsInfinity($edge)){throw 'Nonfinite scrollbar or owner bounds'}}
+   if($b.Right -le $b.Left -or $b.Bottom -le $b.Top -or $b.Left -lt $o.Left -or $b.Top -lt $o.Top -or $b.Right -gt $o.Right -or $b.Bottom -gt $o.Bottom){throw 'Scrollbar bounds are not contained in their native owner'}
+   ,$b
+  }
+  if($owner.horizontal -and !$orientations.ContainsKey('Horizontal')){throw 'Scrollable ancestor has no horizontal scrollbar peer'}
+  if($owner.vertical -and !$orientations.ContainsKey('Vertical')){throw 'Scrollable ancestor has no vertical scrollbar peer'}
+ }
+ function Get-SourceChromeGeometry($strip){
+  $ancestors=@();$seen=@{};$peer=$strip;$ended=$false
+  for($depth=0;$null -ne $peer -and $depth -lt 24;$depth++){
+   if($peer.Current.ProcessId -ne $process.Id){$ended=$true;break}
+   $id=$peer.Current.AutomationId
+   if($id -like 'pax-node-*' -and $peer.GetCurrentPropertyValue([System.Windows.Automation.AutomationElement]::IsScrollPatternAvailableProperty)){
+    if($seen.ContainsKey($id)){throw 'Duplicate native scroller ancestor identity'};$seen[$id]=$true;$ancestors+=,$peer
+   }
+   if($peer.Current.ControlType -eq [System.Windows.Automation.ControlType]::Window){$ended=$true;break}
+   $peer=[System.Windows.Automation.TreeWalker]::RawViewWalker.GetParent($peer)
+   if($null -eq $peer){$ended=$true}
+  }
+  $nativeOuter=Source-Native-Scroller $outer
+  if(!$ended -or $null -eq $nativeOuter -or !$seen.ContainsKey($strip.Current.AutomationId) -or !$seen.ContainsKey($nativeOuter.Current.AutomationId)){throw 'Source native scrollbar ancestor scope is incomplete'}
+  $observations=@();$exclusions=@()
+  $barCondition=New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::ScrollBar)
+  foreach($ancestor in $ancestors){
+   $b=$ancestor.Current.BoundingRectangle
+   if($b.IsEmpty){throw 'Source native scroller ancestor is offscreen'}
+   $pattern=$ancestor.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
+   $owner=@{id=$ancestor.Current.AutomationId;bounds=@{Left=$b.Left;Top=$b.Top;Right=$b.Right;Bottom=$b.Bottom};horizontal=$pattern.Current.HorizontallyScrollable;vertical=$pattern.Current.VerticallyScrollable}
+   $cache=New-Object System.Windows.Automation.CacheRequest
+   foreach($property in @('AutomationIdProperty','BoundingRectangleProperty','IsOffscreenProperty','OrientationProperty','IsEnabledProperty','ProcessIdProperty')){$cache.Add([System.Windows.Automation.AutomationElement]::$property)}
+   $cache.TreeScope=[System.Windows.Automation.TreeScope]::Element;$active=$cache.Activate()
+   # ScrollView exposes its own scrollbar peers as direct native children.
+   # Do not enumerate the page's descendant text or unrelated nested scrollers.
+   try{$items=$ancestor.FindAll([System.Windows.Automation.TreeScope]::Children,$barCondition)}finally{$active.Dispose()}
+   if($items.Count -gt 2){throw 'Ambiguous direct native scrollbar inventory'}
+   $bars=@()
+   foreach($bar in $items){
+    if($bar.Cached.ProcessId -ne $process.Id){throw 'Foreign scrollbar peer'}
+    $barOwner=Source-Native-Scroller $bar;$bb=$bar.Cached.BoundingRectangle
+    $bars+=@{id=$bar.Cached.AutomationId;ownerId=if($barOwner){$barOwner.Current.AutomationId}else{''};orientation=$bar.Cached.Orientation.ToString();offscreen=$bar.Cached.IsOffscreen;enabled=$bar.Cached.IsEnabled;bounds=if($bb.IsEmpty){$null}else{@{Left=$bb.Left;Top=$bb.Top;Right=$bb.Right;Bottom=$bb.Bottom}}}
+   }
+   $exclusions+=@(Select-SourceChromeExclusions $owner $bars);$observations+=@{owner=$owner;bars=$bars}
+  }
+  return @{utc=[DateTime]::UtcNow.ToString('o');ancestors=$observations;exclusions=$exclusions}
  }
  function Source-Click-State($label,$strip,$names,[int]$x,[int]$y){
   $state=[ordered]@{utc=[DateTime]::UtcNow.ToString('o');point=@{x=$x;y=$y}}
@@ -198,12 +278,22 @@ function Invoke-WebsiteAcceptance {
  function Mark([string]$name){$report.websiteInteractionSteps+=@{name=$name;utc=[DateTime]::UtcNow.ToString('o');sample=(Website-Sample $name)};Shot $name;Save}
 
  if(!$WebsiteSourcesOnly -and !$WebsiteRouteOnly){
- # The calculator's visible keypad is the authored input surface. Embedded
- # keyboard input is intentionally disabled by the unchanged website.
- for($visit=0;$visit -lt 80 -and !(Website-End -1);$visit++){Wheel-At $outer -1 $false 8}
- $calc=Named 'CALCULATE'|Select-Object -First 1;Check 'Calculator is mounted in unchanged website' ($null -ne $calc) 'CALCULATE';Reveal $calc $outer $false .35
+ # The homepage now authors screenshot links; its live calculator is mounted
+ # by /calculator/. Exercise that actual route before the unchanged keypad and
+ # native graph assertions, then return through its authored Back to Pax link.
+ $calculatorLink=Named 'TRY THE CALCULATOR  ↗'|Select-Object -First 1
+ Check 'Calculator authored live-route link exists' ($null -ne $calculatorLink) '/calculator/'
+ Reveal $calculatorLink $outer;Click-Visible $calculatorLink;Start-Sleep -Seconds 2
+ [void](Assert-Visible 'CALCULATOR / LIVE')
+ $calc=Named 'CALCULATE'|Select-Object -First 1;Check 'Calculator route mounts actual keypad' ($null -ne $calc) 'CALCULATE'
+ $calculatorRoot=Source-Native-Scroller $calc
+ Check 'Calculator has its own native scroll container' ($null -ne $calculatorRoot) $(if($calculatorRoot){Scroll-Id $calculatorRoot}else{'absent'})
+ $calculatorRootId=Scroll-Id $calculatorRoot
+ $outer=$calculatorRoot;$outerPattern=$outer.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
+ # The route fills its viewport; its keypad need not enter an upper-page band.
+ Reveal $calc $outer $false 0 $true
  function Graph-State {
-  $rows=@(Text-Snapshot|ForEach-Object{$_.name})
+  $rows=@(Text-Snapshot $calculatorRoot|ForEach-Object{$_.name})
   $range=@($rows|Where-Object{$_ -match '^x [-0-9.]+'})|Select-Object -First 1
   Check 'Graph exposes numeric range' ($range -match '^x ([-0-9.]+) … ([-0-9.]+)   y ([-0-9.]+) … ([-0-9.]+)$') $range
   $data=@{text=$range;xMin=[double]$Matches[1];xMax=[double]$Matches[2];yMin=[double]$Matches[3];yMax=[double]$Matches[4]}
@@ -215,7 +305,7 @@ function Invoke-WebsiteAcceptance {
  Mark 'calculator-default-graph'
  Click-Text 'CALCULATE';[void](Assert-Visible 'CALCULATE  /  RAD')
  foreach($key in @('2','+','3','enter')){Click-Text $key $true}
- $rows=@(Text-Snapshot|Where-Object{$_.name -ceq '› 2+3' -or $_.name.Trim() -ceq '5'}|Where-Object{Visible-Item $_.item}|ForEach-Object{$_.name})
+ $rows=@(Text-Snapshot $calculatorRoot|Where-Object{$_.name -ceq '› 2+3' -or $_.name.Trim() -ceq '5'}|Where-Object{Visible-Item $_.item}|ForEach-Object{$_.name})
  Check 'Calculator evaluates actual keypad expression' (($rows -contains '› 2+3') -and @($rows|Where-Object{$_.Trim() -ceq '5' -and $_.Length -gt 1}).Count -gt 0) @($rows|Where-Object{$_ -like '*2+3*' -or $_.Trim() -ceq '5'})
  Mark 'calculator-evaluated';Click-Text 'GRAPH';[void](Assert-Visible 'POLAR  /  RAD  /  0…2π');Start-Sleep -Seconds 1
  $restoredGraph=Graph-State
@@ -249,6 +339,12 @@ function Invoke-WebsiteAcceptance {
  Observe 'Graph authored drag changes both native offsets' ([Math]::Abs($afterDrag.x-$beforeDrag.x) -gt .005 -and [Math]::Abs($afterDrag.y-$beforeDrag.y) -gt .005) @{before=$beforeDrag;after=$afterDrag}
  Observe 'Graph drag retains outer page position' ([Math]::Abs($outerPattern.Current.VerticalScrollPercent-$outerBeforeDrag) -lt .05) @{before=$outerBeforeDrag;after=$outerPattern.Current.VerticalScrollPercent}
  Mark 'calculator-graph-zoom-pan'
+ Click-Text '← BACK TO PAX';Start-Sleep -Seconds 2
+ Check 'Calculator demo route retires after return' (@(Visible-Named 'CALCULATOR / LIVE').Count -eq 0) 'route title absent'
+ $homeScrolls=@($root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition))
+ $outer=@($homeScrolls|Where-Object{Visible-Item $_}|Sort-Object @{Expression={$b=Visible-Scroll-Bounds $_;$b.Width*$b.Height};Descending=$true})|Select-Object -First 1
+ Check 'Calculator Back to Pax remounts home' ($null -ne $outer -and (Scroll-Id $outer) -ne $calculatorRootId) 'new native home scroller'
+ $outerPattern=$outer.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
 
  $launch=Named 'OPEN PAXFLIX FULL SCREEN  ↗'|Select-Object -First 1;if($null -eq $launch){$launch=Named 'TRY PAXFLIX  ↗'|Select-Object -First 1}
  Check 'Paxflix authored full-screen launch exists' ($null -ne $launch) 'Open Paxflix full screen';Reveal $launch $outer;Click-Visible $launch;Start-Sleep -Seconds 2
@@ -267,7 +363,7 @@ function Invoke-WebsiteAcceptance {
 
  # Gallery hover pauses its authored marquee; real horizontal wheel must move
  # that native scroller while retaining the outer vertical position.
- $gallery=Named "Meet Pax's creative toolkit:"|Select-Object -First 1;Reveal $gallery $outer
+ $gallery=Named 'Meet your creative toolkit'|Select-Object -First 1;Check 'Current authored gallery heading exists' ($null -ne $gallery) 'Meet your creative toolkit';Reveal $gallery $outer
  Wheel-At $outer -1 $false 3
  $allScrolls=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)
  $galleryScroll=@($allScrolls|Where-Object{(Visible-Item $_) -and $_.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern).Current.HorizontallyScrollable}|Sort-Object @{Expression={(Visible-Scroll-Bounds $_).Width};Descending=$true})|Select-Object -First 1
@@ -295,18 +391,32 @@ function Invoke-WebsiteAcceptance {
  Check 'Section inventory has six unique authored sections' ($drawerPlan.Count -eq 6 -and @($drawerPlan.id|Sort-Object -Unique).Count -eq 6) @($drawerPlan.id)
  $plannedOccurrences=@($drawerPlan|ForEach-Object{$_.sources}|ForEach-Object{$_.label+'|'+$_.displaySha256Utf8}|Sort-Object)
  $frozenOccurrences=@($sourceRows|ForEach-Object{$_.label+'|'+$_.displaySha256Utf8}|Sort-Object)
- Check 'Section inventory preserves all 92 frozen source occurrences' ($frozenOccurrences.Count -eq 92 -and ($plannedOccurrences -join "`n") -ceq ($frozenOccurrences -join "`n")) @{expected=$frozenOccurrences.Count;actual=$plannedOccurrences.Count}
+ Check 'Section inventory preserves all 98 frozen source occurrences' ($sectionManifest.expectedSourceOccurrences -eq 98 -and $frozenOccurrences.Count -eq 98 -and ($plannedOccurrences -join "`n") -ceq ($frozenOccurrences -join "`n")) @{expected=$frozenOccurrences.Count;actual=$plannedOccurrences.Count}
+ Check 'Source viewer matches current authored native controls' ($sectionManifest.sourceViewer.toggleName -ceq 'VIEW SOURCE' -and $sectionManifest.sourceViewer.toggleControlType -ceq 'Button' -and $sectionManifest.sourceViewer.closeName -ceq '×' -and $sectionManifest.sourceViewer.tabViewportHeight -eq 48 -and $sectionManifest.sourceViewer.tabHeight -eq 36) $sectionManifest.sourceViewer
  $report.websiteSourceTraversalProvenance=@{sectionManifestSha256=(Get-FileHash -LiteralPath $sectionPath -Algorithm SHA256).Hash.ToLowerInvariant();sourceManifestSha256=$sourceHash;sourceProvenance=$sectionManifest.sourceProvenance;expectedSectionCounts=@($drawerPlan|ForEach-Object{@($_.sources).Count})}
  # Source discovery below uses the website's wide layout, where every section
- # kicker is adjacent to its drawer. OpenSource stacks these below 1000px.
+ # kicker is adjacent to its drawer. Keep this probe above compact breakpoints.
  Check 'Source drawer qualification uses the wide website layout' ($report.clientViewport.width -ge 1000) $report.clientViewport
  $report.websiteSourceDrawerObservations=@();$report.websiteSourceSections=@();Save
- Check 'All six authored source drawers exist' ((@(Named 'View Source')).Count -eq 6) (@(Named 'View Source')).Count
+ $sourceButtons=@(Named 'VIEW SOURCE' ([System.Windows.Automation.ControlType]::Button))
+ Check 'All six authored source drawers exist' ($sourceButtons.Count -eq 6) $sourceButtons.Count
  function Finite-Source-Bounds($b){return !$b.IsEmpty -and $b.Width -gt 0 -and $b.Height -gt 0 -and ![double]::IsInfinity($b.Top) -and ![double]::IsInfinity($b.Left) -and ![double]::IsNaN($b.Top) -and ![double]::IsNaN($b.Left)}
  # Only native wheel input moves the page. Rewind once, then search forward for
  # each known next section; do not sweep to the opposite end for Empty bounds.
  for($rewind=0;$rewind -lt 90 -and !(Website-End 1);$rewind++){Wheel-At $outer 1 $false 8}
  Check 'Source traversal starts at native page top' (Website-End 1) $outerPattern.Current.VerticalScrollPercent
+ function Test-SourceSectionReady($anchor,$toggle,$viewport,[double]$navHeight,[int]$candidateCount,[string]$expectedId,[string]$actualId){
+  if($candidateCount -ne 1 -or [string]::IsNullOrWhiteSpace($expectedId) -or $actualId -cne $expectedId){return $false}
+  if([double]::IsNaN($navHeight) -or [double]::IsInfinity($navHeight) -or $navHeight -lt 0){return $false}
+  foreach($b in @($anchor,$toggle,$viewport)){
+   foreach($edge in @($b.Left,$b.Top,$b.Right,$b.Bottom)){if([double]::IsNaN($edge) -or [double]::IsInfinity($edge)){return $false}}
+   if($b.Right -le $b.Left -or $b.Bottom -le $b.Top){return $false}
+  }
+  foreach($b in @($anchor,$toggle)){
+   if($b.Left -lt $viewport.Left -or $b.Right -gt $viewport.Right -or $b.Top -lt $viewport.Top+$navHeight -or $b.Bottom -gt $viewport.Bottom -or $null -eq (Get-IntegerClickPoint $b)){return $false}
+  }
+  return $true
+ }
  function Source-Drawer-Toggle($drawer){
   $anchor=$null;$anchorBounds=$null
   if($null -ne $drawer.anchor){
@@ -324,17 +434,27 @@ function Invoke-WebsiteAcceptance {
     $report.websiteRevealSamples+=@{kind='source-section-forward';section=$drawer.id;anchor=$drawer.anchor;before=$before;after=$after;stalled=$stalled};Save
    }
    Check 'Next source section has real observed bounds' $found @{section=$drawer.id;anchor=$drawer.anchor}
-   Reveal $anchor $outer $false .35
+   # Use ordinary page navigation, not a narrow centering band that a native
+   # wheel notch can skip. Actual readiness is checked against nav/viewport below.
+   Reveal $anchor $outer
    $anchorBounds=Visible-Scroll-Bounds $anchor
    Check 'Source section anchor is visibly revealed' (Finite-Source-Bounds $anchorBounds) @{section=$drawer.id;bounds=$anchorBounds.ToString()}
    # All five non-hero kickers are authored at section y=80. ExampleHost's
    # toggle is at y=24; allow text metric differences, but require one candidate.
-   $visible=@(Visible-Named 'View Source'|Where-Object{$b=$_.Current.BoundingRectangle;(Finite-Source-Bounds $b) -and $b.Top -ge $anchorBounds.Top-120 -and $b.Top -le $anchorBounds.Top+20})
+   $visible=@(Visible-Named 'VIEW SOURCE' ([System.Windows.Automation.ControlType]::Button)|Where-Object{$b=$_.Current.BoundingRectangle;(Finite-Source-Bounds $b) -and $b.Top -ge $anchorBounds.Top-120 -and $b.Top -le $anchorBounds.Top+20})
    Check 'Visible source toggle belongs unambiguously to authored anchor' ($visible.Count -eq 1) @{section=$drawer.id;anchor=$anchorBounds.ToString();candidates=@($visible|ForEach-Object{$_.Current.BoundingRectangle.ToString()})}
-   $toggle=$visible[0]
+   $toggle=$visible[0];$expectedToggleId=$toggle.GetRuntimeId() -join '-'
+   Reveal $toggle $outer
+   $anchorBounds=Visible-Scroll-Bounds $anchor;$sourceViewport=Visible-Scroll-Bounds $outer
+   $fresh=@(Visible-Named 'VIEW SOURCE' ([System.Windows.Automation.ControlType]::Button)|Where-Object{$b=$_.Current.BoundingRectangle;(Finite-Source-Bounds $b) -and $b.Top -ge $anchorBounds.Top-120 -and $b.Top -le $anchorBounds.Top+20})
+   $actualToggleId=if($fresh.Count -eq 1){$fresh[0].GetRuntimeId() -join '-'}else{''}
+   $toggleBounds=if($fresh.Count -eq 1){$fresh[0].Current.BoundingRectangle}else{[Windows.Rect]::Empty}
+   $ready=Test-SourceSectionReady $anchorBounds $toggleBounds $sourceViewport (80*$scale) $fresh.Count $expectedToggleId $actualToggleId
+   Check 'Source anchor and unique toggle are ready below navigation' $ready @{section=$drawer.id;anchor=$anchorBounds.ToString();toggle=$toggleBounds.ToString();viewport=$sourceViewport.ToString();navHeight=80*$scale;candidates=$fresh.Count;expectedRuntimeId=$expectedToggleId;actualRuntimeId=$actualToggleId}
+   $toggle=$fresh[0]
   }else{
    Check 'Hero source drawer is located from native top' (Website-End 1) $outerPattern.Current.VerticalScrollPercent
-   $visible=@(Visible-Named 'View Source'|Where-Object{Finite-Source-Bounds $_.Current.BoundingRectangle}|Sort-Object {$_.Current.BoundingRectangle.Top})
+   $visible=@(Visible-Named 'VIEW SOURCE' ([System.Windows.Automation.ControlType]::Button)|Where-Object{Finite-Source-Bounds $_.Current.BoundingRectangle}|Sort-Object {$_.Current.BoundingRectangle.Top})
    Check 'Hero source toggle is visible at page top' ($visible.Count -gt 0) $visible.Count
    $toggle=$visible[0]
   }
@@ -347,8 +467,9 @@ function Invoke-WebsiteAcceptance {
   $beforeSourceScrollIds=@($root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)|Where-Object{$_.Current.AutomationId -like 'pax-node-*'}|ForEach-Object{$_.Current.AutomationId})
   Click-Visible $toggle;Start-Sleep -Seconds 1
   $allScrolls=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)
-  $tabs=@($allScrolls|Where-Object{(Visible-Item $_) -and $_.Current.BoundingRectangle.Height -ge 25 -and $_.Current.BoundingRectangle.Height -le 35})|Sort-Object {$_.Current.BoundingRectangle.Right} -Descending|Select-Object -First 1
-  Check "Section $section source tab strip exists" ($null -ne $tabs) $section
+  $newTabScrolls=@($allScrolls|Where-Object{$_.Current.AutomationId -like 'pax-node-*' -and $_.Current.AutomationId -notin $beforeSourceScrollIds -and (Visible-Item $_) -and [Math]::Abs($_.Current.BoundingRectangle.Height-48*$scale) -le 2*$scale})
+  Check "Section $section source tab strip exists uniquely" ($newTabScrolls.Count -eq 1) @($newTabScrolls|ForEach-Object{@{id=$_.Current.AutomationId;bounds=$_.Current.BoundingRectangle.ToString()}})
+  $tabs=$newTabScrolls[0]
   $nativeTabs=Source-Native-Scroller $tabs
   Check 'Source tab peer has an owned native scroller' ($null -ne $nativeTabs) $(if($nativeTabs){$nativeTabs.Current.AutomationId}else{'absent'})
   $nativeTabId=$nativeTabs.Current.AutomationId;$nativeTabBounds=$nativeTabs.Current.BoundingRectangle
@@ -385,7 +506,20 @@ function Invoke-WebsiteAcceptance {
    Check 'Source tab viewport remains visible' (!$viewport.IsEmpty) $section
    $visible=@(Tab-Snapshot $tabs|Where-Object{!$visited.ContainsKey($_.name) -and (Tab-Is-Visible $_ $viewport)}|Sort-Object {$_.bounds.Left})
    $clickBounds=$null;$clickPoint=$null
-   if($visible.Count){$clickBounds=Visible-Scroll-Bounds $visible[0].item;$clickPoint=Get-IntegerClickPoint $clickBounds}
+   $chrome=$null;$unobscured=$null
+   if($visible.Count){
+    $clickBounds=Visible-Scroll-Bounds $visible[0].item;$clickPoint=Get-IntegerClickPoint $clickBounds
+    if($null -ne $clickPoint){
+     # Hover reveals native auto-scrollbar chrome; no click has occurred yet.
+     Point $clickPoint.x $clickPoint.y
+     $hoverPoint=$clickPoint;$chrome=Get-SourceChromeGeometry $tabs
+     $clickBounds=Visible-Scroll-Bounds $visible[0].item;$viewport=Visible-Scroll-Bounds $tabs
+     if($clickBounds.IsEmpty -or $viewport.IsEmpty){throw 'Source target moved offscreen during chrome observation'}
+     $unobscured=Get-UnobscuredSourcePoint $clickBounds $viewport $chrome.exclusions
+     $clickPoint=if($unobscured){$unobscured.point}else{$null}
+     $report.websiteSourceChromeHits+=@{section=$section;label=$visible[0].name;hoverPoint=$hoverPoint;labelBounds=$clickBounds.ToString();viewport=$viewport.ToString();chrome=$chrome;unobscured=$unobscured};Save
+    }
+   }
    if(!$visible.Count -or $null -eq $clickPoint){
     $before=$tabPattern.Current.HorizontalScrollPercent
     if($advances -ge 90 -or $stalled -ge 3 -or $before -ge 99.95){
@@ -406,6 +540,8 @@ function Invoke-WebsiteAcceptance {
    # of point construction before dispatching its physical frontier click.
    $clickX=$clickPoint.x;$clickY=$clickPoint.y
    Check 'Source click is inside visible label and viewport' ($clickX -ge $clickBounds.Left -and $clickX -lt $clickBounds.Right -and $clickY -ge $clickBounds.Top -and $clickY -lt $clickBounds.Bottom -and $clickX -ge $viewport.Left -and $clickX -lt $viewport.Right -and $clickY -ge $viewport.Top -and $clickY -lt $viewport.Bottom) @{point=$clickPoint;label=$clickBounds.ToString();viewport=$viewport.ToString()}
+   $overlappingBars=@($chrome.exclusions|Where-Object{$clickX -ge $_.Left -and $clickX -lt $_.Right -and $clickY -ge $_.Top -and $clickY -lt $_.Bottom})
+   Check 'Source click excludes observed native scrollbar chrome' ($overlappingBars.Count -eq 0 -and $null -ne $unobscured) @{point=$clickPoint;exclusions=$chrome.exclusions;region=$unobscured.region}
    $clickReceipt=[ordered]@{section=$section;tab=$tab;label=$name;kind='acceptance';before=(Source-Click-State $label $tabs $expectedNames $clickX $clickY)}
    $report.websiteSourceClicks+=,$clickReceipt;Save
    Point $clickX $clickY $true;Start-Sleep -Milliseconds 500
@@ -438,7 +574,7 @@ function Invoke-WebsiteAcceptance {
    $report.websiteSourceTabs+=@{section=$section;tab=$tab;label=$name;sha256=$expected.displaySha256Utf8;utc=[DateTime]::UtcNow.ToString('o')};[void](Website-Sample 'source-tab');Save
   }
   Mark "source-section-$section"
-  $closers=@(Visible-Named '×');Check 'Source close control visible' ($closers.Count -gt 0) $closers.Count;Click-Visible ($closers|Sort-Object {$_.Current.BoundingRectangle.Right} -Descending|Select-Object -First 1);Start-Sleep -Seconds 1
+  $closers=@(Visible-Named '×' ([System.Windows.Automation.ControlType]::Button));Check 'Source close control visible uniquely' ($closers.Count -eq 1) $closers.Count;Click-Visible $closers[0];Start-Sleep -Seconds 1
   $report.websiteSourceSections+=@{section=$section;id=$drawer.id;tabs=$visited.Count;utc=[DateTime]::UtcNow.ToString('o')};Save
  }
  Check 'All authored source tabs qualified' ($report.websiteSourceTabs.Count -eq $sourceRows.Count) @{expected=$sourceRows.Count;actual=$report.websiteSourceTabs.Count}

@@ -10,11 +10,12 @@ import time
 
 class WebsiteInteractions:
     def __init__(self, *, state, wait, fresh, xdo, pointer_owner, key,
-                 save, screenshot, window, outer_id, clipboard):
+                 save, screenshot, window, outer_id, clipboard, source_sections=None):
         self.state, self.wait, self.fresh = state, wait, fresh
         self.xdo, self.pointer_owner, self.key = xdo, pointer_owner, key
         self.save, self.screenshot = save, screenshot
         self.window, self.outer_id, self.clipboard = window, outer_id, clipboard
+        self.source_sections = source_sections
         self.results = []
         self.inputs = []
 
@@ -171,11 +172,20 @@ class WebsiteInteractions:
         self.check(True, "remounted home responds to native wheel input", route=label)
 
     def calculator(self):
-        heading = self.seek_text("PAX-83+", 180)
+        launch = self.seek(lambda s: self.text("TRY THE CALCULATOR  ↗", value=s),
+                           "authored calculator route", 300)
+        home_ids = {n["id"] for n in self.nodes()}
+        home_scrollers = {n["id"] for n in self.nodes() if n["kind"] == "Scroller"}
+        requested_home_y = self.outer().get("scrollY", 0)
+        self.click(launch)
+        opened = self.wait(lambda s: bool(self.text("CALCULATOR / LIVE", value=s))
+                           and not (home_scrollers & {n["id"] for n in self.nodes(s)}),
+                           "calculator route replaces the screenshot-only homepage")
+        self.outer_id = max((n for n in self.nodes(opened) if n["kind"] == "Scroller"),
+                            key=lambda n: n["bounds"][2] * n["bounds"][3])["id"]
+        heading = self.text("PAX-83+", value=opened)[0]
         hx, hy, _, _ = heading["bounds"]
-        # The title identifies the one calculator instance; do not select an
-        # identically named label from another embedded example behind it.
-        region = [hx - 18, hy, 355, 730]
+        region = self.outer(opened)["bounds"]
 
         def button(label):
             candidates = self.text(label, clip=region)
@@ -192,7 +202,7 @@ class WebsiteInteractions:
                                         and self.visible(n, region)
                                         and n["bounds"][1] < hy + 280 for n in self.nodes(s)),
                            "calculator renders 7 + 8 = 15 from actual key clicks")
-        self.check(True, "embedded calculator arithmetic", expression="7+8", result="15")
+        self.check(True, "full-screen calculator arithmetic", expression="7+8", result="15")
         self.save("calculator-arithmetic-state.json", result)
         self.click(button("GRAPH"))
         graph = self.wait(lambda s: any(n.get("text", "").startswith(("FUNCTION  /  RAD", "POLAR  /  RAD"))
@@ -218,8 +228,8 @@ class WebsiteInteractions:
                    "calculator starts with a centered graph", range=initial_range)
         self.screenshot("website-calculator-centered-graph")
         plot = next(n for n in self.nodes(graph) if n["kind"] == "Scroller"
-                    and self.visible(n, region) and n.get("scrollUpper", 0) > 1000
-                    and 30 < n["bounds"][3] < 300 and n["bounds"][2] > 200)
+                    and n["id"] != self.outer_id and self.visible(n, region)
+                    and n.get("scrollUpper", 0) > 1000 and n["bounds"][2] > 200)
         outer_before = self.outer().get("scrollY", 0)
         initial_y = plot.get("scrollY", 0)
         self.wheel_at(plot["bounds"], 5)
@@ -276,7 +286,14 @@ class WebsiteInteractions:
         self.wait(lambda s: any(n.get("text") == "CALCULATE  /  RAD"
                                and self.visible(n, region) for n in self.nodes(s)),
                   "calculator returns to calculation mode")
-        self.check(True, "embedded calculator graph and calculate mode lifecycle")
+        self.check(True, "full-screen calculator graph and calculate mode lifecycle")
+        calculator_scrollers = {n["id"] for n in self.nodes() if n["kind"] == "Scroller"}
+        self.click(self.text("← BACK TO PAX")[0])
+        restored = self.wait(lambda s: not self.text("CALCULATOR / LIVE", value=s)
+                             and not (calculator_scrollers & {n["id"] for n in self.nodes(s)})
+                             and any(n["kind"] == "Scroller" for n in self.nodes(s)),
+                             "calculator returns to the homepage")
+        self.returned_home(restored, home_ids, requested_home_y, "calculator-controls")
 
     def paxflix(self):
         launch = self.seek(lambda s: self.text("OPEN PAXFLIX FULL SCREEN  ↗", value=s)
@@ -336,8 +353,90 @@ class WebsiteInteractions:
                              "Paxflix route retires and home remounts")
         self.returned_home(restored, before_ids, requested_home_y, "paxflix")
 
+    def playgrounds(self):
+        for label, heading, name in [
+                ("TRY THE OSCILLOSCOPE  ↗", "OSCILLOSCOPE / LIVE", "oscilloscope"),
+                ("PLAY SPACE GAME  ↗", "HOLD TO STEER / WASD + SPACE", "space-game")]:
+            launch = self.seek_text(label, 300)
+            old_ids = {n["id"] for n in self.nodes()}
+            old_outer = self.outer_id
+            requested_y = self.outer().get("scrollY", 0)
+            self.click(launch)
+            opened = self.wait(lambda s: self.text(heading, value=s)
+                               and all(n["id"] != old_outer for n in self.nodes(s)),
+                               name + " live route replaces the homepage", 60)
+            self.check(True, "new playground route mounts and retires home scroller", route=name)
+            if name == "oscilloscope":
+                # The authored display occupies the left of the full-screen
+                # instrument; clicking it opens the native message editor.
+                x, y, width, height = opened["sceneBoundsInSurface"]
+                self.point(x + width * .25, y + 52 + (height - 52) * .35)
+                self.record_input("click", purpose="open oscilloscope message editor")
+                self.xdo("click", 1)
+                editor = self.wait(lambda s: any(n["kind"] == "Textbox" for n in self.nodes(s)),
+                                   "oscilloscope message editor opens")
+                textbox = next(n for n in self.nodes(editor) if n["kind"] == "Textbox")
+                self.click(textbox)
+                self.key("ctrl+a")
+                message = "PAX LINUX ALPHA"
+                self.xdo("type", "--clearmodifiers", "--delay", 25, message)
+                self.wait(lambda s: self.node(textbox["id"], s).get("text") == message,
+                          "native textbox accepts oscilloscope message")
+                self.click(self.text("OK")[0])
+                self.wait(lambda s: all(n["id"] != textbox["id"] for n in self.nodes(s)),
+                          "message editor closes after confirmation")
+                self.point(x + width * .25, y + 52 + (height - 52) * .35)
+                self.xdo("click", 1)
+                reopened = self.wait(lambda s: any(n["kind"] == "Textbox"
+                                                   and n.get("text") == message for n in self.nodes(s)),
+                                     "confirmed oscilloscope message persists on reopen")
+                self.check(True, "oscilloscope native text editing persists through confirmation and reopen",
+                           route=name, message=message)
+                self.screenshot("website-oscilloscope-editor")
+                self.click(self.text("OK", value=reopened)[0])
+            else:
+                game = self.wait(lambda s: any(n.get("text", "").startswith("Score:") for n in self.nodes(s)),
+                                 "space game score mounts")
+                self.save("website-space-game-arrival-state.json", game)
+                restarted = bool(self.text("GAME OVER", value=game))
+                if restarted:
+                    self.click(self.text("Play Again", value=game)[0])
+                    self.wait(lambda s: not self.text("GAME OVER", value=s)
+                              and self.text("Score: 0", value=s),
+                              "native Play Again starts a fresh round")
+                    self.check(True, "space game restarts through its native Play Again button", route=name)
+                x, y, width, height = opened["sceneBoundsInSurface"]
+                self.point(x + width * .5, y + 52 + (height - 52) * .65)
+                self.xdo("click", 1)
+                active = self.wait(lambda s: s.get("canvasHasFocus")
+                                   and not self.text("GAME OVER", value=s)
+                                   and any(n.get("text", "").startswith("Score:") for n in self.nodes(s)),
+                                   "active space-game canvas owns keyboard focus")
+                self.save("website-space-game-before-input-state.json", active)
+                start_frame = active["frames"]
+                self.record_input("keyboard-hold", keys=["d", "space"], seconds=1)
+                self.xdo("keydown", "d", "space")
+                try:
+                    time.sleep(1)
+                finally:
+                    self.xdo("keyup", "d", "space")
+                advanced = self.wait(lambda s: s["frames"] > start_frame + 3,
+                                     "space game continues publishing after real keyboard input")
+                self.save("website-space-game-after-input-state.json", advanced)
+                self.check(True, "space game stays live after keyboard input from an active round",
+                           route=name, framesBefore=start_frame, framesAfter=advanced["frames"],
+                           restarted=restarted, activeBeforeInput=True,
+                           gameOverAfterInput=bool(self.text("GAME OVER", value=advanced)),
+                           limitation="Smoke only: vector ship position and projectile behavior are not asserted")
+            self.screenshot("website-" + name + "-live")
+            self.click(self.text("← BACK TO PAX")[0])
+            restored = self.wait(lambda s: not self.text(heading, value=s)
+                                 and any(n["kind"] == "Scroller" for n in self.nodes(s)),
+                                 name + " returns to homepage", 60)
+            self.returned_home(restored, old_ids, requested_y, name)
+
     def gallery(self):
-        title = self.seek_text("Meet Pax's creative toolkit:", 180)
+        title = self.seek_text("Meet your creative toolkit", 180)
         # The gallery's full-width rail is the only below-title horizontal
         # scroller with a current offset spanning several card widths.
         rail = min((n for n in self.nodes() if n["kind"] == "Scroller"
@@ -401,9 +500,14 @@ class WebsiteInteractions:
         self.check(True, "native narrow/wide resize preserves live scrolling")
 
     def source_tabs(self):
-        drawers = sorted((n for n in self.nodes() if n.get("text") == "View Source"),
+        if not self.source_sections:
+            raise RuntimeError("Source-tab qualification requires the authored section manifest")
+        sections = self.source_sections["sections"]
+        self.wait(lambda s: len([n for n in self.nodes(s) if n.get("text") == "VIEW SOURCE"])
+                  == len(sections), "all authored source toggles mount", 60)
+        drawers = sorted((n for n in self.nodes() if n.get("text") == "VIEW SOURCE"),
                          key=lambda n: n["bounds"][1])
-        self.check(len(drawers) == 6, "website exposes all six section source drawers", count=len(drawers))
+        self.check(len(drawers) == len(sections), "website exposes every authored section source drawer", count=len(drawers))
         receipts = []
         for index, toggle in enumerate(drawers):
             # Keep the target clear of the website's fixed 80px navigation;
@@ -416,7 +520,7 @@ class WebsiteInteractions:
             time.sleep(.5)
             value = self.fresh()
             added = [n for n in self.nodes(value) if n["id"] not in old_ids]
-            strips = [n for n in added if n["kind"] == "Scroller" and abs(n["bounds"][3] - 30) < 2]
+            strips = [n for n in added if n["kind"] == "Scroller" and abs(n["bounds"][3] - 48) < 2]
             if len(strips) != 1:
                 raise RuntimeError(f"Expected one newly mounted source tab strip, got {len(strips)}")
             strip_id = strips[0]["id"]
@@ -426,7 +530,12 @@ class WebsiteInteractions:
                           key=lambda n: n["bounds"][0])
             if not tabs:
                 raise RuntimeError("Source drawer has no reported source tabs")
-            close = next(n for n in added if n.get("text") == "×" and n["bounds"][1] < by)
+            close = self.node(toggle["id"], value)
+            self.check(close.get("text") == "×", "source toggle exposes its native close action", drawer=index)
+            expected = {n["label"]: n["displaySha256Utf8"] for n in sections[index]["sources"]}
+            self.check([n["text"] for n in tabs] == list(expected),
+                       "source tabs match the authored section membership and order", drawer=index,
+                       section=sections[index]["id"], tabs=len(tabs))
             for tab in tabs:
                 for _ in range(90):
                     strip = self.node(strip_id)
@@ -480,14 +589,18 @@ class WebsiteInteractions:
                            "sha256": hashlib.sha256(encoded).hexdigest(), "clipboardOwner": owner,
                            "selectedNativeTextFill": self.node(tab["id"], selected)["textStyle"]["fill"],
                            "exactUTF8Match": copied == encoded,
+                           "expectedSHA256": expected[tab["text"]],
+                           "authoredSourceHashMatch": hashlib.sha256(encoded).hexdigest() == expected[tab["text"]],
                            "nonASCIICharacters": sum(ord(c) > 127 for c in text)}
                 receipts.append(receipt)
                 self.save("website-source-tabs.json", receipts)
-                self.check(copied == encoded, "source tab exact native copy", drawer=index, tab=tab["text"])
+                self.check(copied == encoded and receipt["authoredSourceHashMatch"],
+                           "source tab exact native copy matches authored content", drawer=index, tab=tab["text"])
             self.click(close)
             self.wait(lambda s: all(n["id"] != strip_id for n in self.nodes(s)), "source drawer closes")
             self.check(True, "all tabs in section source drawer copied and closed", drawer=index, count=len(tabs))
-        self.check(True, "all six website source drawers and every discovered tab", tabs=len(receipts))
+        self.check(len(receipts) == sum(len(s["sources"]) for s in sections),
+                   "all authored website source drawers and tabs", drawers=len(sections), tabs=len(receipts))
 
     def route(self):
         link = self.seek(lambda s: self.text("OPEN CALCULATOR FULL SCREEN  ↗", value=s)
@@ -527,8 +640,10 @@ class WebsiteInteractions:
                    retirementWaitSeconds=time.monotonic() - started,
                    retirementFrameDelta=calculator["frames"] - first_frame)
         self.save("website-route-calculator-state.json", calculator)
+        calculator_scrollers = {n["id"] for n in self.nodes(calculator) if n["kind"] == "Scroller"}
         self.click(self.text("← BACK TO PAX")[0])
         restored = self.wait(lambda s: any(n["kind"] == "Scroller" for n in self.nodes(s))
+                             and not (calculator_scrollers & {n["id"] for n in self.nodes(s)})
                              and not self.text("CALCULATOR / LIVE", value=s),
                              "native Return home remounts the website")
         self.returned_home(restored, old_scrollers, requested_home_y, "calculator")
