@@ -15,6 +15,15 @@ pub(super) enum OpacityPlan {
     },
 }
 
+// CPU draw identities only: no render pass or resource borrow crosses a capture
+// boundary. At most one kind is populated; spatial occurrences retain their clips.
+#[derive(Default)]
+struct OpaqueBatch {
+    nodes: Vec<u32>,
+    #[cfg(feature = "3d")]
+    surfaces: Vec<(u32, Option<u32>)>,
+}
+
 pub(super) fn collect_opacity_group_keys(plan: &[OpacityPlan], keys: &mut HashSet<CaptureKey>) {
     for entry in plan {
         if let OpacityPlan::Group { key, children, .. } = entry {
@@ -295,15 +304,53 @@ impl WgpuRenderer<'_> {
     }
 
     pub(super) fn draw_opacity_plan(&mut self, plan: &[OpacityPlan]) {
+        let mut batch = OpaqueBatch::default();
+        self.append_opacity_plan(plan, &mut batch);
+        self.flush_opaque_batch(&mut batch);
+    }
+
+    fn flush_opaque_batch(&mut self, batch: &mut OpaqueBatch) {
+        if !batch.nodes.is_empty() {
+            #[cfg(test)]
+            {
+                self.opaque_batch_flushes += 1;
+            }
+            self.draw_retained_nodes(&batch.nodes);
+            batch.nodes.clear();
+        }
+        #[cfg(feature = "3d")]
+        if !batch.surfaces.is_empty() {
+            #[cfg(test)]
+            {
+                self.opaque_batch_flushes += 1;
+            }
+            self.draw_surface_fragments(
+                batch
+                    .surfaces
+                    .iter()
+                    .map(|(id, clip)| (std::slice::from_ref(id), *clip)),
+            );
+            batch.surfaces.clear();
+        }
+    }
+
+    fn append_opacity_plan(&mut self, plan: &[OpacityPlan], batch: &mut OpaqueBatch) {
         for entry in plan {
             match entry {
-                OpacityPlan::Draw(nodes) => self.draw_retained_nodes(nodes),
+                OpacityPlan::Draw(nodes) => {
+                    #[cfg(feature = "3d")]
+                    if !batch.surfaces.is_empty() {
+                        self.flush_opaque_batch(batch);
+                    }
+                    batch.nodes.extend_from_slice(nodes);
+                }
                 #[cfg(feature = "3d")]
-                OpacityPlan::SurfaceDraw(draws) => self.draw_surface_fragments(
-                    draws
-                        .iter()
-                        .map(|(id, clip)| (std::slice::from_ref(id), *clip)),
-                ),
+                OpacityPlan::SurfaceDraw(draws) => {
+                    if !batch.nodes.is_empty() {
+                        self.flush_opaque_batch(batch);
+                    }
+                    batch.surfaces.extend_from_slice(draws);
+                }
                 OpacityPlan::Group {
                     key,
                     opacity,
@@ -315,9 +362,14 @@ impl WgpuRenderer<'_> {
                     // Preserve a useful cached fade at alpha one, but do not
                     // recapture moving opaque content merely because it once faded.
                     if *opacity == 1.0 && !cached {
-                        self.draw_opacity_plan(children);
+                        // A no-op scope must not split an otherwise compatible color pass.
+                        // Clip changes remain ordered segments inside the retained batch.
+                        self.append_opacity_plan(children, batch);
                         continue;
                     }
+                    // Flush before entering scratch, even on a cache hit: composition
+                    // must stay between the preceding and following sibling draws.
+                    self.flush_opaque_batch(batch);
                     if !cached {
                         if !self.render_backend.begin_bounded_capture(*bounds) {
                             continue;
@@ -348,6 +400,11 @@ impl WgpuRenderer<'_> {
                     }
                     self.render_backend.draw_capture(*key, *opacity);
                 }
+            }
+            // Preserve the former split-pass path as a pixel-equivalence oracle.
+            #[cfg(test)]
+            if self.split_opaque_batches {
+                self.flush_opaque_batch(batch);
             }
         }
     }

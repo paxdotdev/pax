@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {surfaceRequire} from './surface-test-loader.mjs';
 const {SurfaceTrace} = surfaceRequire('./surface-trace');
+const {SurfaceCapture} = surfaceRequire('./surface-capture');
 
 function harness(capacity = 8) {
     const listeners = new Map();
@@ -309,4 +310,28 @@ test('profile aggregates survive ring overflow and have bounded residency', () =
     assert.equal(h.trace.profilePhases.size, 64);
     h.trace.dispose();
     assert.equal(h.trace.profilePhases.size, 0);
+});
+
+test('finite capture includes service gates and is stopped and detached on disposal', () => {
+    const h = harness();
+    const capture = new SurfaceCapture(performance.now(),{});
+    h.trace.capture = capture;
+    h.trace.recordRenderWork({pending:true, allowance_exhausted:true, blocker:'shared_frame_allowance'},0.5);
+    const service = h.mount.paxSurfaceCapture.events.find(e=>e.event==='render-service');
+    assert.equal(service.blocker,'shared_frame_allowance');
+    assert.equal(service.exhausted,true);
+    assert.equal(service.pending,true);
+    assert.equal(service.hostMs,0.5);
+    h.trace.recordRenderWork({pending:true, units:1, setup_ms:2, ordinary_ms:0,
+        preparation:{initializations:1,submitted:0,elapsed_ms:3},
+        host:{fromFrame:false,epoch:7,remainingMs:0}},5);
+    const work=h.mount.paxSurfaceCapture.events.filter(e=>e.event==='render-service').at(-1);
+    assert.equal(work.initialized,1);
+    assert.equal(work.setupMs,2);
+    assert.equal(work.preparationMs,3);
+    assert.equal(work.host.epoch,7);
+    h.trace.dispose();
+    assert.equal(capture.active,false);
+    assert.equal(h.mount.paxSurfaceCapture,undefined);
+    assert.equal(h.trace.capturing,false);
 });

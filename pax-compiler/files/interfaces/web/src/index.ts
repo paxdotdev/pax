@@ -570,6 +570,9 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
     {
         const pump = new CooperativeRenderScheduler(fromFrame => {
             const start = surfaceTraceEnabled ? performance.now() : 0;
+            const recordService = surfaceTraceEnabled ? (report: object) => nativePool.recordRenderWork(
+                {...report, host:{fromFrame, epoch:renderEpoch, remainingMs:sharedWorkBudget.remaining}},
+                performance.now()-start) : undefined;
             // Share the ordinary frame's engine-entry guard. A synchronous host
             // callback must not start a tick while a continuation owns Rust borrows.
             if (!fromFrame) frameInProgress = true;
@@ -583,7 +586,7 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
                         "continuation.input", performance.now() - start);
                     if (chassis.has_pending_properties() || !chassis.render_work_is_settled()) {
                         const report = {pending:false, blocked:true, blocker:'host_input_requires_settlement'};
-                        if (surfaceTraceEnabled) nativePool.recordRenderWork(report, performance.now() - start);
+                        recordService?.(report);
                         return report;
                     }
                     nativePool.syncRenderSurfaceLayouts(true);
@@ -592,11 +595,13 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
                     // A new frame has not classified its drawing yet. A queued
                     // warm-only continuation must not put ticks on hold again.
                     if (fromFrame) ordinaryRenderPending = true;
+                    recordService?.({pending:true,
+                        allowance_exhausted:true, blocker:'shared_frame_allowance'});
                     return {pending: true, allowance_exhausted: true};
                 }
                 const report = sharedWorkBudget.run(3, budget => chassis.service_render_work(budget));
                 ordinaryRenderPending = report.visible_pending && !report.blocked;
-                if (surfaceTraceEnabled) nativePool.recordRenderWork(report, performance.now() - start);
+                recordService?.(report);
                 return report;
             } finally {
                 if (!fromFrame) finishEngineTurn(chassis, mount);

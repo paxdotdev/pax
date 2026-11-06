@@ -22,7 +22,7 @@ use crate::render_backend::MAX_BATCH_GRADIENTS;
 use crate::render_backend::MAX_BATCH_MATERIALS;
 use crate::render_backend::MAX_BATCH_PRIMITIVES;
 use crate::render_backend::MAX_BATCH_TRANSFORMS;
-use crate::render_backend::{RetainedBatchRun, RetainedDraw};
+use crate::render_backend::{RetainedBatchRun, RetainedBatchSegment, RetainedDraw};
 use crate::Box2D;
 use crate::Image;
 use crate::Point2D;
@@ -343,6 +343,10 @@ pub struct WgpuRenderer<'w> {
     alpha_geometry: HashMap<u32, HashMap<(u64, u32), Rc<VertexBuffers<[f32; 2], u32>>>>,
     vector_resource_cache: SharedVectorResourceCache,
     resource_churn_stats: ResourceChurnStats,
+    #[cfg(test)]
+    pub(crate) split_opaque_batches: bool,
+    #[cfg(test)]
+    pub(crate) opaque_batch_flushes: usize,
 }
 
 struct CachedImageEntry {
@@ -539,14 +543,16 @@ impl VectorResourceCache {
         &mut self,
         key: &VectorResourceKey,
         resource: &Rc<SharedRetainedVectorResource>,
-    ) -> Option<CachedVectorResource> {
+    ) -> Option<usize> {
         let entry = self.entries.get(key)?;
         if !Rc::ptr_eq(&entry.resource, resource) {
             return None;
         }
         let removed = self.entries.remove(key)?;
         self.current_bytes = self.current_bytes.saturating_sub(removed.bytes);
-        Some(removed)
+        // Release the cache's Rc here: returning the entry would keep the
+        // resource shared while the caller tries an exclusive in-place update.
+        Some(removed.bytes)
     }
 
     fn evict_if_needed(&mut self) -> VectorResourceCacheStats {
@@ -846,6 +852,10 @@ impl<'w> WgpuRenderer<'w> {
             alpha_geometry: HashMap::new(),
             vector_resource_cache: Rc::new(RefCell::new(VectorResourceCache::default())),
             resource_churn_stats: ResourceChurnStats::default(),
+            #[cfg(test)]
+            split_opaque_batches: false,
+            #[cfg(test)]
+            opaque_batch_flushes: 0,
         }
     }
 
@@ -1443,7 +1453,7 @@ impl<'w> WgpuRenderer<'w> {
         let viewport_bounds = self.viewport_bounds();
         let mut current_clip_stack: Vec<u32> = Vec::new();
         let mut current_batch: Vec<RetainedDraw<'_>> = Vec::new();
-        let mut retained_runs: Vec<RetainedBatchRun<'_>> = Vec::new();
+        let mut segments = Vec::new();
         let mut current_batch_clip_stack: Option<Vec<ClipReference>> = None;
         for node_id in node_ids {
             let Some(node) = self.scene.get(node_id) else {
@@ -1470,23 +1480,15 @@ impl<'w> WgpuRenderer<'w> {
             }
             if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
                 if !clip_stacks_match(batch_clip_stack, &effective_clips) {
-                    sync_retained_clip_stack(
-                        &mut self.render_backend,
-                        &mut retained_runs,
-                        &mut current_clip_stack,
-                        batch_clip_stack,
-                        &self.clip_arena,
-                    );
-                    let stencil_index = self.render_backend.get_clip_depth();
-                    let scissor = scissor_for_clip_stack(batch_clip_stack);
                     record_retained_batch_stats(&mut self.resource_churn_stats, &current_batch);
                     if !current_batch.is_empty() {
-                        retained_runs.push(RetainedBatchRun {
-                            alpha_mask: alpha_for_clip_stack(batch_clip_stack),
-                            stencil_index,
-                            scissor,
-                            draws: std::mem::take(&mut current_batch),
-                        });
+                        push_retained_segment(
+                            &mut segments,
+                            &mut current_clip_stack,
+                            batch_clip_stack,
+                            &self.clip_arena,
+                            std::mem::take(&mut current_batch),
+                        );
                     }
                     current_batch_clip_stack = Some(effective_clips.clone());
                 }
@@ -1528,26 +1530,18 @@ impl<'w> WgpuRenderer<'w> {
             }
         }
         if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
-            sync_retained_clip_stack(
-                &mut self.render_backend,
-                &mut retained_runs,
-                &mut current_clip_stack,
-                batch_clip_stack,
-                &self.clip_arena,
-            );
-            let stencil_index = self.render_backend.get_clip_depth();
-            let scissor = scissor_for_clip_stack(batch_clip_stack);
             record_retained_batch_stats(&mut self.resource_churn_stats, &current_batch);
             if !current_batch.is_empty() {
-                retained_runs.push(RetainedBatchRun {
-                    alpha_mask: alpha_for_clip_stack(batch_clip_stack),
-                    stencil_index,
-                    scissor,
-                    draws: std::mem::take(&mut current_batch),
-                });
+                push_retained_segment(
+                    &mut segments,
+                    &mut current_clip_stack,
+                    batch_clip_stack,
+                    &self.clip_arena,
+                    std::mem::take(&mut current_batch),
+                );
             }
         }
-        self.render_backend.draw_retained_batch_runs(&retained_runs);
+        self.render_backend.draw_retained_segments(segments);
     }
 
     /// Updates group presentation without changing a node's paint or image resources.
@@ -2362,7 +2356,7 @@ impl<'w> WgpuRenderer<'w> {
             } else {
                 None
             };
-            if let Some(removed_cache_entry) = removed_cache_entry {
+            if let Some(allocation_bytes) = removed_cache_entry {
                 self.resource_churn_stats.vector_resource_updates += 1;
                 if let Some(upload_bytes) = self.render_backend.update_vector_resource(
                     resource,
@@ -2374,7 +2368,7 @@ impl<'w> WgpuRenderer<'w> {
                     let cache_stats = self.vector_resource_cache.borrow_mut().insert(
                         resource_key.clone(),
                         Rc::clone(resource.shared()),
-                        removed_cache_entry.bytes as u64,
+                        allocation_bytes as u64,
                     );
                     self.merge_vector_resource_cache_stats(cache_stats);
                     node.active_resource_key = Some(resource_key);
@@ -4212,40 +4206,28 @@ fn push_primitive_batch<'a>(
     batches.push(PrimitiveBatch { buffers, segments });
 }
 
-// Keep command ordering testable without creating a platform GPU surface.
-trait RetainedClipBackend {
-    fn draw_runs(&mut self, runs: &[RetainedBatchRun<'_>]);
-    fn sync_stencil(&mut self, depth: u32, clips: &[stencil::ClipDraw<'_>]);
-}
-
-impl RetainedClipBackend for RenderBackend<'_> {
-    fn draw_runs(&mut self, runs: &[RetainedBatchRun<'_>]) {
-        self.draw_retained_batch_runs(runs);
-    }
-
-    fn sync_stencil(&mut self, depth: u32, clips: &[stencil::ClipDraw<'_>]) {
-        self.sync_stencil_stack(depth, clips);
-    }
-}
-
-fn sync_retained_clip_stack(
-    render_backend: &mut impl RetainedClipBackend,
-    retained_runs: &mut Vec<RetainedBatchRun<'_>>,
+fn push_retained_segment<'a>(
+    segments: &mut Vec<RetainedBatchSegment<'a>>,
     current_clip_stack: &mut Vec<u32>,
     desired_clip_stack: &[ClipReference],
-    clip_arena: &ClipArena,
+    clip_arena: &'a ClipArena,
+    draws: Vec<RetainedDraw<'a>>,
 ) {
     let (shared_prefix, clip_draws) =
         clip_stack_sync(current_clip_stack, desired_clip_stack, clip_arena);
-    // Runs retain a stencil reference, not a snapshot of the stencil texture. Submit the
-    // previous runs before popping/pushing clips, or sibling Frames all see the final clip.
-    // Scissor/alpha-only changes leave the stencil intact and can still share one draw pass.
-    if shared_prefix != current_clip_stack.len() || !clip_draws.is_empty() {
-        render_backend.draw_runs(retained_runs);
-        retained_runs.clear();
-    }
-    render_backend.sync_stencil(shared_prefix as u32, &clip_draws);
     update_current_clip_stack(current_clip_stack, shared_prefix, &clip_draws);
+    // Carry each stencil transition beside its draws. Encoding all transitions
+    // first would make siblings observe the final stencil instead of their own.
+    segments.push(RetainedBatchSegment {
+        run: RetainedBatchRun {
+            alpha_mask: alpha_for_clip_stack(desired_clip_stack),
+            stencil_index: current_clip_stack.len() as u32,
+            scissor: scissor_for_clip_stack(desired_clip_stack),
+            draws,
+        },
+        stencil_depth: shared_prefix as u32,
+        clips: clip_draws,
+    });
 }
 
 fn scissor_for_clip_stack(clip_stack: &[ClipReference]) -> Option<ScissorRect> {
@@ -4785,35 +4767,6 @@ mod tests {
         assert!(axis_aligned_rect_scissor(&path, &transform, [1.25, 1.25]).is_none());
     }
 
-    #[derive(Default)]
-    struct RecordingClipBackend {
-        stencil: Vec<u32>,
-        draws: Vec<(u32, Vec<u32>)>,
-    }
-
-    impl RetainedClipBackend for RecordingClipBackend {
-        fn draw_runs(&mut self, runs: &[RetainedBatchRun<'_>]) {
-            for run in runs {
-                self.draws
-                    .push((run.alpha_mask.unwrap(), self.stencil.clone()));
-            }
-        }
-
-        fn sync_stencil(&mut self, depth: u32, clips: &[stencil::ClipDraw<'_>]) {
-            self.stencil.truncate(depth as usize);
-            self.stencil.extend(clips.iter().map(|clip| clip.clip_id));
-        }
-    }
-
-    fn labeled_run(label: u32) -> RetainedBatchRun<'static> {
-        RetainedBatchRun {
-            alpha_mask: Some(label),
-            stencil_index: 0,
-            scissor: None,
-            draws: Vec::new(),
-        }
-    }
-
     fn test_clip_arena() -> ClipArena {
         let mut arena = ClipArena::new();
         for node_id in 0..3 {
@@ -4834,35 +4787,38 @@ mod tests {
     #[test]
     fn retained_siblings_draw_before_their_stencil_is_replaced_or_popped() {
         let arena = test_clip_arena();
-        let mut backend = RecordingClipBackend::default();
         let mut current = Vec::new();
-        let mut runs = Vec::new();
+        let mut segments = Vec::new();
         let root = ClipReference::Stencil { clip_id: 0 };
-        for (label, clips) in [
-            (1, vec![root, ClipReference::Stencil { clip_id: 1 }]),
-            (2, vec![root, ClipReference::Stencil { clip_id: 2 }]),
-            (3, vec![root]),
-            (4, vec![]),
+        for clips in [
+            vec![root, ClipReference::Stencil { clip_id: 1 }],
+            vec![root, ClipReference::Stencil { clip_id: 2 }],
+            vec![root],
+            vec![],
         ] {
-            sync_retained_clip_stack(&mut backend, &mut runs, &mut current, &clips, &arena);
-            runs.push(labeled_run(label));
+            push_retained_segment(&mut segments, &mut current, &clips, &arena, Vec::new());
         }
-        backend.draw_runs(&runs);
+        let mut stencil = Vec::new();
+        let mut draws = Vec::new();
+        for segment in segments {
+            stencil.truncate(segment.stencil_depth as usize);
+            stencil.extend(segment.clips.iter().map(|clip| clip.clip_id));
+            assert_eq!(segment.run.stencil_index, stencil.len() as u32);
+            draws.push(stencil.clone());
+        }
         assert_eq!(
-            backend.draws,
-            vec![(1, vec![0, 1]), (2, vec![0, 2]), (3, vec![0]), (4, vec![]),]
+            draws,
+            vec![vec![0, 1], vec![0, 2], vec![0], vec![]]
         );
     }
 
     #[test]
     fn retained_scissor_and_alpha_changes_preserve_stencil_batching() {
         let arena = test_clip_arena();
-        let mut backend = RecordingClipBackend::default();
         let mut current = Vec::new();
-        let mut runs = Vec::new();
+        let mut segments = Vec::new();
         let root = ClipReference::Stencil { clip_id: 0 };
-        sync_retained_clip_stack(&mut backend, &mut runs, &mut current, &[root], &arena);
-        runs.push(labeled_run(1));
+        push_retained_segment(&mut segments, &mut current, &[root], &arena, Vec::new());
         for clip in [
             ClipReference::Scissor(ScissorRect {
                 min_x: 1.0,
@@ -4872,10 +4828,14 @@ mod tests {
             }),
             ClipReference::Alpha { owner: 5 },
         ] {
-            sync_retained_clip_stack(&mut backend, &mut runs, &mut current, &[root, clip], &arena);
+            push_retained_segment(&mut segments, &mut current, &[root, clip], &arena, Vec::new());
         }
-        assert!(backend.draws.is_empty());
-        assert_eq!(runs.len(), 1);
+        assert_eq!(segments.len(), 3);
+        assert_eq!(segments[0].clips.len(), 1);
+        assert!(segments[1..].iter().all(|segment| segment.clips.is_empty()
+            && segment.stencil_depth == 1 && segment.run.stencil_index == 1));
+        assert!(segments[1].run.scissor.is_some());
+        assert_eq!(segments[2].run.alpha_mask, Some(5));
         assert_eq!(current, vec![0]);
     }
 

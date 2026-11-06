@@ -404,11 +404,12 @@ impl RenderBackend<'_> {
                     multisampled_target,
                     initialized: false,
                     parent_domain: None,
+                    color_resolve: super::ColorResolve::default(),
                 }
             });
         self.retained_surfaces.as_mut().unwrap().stack.push(scratch);
         let load = self.take_color_load_op();
-        let (view, resolve) = self.current_color_attachment_view_clones();
+        let view = self.current_color_write_view();
         // Keep clears, retained paint, copies, and composition in submission order
         // without consuming one unsubmitted Metal command buffer per capture.
         let mut encoder = self.take_retained_encoder();
@@ -418,7 +419,7 @@ impl RenderBackend<'_> {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     depth_slice: None,
-                    resolve_target: resolve.as_ref(),
+                    resolve_target: None,
                     ops: wgpu::Operations {
                         load,
                         store: wgpu::StoreOp::Store,
@@ -455,6 +456,9 @@ impl RenderBackend<'_> {
         let mut encoder = self.take_retained_encoder();
         let surfaces = self.retained_surfaces.as_mut().unwrap();
         let mut scratch = surfaces.stack.pop().unwrap();
+        // Capture is the consumer boundary for opacity, mask, and effect
+        // sources. Resolve the popped child, not the newly exposed parent.
+        scratch.resolve_color(&mut encoder);
         // Opacity capacity follows the physical capture domain; shader source capacity
         // follows the bounded hysteresis policy below. Alpha sources stay exact.
         let opacity = match key {
@@ -610,13 +614,12 @@ impl RenderBackend<'_> {
     fn draw_capture_blend(&mut self, key: CaptureKey, opacity: f32, mode: CaptureBlend) {
         let load = self.take_color_load_op();
         self.ensure_active_frame();
-        let mut targets = vec![(self.current_color_attachment_view_clones(), load)];
+        let mut targets = vec![(self.current_color_write_view(), load)];
         if self.should_render_capture_target() {
             self.ensure_capture_target();
             let load = self.take_capture_color_load_op(load);
             let target = self.capture_target.as_ref().unwrap();
-            let (view, resolve) = target.color_attachment_views();
-            targets.push(((view.clone(), resolve.cloned()), load));
+            targets.push((target.color_write_view().clone(), load));
         }
         let mut encoder = self.take_retained_encoder();
         let surfaces = self.retained_surfaces.as_ref().unwrap();
@@ -650,13 +653,13 @@ impl RenderBackend<'_> {
         );
         self.staging_belt_pending_recall = true;
         self.needs_device_poll = true;
-        for ((view, resolve), load) in &targets {
+        for (view, load) in &targets {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some(&group.presentation_label),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
                     depth_slice: None,
-                    resolve_target: resolve.as_ref(),
+                    resolve_target: None,
                     ops: wgpu::Operations {
                         load: *load,
                         store: wgpu::StoreOp::Store,

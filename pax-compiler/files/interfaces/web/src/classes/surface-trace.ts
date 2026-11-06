@@ -2,6 +2,9 @@ import type {SurfaceCandidate, SurfaceDenial} from './surface-scheduler';
 import type {NativeMessageTiming} from './native-message-profile';
 import type {WheelInputSample} from '../events/listeners';
 import {TraceRing} from './trace-ring';
+import {SurfaceCapture, observeSurfaceReadiness} from './surface-capture';
+import type {CaptureRect} from './surface-capture';
+import {sharedWorkBudget} from '../utils/shared-work-budget';
 
 export type SurfaceTraceEvent = {at: number; event: string; id?: string; generation?: string;
     contentRevision?: string; [key: string]: unknown};
@@ -38,6 +41,10 @@ export class SurfaceTrace {
     private imageStates = new Map<string, string>();
     private pendingImages = new Map<string, {node: number; path: string; id: string}>();
     private recordedImages = new Map<string, Set<string>>();
+    private capture?: SurfaceCapture;
+    private captureFrame?: number;
+    private captureTimer?: ReturnType<typeof setTimeout>;
+    private stopBudgetObservation?: () => void;
     private listener = (event: Event) => {
         const canvas = event.target as HTMLCanvasElement;
         const name = canvas.dataset.surfaceEvent ?? 'unknown';
@@ -98,6 +105,7 @@ export class SurfaceTrace {
         mount.addEventListener('pax-surface-trace', this.listener);
         // Readable through developer tools without retaining DOM nodes in the log.
         Object.defineProperty(mount, 'paxSurfaceTrace', {configurable: true, get: () => this.snapshot()});
+        Object.defineProperty(mount, 'paxSurfaceCapture', {configurable: true, get: () => this.capture?.snapshot()});
         // An explicit snapshot avoids per-frame DOM serialization while making
         // transient gaps inspectable after native scrolling has settled.
         if (mount.ownerDocument) {
@@ -166,6 +174,30 @@ export class SurfaceTrace {
                 });
                 details.append(capture, workOutput);
             }
+            const captureStatus = doc.createElement('span');
+            const capture = doc.createElement('button');
+            capture.textContent = 'Capture 20 seconds';
+            capture.addEventListener('click', () => {
+                this.startCapture(() => { captureStatus.textContent = ' Capture stopped; save JSON.'; });
+                captureStatus.textContent = ' Recording (20 seconds maximum).';
+                details.open = false;
+            });
+            const mark = doc.createElement('button');
+            mark.textContent = 'Mark visible blank';
+            mark.addEventListener('click', () => this.record('user-observed-blank'));
+            const save = doc.createElement('button');
+            save.textContent = 'Stop / save capture';
+            save.addEventListener('click', () => {
+                this.stopCapture();
+                const report = this.capture?.snapshot();
+                if (!report) return;
+                const url = URL.createObjectURL(new Blob([JSON.stringify(report)], {type:'application/json'}));
+                const link = doc.createElement('a');
+                link.href = url; link.download = `pax-surfaces-${Date.now()}.json`; link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                captureStatus.textContent = ' Capture saved locally.';
+            });
+            details.append(capture, mark, save, captureStatus);
             for (const [name,direction] of [['Probe down',1],['Probe up',-1]] as const) {
                 const button=doc.createElement('button'); button.textContent=name;
                 button.addEventListener('click',()=>{
@@ -204,6 +236,47 @@ export class SurfaceTrace {
             doc.body.append(details);
             this.inspector = details;
         }
+    }
+
+    private startCapture(onStop: () => void) {
+        this.stopCapture();
+        const win = this.mount.ownerDocument.defaultView!;
+        const now = performance.now();
+        this.capture = new SurfaceCapture(now, {timeOrigin:performance.timeOrigin,
+            userAgent:win.navigator.userAgent, url:win.location.href,
+            viewport:[win.innerWidth,win.innerHeight], dpr:win.devicePixelRatio,
+            hidden:this.mount.ownerDocument.hidden, focused:this.mount.ownerDocument.hasFocus()});
+        this.stopBudgetObservation = sharedWorkBudget.observe(({at,event,...detail}) =>
+            this.capture?.event(at,event,detail));
+        const frame = () => {
+            this.capture?.frame(performance.now(), this.mount.ownerDocument.hidden);
+            if (this.capture?.active) this.captureFrame = requestAnimationFrame(frame);
+        };
+        this.captureFrame = requestAnimationFrame(frame);
+        this.captureTimer = setTimeout(() => { this.stopCapture(); onStop(); }, 20000);
+        this.record('capture-start');
+    }
+
+    private stopCapture() {
+        this.stopBudgetObservation?.(); this.stopBudgetObservation = undefined;
+        if (this.capture?.active) {
+            this.flushFrame();
+            this.capture.stop(performance.now());
+        }
+        if (this.captureFrame != null) cancelAnimationFrame(this.captureFrame);
+        if (this.captureTimer != null) clearTimeout(this.captureTimer);
+        this.captureFrame = undefined; this.captureTimer = undefined;
+    }
+
+    get capturing() { return this.capture?.active ?? false; }
+
+    captureCoverage(candidates: SurfaceCandidate[], denied: SurfaceDenial[],
+        canvases: Map<string, HTMLCanvasElement>, clips: Map<number, CaptureRect>, rootClip: CaptureRect) {
+        if (!this.capturing) return;
+        const start = performance.now();
+        this.capture!.observe(start, observeSurfaceReadiness(candidates,denied,canvases,clips,rootClip));
+        const elapsed = performance.now()-start;
+        this.capture!.phase('diagnostic.coverage', elapsed, 1, elapsed);
     }
 
     // Keep a bounded aggregate separately from the noisy event ring. This
@@ -284,13 +357,16 @@ export class SurfaceTrace {
         const ring = ['scroll-sample', 'probe-frame', 'wheel-input', 'frame-summary', 'native-message-batch'].includes(event)
             || (event === 'occlusion-work' && !(details.delta as any)?.rebuilds && !(details.delta as any)?.structural_reconciliations)
             ? this.samples : this.events;
-        ring.push({at: performance.now(), event, ...details});
+        const at = performance.now();
+        ring.push({at, event, ...details});
+        this.capture?.event(at,event,details);
     }
 
     recordPhase(phase: string, duration: number, count = 1, maximum = duration) {
         const value = this.phases.get(phase) ?? {count: 0, totalMs: 0, maxMs: 0};
         value.count += count; value.totalMs += duration; value.maxMs = Math.max(value.maxMs, maximum);
         this.phases.set(phase, value);
+        this.capture?.phase(phase,duration,count,maximum);
         if (performance.now() <= this.profileUntil) this.addProfileSample(phase, duration);
     }
 
@@ -315,6 +391,14 @@ export class SurfaceTrace {
     }
 
     recordRenderWork(report: Record<string, any>, hostElapsedMs: number) {
+        this.capture?.event(performance.now(),'render-service',{hostMs:hostElapsedMs,
+            pending:report.pending, visiblePending:report.visible_pending,
+            blocked:report.blocked, blocker:report.blocker, exhausted:report.allowance_exhausted,
+            units:report.units, elapsedMs:report.elapsed_ms, maxUnitMs:report.max_unit_ms,
+            submitted:report.preparation?.submitted, initialized:report.preparation?.initializations,
+            setupMs:report.setup_ms, ordinaryMs:report.ordinary_ms, preparationMs:report.preparation?.elapsed_ms,
+            preparationStages:report.preparation?.diagnostics?.stages,
+            host:report.host});
         this.layerReconciliation.push(...(report.layer_reconciliation ?? []).slice(0, 64 - this.layerReconciliation.length));
         this.layerDraws.push(...(report.layer_draws ?? []).slice(0, 64 - this.layerDraws.length));
         const add = (key: string, value: number) => this.renderWork[key] = (this.renderWork[key] ?? 0) + value;
@@ -422,6 +506,7 @@ export class SurfaceTrace {
     dispose() {
         if (this.workProfileTimer != null) clearTimeout(this.workProfileTimer);
         this.workProfileTimer = undefined;
+        this.stopCapture(); this.capture = undefined;
         if (this.probeFrame != null) cancelAnimationFrame(this.probeFrame);
         if (this.profileFrame != null) cancelAnimationFrame(this.profileFrame);
         this.profileUntil = -Infinity;
@@ -429,6 +514,7 @@ export class SurfaceTrace {
         this.mount.removeEventListener('pax-surface-trace', this.listener);
         this.inspector?.remove();
         delete (this.mount as any).paxSurfaceTrace;
+        delete (this.mount as any).paxSurfaceCapture;
         this.events.clear(); this.samples.clear(); this.phases.clear();
         this.renderWork = {}; this.renderBlockers.clear(); this.admission = '';
         this.layerReconciliation = []; this.layerDraws = [];

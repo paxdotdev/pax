@@ -15,6 +15,568 @@ struct MetalLayer(*mut AnyObject);
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+fn opaque_scope_batching_matches_split_pass_pixels() {
+    use pax_runtime_api::OpacityScope;
+
+    let render = |mirror: bool, split: bool, spatial: bool| {
+        let layer = MetalLayer::new();
+        let mut backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, 96, 64, [1., 1.]),
+            )
+        })
+        .unwrap();
+        let device = backend.device.clone();
+        let errors = device.push_error_scope(wgpu::ErrorFilter::Validation);
+        if mirror {
+            backend.surface_config.usage.remove(TextureUsages::COPY_SRC);
+        }
+        let mut renderer = WgpuRenderer::new(backend);
+        renderer.split_opaque_batches = split;
+        let mut frames = Vec::new();
+        let mut flushes = Vec::new();
+        let mut captures = Vec::new();
+        // An initially bypassed group later needs scratch, then remains resident at
+        // alpha one. Its siblings must never move across that composition boundary.
+        for (frame, alpha) in [1., 0.5, 1., 0.25].into_iter().enumerate() {
+            renderer.opaque_batch_flushes = 0;
+            for id in 0..12 {
+                renderer.begin_node(id, id as i32, 0);
+                let mut scopes = vec![OpacityScope {
+                    node_id: 100,
+                    opacity: 1.,
+                }];
+                if (3..9).contains(&id) {
+                    scopes.push(OpacityScope {
+                        node_id: 200,
+                        opacity: alpha,
+                    });
+                    if (5..7).contains(&id) {
+                        scopes.push(OpacityScope {
+                            node_id: 201,
+                            opacity: alpha,
+                        });
+                    }
+                }
+                scopes.push(OpacityScope {
+                    node_id: 1000 + id,
+                    opacity: 1.,
+                });
+                renderer.set_node_opacity_scopes(id, &scopes);
+                #[cfg(feature = "3d")]
+                if spatial {
+                    // Coplanar fragment plans still carry occurrence-local clips.
+                    renderer.set_node_depth_plane(id, Some(pax_runtime_api::DepthPlane::default()));
+                }
+                renderer.save();
+                renderer.clip(rect(2. + (id % 3) as f32, 2., 88., 60.));
+                if id % 2 == 0 {
+                    let mut clip = Path::builder();
+                    clip.begin(point(1., 1.));
+                    clip.line_to(point(95., 12.));
+                    clip.line_to(point(70., 64.));
+                    clip.line_to(point(1., 58.));
+                    clip.close();
+                    renderer.clip(clip.build());
+                }
+                if id % 3 == 0 {
+                    renderer.clip_alpha(
+                        vec![crate::AlphaMaskPaint {
+                            path: rect(5., 4., 80., 52.),
+                            transform: Transform2D::identity(),
+                            fill: Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+                            opacity: 0.75,
+                            composition: None,
+                        }],
+                        0.,
+                    );
+                }
+                let x = id as f32 * 5.;
+                if id % 4 == 0 {
+                    renderer.draw_image(
+                        "batch-image",
+                        0,
+                        &Image {
+                            rgba: vec![200, 100, 255, 180],
+                            pixel_width: 1,
+                            pixel_height: 1,
+                        },
+                        Box2D::new(point(x, 3.), point(x + 30., 61.)),
+                    );
+                } else {
+                    renderer.fill_path(
+                        rect(x, 6., 30., 50.),
+                        Fill::Solid(Color::rgba((id % 3) as f32 / 2., 0.6, 0.2, 0.6)),
+                    );
+                }
+                renderer.restore();
+                renderer.end_node(id);
+            }
+            renderer.request_screenshot_capture(frame as u32);
+            // Exercise ordered commands detached from the renderer before submission.
+            renderer.flush_deferred();
+            let commands = renderer.take_pending_command_buffers();
+            renderer.submit_command_buffers(commands);
+            renderer.complete_submitted_work();
+            renderer.present_deferred_frame();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            frames.push(renderer.take_screenshot_capture(frame as u32).unwrap().rgba);
+            flushes.push(renderer.opaque_batch_flushes);
+            let stats = renderer.take_resource_churn_stats();
+            captures.push((stats.opacity_group_renders, stats.opacity_group_cache_hits));
+        }
+        assert!(pollster::block_on(errors.pop()).is_none());
+        assert!(frames[0].iter().any(|b| *b != 0));
+        if !spatial {
+            assert_eq!(flushes[0], if split { 12 } else { 1 });
+        }
+        assert_eq!(captures[0].0, 0);
+        assert_eq!(captures[1].0, 2);
+        if !spatial {
+            assert!(
+                captures[2].1 > 0,
+                "resident fade-to-one must still use its cache"
+            );
+        }
+        (frames, flushes, captures)
+    };
+    for mirror in [false, true] {
+        for spatial in [false, true] {
+            if spatial && !cfg!(feature = "3d") {
+                continue;
+            }
+            let split = render(mirror, true, spatial);
+            let batched = render(mirror, false, spatial);
+            for (frame, (before, after)) in split.0.iter().zip(&batched.0).enumerate() {
+                assert_eq!(
+                    before, after,
+                    "mirror={mirror}, spatial={spatial}, frame={frame}"
+                );
+            }
+            assert_eq!(
+                split.2, batched.2,
+                "capture residency and reuse must be unchanged"
+            );
+            assert!(
+                batched.1[1] < split.1[1],
+                "nested children should batch too"
+            );
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn color_resolve_presentation_mirror_reuse_and_resize() {
+    for mirror in [false, true] {
+        let layer = MetalLayer::new();
+        let mut backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, 32, 32, [1., 1.]),
+            )
+        })
+        .unwrap();
+        let device = backend.device.clone();
+        let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+        assert!(backend.sample_count > 1);
+        if mirror {
+            backend.surface_config.usage.remove(TextureUsages::COPY_SRC);
+        }
+        // Clear-only frame, screenshot, and repeated finish before submission.
+        backend.clear_color = wgpu::Color::RED;
+        backend.request_screenshot_capture(1);
+        backend.finish_frame();
+        backend.finish_frame();
+        assert_eq!(
+            backend
+                .active_frame
+                .as_ref()
+                .unwrap()
+                .color_resolve
+                .encoded_resolves
+                .get(),
+            1
+        );
+        if mirror {
+            assert_eq!(
+                backend
+                    .capture_target
+                    .as_ref()
+                    .unwrap()
+                    .color_resolve
+                    .encoded_resolves
+                    .get(),
+                1
+            );
+        }
+        backend.submit_pending_commands();
+        backend.present_queued_frame();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        assert_pixel(
+            &backend.take_screenshot_capture(1).unwrap(),
+            16,
+            16,
+            [255, 0, 0, 255],
+        );
+
+        // Presenting unchanged MSAA samples to a fresh surface image still
+        // resolves, even though no new color write dirties the source.
+        backend.ensure_active_frame();
+        backend.request_screenshot_capture(2);
+        backend.finish_frame();
+        assert_eq!(
+            backend
+                .active_frame
+                .as_ref()
+                .unwrap()
+                .color_resolve
+                .encoded_resolves
+                .get(),
+            1
+        );
+        backend.submit_pending_commands();
+        backend.present_queued_frame();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        assert_pixel(
+            &backend.take_screenshot_capture(2).unwrap(),
+            16,
+            16,
+            [255, 0, 0, 255],
+        );
+
+        // Abandon an already encoded resolve, then replace both attachments.
+        backend.clear();
+        backend.finish_frame();
+        backend.resize_surface(48, 40);
+        assert!(backend.take_pending_command_buffers().is_empty());
+        backend.clear_color = wgpu::Color::BLUE;
+        backend.request_screenshot_capture(3);
+        backend.finish_frame();
+        assert_eq!(
+            backend
+                .active_frame
+                .as_ref()
+                .unwrap()
+                .color_resolve
+                .encoded_resolves
+                .get(),
+            1
+        );
+        backend.submit_pending_commands();
+        backend.present_queued_frame();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        assert_pixel(
+            &backend.take_screenshot_capture(3).unwrap(),
+            40,
+            32,
+            [0, 0, 255, 255],
+        );
+        assert!(pollster::block_on(scope.pop()).is_none());
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn color_resolve_nested_capture_copies_and_scratch_reuse() {
+    let layer = MetalLayer::new();
+    let mut backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 32, 32, [1., 1.]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+    let parent = capture::CaptureKey::Opacity(1, 0);
+    let child = capture::CaptureKey::Opacity(2, 0);
+    backend.capture_is_cached(parent, 0);
+    backend.begin_capture();
+    backend.begin_capture();
+    // Clear the child white, then sample its resolved copy into the parent.
+    let mut encoder = backend.take_retained_encoder();
+    {
+        let view = backend.current_color_write_view();
+        let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            ..Default::default()
+        });
+    }
+    backend.retained_encoder = Some(encoder);
+    backend.end_capture_rect(child, 0, (0, 0, 16, 32));
+    let parent_target = backend
+        .retained_surfaces
+        .as_ref()
+        .unwrap()
+        .stack
+        .last()
+        .unwrap();
+    assert_eq!(
+        parent_target.color_resolve.encoded_resolves.get(),
+        0,
+        "child pop must not resolve parent"
+    );
+    backend.draw_capture(child, 0.5);
+    backend.end_capture_rect(parent, 0, (0, 0, 32, 32));
+    backend.draw_capture(parent, 1.0);
+    backend.request_screenshot_capture(1);
+    backend.finish_frame();
+    backend.submit_pending_commands();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    let first = backend.take_screenshot_capture(1).unwrap();
+    assert_pixel(&first, 8, 16, [128, 128, 128, 128]);
+    assert_pixel(&first, 24, 16, [0; 4]);
+    // Pool reuses the child attachment. Its clear must invalidate the last resolve.
+    backend.begin_capture();
+    let reused = backend
+        .retained_surfaces
+        .as_ref()
+        .unwrap()
+        .stack
+        .last()
+        .unwrap();
+    assert_eq!(reused.color_resolve.encoded_resolves.get(), 1);
+    assert!(reused.color_resolve.needs_resolve());
+    backend.end_capture_rect(child, 1, (0, 0, 32, 32));
+    backend.clear();
+    backend.draw_capture(child, 1.0);
+    backend.request_screenshot_capture(2);
+    backend.finish_frame();
+    assert_eq!(
+        backend
+            .active_frame
+            .as_ref()
+            .unwrap()
+            .color_resolve
+            .encoded_resolves
+            .get(),
+        2
+    );
+    backend.submit_pending_commands();
+    backend.present_queued_frame();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    assert_pixel(&backend.take_screenshot_capture(2).unwrap(), 8, 16, [0; 4]);
+    assert!(pollster::block_on(scope.pop()).is_none());
+}
+
+fn retained_update_renderer(queued: bool) -> (MetalLayer, WgpuRenderer<'static>, Device) {
+    let layer = MetalLayer::new();
+    let mut backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 32, 32, [1., 1.]),
+        )
+    })
+    .unwrap();
+    if queued {
+        // Exercise the web upload transport on the same real GPU/pixel checks.
+        backend.staging_belt = OrderedUploads::queued(
+            backend.device.clone(),
+            backend.queue.clone(),
+            STAGING_BELT_CHUNK_SIZE,
+        );
+    }
+    let device = backend.device.clone();
+    (layer, WgpuRenderer::new(backend), device)
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_resource_updates_reuse_capacity_and_preserve_pixels() {
+    for queued in [false, true] {
+        let (_layer, mut renderer, device) = retained_update_renderer(queued);
+        for frame in 0..7 {
+            let color = match frame {
+                0 => Color::rgba(1., 0., 0., 1.),
+                6 => Color::rgba(0., 0., 1., 1.),
+                _ => Color::rgba(0., 1., 0., 1.),
+            };
+            let mut material = crate::Material::default();
+            material.unlit = true;
+            if frame >= 2 {
+                material.coefficients[3] = 0.25;
+            }
+            renderer.begin_node(1, 0, 0);
+            renderer.save();
+            renderer.transform(Transform2D::translation(
+                if frame >= 4 { 3. } else { 1. },
+                0.,
+            ));
+            renderer.fill_path_with_material_and_opacity(
+                rect(4., 4., if frame >= 3 { 20. } else { 16. }, 16.),
+                Fill::Solid(color),
+                material,
+                1.,
+            );
+            if frame >= 5 {
+                // Exceed the original geometry/primitive capacity, then update
+                // the grown resource on the following frame.
+                renderer.fill_path(rect(4., 24., 8., 4.), Fill::Solid(color));
+            }
+            renderer.restore();
+            renderer.end_node(1);
+            renderer.request_screenshot_capture(frame);
+            renderer.flush();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            let pixels = renderer.take_screenshot_capture(frame).unwrap();
+            let expected = match frame {
+                0 => [255, 0, 0, 255],
+                6 => [0, 0, 255, 255],
+                _ => [0, 255, 0, 255],
+            };
+            assert_pixel(&pixels, 12, 12, expected);
+            let stats = renderer.take_resource_churn_stats();
+            assert_eq!(
+                stats.vector_resource_creates,
+                u64::from(frame == 0 || frame == 5),
+                "queued={queued}, frame={frame}"
+            );
+            if [1, 2, 3, 6].contains(&frame) {
+                assert!(stats.vector_resource_update_bytes > 0);
+                assert_eq!(stats.vector_resource_recreates, 0);
+            }
+            if frame == 4 {
+                assert_eq!(
+                    stats.vector_resource_update_bytes, 0,
+                    "transform-only update"
+                );
+                assert_eq!(stats.vector_geometry_rebuilds, 0);
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_resource_updates_preserve_deferred_versions() {
+    for queued in [false, true] {
+        let (_layer, mut renderer, device) = retained_update_renderer(queued);
+        let mut commands = CommandBatch::default();
+        let colors = [
+            Color::rgba(1., 0., 0., 1.),
+            Color::rgba(0., 1., 0., 1.),
+            Color::rgba(0., 0., 1., 1.),
+        ];
+        for (frame, color) in colors.into_iter().enumerate() {
+            renderer.begin_node(1, 0, 0);
+            renderer.fill_path(
+                rect(0., 0., 32. - frame as f32 * 8., 32.),
+                Fill::Solid(color),
+            );
+            renderer.end_node(1);
+            renderer.request_screenshot_capture(frame as u32);
+            renderer.flush_deferred();
+            commands.append(&mut renderer.take_pending_command_buffers());
+            let stats = renderer.take_resource_churn_stats();
+            assert_eq!(stats.vector_resource_creates, u64::from(frame == 0));
+            if frame > 0 {
+                assert!(stats.vector_resource_update_bytes > 0);
+            }
+        }
+        // All versions are encoded before a single submission. Direct writes
+        // to a reused destination would turn all three screenshots blue.
+        renderer.submit_command_buffers(commands);
+        renderer.complete_submitted_work();
+        renderer.present_deferred_frame();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        for (frame, expected) in [[255, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255]]
+            .into_iter()
+            .enumerate()
+        {
+            let pixels = renderer.take_screenshot_capture(frame as u32).unwrap();
+            assert_pixel(&pixels, 8, 8, expected);
+            assert_pixel(&pixels, 30, 8, if frame == 0 { expected } else { [0; 4] });
+            assert_pixel(&pixels, 20, 8, if frame < 2 { expected } else { [0; 4] });
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_resource_updates_copy_on_write_across_tiles() {
+    let layers = [MetalLayer::new(), MetalLayer::new()];
+    let mut context = None;
+    let mut renderers: Vec<WgpuRenderer<'static>> = Vec::new();
+    for layer in &layers {
+        let (backend, shared) = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer_with_context(
+                layer.0.cast(),
+                RenderConfig::new(true, 32, 32, [1., 1.]),
+                context.clone(),
+            )
+        })
+        .unwrap();
+        context = Some(shared);
+        let mut renderer = WgpuRenderer::new(backend);
+        if let Some(first) = renderers.first() {
+            renderer.share_vector_caches_from(first);
+        }
+        renderers.push(renderer);
+    }
+    for (tile, renderer) in renderers.iter_mut().enumerate() {
+        renderer.begin_node(1, 0, 0);
+        renderer.fill_path(
+            rect(0., 0., 32., 32.),
+            Fill::Solid(Color::rgba(1., 0., 0., 1.)),
+        );
+        renderer.end_node(1);
+        renderer.flush();
+        let stats = renderer.take_resource_churn_stats();
+        assert_eq!(stats.vector_resource_creates, u64::from(tile == 0));
+        if tile == 1 {
+            assert_eq!(stats.vector_resource_cache_hits, 1);
+        }
+    }
+    // One tile changes while its sibling still owns and draws the old color.
+    renderers[0].begin_node(1, 0, 0);
+    renderers[0].fill_path(
+        rect(0., 0., 32., 32.),
+        Fill::Solid(Color::rgba(0., 1., 0., 1.)),
+    );
+    renderers[0].end_node(1);
+    let mut commands = CommandBatch::default();
+    for (tile, renderer) in renderers.iter_mut().enumerate() {
+        renderer.request_screenshot_capture(tile as u32);
+        renderer.flush_deferred();
+        commands.append(&mut renderer.take_pending_command_buffers());
+        let stats = renderer.take_resource_churn_stats();
+        assert_eq!(stats.vector_resource_creates, u64::from(tile == 0));
+        assert_eq!(stats.vector_resource_update_bytes, 0);
+    }
+    let context = context.unwrap();
+    context.submit_command_buffers(commands);
+    context
+        .device
+        .poll(wgpu::PollType::wait_indefinitely())
+        .unwrap();
+    for (tile, renderer) in renderers.iter_mut().enumerate() {
+        renderer.complete_submitted_work();
+        renderer.present_deferred_frame();
+        assert_pixel(
+            &renderer.take_screenshot_capture(tile as u32).unwrap(),
+            8,
+            8,
+            if tile == 0 {
+                [0, 255, 0, 255]
+            } else {
+                [255, 0, 0, 255]
+            },
+        );
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
 fn bounded_alpha_domains_compose_after_translation() {
     for dpr in [1.0, 2.0] {
         let layer = MetalLayer::new();
@@ -882,6 +1444,142 @@ fn retained_clip_pixels() {
                 }
             }
         }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_clip_segments_preserve_scissor_alpha_and_mirror_pixels() {
+    let diamond = |x: f32, radius: f32| {
+        let mut path = Path::builder();
+        path.begin(point(x, 32. - radius));
+        path.line_to(point(x + radius, 32.));
+        path.line_to(point(x, 32. + radius));
+        path.line_to(point(x - radius, 32.));
+        path.end(true);
+        path.build()
+    };
+    let mut reference_frames = Vec::new();
+    for mirror in [true, false] {
+        let layer = MetalLayer::new();
+        let mut backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, 96, 64, [1., 1.]),
+            )
+        })
+        .unwrap();
+        let device = backend.device.clone();
+        if mirror {
+            backend.surface_config.usage.remove(TextureUsages::COPY_SRC);
+        }
+        let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let mut renderer = WgpuRenderer::new(backend);
+        for frame_id in 0..2 {
+            // An image keeps this on the mixed retained path, not vector-only batching.
+            renderer.begin_node(0, 0, 0);
+            renderer.draw_image(
+                "segment-background",
+                0,
+                &Image {
+                    rgba: vec![0, 0, 255, 255],
+                    pixel_width: 1,
+                    pixel_height: 1,
+                },
+                Box2D::new(point(0., 0.), point(96., 64.)),
+            );
+            renderer.end_node(0);
+
+            renderer.begin_node(1, 1, 0);
+            renderer.save();
+            renderer.clip(diamond(16., 14.));
+            renderer.clip(rect(0., 0., 24., 64.));
+            renderer.fill_path(
+                rect(0., 0., 96., 64.),
+                Fill::Solid(Color::rgba(1., 0., 0., 1.)),
+            );
+            renderer.restore();
+            renderer.end_node(1);
+
+            // The preceding narrow scissor must not restrict these stencil pushes/pops.
+            renderer.begin_node(2, 2, 0);
+            renderer.save();
+            renderer.clip(diamond(48., 16.));
+            renderer.clip(diamond(48., 10.));
+            renderer.draw_image(
+                "segment-green",
+                0,
+                &Image {
+                    rgba: vec![0, 255, 0, 255],
+                    pixel_width: 1,
+                    pixel_height: 1,
+                },
+                Box2D::new(point(0., 0.), point(96., 64.)),
+            );
+            renderer.restore();
+            renderer.end_node(2);
+
+            renderer.begin_node(3, 3, 0);
+            renderer.save();
+            renderer.clip(diamond(80., 16.));
+            renderer.clip_alpha(
+                vec![crate::render_context::AlphaMaskPaint {
+                    path: rect(64., 0., if frame_id == 0 { 16. } else { 24. }, 64.),
+                    transform: Transform2D::identity(),
+                    fill: Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+                    opacity: 1.,
+                    composition: None,
+                }],
+                0.,
+            );
+            renderer.fill_path(
+                rect(0., 0., 96., 64.),
+                Fill::Solid(Color::rgba(1., 1., 0., 1.)),
+            );
+            renderer.restore();
+            renderer.end_node(3);
+
+            // Leaving both alpha and stencil clips must restore an unclipped draw.
+            renderer.begin_node(4, 4, 0);
+            renderer.fill_path(
+                rect(88., 2., 6., 6.),
+                Fill::Solid(Color::rgba(1., 0., 1., 1.)),
+            );
+            renderer.end_node(4);
+            renderer.request_screenshot_capture(frame_id);
+            renderer.flush_deferred();
+            let commands = renderer.take_pending_command_buffers();
+            renderer.submit_command_buffers(commands);
+            renderer.complete_submitted_work();
+            renderer.present_deferred_frame();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            let pixels = renderer.take_screenshot_capture(frame_id).unwrap();
+            assert_pixel(&pixels, 16, 32, [255, 0, 0, 255]);
+            assert_pixel(&pixels, 28, 32, [0, 0, 255, 255]);
+            assert_pixel(&pixels, 48, 32, [0, 255, 0, 255]);
+            assert_pixel(&pixels, 60, 32, [0, 0, 255, 255]);
+            assert_pixel(&pixels, 72, 32, [255, 255, 0, 255]);
+            assert_pixel(
+                &pixels,
+                84,
+                32,
+                if frame_id == 0 {
+                    [0, 0, 255, 255]
+                } else {
+                    [255, 255, 0, 255]
+                },
+            );
+            assert_pixel(&pixels, 90, 4, [255, 0, 255, 255]);
+            if mirror {
+                reference_frames.push(pixels.rgba);
+            } else {
+                assert_eq!(
+                    pixels.rgba, reference_frames[frame_id as usize],
+                    "mirror and direct readback differ"
+                );
+            }
+        }
+        assert!(pollster::block_on(scope.pop()).is_none());
     }
 }
 

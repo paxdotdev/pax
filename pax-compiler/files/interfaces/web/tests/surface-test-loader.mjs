@@ -5,8 +5,15 @@ import {transformSync} from 'esbuild';
 // Load the small, real scheduling modules in the fake DOM tests. Unrelated
 // native controls remain stubbed; surface policy/reconciliation does not.
 export function surfaceRequire(name) {
+    if (name === '../utils/shared-work-budget') {
+        const module = {exports:{}};
+        const source = readFileSync(new URL('../src/utils/shared-work-budget.ts', import.meta.url),'utf8');
+        vm.runInNewContext(transformSync(source,{loader:'ts',format:'cjs'}).code,
+            {module,exports:module.exports,performance});
+        return module.exports;
+    }
     const modules = new Set(['./surface-coordinator', './surface-host-policy',
-        './surface-scheduler', './surface-trace', './trace-ring', './image-loader', './native-message-profile']);
+        './surface-scheduler', './surface-trace', './surface-capture', './trace-ring', './image-loader', './native-message-profile']);
     if (!modules.has(name)) return {};
     const module = {exports: {}};
     const source = readFileSync(new URL(`../src/classes/${name.slice(2)}.ts`, import.meta.url), 'utf8');

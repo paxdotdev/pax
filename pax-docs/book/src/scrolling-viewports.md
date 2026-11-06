@@ -715,6 +715,20 @@ recreated backing surface receives a new renderer even if its tile key is the
 same. Pending warm replay follows surviving tile identities through reordering,
 and visible affected tiles replay together before deferred warm work.
 
+WGPU retained vector buffers can be updated in place when a draw owns them
+exclusively and its new geometry/paint fits the existing capacity. Shared
+resources use copy-on-write so a change in one tile cannot alter its siblings;
+growing resources still require allocation. Updates preserve the versions used
+by earlier queued draws, even when several draws are submitted together. This
+reuse applies to native GPU and WebGPU rendering without application settings;
+it does not remove the cost of repainting an animated tile.
+
+Within a render target, WGPU batches compatible retained draws and stencil-clip
+changes in one ordered render pass. Clipping still changes immediately before
+the content it applies to; overlapping content keeps its painter order. Separate
+targets, mask generation, and opacity-group composition retain their own
+rendering boundaries. This needs no application setting or `3d` feature.
+
 On the WGPU path, bounded canvas primitives retain a tile-independent drawing
 program as well as tile-local GPU state. A new or resized tile can replay an
 unchanged program without calling the component's render hooks again. Programs
@@ -1054,6 +1068,37 @@ than submission itself. For a particular tile, correlate its ID, generation, and
 content revision with `first-submit` and `image-content-submit`; do not interpret
 the sampled interval as exact blank-pixel duration. Neither event measures the
 browser compositor's displayed frame.
+
+For a short reproduction, **Capture 20 seconds** starts a separate bounded
+recording; **Stop / save capture** downloads it as local JSON. **Mark visible
+blank** adds a human-observation marker (at click-handler time, not the exact
+frame where a blank first appeared). Starting another capture replaces the
+previous recording. The mount's `paxSurfaceCapture` getter exposes the same data
+without downloading it. No recording starts automatically, and no data is sent
+to a server.
+
+The capture correlates assignment identity, lifecycle events, host continuation
+waits, frame-callback gaps, and per-layer planned visible coverage. Coverage
+classifies waits for assignment, initializer, configuration, or submission;
+stale generations/geometry cannot count as submitted replacement content.
+Each render service records its gate, display epoch, frame-versus-continuation
+origin, remaining shared allowance, and initialization/submission work. During
+capture, `shared-budget-work` and `shared-budget-reset` record consumption and
+actual reset delivery across hosted applications; they do not grant extra work.
+This separates an exhausted allowance from time spent waiting for its next
+display callback. CPU preparation-stage times remain distinct from GPU timing.
+Rectangles are clipped in their owner's content coordinates and unioned **within
+each layer**. These are planned surface areas, not missing screenshot pixels:
+do not add nested layers' areas or interpret submitted coverage as image/GPU/
+browser-presentation completeness. Coverage is sampled when planning runs;
+`maxObservationGapMs` and display-callback intervals expose blind periods rather
+than pretending to observe compositor scrolling while JavaScript is blocked.
+The 8192-event and 2048-observation rings report overwritten entries, while
+phase totals and gap maxima survive rollover. `diagnostic.coverage` reports the
+added measurement cost. Pair captures with visual observation and an
+uninstrumented control. A useful comparison sequence is the first page scroll,
+a warmed page reversal, a nested example reversal, and a gallery reversal,
+with the same viewport, DPR, build, and browser foreground state.
 
 The inspector's timed scroll probes advance DOM scroll position through
 `requestAnimationFrame`. They are useful repeatable controls, but pause when the

@@ -2074,6 +2074,10 @@ export class NativeElementPool {
         this.canvasPool?.setBackingLimit(shared.backingLimit);
         if (this.surfaceTrace) {
             this.surfaceTrace.observeDemand(candidates, decision.denied);
+            if (this.surfaceTrace.capturing) this.surfaceTrace.captureCoverage(candidates, decision.denied, this.canvases,
+                new Map([...hosts].map(([id, host]) => [id,
+                    [host.visibleBounds.left,host.visibleBounds.top,host.visibleBounds.right,host.visibleBounds.bottom]])),
+                [0,0,window.innerWidth,window.innerHeight]);
             this.surfaceTrace.recordAdmission(decision.admitted, decision.denied, {
                 pendingCount, pendingLayers: [...pendingLayers], resources,
                 borrowedForwardPixels: shared.borrowedForwardPixels,

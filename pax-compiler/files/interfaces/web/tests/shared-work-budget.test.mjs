@@ -22,3 +22,21 @@ test('a failed work item still consumes its elapsed time', () => {
     assert.throws(()=>budget.run(4,()=>{time+=3;throw Error('work failed');}));
     assert.equal(budget.remaining,1);
 });
+
+test('capture observes work and reset without changing frame admission or retaining stopped observers', () => {
+    let time=0; const frames=[], events=[];
+    const budget=new SharedWorkBudget(4,()=>time,fn=>frames.push(fn));
+    const stop=budget.observe(event=>events.push(event));
+    budget.run(3,available=>{assert.equal(available,3);time+=7;});
+    assert.equal(budget.remaining,0);
+    assert.equal(events[0].event,'shared-budget-work');
+    assert.equal(events[0].elapsedMs,7);
+    assert.equal(events[0].grantedMs,3);
+    assert.equal(frames.length,1);
+    time=20;frames.shift()();
+    assert.equal(events[1].event,'shared-budget-reset');
+    assert.equal(events[1].at,20);
+    assert.equal(budget.remaining,4);
+    stop();budget.run(3,()=>{time+=2;});frames.shift()();
+    assert.equal(events.length,2);
+});
