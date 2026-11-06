@@ -40,12 +40,16 @@ function harness({cancelOnFirstMount = false, ready = true, exitComplete = true,
             loaders++; return makeLoader();
         }
         let acknowledge, finish, fail;
-        const app = {closed: new Promise(resolve => { acknowledge = resolve; }), isClosed: false, reveals: 0, publishes: 0,
+        const app = {closed: new Promise(resolve => { acknowledge = resolve; }), isClosed: false, reveals: 0, publishes: 0, inputEnabled: false,
             mounted: new Promise((resolve, reject) => { finish = resolve; fail = reject; }),
             finish() { finish(); }, fail(error) { fail(error); },
             data: [...options.startupData],
             close() { this.isClosed = true; acknowledge(); },
             reveal() { this.reveals++; return ready && !this.isClosed; },
+            enableInput() {
+                assert.equal(elements[2].hidden, true, 'input waits for the loader to retire');
+                this.inputEnabled = true;
+            },
             publish() { this.publishes++; return !this.isClosed; },
         };
         applications.push(app);
@@ -105,7 +109,7 @@ test('viewport readiness resumes mounting without exiting the loader onto a paus
     assert.equal(h.applications[0].publishes, 1);
 });
 
-test('first-viewport policy exits at settled readiness but keeps publication pending until full mount', async () => {
+test('first-viewport exit releases input while animation publication and init still wait for full mount', async () => {
     const h = harness({loaderExit: 'first_viewport', mounting: true, ready: false, exitComplete: false});
     await flush(); await h.frame();
     assert.equal(h.phases.at(-1), 'preparing');
@@ -116,9 +120,11 @@ test('first-viewport policy exits at settled readiness but keeps publication pen
     assert.equal(h.exits(), 1);
     assert.equal(h.phases.at(-1), 'revealing');
     assert.equal(h.loaderHidden(), false, 'authored exit must finish before hiding the loader slot');
+    assert.equal(h.applications[0].inputEnabled, false);
     let finished = false; h.pending.then(() => { finished = true; });
     h.setExitComplete(true); await h.frame();
     assert.equal(h.loaderHidden(), true, 'even a loader without a fade ends before the full mount');
+    assert.equal(h.applications[0].inputEnabled, true);
     assert.equal(finished, false);
     assert.equal(h.applications[0].publishes, 0);
     h.applications[0].finish(); await flush();
@@ -149,10 +155,11 @@ for (const exited of [false, true]) test(`first-viewport failure ${exited ? 'aft
     mounted.close(); await mounted.closed;
 });
 
-test('abort after first-viewport loader exit cancels remaining mounts without publishing input', async () => {
+test('abort after first-viewport loader exit closes the interactive app without starting animations', async () => {
     const h = harness({loaderExit: 'first_viewport', mounting: true});
     await flush(); await h.frame(); await h.frame(); await h.frame();
     assert.equal(h.loaderHidden(), true);
+    assert.equal(h.applications[0].inputEnabled, true);
     h.controller.abort(); await assert.rejects(h.pending, {name: 'AbortError'});
     assert.equal(h.applications[0].isClosed, true);
     assert.equal(h.applications[0].publishes, 0);

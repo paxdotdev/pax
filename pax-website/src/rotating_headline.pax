@@ -140,7 +140,6 @@
 
 @settings {
     @mount: mount
-    @pre_render: tick
     .headline {
         style: TextStyle {
             font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::ExtraBold)

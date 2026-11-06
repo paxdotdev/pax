@@ -30,7 +30,9 @@ fn sample_alpha(uv: vec2<f32>) -> f32 {
     }
     if blur.multiply_parent < 0.0 { alpha *= -blur.multiply_parent; }
     if blur.multiply_parent > 0.5 {
-        alpha *= textureSampleLevel(parent, source_sampler, in.uv * blur.parent_mapping.xy + blur.parent_mapping.zw, 0.0).r;
+        let uv = in.uv * blur.parent_mapping.xy + blur.parent_mapping.zw;
+        let value = textureSampleLevel(parent, source_sampler, uv, 0.0).r;
+        alpha *= select(0.0, value, all(uv >= vec2<f32>(0.0)) && all(uv <= vec2<f32>(1.0)));
     }
     return vec4<f32>(alpha);
 }

@@ -15,7 +15,7 @@ impl OpenSourceSection {
         crate::section_layout::bind_compact(ctx, &self.compact, 1000.0);
     }
 
-    pub fn tick(&mut self, ctx: &NodeContext) {
+    pub fn on_pre_render(&mut self, ctx: &NodeContext) {
         let width = ctx.bounds_self.get().0;
         let artwork_width = if self.compact.get() {
             width - 48.0

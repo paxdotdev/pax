@@ -82,6 +82,41 @@ Route moves to the press target until release; ordinary hover still hit-tests.
 Release capture and qualify activation only when the physical release hits the press target.
 Cancellation releases capture without qualifying a click.
 
+##### `inspect_node`
+<pre><code class="api-signature language-rust ignore">pub fn inspect_node(&amp;self, id: u32) -&gt; Option&lt;<a href="../../../api/internal/pax-runtime/node_inspection.md#nodeinspection">NodeInspection</a>&gt;</code></pre>
+
+Resolve a profiling ID without evaluating reactive properties. Returns
+`None` after the node leaves the runtime cache, or for an unknown ID.
+
+##### `begin_work_profile`
+<pre><code class="api-signature language-rust ignore">pub fn begin_work_profile(&amp;self) -&gt; bool</code></pre>
+
+Start or reset an explicit capture window. Returns false unless enabled.
+
+##### `enable_work_profiling`
+<pre><code class="api-signature language-rust ignore">pub fn enable_work_profiling(&amp;self)</code></pre>
+
+Enable CPU-work capture before mounting to retain complete diagnostic names.
+Collection begins only after `begin_work_profile`, in debug or release builds.
+
+##### `profile_node_work`
+<pre><code class="api-signature language-rust ignore">pub fn profile_node_work(self: &amp;Rc&lt;Self&gt;, node: u32, name: &amp;&#39;static str) -&gt; Option&lt;<a href="../../../api/internal/pax-runtime/work_profile.md#workprofilescope">WorkProfileScope</a>&gt;</code></pre>
+
+Time a named operation during an explicitly enabled capture. Returns None
+without reading the clock when inactive. Scopes must not cross capture windows.
+
+##### `render_work_observer`
+<pre><code class="api-signature language-rust ignore">pub fn render_work_observer(self: &amp;Rc&lt;Self&gt;) -&gt; <a href="../../../api/pax-runtime-api/rendering.md#renderworkobserver">RenderWorkObserver</a></code></pre>
+
+A weak diagnostic sink, scoped by begin/take_work_profile. Emission after
+the capture or runtime lifetime is harmless and never evaluates geometry.
+
+##### `take_work_profile`
+<pre><code class="api-signature language-rust ignore">pub fn take_work_profile(&amp;self) -&gt; Option&lt;<a href="../../../api/internal/pax-runtime/work_profile.md#workprofilereport">WorkProfileReport</a>&gt;</code></pre>
+
+Stop and consume the current capture. Returns None when inactive. Source
+inspection does not evaluate geometry; names remain available for another window.
+
 ##### `input_query_stats`
 <pre><code class="api-signature language-rust ignore">pub fn input_query_stats(&amp;self) -&gt; <a href="../../../api/internal/pax-runtime/scene_geometry.md#inputquerystats">InputQueryStats</a></code></pre>
 
@@ -284,6 +319,8 @@ Invalidate native compositing after a node's paint or coverage changes.
 Unmounted nodes (including settings sidecars) do not participate. Mounted
 render sources invalidate their capture geometry and owning visible mask.
 Mount/unmount notifications separately reconcile scene membership.
+This also invalidates any opted-in local occlusion shape cache, including
+edits to nested paint properties or non-reactive shape inputs.
 
 ##### `mark_scene_lighting_dirty`
 <pre><code class="api-signature language-rust ignore">pub fn mark_scene_lighting_dirty(&amp;self)</code></pre>

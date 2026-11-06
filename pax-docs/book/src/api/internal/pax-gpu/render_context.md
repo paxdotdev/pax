@@ -329,7 +329,8 @@ Resolved lighting state for one retained vector scene.
 ##### `surface_to_world`
 Type: [`f32`; 6]
 
-Canvas-content to unscrolled world coordinates, in affine coefficient order.
+Logical canvas-content to unscrolled world coordinates, in affine coefficient order.
+The renderer compensates its physical tile's base transform internally.
 
 ##### `view`
 Type: [`f32`; 4]
@@ -501,6 +502,12 @@ Set the current draw's unprojected frame without changing retained path geometry
 <pre><code class="api-signature language-rust ignore">pub fn set_node_opacity_scopes(&amp;mut self, node_id: u32, scopes: &amp;[<a href="../../../api/pax-runtime-api/rendering.md#opacityscope">OpacityScope</a>])</code></pre>
 
 Updates group presentation without changing a node's paint or image resources.
+
+##### `set_render_work_observer`
+<pre><code class="api-signature language-rust ignore">pub fn set_render_work_observer(&amp;mut self, observer: Option&lt;<a href="../../../api/pax-runtime-api/rendering.md#renderworkobserver">RenderWorkObserver</a>&gt;)</code></pre>
+
+Observe work only during an explicit diagnostic window. Installing or
+removing a sink does not invalidate retained contents.
 
 ##### `set_scene_lighting`
 <pre><code class="api-signature language-rust ignore">pub fn set_scene_lighting(&amp;mut self, lighting: <a href="../../../api/pax-runtime-api/drawing.md#scenelighting">SceneLighting</a>) -&gt; bool</code></pre>

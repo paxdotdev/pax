@@ -538,11 +538,12 @@ impl PropertyGraph {
         // publication effect must survive the first view's unmount.
         let _graph = self.enter();
         let observed = local.clone();
-        let effect = LocalProperty::computed(
+        let effect = LocalProperty::computed_with_name(
             move || {
                 observed.get();
             },
             &[local.untyped()],
+            "shared property publication",
         );
         super::register_effect_property(&effect);
         self.inner.attachments.borrow_mut().insert(

@@ -339,6 +339,42 @@ pub(crate) fn appearance_coverage_alpha(
         .unwrap_or(0.0)
 }
 
+// Only these appearance values alter the union built by appearance_coverage_path.
+// Keep this comparison independent of paint RGB and material subscription identity.
+#[derive(PartialEq)]
+struct AppearanceCoverageShape {
+    filled: bool,
+    strokes: Vec<(f64, pax_runtime_api::StrokeCap, pax_runtime_api::StrokeJoin)>,
+}
+
+impl AppearanceCoverageShape {
+    fn new(fills: &[pax_runtime_api::Fill], strokes: &[pax_runtime_api::Stroke]) -> Self {
+        Self {
+            filled: fills.iter().any(|fill| {
+                fill.paint.local().get().coverage_alpha_0_1()
+                    * fill.opacity.local().get().to_float_0_1()
+                    > f64::EPSILON
+            }),
+            strokes: strokes
+                .iter()
+                .filter_map(|stroke| {
+                    let width = match stroke.width.local().get() {
+                        Size::Pixels(value) if value.to_float().is_finite() => {
+                            value.to_float().max(0.0)
+                        }
+                        _ => 0.0,
+                    };
+                    (width > f64::EPSILON
+                        && stroke.paint.local().get().coverage_alpha_0_1()
+                            * stroke.opacity.local().get().to_float_0_1()
+                            > f64::EPSILON)
+                        .then(|| (width, stroke.cap.local().get(), stroke.join.local().get()))
+                })
+                .collect(),
+        }
+    }
+}
+
 // Own nested subscriptions with the outer appearance. Replacing a stack drops
 // its old layer/material watchers; weak scene references avoid extending mount lifetimes.
 // Callers retain the returned property in their listener: dependency edges do not own it.
@@ -354,11 +390,36 @@ pub(crate) fn watch_appearance(
     let weak_node = Rc::downgrade(node);
     let weak_context = Rc::downgrade(context);
     let watchers = RefCell::new(Vec::<LocalProperty<()>>::new());
+    let invalidate_appearance = {
+        let weak_node = weak_node.clone();
+        let weak_context = weak_context.clone();
+        let fills = fills.clone();
+        let strokes = strokes.clone();
+        let previous_shape = RefCell::new(None);
+        Rc::new(move || {
+            let (Some(node), Some(context)) = (weak_node.upgrade(), weak_context.upgrade()) else {
+                return;
+            };
+            let shape = AppearanceCoverageShape::new(&fills.get(), &strokes.get());
+            let shape_changed = previous_shape.borrow().as_ref() != Some(&shape);
+            *previous_shape.borrow_mut() = Some(shape);
+            node.changed_listener.invalidate();
+            context.mark_canvas_node_dirty(node.id);
+            if shape_changed {
+                context.mark_node_occlusion_dirty(node.id.to_u32());
+            } else {
+                // Alpha/painted-mask changes still refresh native compositing.
+                // Its ordinary listener preserves the retained local outline.
+                node.occlusion_listener.invalidate();
+            }
+        })
+    };
     let appearance = LocalProperty::computed(
         move || {
             let (Some(node), Some(context)) = (weak_node.upgrade(), weak_context.upgrade()) else {
                 return;
             };
+            let _work = context.profile_node_work(node.id.to_u32(), "appearance stack rebuild");
             let mut layers = Vec::new();
             for fill in fills.get() {
                 layers.push((
@@ -388,6 +449,7 @@ pub(crate) fn watch_appearance(
                 let weak_node = Rc::downgrade(&node);
                 let weak_context = Rc::downgrade(&context);
                 let material_watch = LocalProperty::default();
+                let invalidate_appearance = invalidate_appearance.clone();
                 let watch = LocalProperty::computed(
                     move || {
                         let (Some(node), Some(context)) =
@@ -395,6 +457,8 @@ pub(crate) fn watch_appearance(
                         else {
                             return;
                         };
+                        let _work = context
+                            .profile_node_work(node.id.to_u32(), "appearance material rebind");
                         let material_dependencies = match material.get() {
                             Material::Unlit => vec![],
                             Material::Lit(p) => vec![
@@ -407,18 +471,9 @@ pub(crate) fn watch_appearance(
                                 p.emissive_intensity.local().untyped(),
                             ],
                         };
-                        let weak_node = Rc::downgrade(&node);
-                        let weak_context = Rc::downgrade(&context);
+                        let invalidate_appearance = invalidate_appearance.clone();
                         material_watch.replace_with(LocalProperty::computed(
-                            move || {
-                                if let (Some(node), Some(context)) =
-                                    (weak_node.upgrade(), weak_context.upgrade())
-                                {
-                                    node.changed_listener.invalidate();
-                                    context.mark_canvas_node_dirty(node.id);
-                                    context.mark_node_occlusion_dirty(node.id.to_u32());
-                                }
-                            },
+                            move || invalidate_appearance(),
                             &material_dependencies,
                         ));
                         context.register_expanded_node_effect_property_named(
@@ -439,6 +494,8 @@ pub(crate) fn watch_appearance(
                 next.push(watch);
             }
             *watchers.borrow_mut() = next;
+            // Removing the last layer has no nested watcher to invalidate it.
+            invalidate_appearance();
         },
         &deps,
     );

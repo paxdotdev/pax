@@ -204,6 +204,30 @@ Clip preparation must be side-effect free; it may run on demand. This is a
 change from repeatedly calling clip hooks during mask-plan queries. Retained
 clips do not change the logical hit region or alpha-mask semantics.
 
+A primitive whose local occlusion path depends only on its layout bounds and
+typed coverage properties can opt into retaining that shape across placement
+and common-opacity changes:
+
+```rust
+fn local_occlusion_path_is_retained(&self) -> bool { true }
+fn local_occlusion_path_is_placement_independent(&self) -> bool { true }
+```
+
+Use this only when `resolve_local_occlusion_path` is independent of world
+transforms, cameras, ancestor opacity, and scrolling. Declare every typed shape
+dependency through `property_requires_occlusion_recompute`; nested paint and
+non-reactive edits that change the local shape must call
+`RuntimeContext::mark_node_occlusion_dirty`.
+The cache belongs to each expanded occurrence and is released on unmount.
+An empty local result means no coverage. Custom world-space coverage overrides
+should leave this opt-in disabled; their existing callbacks remain live.
+The standard `Path` primitive uses this cache to avoid rebuilding stroke
+outlines during movement and color or material changes. Its appearance
+subscriptions compare whether fills and strokes contribute coverage, plus each
+active stroke's width, cap, and join. Changes to those inputs, path elements,
+smoothing, or layout bounds rebuild the outline. Partial-alpha changes still
+refresh native compositing even when the local outline stays the same.
+
 ### Input geometry
 
 Override `InstanceNode::prepare_hit_shape` when the logical rectangle is not

@@ -433,7 +433,6 @@
 
 @settings {
     @mount: mount
-    @pre_render: tick
     .paper {
         fill: {
             paint: rgb(244, 244, 240)

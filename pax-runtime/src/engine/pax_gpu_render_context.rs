@@ -659,6 +659,7 @@ fn poll_initialization_once<T>(future: Pin<&mut dyn Future<Output = T>>) -> std:
 }
 /// Runtime `RenderContext` implementation backed by `pax-gpu`/wgpu.
 pub struct PaxGpuRenderer {
+    work_observer: Option<pax_runtime_api::RenderWorkObserver>,
     render_turn_depth: usize,
     render_epoch: Option<(u64, u64)>,
     render_frame: pax_gpu::render_backend::RenderFrame,
@@ -705,6 +706,18 @@ pub enum RenderLayerState {
 }
 
 impl PaxGpuRenderer {
+    fn surface_work_observer(
+        &self,
+        layer: usize,
+        surface: usize,
+    ) -> Option<pax_runtime_api::RenderWorkObserver> {
+        let observer = self.work_observer.clone()?;
+        Some(Rc::new(move |mut sample| {
+            sample.layer = layer;
+            sample.surface = surface;
+            observer(sample);
+        }))
+    }
     fn gpu_contexts(&self) -> Vec<SharedGpuContext> {
         let mut contexts = HashMap::new();
         for state in self.backends.borrow().iter() {
@@ -737,6 +750,7 @@ impl PaxGpuRenderer {
     ) -> Self {
         Self {
             render_turn_depth: 0,
+            work_observer: None,
             render_epoch: None,
             render_frame: Default::default(),
             render_turn_contexts: Vec::new(),
@@ -1108,6 +1122,13 @@ impl PaxGpuRenderer {
                     let preparation_timing = super::preparation_diagnostics::Span::new(
                         super::preparation_diagnostics::Stage::Encode,
                     );
+                    renderer
+                        .renderer
+                        .set_render_work_observer(self.surface_work_observer(layer, *index));
+                    let work_started = self
+                        .work_observer
+                        .as_ref()
+                        .map(|_| web_time::Instant::now());
                     renderer.renderer.flush_deferred();
                     drop(preparation_timing);
                     drop(encode_timing);
@@ -1128,6 +1149,41 @@ impl PaxGpuRenderer {
                     }
                     present_indices.push(*index);
                     let stats = renderer.renderer.take_resource_churn_stats();
+                    if let Some(started) = work_started {
+                        let observer = self.work_observer.as_ref().unwrap();
+                        let (width, height) = renderer.renderer.surface_size();
+                        observer(pax_runtime_api::RenderWorkObservation {
+                            layer,
+                            surface: *index,
+                            operation: "surface encode",
+                            count: 1,
+                            pixels: width as u64 * height as u64,
+                            cpu_ms: started.elapsed().as_secs_f64() * 1000.,
+                            ..Default::default()
+                        });
+                        for (operation, count) in [
+                            ("vector geometry rebuilds", stats.vector_geometry_rebuilds),
+                            (
+                                "vector geometry cache hits",
+                                stats.vector_geometry_cache_hits,
+                            ),
+                            ("vector resource updates", stats.vector_resource_updates),
+                            ("tessellated vertices", stats.tessellated_vertices),
+                            ("retained nodes considered", stats.retained_nodes_considered),
+                            ("retained nodes visible", stats.retained_nodes_visible),
+                            ("retained draws", stats.retained_draws),
+                        ] {
+                            if count != 0 {
+                                observer(pax_runtime_api::RenderWorkObservation {
+                                    layer,
+                                    surface: *index,
+                                    operation,
+                                    count,
+                                    ..Default::default()
+                                });
+                            }
+                        }
+                    }
                     #[cfg(test)]
                     self.flushed_surfaces
                         .borrow_mut()
@@ -1761,6 +1817,18 @@ impl PaxGpuRenderer {
 }
 
 impl RenderContext for PaxGpuRenderer {
+    fn set_render_work_observer(&mut self, observer: Option<pax_runtime_api::RenderWorkObserver>) {
+        self.work_observer = observer;
+        for (layer, state) in self.backends.borrow_mut().iter_mut().enumerate() {
+            if let RenderLayerState::Ready((target, _)) = state {
+                for (index, renderer) in target.renderers.iter_mut().enumerate() {
+                    renderer
+                        .renderer
+                        .set_render_work_observer(self.surface_work_observer(layer, index));
+                }
+            }
+        }
+    }
     fn begin_render_turn(&mut self, application: u64, frame: u64) -> bool {
         let epoch = (application, frame);
         if self.render_turn_depth == 0 {
@@ -2415,6 +2483,9 @@ impl RenderContext for PaxGpuRenderer {
                     return;
                 }
                 for (index, renderer) in target.renderers.iter_mut().enumerate() {
+                    renderer
+                        .renderer
+                        .set_render_work_observer(self.surface_work_observer(layer, index));
                     if renderer.renderer.set_scene_lighting(lighting.clone()) {
                         self.mark_render_surfaces_dirty(layer, [index]);
                     }

@@ -17,7 +17,7 @@ impl PathStudy {
         self.playing.set(true);
         self._last_ms.set(ctx.elapsed_time_millis() as f64);
     }
-    pub fn tick(&mut self, ctx: &NodeContext) {
+    pub fn on_pre_render(&mut self, ctx: &NodeContext) {
         let now = ctx.elapsed_time_millis() as f64;
         let dt = ((now - self._last_ms.get()) / 1000.0).clamp(0.0, 0.05);
         self._last_ms.set(now);

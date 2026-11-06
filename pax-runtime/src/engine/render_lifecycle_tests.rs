@@ -40,6 +40,8 @@ struct RecordingRenderer {
     fail_recording: bool,
     recording_sessions: usize,
     capture_ids: Vec<u32>,
+    #[cfg(feature = "shaders")]
+    shader_children: Vec<Vec<u32>>,
     #[cfg(feature = "3d")]
     depth_updates: Vec<(u32, Option<pax_runtime_api::DepthPlane>)>,
     submission_clock: Option<Rc<std::cell::Cell<f64>>>,
@@ -73,8 +75,9 @@ impl RenderContext for RecordingRenderer {
         _: Affine,
         _: (f64, f64),
         _: &[pax_runtime_api::OpacityScope],
-        _: &[u32],
+        children: &[u32],
     ) -> bool {
+        self.shader_children.push(children.to_vec());
         true
     }
     #[cfg(feature = "3d")]
@@ -377,6 +380,42 @@ fn render_probe_args() -> crate::InstantiationArgs {
     }
 }
 
+#[test]
+fn node_inspection_resolves_baked_identity_without_preparing_geometry() {
+    use crate::InstanceNode;
+    use pax_manifest::{LocationInfo, TemplateNodeId, TemplateNodeSelectorInfo, TypeId, UniqueTemplateNodeIdentifier};
+    let mut engine = engine();
+    let ctx = engine.runtime_context.clone();
+    let _graph = ctx.property_graph.enter();
+    let mut args = render_probe_args();
+    let component = TypeId::build_singleton("example::Main", Some("Main"));
+    args.template_node_identifier = Some(UniqueTemplateNodeIdentifier::build(component, TemplateNodeId::build(7)));
+    args.template_node_type_id = Some(TypeId::build_singleton("example::Rectangle", Some("Rectangle")));
+    args.template_node_selector_info = Some(TemplateNodeSelectorInfo {
+        source_location: Some(LocationInfo {start_line_col: (4, 2), end_line_col: (5, 9)}),
+        ..Default::default()
+    });
+    let mut root_args = render_probe_args();
+    root_args.component_template = Some(RefCell::new(vec![RenderProbe::instantiate(args)]));
+    let root = ExpandedNode::initialize_root(ComponentInstance::instantiate(root_args), &ctx);
+    engine.root_expanded_node = Some(root.clone());
+    engine.tick();
+    let child = root.children.get()[0].clone();
+    let before = ctx.occlusion_stats();
+    let node = ctx.inspect_node(child.id.to_u32()).unwrap();
+    assert_eq!(node.component.as_deref(), Some("example::Main"));
+    assert_eq!(node.node_type.as_deref(), Some("example::Rectangle"));
+    assert_eq!(node.template_node_id, Some(7));
+    assert_eq!(node.source_start, Some((5, 3)));
+    assert_eq!(node.source_end, Some((6, 10)));
+    assert_eq!(node.template_parent, Some(root.id.to_u32()));
+    assert!(node.attached > 0);
+    assert!(node.has_occlusion_record);
+    assert_eq!(ctx.occlusion_stats().passes, before.passes);
+    assert_eq!(ctx.occlusion_stats().clip_geometry_preparations, before.clip_geometry_preparations);
+    assert!(ctx.inspect_node(u32::MAX).is_none());
+}
+
 fn dirty_render_probe() -> (PaxEngine, RecordingRenderer, Vec<Rc<ExpandedNode>>) {
     use crate::InstanceNode;
     let mut engine = engine();
@@ -491,6 +530,84 @@ impl crate::InstanceNode for ShaderProbe {
             outset: 0.0,
         })
     }
+}
+
+#[cfg(feature = "shaders")]
+#[test]
+fn shader_capture_uses_only_presented_startup_children() {
+    use crate::InstanceNode;
+
+    let mut engine = engine();
+    engine.enable_resumable_startup();
+    let ctx = Rc::clone(&engine.runtime_context);
+    let _graph = ctx.property_graph.enter();
+    let mut child = render_probe_args();
+    child.prototypical_common_properties =
+        crate::CommonPropertiesInit::Factory(Box::new(|_, _| {
+            let properties = crate::api::CommonProperties::default();
+            properties
+                .x
+                .set(Some(pax_runtime_api::Size::Pixels(500.into())));
+            properties
+                .width
+                .set(Some(pax_runtime_api::Size::Pixels(30.into())));
+            properties
+                .height
+                .set(Some(pax_runtime_api::Size::Pixels(30.into())));
+            Some(Rc::new(RefCell::new(properties)))
+        }));
+    let mut effect = render_probe_args();
+    effect.children = Some(RefCell::new(vec![RenderProbe::instantiate(child)]));
+    let mut root = render_probe_args();
+    root.component_template = Some(RefCell::new(vec![ShaderProbe::instantiate(effect)]));
+    engine.mount_root_component(ComponentInstance::instantiate(root));
+    for _ in 0..2000 {
+        engine.service_startup(0.0, || 0.0);
+        if engine.accept_startup_measurements() {
+            break;
+        }
+    }
+    assert!(engine.prepare_startup_presentation());
+    let effect = engine.root_expanded_node.as_ref().unwrap().children.get()[0].clone();
+    let child = effect.children.get()[0].clone();
+    assert!(effect.attached.get() > 0);
+    assert_eq!(
+        child.attached.get(),
+        0,
+        "offscreen child remains a continuation"
+    );
+    assert!(effect.presentation_children(&ctx).is_empty());
+    // A pending child has no assigned layer. Capturing it would incorrectly
+    // reject a valid effect on a later canvas surface during early reveal.
+    let mut occlusion = effect.occlusion.get();
+    occlusion.render_layer_id = 1;
+    effect.occlusion.set(occlusion);
+    let mut renderer = RecordingRenderer {
+        gpu: true,
+        ..Default::default()
+    };
+    assert!(effect.render_shader_effect(&ctx, &mut renderer));
+    assert_eq!(renderer.shader_children, vec![Vec::<u32>::new()]);
+
+    for _ in 0..2000 {
+        if !engine.startup_pending() {
+            break;
+        }
+        if engine.accept_startup_measurements() {
+            engine.resume_startup_after_presentation();
+        }
+        engine.service_startup(0.0, || 0.0);
+    }
+    assert!(!engine.startup_pending());
+    assert!(child.attached.get() > 0);
+    engine.tick();
+    // This direct capture call stands in for a caller with an active clip.
+    renderer.clip_depths.insert(child.occlusion.get().render_layer_id, 1);
+    assert!(effect.render_shader_effect(&ctx, &mut renderer));
+    assert_eq!(
+        renderer.shader_children.last().unwrap(),
+        &[child.id.to_u32()]
+    );
 }
 
 #[cfg(feature = "shaders")]

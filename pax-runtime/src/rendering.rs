@@ -740,6 +740,20 @@ pub trait InstanceNode {
         false
     }
 
+    /// Opts into caching local coverage independently of common placement and opacity.
+    ///
+    /// Requires `local_occlusion_path_is_retained`. The path must depend only on
+    /// layout bounds and typed properties selected by
+    /// `property_requires_occlusion_recompute`, not world transforms, cameras,
+    /// ancestor opacity, or scroll position. Changes to nested or non-reactive
+    /// inputs that alter this local shape must call
+    /// `RuntimeContext::mark_node_occlusion_dirty`.
+    /// An empty local result means no coverage. Custom world-space coverage
+    /// overrides should leave this disabled.
+    fn local_occlusion_path_is_placement_independent(&self) -> bool {
+        false
+    }
+
     fn resolve_occlusion_path(&self, node: &ExpandedNode) -> Option<kurbo::BezPath> {
         if let Some(local) = self.resolve_local_occlusion_path(node) {
             Some(node.presentation_projection()?.project_path(&local, None))

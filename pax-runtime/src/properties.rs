@@ -159,6 +159,7 @@ pub struct RuntimeContext {
     removed_canvas_nodes: RefCell<Vec<(usize, u32)>>,
     occlusion_dirty: Cell<bool>,
     pub(crate) occlusion_state: RefCell<crate::engine::occlusion::OcclusionState>,
+    pub(crate) work_profile: RefCell<Option<crate::work_profile::WorkProfile>>,
     layer_canvas_plan_generation: Cell<u32>,
     canvas_drawable_layers: RefCell<HashSet<usize>>,
     import_settings_node_count: Cell<usize>,
@@ -324,6 +325,7 @@ impl RuntimeContext {
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
             occlusion_state: Default::default(),
+            work_profile: Default::default(),
             layer_canvas_plan_generation: Cell::new(1),
             canvas_drawable_layers: Default::default(),
             import_settings_node_count: Cell::new(0),
@@ -393,6 +395,7 @@ impl RuntimeContext {
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
             occlusion_state: Default::default(),
+            work_profile: Default::default(),
             layer_canvas_plan_generation: Cell::new(1),
             canvas_drawable_layers: Default::default(),
             import_settings_node_count: Cell::new(0),
@@ -462,6 +465,7 @@ impl RuntimeContext {
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
             occlusion_state: Default::default(),
+            work_profile: Default::default(),
             layer_canvas_plan_generation: Cell::new(1),
             canvas_drawable_layers: Default::default(),
             import_settings_node_count: Cell::new(0),
@@ -660,6 +664,30 @@ impl RuntimeContext {
 
     fn drain_local_node_effects(&self) {
         const MAX_NODE_EFFECTS_PER_TICK: usize = 100_000;
+        let profile = self
+            .work_profile
+            .borrow_mut()
+            .as_mut()
+            .filter(|p| p.active)
+            .and_then(|p| p.reactive.take());
+        if let Some(mut profile) = profile {
+            let start = web_time::Instant::now();
+            let drained = pax_runtime_api::properties::drain_effects_profiled(
+                MAX_NODE_EFFECTS_PER_TICK,
+                &mut profile,
+                || start.elapsed().as_secs_f64() * 1000.,
+            );
+            if let Some(state) = self.work_profile.borrow_mut().as_mut().filter(|p| p.active) {
+                state.reactive = Some(profile);
+            }
+            if drained == MAX_NODE_EFFECTS_PER_TICK {
+                log::warn!(
+                    "reactive drain hit {} evaluations in one tick; deferring remaining work",
+                    MAX_NODE_EFFECTS_PER_TICK
+                );
+            }
+            return;
+        }
         if !effect_drain_instrumentation_enabled() {
             let drained = drain_effects(MAX_NODE_EFFECTS_PER_TICK);
             if drained == MAX_NODE_EFFECTS_PER_TICK {
@@ -1111,10 +1139,8 @@ impl RuntimeContext {
         presented: Affine,
     ) -> Option<pax_runtime_api::DepthPlane> {
         if node.has_perspective_camera() {
-            return self.depth_plane_in_presentation(
-                node,
-                self.prepared_presentation(node).depth_plane(),
-            );
+            return self
+                .depth_plane_in_presentation(node, self.prepared_presentation(node).depth_plane());
         }
         let offset = self.presentation_depth_offset(node);
         let plane =
@@ -1517,7 +1543,16 @@ impl RuntimeContext {
     /// Unmounted nodes (including settings sidecars) do not participate. Mounted
     /// render sources invalidate their capture geometry and owning visible mask.
     /// Mount/unmount notifications separately reconcile scene membership.
-    pub fn mark_node_occlusion_dirty(&self, mut id: u32) {
+    /// This also invalidates any opted-in local occlusion shape cache, including
+    /// edits to nested paint properties or non-reactive shape inputs.
+    pub fn mark_node_occlusion_dirty(&self, id: u32) {
+        if let Some(node) = self.get_expanded_node_by_eid(ExpandedNodeIdentifier(id)) {
+            node.local_occlusion_geometry.invalidate();
+        }
+        self.mark_node_occlusion_placement_dirty(id);
+    }
+
+    pub(crate) fn mark_node_occlusion_placement_dirty(&self, mut id: u32) {
         loop {
             let Some(node) = self.get_expanded_node_by_eid(ExpandedNodeIdentifier(id)) else {
                 return;
@@ -1537,10 +1572,7 @@ impl RuntimeContext {
     }
 
     fn mark_occlusion_presentation_dirty(&self, id: u32) {
-        self.scene_geometry
-            .borrow_mut()
-            .input
-            .invalidate_scroll(id);
+        self.scene_geometry.borrow_mut().input.invalidate_scroll(id);
         self.occlusion_dirty.set(true);
         self.occlusion_state.borrow_mut().scrolled.insert(id);
     }
@@ -2356,8 +2388,10 @@ impl RuntimeContext {
         layer: usize,
         transform: [f64; 16],
     ) -> Option<pax_runtime_api::mesh3::MeshProjection> {
-        Some(self.presented_mesh_projection_for_node(node, transform)?
-            .post_mapping(self.window_to_canvas_mapping(layer)?))
+        Some(
+            self.presented_mesh_projection_for_node(node, transform)?
+                .post_mapping(self.window_to_canvas_mapping(layer)?),
+        )
     }
 
     fn prepare_canvas_geometry(
@@ -2365,7 +2399,15 @@ impl RuntimeContext {
         node: &ExpandedNode,
     ) -> Rc<crate::scene_geometry::PreparedCanvasGeometry> {
         let tab = node.presentation_transform_and_bounds.get();
+        let work_started = self.work_profile_active().then(web_time::Instant::now);
         let local = borrow!(node.instance_node).prepare_canvas_geometry(node);
+        if let Some(started) = work_started {
+            self.record_node_work(
+                node.id.to_u32(),
+                "canvas local geometry",
+                started.elapsed().as_secs_f64() * 1000.,
+            );
+        }
         let mut prepared = crate::scene_geometry::PreparedCanvasGeometry::new(
             node.occlusion.get().render_layer_id,
             tab.bounds,
@@ -2838,9 +2880,10 @@ impl RuntimeContext {
         &self,
         ray: Option<Point2<Window>>,
     ) -> crate::engine::startup::StartupInput {
-        // No scene has been published during this first conservative bootstrap.
-        // Clicking its background must not later activate an unseen control.
-        let ray = ray.filter(|_| !self.startup.borrow().is_active());
+        // Before first reveal, a background click must not activate an unseen
+        // control later. After reveal, queued input can target the mounted scene
+        // while offscreen mounting continues and the animation clock stays held.
+        let ray = ray.filter(|_| self.startup.borrow().input_scene_published());
         let target = ray.and_then(|ray| {
             self.get_elements_beneath_ray(None, ray, true, vec![], false)
                 .first()

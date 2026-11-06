@@ -8,6 +8,22 @@ Axis-aligned bounds used by the occlusion and native-mask pass.
 
 ---
 
+### `OcclusionCoverageTiming`
+Diagnostic attribution of an incremental coverage update to an engine node.
+
+#### Properties
+##### `node`
+Type: `u32`
+
+Session-local expanded node ID, accepted by `RuntimeContext::inspect_node`.
+
+##### `elapsed_ms`
+Type: `f64`
+
+CPU wall-clock milliseconds spent updating this record.
+
+---
+
 ### `OcclusionStats`
 Cumulative native-compositing work, independent of canvas replay counters.
 
@@ -127,6 +143,13 @@ Type: [`Option`<`OcclusionInvalidation`>; 8]
 
 Bounded origins of structural invalidation consumed by the last rebuild.
 Populated only when diagnostic attribution is enabled.
+
+##### `coverage_slowest`
+Type: [`Option`<[`OcclusionCoverageTiming`](../../../../api/internal/pax-runtime/engine/occlusion.md#occlusioncoveragetiming)>; 8]
+
+Up to eight slowest dirty-record updates in the latest pass, each at least
+0.5 ms. Opt-in CPU wall times include synchronous coverage reads, not GPU
+work; full rebuilds are reported by the phase profile instead.
 
 ## Functions
 ### `update_node_occlusion`

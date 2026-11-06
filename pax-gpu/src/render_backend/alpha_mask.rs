@@ -1,5 +1,6 @@
-//! Cached, surface-local alpha masks. Paint is rasterized once per changed
-//! source, feathered in two passes, then multiplied with the enclosing mask.
+//! Cached alpha masks with independent surface-local domains. Changed sources
+//! are feathered when needed, then multiplied with the enclosing mask; captured
+//! sources with zero feather extract and compose alpha in a single pass.
 use super::{data::GpuGlobals, ordered_uploads::OrderedUploads, write_staged_buffer};
 use bytemuck::{Pod, Zeroable};
 use std::collections::{HashMap, HashSet};
@@ -374,9 +375,9 @@ fn uniform_entry(binding: u32, dynamic: bool, size: u64) -> wgpu::BindGroupLayou
     }
 }
 
-fn texture(device: &wgpu::Device, size: [u32; 2]) -> wgpu::Texture {
+fn texture(device: &wgpu::Device, size: [u32; 2], label: &str) -> wgpu::Texture {
     device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("Alpha mask surface"),
+        label: Some(label),
         size: wgpu::Extent3d {
             width: size[0],
             height: size[1],
@@ -493,7 +494,7 @@ impl AlphaMaskResources {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
-        let white_texture = texture(device, [1, 1]);
+        let white_texture = texture(device, [1, 1], "Alpha mask white");
         queue.write_texture(
             white_texture.as_image_copy(),
             &[255],
@@ -509,18 +510,13 @@ impl AlphaMaskResources {
             },
         );
         let white = white_texture.create_view(&Default::default());
-        let white_bind_group =
-            sample_group(device, &layout, &white, &sampler, [0.0, 0.0, 1.0, 1.0]);
+        let white_bind_group = sample_group(device, &layout, &white, &sampler, [0.0; 4]);
         // WebGPU's zero initialization makes this a constant transparent source.
         // It is shared across empty masks, rather than rasterized per tile/mask.
-        let transparent = texture(device, [1, 1]).create_view(&Default::default());
-        let transparent_bind_group = sample_group(
-            device,
-            &layout,
-            &transparent,
-            &sampler,
-            [0.0, 0.0, 1.0, 1.0],
-        );
+        let transparent =
+            texture(device, [1, 1], "Alpha mask transparent").create_view(&Default::default());
+        let transparent_bind_group =
+            sample_group(device, &layout, &transparent, &sampler, [0.0; 4]);
         let paint_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Alpha mask paint layout"),
             entries: &[
@@ -601,6 +597,11 @@ impl AlphaMaskResources {
 }
 
 impl AlphaMasks {
+    #[cfg(test)]
+    pub(crate) fn size_for_test(&self, id: u32) -> [u32; 2] {
+        self.masks[&id].size
+    }
+
     #[cfg(test)]
     pub fn new(
         device: &wgpu::Device,
@@ -704,9 +705,13 @@ impl AlphaMasks {
             }
         };
         if !self.masks.get(&id).is_some_and(|m| m.size == size) {
-            let source = texture(device, size).create_view(&Default::default());
-            let temporary = texture(device, size).create_view(&Default::default());
-            let result_texture = texture(device, size);
+            // IDs let GPU captures join alpha passes to runtime
+            // node inspection. Format only on allocation, never on cache hits.
+            let source = texture(device, size, &format!("Alpha mask source node={id}"))
+                .create_view(&Default::default());
+            let temporary = texture(device, size, &format!("Alpha mask temporary node={id}"))
+                .create_view(&Default::default());
+            let result_texture = texture(device, size, &format!("Alpha mask result node={id}"));
             let result = result_texture.create_view(&Default::default());
             let bind_group = sample_group(
                 device,
@@ -771,6 +776,26 @@ impl AlphaMasks {
             terms.push(Paint::default());
         }
         let buffers = &target.buffers;
+        let parent_resource = parent.and_then(|id| self.masks.get(&id));
+        let parent_view = parent_resource.map_or_else(
+            || {
+                if parent.is_some_and(|id| self.empty.contains(&id)) {
+                    &self.resources.transparent
+                } else {
+                    &self.resources.white
+                }
+            },
+            |m| &m.result,
+        );
+        let parent_domain = parent_resource.map_or(domain, |m| m.domain);
+        let parent_mapping = [
+            domain[2] / parent_domain[2],
+            domain[3] / parent_domain[3],
+            (domain[0] - parent_domain[0]) / parent_domain[2],
+            (domain[1] - parent_domain[1]) / parent_domain[3],
+        ];
+        let unfeathered = feather == 0.0;
+        let fused_capture = unfeathered && capture.is_some() && draws.is_empty();
         // Allocate only when recording work, never for the signature-cache fast path.
         // In browsers, unused encoders can retain native resources until JS GC runs.
         let encoder = encoder.get_or_insert_with(|| {
@@ -796,9 +821,18 @@ impl AlphaMasks {
         }
         // One reusable scratch target suffices for each primitive in source order.
         // Opaque boundaries draw directly; translucent appearances are isolated.
-        drop(render_pass(encoder, &target.source));
+        if capture.is_none() {
+            drop(render_pass(encoder, &target.source));
+        }
         if let Some((capture, crop)) = capture {
-            let params = [crop[0], crop[1], crop[2], crop[3], 0.0, 0.0, 0.0, 0.0];
+            let mapping = if fused_capture {
+                parent_mapping
+            } else {
+                [0.0, 0.0, 0.5, 0.5]
+            };
+            let params = [
+                crop[0], crop[1], crop[2], crop[3], mapping[0], mapping[1], mapping[2], mapping[3],
+            ];
             write_staged_buffer(
                 staging_belt,
                 encoder,
@@ -819,7 +853,11 @@ impl AlphaMasks {
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: wgpu::BindingResource::TextureView(&self.resources.white),
+                        resource: wgpu::BindingResource::TextureView(if fused_capture {
+                            parent_view
+                        } else {
+                            &self.resources.white
+                        }),
                     },
                     wgpu::BindGroupEntry {
                         binding: 3,
@@ -827,10 +865,22 @@ impl AlphaMasks {
                     },
                 ],
             });
-            let mut pass = render_pass(encoder, &target.source);
+            let mut pass = render_pass(
+                encoder,
+                if fused_capture {
+                    &target.result
+                } else {
+                    &target.source
+                },
+            );
             pass.set_pipeline(&self.resources.capture_pipeline);
             pass.set_bind_group(0, &group, &[]);
             pass.draw(0..3, 0..1);
+            drop(pass);
+            if fused_capture {
+                self.masks.get_mut(&id).unwrap().signature = Some(signature);
+                return true;
+            }
         }
         let mut start = 0;
         while start < draws.len() {
@@ -914,24 +964,6 @@ impl AlphaMasks {
             }
             start = end;
         }
-        let parent_resource = parent.and_then(|id| self.masks.get(&id));
-        let parent = parent_resource.map_or_else(
-            || {
-                if parent.is_some_and(|id| self.empty.contains(&id)) {
-                    &self.resources.transparent
-                } else {
-                    &self.resources.white
-                }
-            },
-            |m| &m.result,
-        );
-        let parent_domain = parent_resource.map_or(domain, |m| m.domain);
-        let parent_mapping = [
-            domain[2] / parent_domain[2],
-            domain[3] / parent_domain[3],
-            (domain[0] - parent_domain[0]) / parent_domain[2],
-            (domain[1] - parent_domain[1]) / parent_domain[3],
-        ];
         for (index, (source, destination, params)) in [
             (
                 &target.source,
@@ -939,7 +971,11 @@ impl AlphaMasks {
                 [1.0 / size[0] as f32, 0.0, feather * globals.dpr[0], 0.0],
             ),
             (
-                &target.temporary,
+                if unfeathered {
+                    &target.source
+                } else {
+                    &target.temporary
+                },
                 &target.result,
                 [0.0, 1.0 / size[1] as f32, feather * globals.dpr[1], 1.0],
             ),
@@ -947,6 +983,9 @@ impl AlphaMasks {
         .into_iter()
         .enumerate()
         {
+            if unfeathered && index == 0 {
+                continue;
+            }
             let filter = &buffers.filters[index].buffer;
             let params = [
                 params[0],
@@ -975,7 +1014,7 @@ impl AlphaMasks {
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: wgpu::BindingResource::TextureView(parent),
+                        resource: wgpu::BindingResource::TextureView(parent_view),
                     },
                     wgpu::BindGroupEntry {
                         binding: 3,
@@ -1226,7 +1265,8 @@ mod tests {
     #[ignore = "requires a native GPU adapter"]
     fn cached_vector_and_captured_alpha_do_not_allocate_encoders() {
         let mut rig = GpuRig::new();
-        let source = texture(&rig.device, [64, 64]).create_view(&Default::default());
+        let source =
+            texture(&rig.device, [64, 64], "Test alpha source").create_view(&Default::default());
         let globals = GpuGlobals {
             resolution: [64.0; 2],
             dpr: [1.0; 2],

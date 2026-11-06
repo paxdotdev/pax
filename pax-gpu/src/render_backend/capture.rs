@@ -43,8 +43,10 @@ enum CaptureBlend {
 }
 
 struct CachedGroup {
+    presentation_label: String,
     signature: u64,
     domain_size: (u32, u32),
+    globals: GpuGlobals,
     rect: (u32, u32, u32, u32),
     texture: Texture,
     bind_group: BindGroup,
@@ -61,7 +63,26 @@ pub(super) struct RetainedSurfaces {
     sampler: wgpu::Sampler,
     groups: HashMap<CaptureKey, CachedGroup>,
     scratch: Vec<CaptureTarget>,
+    stencils: Vec<((u32, u32), StencilRenderer)>,
     pub(super) stack: Vec<CaptureTarget>,
+}
+
+pub(super) struct CaptureDomain {
+    globals: GpuGlobals,
+    size: (u32, u32),
+    stencil: StencilRenderer,
+}
+
+impl CachedGroup {
+    fn logical_rect(&self) -> [f32; 4] {
+        let (x, y, w, h) = self.rect;
+        [
+            self.globals.origin[0] + x as f32 / self.globals.dpr[0],
+            self.globals.origin[1] + y as f32 / self.globals.dpr[1],
+            w as f32 / self.globals.dpr[0],
+            h as f32 / self.globals.dpr[1],
+        ]
+    }
 }
 
 #[repr(C)]
@@ -73,37 +94,43 @@ struct Vertex {
 }
 
 impl RetainedSurfaces {
+    pub(super) fn retain_stencil_resources(
+        &mut self,
+        signatures: &HashSet<u64>,
+        ids: &HashSet<u32>,
+    ) {
+        for (_, stencil) in &mut self.stencils {
+            stencil.retain_cached_resources(signatures, ids);
+        }
+    }
     #[cfg(feature = "shaders")]
     pub(super) fn effect_source(
         &self,
         key: CaptureKey,
-        globals: &data::GpuGlobals,
+        _globals: &data::GpuGlobals,
     ) -> (Texture, [f32; 4]) {
         let group = &self.groups[&key];
-        let (x, y, w, h) = group.rect;
-        (
-            group.texture.clone(),
-            [
-                globals.origin[0] + x as f32 / globals.dpr[0],
-                globals.origin[1] + y as f32 / globals.dpr[1],
-                w as f32 / globals.dpr[0],
-                h as f32 / globals.dpr[1],
-            ],
-        )
+        (group.texture.clone(), group.logical_rect())
     }
 
-    pub(super) fn texture_view(&self, key: CaptureKey, size: [u32; 2]) -> (TextureView, [f32; 4]) {
+    pub(super) fn texture_view(
+        &self,
+        key: CaptureKey,
+        globals: GpuGlobals,
+    ) -> (TextureView, (u32, u32, u32, u32)) {
         let group = &self.groups[&key];
-        let (x, y, w, h) = group.rect;
-        (
-            group.texture.create_view(&Default::default()),
-            [
-                x as f32 / size[0] as f32,
-                y as f32 / size[1] as f32,
-                w as f32 / size[0] as f32,
-                h as f32 / size[1] as f32,
-            ],
-        )
+        let rect = group.logical_rect();
+        let rect = (
+            ((rect[0] - globals.origin[0]) * globals.dpr[0])
+                .round()
+                .max(0.0) as u32,
+            ((rect[1] - globals.origin[1]) * globals.dpr[1])
+                .round()
+                .max(0.0) as u32,
+            group.rect.2,
+            group.rect.3,
+        );
+        (group.texture.create_view(&Default::default()), rect)
     }
 
     fn new(backend: &RenderBackend<'_>) -> Self {
@@ -184,18 +211,13 @@ impl RetainedSurfaces {
             sampler,
             groups: HashMap::new(),
             scratch: Vec::new(),
+            stencils: Vec::new(),
             stack: Vec::new(),
         }
     }
 }
 
 impl RenderBackend<'_> {
-    pub(crate) fn capture_is_resident(&self, key: CaptureKey) -> bool {
-        self.retained_surfaces
-            .as_ref()
-            .is_some_and(|s| s.groups.contains_key(&key))
-    }
-
     pub(crate) fn retain_captures(&mut self, active: &HashSet<CaptureKey>) {
         #[cfg(feature = "shaders")]
         if let Some(effects) = &mut self.effects {
@@ -220,8 +242,12 @@ impl RenderBackend<'_> {
                 size == (self.surface_config.width, self.surface_config.height)
                     || surfaces.groups.values().any(|g| g.domain_size == size)
             });
+            surfaces
+                .stencils
+                .retain(|(size, _)| surfaces.groups.values().any(|g| g.domain_size == *size));
             if active.is_empty() {
                 surfaces.scratch.clear();
+                surfaces.stencils.clear();
             }
         }
     }
@@ -235,19 +261,102 @@ impl RenderBackend<'_> {
         self.source_stencil = None;
     }
 
-    pub(crate) fn capture_is_cached(&mut self, key: CaptureKey, signature: u64) -> bool {
-        if self.retained_surfaces.as_ref().is_none() {
-            self.retained_surfaces = Some(RetainedSurfaces::new(self));
-        }
+    pub(crate) fn capture_is_cached(&self, key: CaptureKey, signature: u64) -> bool {
         self.retained_surfaces
             .as_ref()
-            .unwrap()
-            .groups
-            .get(&key)
+            .and_then(|surfaces| surfaces.groups.get(&key))
             .is_some_and(|g| g.signature == signature)
     }
 
+    /// A capture keeps the scene's logical coordinates while moving its pixel
+    /// origin. Nested captures restore both the parent's globals and stencil.
+    pub(crate) fn begin_bounded_capture(&mut self, bounds: ScissorRect) -> bool {
+        let Some((x, y, width, height)) = physical_scissor_rect(
+            Some(bounds),
+            self.globals.dpr,
+            self.globals.origin,
+            self.surface_config.width,
+            self.surface_config.height,
+        ) else {
+            return false;
+        };
+        // Quantized spare capacity avoids replacing attachments for every small
+        // pose change; unused pixels never enter the retained copy rectangle.
+        let width = width
+            .next_multiple_of(64)
+            .min(self.surface_config.width - x);
+        let height = height
+            .next_multiple_of(64)
+            .min(self.surface_config.height - y);
+        if self.retained_surfaces.is_none() {
+            self.retained_surfaces = Some(RetainedSurfaces::new(self));
+        }
+        let surfaces = self.retained_surfaces.as_mut().unwrap();
+        let mut stencil = surfaces
+            .stencils
+            .iter()
+            .position(|(size, _)| *size == (width, height))
+            .map(|index| surfaces.stencils.swap_remove(index).1)
+            .unwrap_or_else(|| {
+                StencilRenderer::with_shared_transforms(
+                    &self.device,
+                    width,
+                    height,
+                    self.sample_count,
+                    &self.globals_buffer,
+                    &self.stencil_renderer,
+                    self.context
+                        .stencil_pipeline_resources(self.surface_config.format, self.sample_count),
+                )
+            });
+        std::mem::swap(&mut self.stencil_renderer, &mut stencil);
+        let parent = CaptureDomain {
+            globals: self.globals,
+            size: (self.surface_config.width, self.surface_config.height),
+            stencil,
+        };
+        self.globals.origin[0] += x as f32 / self.globals.dpr[0];
+        self.globals.origin[1] += y as f32 / self.globals.dpr[1];
+        self.globals.resolution = [
+            width as f32 / self.globals.dpr[0],
+            height as f32 / self.globals.dpr[1],
+        ];
+        self.surface_config.width = width;
+        self.surface_config.height = height;
+        self.stage_bounded_capture_globals(true);
+        self.begin_capture();
+        self.retained_surfaces
+            .as_mut()
+            .unwrap()
+            .stack
+            .last_mut()
+            .unwrap()
+            .parent_domain = Some(parent);
+        true
+    }
+
+    fn stage_bounded_capture_globals(&mut self, clear_stencil: bool) {
+        // Keep domain changes in the retained command stream. A command buffer
+        // per small group would exhaust Metal's queue during letter animation.
+        let mut encoder = self.take_retained_encoder();
+        write_staged_buffer(
+            &mut self.staging_belt,
+            &mut encoder,
+            &self.globals_buffer,
+            bytemuck::bytes_of(&self.globals),
+        );
+        self.staging_belt_pending_recall = true;
+        self.needs_device_poll = true;
+        if clear_stencil {
+            self.stencil_renderer.encode_clear(&mut encoder);
+        }
+        self.retained_encoder = Some(encoder);
+    }
+
     pub(crate) fn begin_capture(&mut self) {
+        if self.retained_surfaces.is_none() {
+            self.retained_surfaces = Some(RetainedSurfaces::new(self));
+        }
         let scratch = self
             .retained_surfaces
             .as_mut()
@@ -294,6 +403,7 @@ impl RenderBackend<'_> {
                     view,
                     multisampled_target,
                     initialized: false,
+                    parent_domain: None,
                 }
             });
         self.retained_surfaces.as_mut().unwrap().stack.push(scratch);
@@ -345,7 +455,7 @@ impl RenderBackend<'_> {
         let mut encoder = self.take_retained_encoder();
         let surfaces = self.retained_surfaces.as_mut().unwrap();
         let mut scratch = surfaces.stack.pop().unwrap();
-        // Opacity capacity follows the physical surface; shader source capacity
+        // Opacity capacity follows the physical capture domain; shader source capacity
         // follows the bounded hysteresis policy below. Alpha sources stay exact.
         let opacity = match key {
             CaptureKey::Opacity(..) => true,
@@ -357,11 +467,11 @@ impl RenderBackend<'_> {
             let previous = surfaces.groups.get(&key);
             (
                 rect.2.next_multiple_of(64)
-                    .max(previous.map_or(0, |g| g.texture.width()))
-                    .min(self.surface_config.width),
+                    .min(self.surface_config.width)
+                    .max(previous.map_or(0, |g| g.texture.width())),
                 rect.3.next_multiple_of(64)
-                    .max(previous.map_or(0, |g| g.texture.height()))
-                    .min(self.surface_config.height),
+                    .min(self.surface_config.height)
+                    .max(previous.map_or(0, |g| g.texture.height())),
             )
         } else {
             (rect.2, rect.3)
@@ -396,7 +506,7 @@ impl RenderBackend<'_> {
             .is_none_or(|g| g.texture.width() != size.0 || g.texture.height() != size.1)
         {
             let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("Retained subtree"),
+                label: Some(&format!("Retained subtree {key:?}")),
                 size: wgpu::Extent3d {
                     width: size.0,
                     height: size.1,
@@ -434,8 +544,10 @@ impl RenderBackend<'_> {
             surfaces.groups.insert(
                 key,
                 CachedGroup {
+                    presentation_label: format!("Present opacity group {key:?}"),
                     signature,
                     domain_size: (self.surface_config.width, self.surface_config.height),
+                    globals: self.globals,
                     rect,
                     texture,
                     bind_group,
@@ -447,6 +559,7 @@ impl RenderBackend<'_> {
         group.rect = rect;
         group.signature = signature;
         group.domain_size = (self.surface_config.width, self.surface_config.height);
+        group.globals = self.globals;
         encoder.copy_texture_to_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &scratch.texture,
@@ -466,8 +579,21 @@ impl RenderBackend<'_> {
             },
         );
         scratch.initialized = false;
+        let parent = scratch.parent_domain.take();
         surfaces.scratch.push(scratch);
         self.retained_encoder = Some(encoder);
+        if let Some(mut parent) = parent {
+            let size = (self.surface_config.width, self.surface_config.height);
+            std::mem::swap(&mut self.stencil_renderer, &mut parent.stencil);
+            self.retained_surfaces
+                .as_mut()
+                .unwrap()
+                .stencils
+                .push((size, parent.stencil));
+            self.globals = parent.globals;
+            (self.surface_config.width, self.surface_config.height) = parent.size;
+            self.stage_bounded_capture_globals(false);
+        }
     }
 
     pub(crate) fn draw_capture(&mut self, key: CaptureKey, opacity: f32) {
@@ -495,11 +621,12 @@ impl RenderBackend<'_> {
         let mut encoder = self.take_retained_encoder();
         let surfaces = self.retained_surfaces.as_ref().unwrap();
         let group = &surfaces.groups[&key];
-        let (x, y, w, h) = group.rect;
-        let left = x as f32 / self.surface_config.width as f32 * 2.0 - 1.0;
-        let right = (x + w) as f32 / self.surface_config.width as f32 * 2.0 - 1.0;
-        let top = 1.0 - y as f32 / self.surface_config.height as f32 * 2.0;
-        let bottom = 1.0 - (y + h) as f32 / self.surface_config.height as f32 * 2.0;
+        let (_, _, w, h) = group.rect;
+        let rect = group.logical_rect();
+        let left = (rect[0] - self.globals.origin[0]) / self.globals.resolution[0] * 2.0 - 1.0;
+        let right = left + rect[2] / self.globals.resolution[0] * 2.0;
+        let top = 1.0 - (rect[1] - self.globals.origin[1]) / self.globals.resolution[1] * 2.0;
+        let bottom = top - rect[3] / self.globals.resolution[1] * 2.0;
         let u = w as f32 / group.texture.width() as f32;
         let v = h as f32 / group.texture.height() as f32;
         let vertices = [
@@ -515,11 +642,17 @@ impl RenderBackend<'_> {
             uv: [u, v],
             opacity,
         });
-        self.queue
-            .write_buffer(&group.vertices, 0, bytemuck::cast_slice(&vertices));
+        write_staged_buffer(
+            &mut self.staging_belt,
+            &mut encoder,
+            &group.vertices,
+            bytemuck::cast_slice(&vertices),
+        );
+        self.staging_belt_pending_recall = true;
+        self.needs_device_poll = true;
         for ((view, resolve), load) in &targets {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Present opacity group"),
+                label: Some(&group.presentation_label),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
                     depth_slice: None,
@@ -552,6 +685,19 @@ impl RenderBackend<'_> {
 
 #[cfg(test)]
 impl RenderBackend<'_> {
+    pub(crate) fn has_capture_resources_for_test(&self) -> bool {
+        self.retained_surfaces.is_some()
+    }
+
+    pub(crate) fn capture_scratch_sizes_for_test(&self) -> Vec<[u32; 2]> {
+        self.retained_surfaces.as_ref().map_or_else(Vec::new, |s| {
+            s.scratch
+                .iter()
+                .map(|t| [t.texture.width(), t.texture.height()])
+                .collect()
+        })
+    }
+
     pub(crate) fn alpha_source_has_working_storage(&self) -> bool {
         self.source_stencil.is_some()
             || self

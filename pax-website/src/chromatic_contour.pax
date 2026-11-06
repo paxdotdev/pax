@@ -18,5 +18,4 @@
 
 @settings {
     @mount: mount
-    @pre_render: tick
 }

@@ -447,8 +447,23 @@ row's direction, then aligns the word vertically at one of five horizontal
 columns. Rows ease independently over at most 2.3 seconds; the aligned word
 brightens to warm white during a 3.2-second reading hold and dims before travel.
 The field has seven visible cells per row on desktop, six on narrow layouts,
-and 80 retained individual Path letters,
-including clipped wrap overscan. Letter geometry does not change during playback.
+and preserves fixed letter geometry during playback. The current GPU experiment
+uses one horizontal `Scroller` per row, containing three fixed copies of the
+20-letter tape (240 base Paths in total). Only the scroll offsets animate.
+Whole-period coordinate changes at journey boundaries keep each complete trip
+inside the finite pane. The CPU fallback retains the original 80 moving Paths.
+
+Horizontal native scrolling pauses automatic motion across the four rows. During
+an illuminated hold, the highlighted letter follows its row's manual movement;
+the other rows keep their letters, illumination, and backlight positions. After
+900ms without further adjustment, and after touch release, a new journey starts
+from the current positions. This is a finite scroll pane, not a public infinite-
+scroll mode. The extra mounted letters and scroll surfaces are part of the
+performance comparison tracked in PAX-1065.
+
+The glow is currently composited outside the native row scroll hosts to preserve
+its overhang. Rapid native scrolling can move a row ahead of that separate GPU
+overlay; synchronized glow tracking remains an experiment limitation in PAX-1065.
 
 The graphic pauses its clock offscreen. There is no visible vocabulary legend
 or playback control; these are decorative outlines, not selectable vector text
@@ -465,7 +480,9 @@ while the light is off; the existing offscreen clock pause applies to the sweep.
 Transmission and polish are disabled
 so the letter faces remain unchanged. Four small, normalized letter artboards
 keep the effect captures local; they sit outside the tape's clipping Frame so
-the first and last rows can cast light beyond its edges. The selected tape paths
+the first and last rows can cast light beyond its edges. An outer clip includes
+the full 48px maximum glow margin but prevents a manually scrolled highlight
+from painting across the neighboring section copy. The selected tape paths
 remain retained but hidden while those artboards draw them, avoiding doubled
 edges. During travel only the ordinary tape paths draw; CPU retains the same
 letter/color choreography without the shader.

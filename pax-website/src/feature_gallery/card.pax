@@ -23,8 +23,6 @@
 </Group>
 
 @settings {
-    @mount: measure_artboard
-    @pre_render: measure_artboard
     .feature_card_surface {
         fill: {paint: {SiteTheme::surface()}, material: {Material::unlit()}}
         stroke: Stroke {

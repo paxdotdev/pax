@@ -80,6 +80,65 @@ at most 64 phase names. P95 uses the first 2,048 samples per phase;
 all recorded samples.
 Starting another profile replaces the previous one.
 
+For callback attribution, add `&pax_work_profile=1` before loading the page, then
+choose **Profile CPU work 2 seconds** in the same panel. This explicit window
+reports queued reactive effects by name and lifecycle targets by engine node and
+template coordinates. Each lifecycle row separates context construction, the
+handler body, and context teardown. Named operation scopes include appearance
+subscription rebuilding, even when a queued effect triggers it through a nested
+read. Property rows are ranked by inclusive evaluator time; nested
+dependency reads belong to their caller, so these times overlap the tick phase
+profile. The extra clocks and diagnostic names add overhead: use this to locate
+work, then verify cadence without profiling. The collector stops at the end of
+the window; a new capture resets it. Both debug and release web builds support it.
+
+In WGPU builds, the same capture also includes `rendering` rows grouped by
+physical surface and engine node. They distinguish retained vector geometry,
+paint, and transform changes; shader/alpha/opacity source rasterization and
+reuse; and lighting invalidations with their affected nodes. Lighting reasons
+(such as changed world mapping or direct-light values) can overlap. An
+"outside surface" count means a conservative retained dependency lies outside
+that physical tile; it does not mean those pixels were drawn. A node can occur
+on several tiles, so these counts are renderer occurrences, not unique elements.
+The report's `nodes` table resolves these IDs to template coordinates.
+
+Named CPU scopes also separate path change listeners, local canvas and occlusion
+geometry, and path rendering. `surface encode` measures CPU command preparation;
+pixel counts estimate physical-pixel workload and are **not GPU execution times**.
+Scopes can include nested work and must not be summed. Renderer observation and
+its clocks stop when the capture ends. Other backends may omit `rendering` rows.
+
+The same panel's **Engine node ID** / **Inspect node** lookup connects an ID in
+the trace or a GPU capture to its element type, containing template component,
+template node ID, and one-based source line/column when available. It also shows
+parent IDs, render-source ownership, attachment count, and whether occlusion has
+a record for that node. Lookups work in both debug and release web builds and
+do not prepare geometry or evaluate reactive properties. A missing node has
+already left the runtime cache or belongs to another engine instance; IDs are
+not stable across reloads. Release programs omit source paths, so use the named
+component to locate its template. Inline templates use template-relative lines.
+Profiled full occlusion rebuilds include `rebuild_node_info` automatically.
+
+GPU alpha-mask texture labels include `node=<engine ID>` and the source,
+temporary, or result stage. Retained opacity pass labels include their capture
+key: `Opacity(owner, first_child)` identifies the opacity owner's engine ID;
+`SpatialOpacity(namespace, owner, first_child, region)` and
+`SpatialGroup(namespace, owner)` identify a spatial opacity owner. Other spatial
+presentation/visibility keys describe composition partitions, not element IDs.
+Labels provide attribution, not timing; GPU timestamps can overlap and must not
+be added to estimate frame time.
+
+The opt-in CPU profile splits coverage work into `occlusion.coverage.validate`,
+`.clips`, `.geometry`, `.records`, and `.containers`; a full reconciliation also
+reports `.rebuild`. These are sequential subphases. The remaining
+`occlusion.coverage` entry measures final publication, not their combined total.
+Use the subphases to distinguish geometry preparation and dirty coverage from
+scroll-container presentation before attributing a stall to mask evaluation.
+`occlusion-work.coverage_slowest` contains up to eight dirty-record updates
+lasting at least 0.5 ms in the latest pass, with CPU wall time and an Engine node
+ID for **Inspect node**. It is opt-in diagnostic work, excludes full rebuilds,
+and is already included in the `.records` phase; do not add it again.
+
 For runtime-level occlusion measurements, `OcclusionStats::masks_evaluated`
 counts mask queries after both structural rebuilds and incremental updates;
 `mask_candidates` counts their broad-phase canvas candidates. These are work

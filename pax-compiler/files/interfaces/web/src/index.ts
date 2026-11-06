@@ -95,6 +95,7 @@ export interface ApplicationSurface extends MountedApp {
     readonly region: HTMLDivElement;
     readonly chassis: PaxChassisWeb | null;
     reveal(): boolean;
+    enableInput(): boolean;
     publish(): boolean;
     presentationReady(): boolean;
 }
@@ -321,14 +322,20 @@ class MountSession implements MountedApp {
         }
         return true;
     }
-    publish() {
-        if (!this.reveal()) return false;
-        // Loader exit may follow first-viewport readiness. Ordinary ticks and
-        // input still require the complete mount, regardless of exit policy.
-        if (mountYieldEnabled && !startupPresented) return false;
+    enableInput() {
+        this.checkOpen();
+        // The loader owns this handoff after its exit. Background settlement
+        // must not delay input or release the application's animation clock.
+        if (!currentChassis || this.options.holdPresentation) return false;
+        currentChassis.finish_startup_presentation();
         this.region.inert = false;
         this.region.removeAttribute("aria-hidden");
         return true;
+    }
+    publish() {
+        if (!this.reveal()) return false;
+        if (mountYieldEnabled && !startupPresented) return false;
+        return this.enableInput();
     }
     private startPresentation() {
         if (this.presentationStarted) return;
@@ -769,6 +776,14 @@ function progressStartupFrame(chassis: PaxChassisWeb, mount: Element) {
 }
 
 function runStartupFrame(chassis: PaxChassisWeb, mount: Element) {
+    // Loader exit can release input while the mount continuation still owns
+    // the frame loop. Drain in order without running an ordinary animation tick.
+    frameInProgress = true;
+    try {
+        if (chassis.startup_input_pending()) chassis.replay_startup_input();
+    } finally {
+        finishEngineTurn(chassis, mount);
+    }
     nativePool.sampleFrameInputs();
     if (startupWork?.patchesPending || !chassis.prepare_startup_presentation()) {
         startupViewportReady = false;
@@ -782,7 +797,8 @@ function runStartupFrame(chassis: PaxChassisWeb, mount: Element) {
     const first = !startupViewportPresented;
     // Every checkpoint settles native feedback before admitting more mounts.
     // Already-published text can still progress while the canvas keeps its last
-    // settled presentation; input and the init Promise wait for full completion.
+    // settled presentation; ordinary ticks and the init Promise wait for full
+    // completion. Input can already be live after the loader's exit.
     if (!nativePool.startupTextReady()) {
         startupViewportReady = false;
         startupFeedbackFrameReady = false;

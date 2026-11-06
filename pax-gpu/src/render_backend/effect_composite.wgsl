@@ -15,8 +15,12 @@ struct Vertex { @builtin(position) position: vec4<f32>, @location(0) uv: vec2<f3
     return Vertex(vec4<f32>(pos * vec2<f32>(2,-2) + vec2<f32>(-1,1), 0, 1), uv);
 }
 @fragment fn fs_main(v: Vertex) -> @location(0) vec4<f32> {
-    let alpha = textureSampleLevel(alpha_mask, alpha_sampler,
-        (v.position.xy / globals.dpr + globals.origin - alpha_domain.xy) / alpha_domain.zw, 0.0).r;
+    let bounded_mask = all(alpha_domain.zw > vec2<f32>(0.0));
+    let mask_uv = (v.position.xy / globals.dpr + globals.origin - alpha_domain.xy) /
+        select(vec2<f32>(1.0), alpha_domain.zw, bounded_mask);
+    let mask_alpha = textureSampleLevel(alpha_mask, alpha_sampler, mask_uv, 0.0).r;
+    let alpha = select(0.0, mask_alpha, !bounded_mask ||
+        (all(mask_uv >= vec2<f32>(0.0)) && all(mask_uv <= vec2<f32>(1.0))));
     let size = vec2<f32>(textureDimensions(output_texture));
     let uv = clamp(v.uv * output.uv_scale.xy, 0.5 / size, output.uv_scale.xy - 0.5 / size);
     return textureSample(output_texture, output_sampler, uv) * alpha;

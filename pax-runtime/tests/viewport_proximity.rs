@@ -979,6 +979,7 @@ fn indexed_native_masks_match_full_for_movement_opacity_clipping_and_structure()
 }
 
 #[test]
+#[cfg(feature = "3d")]
 fn spatial_native_masks_keep_scroll_local_cutouts_and_follow_depth_reversal() {
     TRACK_OCCLUSION.with(|flag| flag.set(true));
     let native = Probe::new(Kind::Native, rect(0.0), &[], vec![]);
@@ -995,7 +996,11 @@ fn spatial_native_masks_keep_scroll_local_cutouts_and_follow_depth_reversal() {
     let scroller = root.children.get()[0].clone();
     let native = scroller.children.get()[0].clone();
     let paint = scroller.children.get()[1].clone();
-    paint.get_common_properties().borrow().translate_z.set(Some(Depth::from(50.0)));
+    paint
+        .get_common_properties()
+        .borrow()
+        .z
+        .set(Some(Depth::from(50.0)));
     engine.tick();
     let front_hash = native.native_mask_hash.get();
     assert_ne!(front_hash, 0);
@@ -1003,11 +1008,19 @@ fn spatial_native_masks_keep_scroll_local_cutouts_and_follow_depth_reversal() {
     engine.tick();
     assert_eq!(native.native_mask_hash.get(), front_hash);
     assert_masks_match_full(&mut engine, &[native.clone()]);
-    paint.get_common_properties().borrow().translate_z.set(Some(Depth::from(-50.0)));
+    paint
+        .get_common_properties()
+        .borrow()
+        .z
+        .set(Some(Depth::from(-50.0)));
     engine.tick();
     assert_eq!(native.native_mask_hash.get(), 0);
     assert_masks_match_full(&mut engine, &[native.clone()]);
-    paint.get_common_properties().borrow().translate_z.set(Some(Depth::from(50.0)));
+    paint
+        .get_common_properties()
+        .borrow()
+        .z
+        .set(Some(Depth::from(50.0)));
     engine.tick();
     assert_eq!(native.native_mask_hash.get(), front_hash);
     assert_masks_match_full(&mut engine, &[native]);

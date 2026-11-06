@@ -37,7 +37,7 @@ impl FeatureStudy {
         self._last_ms.set(ctx.elapsed_time_millis() as f64);
     }
 
-    pub fn tick(&mut self, ctx: &NodeContext) {
+    pub fn on_pre_render(&mut self, ctx: &NodeContext) {
         if !self._visible.get() || matches!(self.kind.get().as_str(), "caps" | "materials") {
             return;
         }

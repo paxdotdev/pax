@@ -35,7 +35,7 @@ pub mod site_logo;
 pub mod site_shell;
 pub mod site_theme;
 
-pub use acrostic::{Acrostic, AcrosticGlyph, AcrosticRow, RowJourney};
+pub use acrostic::{Acrostic, AcrosticGlyph, AcrosticRow, AcrosticScrollRow, RowJourney};
 pub use authoring_section::AuthoringSection;
 pub use brand_mark::BrandMark;
 pub use calculator_preview::CalculatorPreview;

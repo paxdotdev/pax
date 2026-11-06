@@ -163,8 +163,27 @@ impl DepthPlane {
     }
 }
 
+/// One opt-in backend work sample. Counts and physical-pixel workload estimates
+/// are not GPU timings. Named CPU spans may include nested work.
+#[derive(Clone, Debug, Default)]
+pub struct RenderWorkObservation {
+    pub layer: usize,
+    pub surface: usize,
+    pub node: Option<u32>,
+    pub operation: &'static str,
+    pub count: u64,
+    pub pixels: u64,
+    pub cpu_ms: f64,
+}
+
+/// Synchronous diagnostic sink. Backends must not retain runtime nodes through it.
+pub type RenderWorkObserver = std::rc::Rc<dyn Fn(RenderWorkObservation)>;
+
 /// The drawing contract shared by Pax runtime backends.
 pub trait RenderContext {
+    /// Install an explicit-window work observer. Unsupported backends emit no
+    /// samples. Passing None stops collection without changing rendering.
+    fn set_render_work_observer(&mut self, _observer: Option<RenderWorkObserver>) {}
     /// Supplies mounted/support identities and the runtime-owned relation cache.
     /// Retained replay carries these values without retaining reactive nodes.
     #[cfg(feature = "3d")]

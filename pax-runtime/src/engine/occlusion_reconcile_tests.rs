@@ -162,6 +162,167 @@ fn clear(ctx: &RuntimeContext) {
 }
 
 #[test]
+fn local_coverage_cache_tracks_shape_inputs_and_occurrence_lifetimes() {
+    use pax_runtime_api::{LocalProperty, Variable};
+    use std::cell::Cell;
+
+    struct ShapeProbe {
+        base: BaseInstance,
+        cached: bool,
+        shape: LocalProperty<f64>,
+        manual: Cell<f64>,
+        reads: RefCell<HashMap<u32, usize>>,
+    }
+    impl InstanceNode for ShapeProbe {
+        fn instantiate(_: InstantiationArgs) -> Rc<Self> {
+            unreachable!()
+        }
+        fn base(&self) -> &BaseInstance {
+            &self.base
+        }
+        fn resolve_debug(
+            &self,
+            f: &mut std::fmt::Formatter,
+            _: Option<&ExpandedNode>,
+        ) -> std::fmt::Result {
+            f.debug_struct("ShapeProbe").finish()
+        }
+        fn local_occlusion_path_is_retained(&self) -> bool {
+            true
+        }
+        fn local_occlusion_path_is_placement_independent(&self) -> bool {
+            self.cached
+        }
+        fn resolve_local_occlusion_path(&self, node: &ExpandedNode) -> Option<BezPath> {
+            *self.reads.borrow_mut().entry(node.id.to_u32()).or_default() += 1;
+            let width = node
+                .presentation_transform_and_bounds
+                .get()
+                .bounds
+                .0
+                .min(40.)
+                + self.shape.get()
+                + self.manual.get();
+            Some(Rect::new(0., 0., width, 20.).to_path(0.1))
+        }
+    }
+
+    for cached in [false, true] {
+        let shape = LocalProperty::new(0.);
+        let dependency = shape.clone();
+        let mut arguments = args(vec![]);
+        arguments.properties_scope = PropertiesScopeInit::Factory(Box::new(move |_| {
+            HashMap::from([(
+                "shape".into(),
+                Variable::new_from_typed_property(dependency.clone()),
+            )])
+        }));
+        let shared = Rc::new(ShapeProbe {
+            base: BaseInstance::new(
+                arguments,
+                InstanceFlags {
+                    layer: Layer::Canvas,
+                    invisible_to_slot: false,
+                    invisible_to_raycasting: true,
+                    is_component: false,
+                    is_slot: false,
+                },
+            ),
+            cached,
+            shape: shape.clone(),
+            manual: Cell::new(0.),
+            reads: RefCell::new(HashMap::new()),
+        });
+        // One InstanceNode backs two separately retained expanded occurrences.
+        let (ctx, root) = mount(vec![
+            shared.clone(),
+            shared.clone(),
+            probe(Kind::Native, vec![]),
+        ]);
+        let _graph = ctx.property_graph.enter();
+        let parent = root.children.get()[0].clone();
+        let children = parent.children.get();
+        let a = children[0].clone();
+        let b = children[1].clone();
+        let before = shared.reads.borrow().clone();
+        for x in [2., 4., 6.] {
+            a.get_common_properties()
+                .borrow()
+                .x
+                .set(Some(Size::Pixels(x.into())));
+            a.get_common_properties()
+                .borrow()
+                .opacity
+                .set(Some(0.5.into()));
+            settle(&root, &ctx);
+            assert_eq!(
+                ctx.occlusion_state.borrow().records[&a.id.to_u32()].opacity,
+                0.5
+            );
+            assert_full_rebuild_matches(&root, &ctx);
+        }
+        if cached {
+            assert_eq!(
+                *shared.reads.borrow(),
+                before,
+                "placement and opacity retain local shape"
+            );
+        } else {
+            assert!(
+                shared.reads.borrow()[&a.id.to_u32()] > before[&a.id.to_u32()],
+                "custom callbacks keep their existing live behavior"
+            );
+        }
+        let before = shared.reads.borrow().clone();
+        a.get_common_properties()
+            .borrow()
+            .width
+            .set(Some(Size::Pixels(10.0.into())));
+        settle(&root, &ctx);
+        assert!(shared.reads.borrow()[&a.id.to_u32()] > before[&a.id.to_u32()]);
+        if cached {
+            assert_eq!(
+                shared.reads.borrow()[&b.id.to_u32()],
+                before[&b.id.to_u32()]
+            );
+        }
+        let before = shared.reads.borrow().clone();
+        shape.set(7.);
+        settle(&root, &ctx);
+        for node in [&a, &b] {
+            assert!(shared.reads.borrow()[&node.id.to_u32()] > before[&node.id.to_u32()]);
+        }
+        let before = shared.reads.borrow()[&a.id.to_u32()];
+        shared.manual.set(11.);
+        ctx.mark_node_occlusion_dirty(a.id.to_u32());
+        ctx.mark_node_occlusion_dirty(b.id.to_u32());
+        settle(&root, &ctx);
+        assert!(shared.reads.borrow()[&a.id.to_u32()] > before);
+        assert_full_rebuild_matches(&root, &ctx);
+        let path = ctx.occlusion_state.borrow().records[&a.id.to_u32()]
+            .path
+            .clone()
+            .unwrap();
+        assert_eq!(path.bounding_box().width(), 28.);
+
+        attach(&parent, vec![b.clone(), children[2].clone()], &ctx);
+        settle(&root, &ctx);
+        assert!(
+            a.local_occlusion_geometry.get().0.is_none(),
+            "unmount releases retained shape"
+        );
+        let before = shared.reads.borrow()[&a.id.to_u32()];
+        attach(&parent, children, &ctx);
+        settle(&root, &ctx);
+        assert!(
+            shared.reads.borrow()[&a.id.to_u32()] > before,
+            "remount prepares fresh coverage"
+        );
+        assert_full_rebuild_matches(&root, &ctx);
+    }
+}
+
+#[test]
 fn collapsing_native_surface_clears_old_mask_and_expansion_restores_it() {
     let (ctx, root) = mount(vec![
         probe(Kind::Canvas, vec![]),

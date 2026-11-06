@@ -143,7 +143,8 @@ impl WgpuRenderer<'_> {
                 // own alpha intentionally does not: it is applied only when sampling the cache.
                 bytemuck::bytes_of(globals).hash(&mut hash);
                 #[cfg(feature = "3d")]
-                self.spatial.region
+                self.spatial
+                    .region
                     .map(|(_, signature, _)| signature)
                     .hash(&mut hash);
                 // A fragment's clip can move while its retained node stays unchanged.
@@ -189,7 +190,12 @@ impl WgpuRenderer<'_> {
                         self.spatial.region.map_or(
                             CaptureKey::Opacity(scope.node_id, run[0]),
                             |(region, _, _)| {
-                                CaptureKey::SpatialOpacity(self.spatial.namespace, scope.node_id, run[0], region)
+                                CaptureKey::SpatialOpacity(
+                                    self.spatial.namespace,
+                                    scope.node_id,
+                                    run[0],
+                                    region,
+                                )
                             },
                         )
                     },
@@ -256,7 +262,10 @@ impl WgpuRenderer<'_> {
             }
         }
         #[cfg(feature = "3d")]
-        let clips = node.clip_stack().iter().chain(self.spatial.solid_clips.get(&id).into_iter().flatten());
+        let clips = node
+            .clip_stack()
+            .iter()
+            .chain(self.spatial.solid_clips.get(&id).into_iter().flatten());
         #[cfg(not(feature = "3d"))]
         let clips = node.clip_stack().iter();
         for clip in clips {
@@ -302,19 +311,40 @@ impl WgpuRenderer<'_> {
                     bounds,
                     children,
                 } => {
-                    // Fully opaque scopes are equivalent to ordinary source-over on this
-                    // canvas. Once a fade has allocated a cache, keep it through alpha one.
-                    if *opacity == 1.0 && !self.render_backend.capture_is_resident(*key) {
+                    let cached = self.render_backend.capture_is_cached(*key, *signature);
+                    // Preserve a useful cached fade at alpha one, but do not
+                    // recapture moving opaque content merely because it once faded.
+                    if *opacity == 1.0 && !cached {
                         self.draw_opacity_plan(children);
                         continue;
                     }
-                    if !self.render_backend.capture_is_cached(*key, *signature) {
-                        self.render_backend.begin_capture();
+                    if !cached {
+                        if !self.render_backend.begin_bounded_capture(*bounds) {
+                            continue;
+                        }
                         self.draw_opacity_plan(children);
                         self.render_backend.end_capture(*key, *signature, *bounds);
                         self.resource_churn_stats.opacity_group_renders += 1;
+                        self.observe_work(
+                            match key {
+                                CaptureKey::Opacity(owner, _) => Some(*owner),
+                                _ => None,
+                            },
+                            "opacity raster",
+                            1,
+                            0,
+                        );
                     } else {
                         self.resource_churn_stats.opacity_group_cache_hits += 1;
+                        self.observe_work(
+                            match key {
+                                CaptureKey::Opacity(owner, _) => Some(*owner),
+                                _ => None,
+                            },
+                            "opacity reuse",
+                            1,
+                            0,
+                        );
                     }
                     self.render_backend.draw_capture(*key, *opacity);
                 }

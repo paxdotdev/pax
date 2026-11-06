@@ -371,12 +371,7 @@ fn cold_nested_shader_replay_preserves_settled_geometry_and_submits_without_a_ti
         regions: Some(vec![kurbo::Rect::new(0.0, 0.0, 320.0, 240.0)]),
     }];
     let preparations = ctx.scene_geometry_stats().preparations;
-    let frames = ctx
-        .globals()
-        .stack_frame()
-        .resolve_symbol("$frames")
-        .unwrap()
-        .get_as_pax_value();
+    let frames = ctx.globals().elapsed_frames.get();
     let mut budget = pax_runtime::engine::surface_work::SurfaceWorkBudget::new(4.0);
     let report = engine.present_settled_surfaces(&mut renderer, &mut budget, || 0.0);
     assert_eq!(report.fallbacks, 1);
@@ -384,14 +379,7 @@ fn cold_nested_shader_replay_preserves_settled_geometry_and_submits_without_a_ti
     assert_eq!(report.deferred, 0);
     assert!(ctx.can_present_settled_surfaces());
     assert_eq!(ctx.scene_geometry_stats().preparations, preparations);
-    assert_eq!(
-        ctx.globals()
-            .stack_frame()
-            .resolve_symbol("$frames")
-            .unwrap()
-            .get_as_pax_value(),
-        frames
-    );
+    assert_eq!(ctx.globals().elapsed_frames.get(), frames);
 }
 
 #[test]

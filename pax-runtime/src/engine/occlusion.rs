@@ -256,6 +256,37 @@ pub struct OcclusionStats {
     /// Bounded origins of structural invalidation consumed by the last rebuild.
     /// Populated only when diagnostic attribution is enabled.
     pub rebuild_origins: [Option<OcclusionInvalidation>; 8],
+    /// Up to eight slowest dirty-record updates in the latest pass, each at least
+    /// 0.5 ms. Opt-in CPU wall times include synchronous coverage reads, not GPU
+    /// work; full rebuilds are reported by the phase profile instead.
+    pub coverage_slowest: [Option<OcclusionCoverageTiming>; 8],
+}
+
+/// Diagnostic attribution of an incremental coverage update to an engine node.
+#[derive(Clone, Copy, Debug, pax_message::serde::Serialize)]
+#[serde(crate = "pax_message::serde")]
+pub struct OcclusionCoverageTiming {
+    /// Session-local expanded node ID, accepted by `RuntimeContext::inspect_node`.
+    pub node: u32,
+    /// CPU wall-clock milliseconds spent updating this record.
+    pub elapsed_ms: f64,
+}
+
+fn record_coverage_timing(stats: &mut OcclusionStats, node: u32, elapsed_ms: f64) {
+    if elapsed_ms < 0.5 {
+        return;
+    }
+    let slot = stats
+        .coverage_slowest
+        .iter_mut()
+        .min_by(|a, b| {
+            a.map_or(0., |v| v.elapsed_ms)
+                .total_cmp(&b.map_or(0., |v| v.elapsed_ms))
+        })
+        .unwrap();
+    if slot.is_none_or(|old| old.elapsed_ms < elapsed_ms) {
+        *slot = Some(OcclusionCoverageTiming { node, elapsed_ms });
+    }
 }
 
 #[derive(Clone, Copy, Debug, pax_message::serde::Serialize)]
@@ -344,6 +375,12 @@ impl OcclusionTopology {
     }
 }
 
+impl OcclusionState {
+    pub(crate) fn contains_node(&self, id: u32) -> bool {
+        self.records.contains_key(&id)
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct OcclusionState {
     pub(crate) diagnostics: bool,
@@ -411,6 +448,7 @@ pub(crate) fn update_node_occlusion_observed(
     let mut state_guard = ctx.occlusion_state.borrow_mut();
     let state = &mut *state_guard;
     state.stats.passes += 1;
+    state.stats.coverage_slowest = [None; 8];
     state.culling_dirty = true;
     let mut dirty = std::mem::take(&mut state.dirty);
     let scrolled = std::mem::take(&mut state.scrolled);
@@ -490,6 +528,7 @@ pub(crate) fn update_node_occlusion_observed(
                 })
             })
     };
+    completed("occlusion.coverage.validate");
     if let Some((reason, node)) = rebuild {
         state.stats.rebuild_origins = std::mem::take(&mut state.invalidations);
         state.stats.rebuild_reason = Some(reason);
@@ -508,7 +547,9 @@ pub(crate) fn update_node_occlusion_observed(
         state.unsafe_layers.clear();
         rebuild_node_occlusion(root_node, ctx, state);
         refresh_container_membership(ctx, state);
+        completed("occlusion.coverage.rebuild");
         ctx.prepare_scene_geometry();
+        completed("occlusion.coverage.geometry");
         let ids: Vec<_> = state.records.keys().copied().collect();
         for id in ids {
             let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) else {
@@ -526,6 +567,7 @@ pub(crate) fn update_node_occlusion_observed(
                 record.geometry = Some(geometry);
             }
         }
+        completed("occlusion.coverage.records");
         // Publish complete topology and geometry before constructing any masks.
         // Both initial/rebuilt and incremental scenes use the same candidate query;
         // a native leaf receives only its final geometric mask for this generation.
@@ -579,7 +621,9 @@ pub(crate) fn update_node_occlusion_observed(
             containers.insert(id);
         }
     }
+    completed("occlusion.coverage.clips");
     ctx.prepare_scene_geometry();
+    completed("occlusion.coverage.geometry");
     for id in dirty {
         let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) else {
             continue;
@@ -589,6 +633,7 @@ pub(crate) fn update_node_occlusion_observed(
         if record.layer == Layer::DontCare {
             continue;
         }
+        let started = state.diagnostics.then(web_time::Instant::now);
         let geometry = ctx.canvas_geometry_for_node(&node);
         if record.layer == Layer::Canvas {
             if let Some(old) = &record.geometry {
@@ -599,8 +644,7 @@ pub(crate) fn update_node_occlusion_observed(
                     *state.canvas_counts.entry(old.layer).or_default() -= 1;
                 }
             }
-            let path = borrow!(node.instance_node)
-                .resolve_occlusion_path(&node)
+            let path = resolve_record_path(&node)
                 .filter(|path| OcclusionBox::new_from_path(path).is_some());
             retain_path(&mut record.path, path);
             #[cfg(feature = "3d")]
@@ -622,7 +666,15 @@ pub(crate) fn update_node_occlusion_observed(
             affected.insert(id);
         }
         record.geometry = Some(geometry);
+        if let Some(started) = started {
+            record_coverage_timing(
+                &mut state.stats,
+                id,
+                started.elapsed().as_secs_f64() * 1000.,
+            );
+        }
     }
+    completed("occlusion.coverage.records");
     for id in scrolled {
         containers.insert(id);
         for &child in state.scroll_containers.get(&id).into_iter().flatten() {
@@ -635,6 +687,7 @@ pub(crate) fn update_node_occlusion_observed(
     for id in containers {
         update_container_presentation(id, ctx, state, &mut presented);
     }
+    completed("occlusion.coverage.containers");
     // All scroll-only changes reaching this path have isolated content layers.
     // Native containers enforce their shared clips; their cutouts are content-
     // local and do not depend on the sampled viewport or scroll position.
@@ -1455,7 +1508,15 @@ fn occlusion_bounds(
         }
         // Custom hooks remain conservative unless they explicitly supply bounds
         // and coverage invalidation. Their exact callback stays live in queries.
-        let Some(bounds) = borrow!(node.instance_node).resolve_local_occlusion_bounds(node) else {
+        let bounds = if let Some(path) = cached_local_occlusion_path(node) {
+            let Some(path) = path else {
+                return CoverageBounds::Empty;
+            };
+            Some(path.bounding_box())
+        } else {
+            borrow!(node.instance_node).resolve_local_occlusion_bounds(node)
+        };
+        let Some(bounds) = bounds else {
             return CoverageBounds::Unbounded;
         };
         let Some(projection) = geometry.projection else {
@@ -1673,6 +1734,21 @@ fn update_indexed_mask(id: u32, ctx: &RuntimeContext, state: &mut OcclusionState
     );
 }
 
+fn cached_local_occlusion_path(node: &ExpandedNode) -> Option<Option<Rc<BezPath>>> {
+    let instance = borrow!(node.instance_node);
+    (instance.local_occlusion_path_is_retained()
+        && instance.local_occlusion_path_is_placement_independent())
+        .then(|| node.local_occlusion_geometry.get().0)
+}
+
+fn resolve_record_path(node: &ExpandedNode) -> Option<BezPath> {
+    if let Some(local) = cached_local_occlusion_path(node) {
+        local.and_then(|path| Some(node.presentation_projection()?.project_path(&path, None)))
+    } else {
+        borrow!(node.instance_node).resolve_occlusion_path(node)
+    }
+}
+
 fn retain_path(slot: &mut Option<Rc<BezPath>>, value: Option<BezPath>) {
     if slot.as_deref() != value.as_ref() {
         *slot = value.map(compact_path);
@@ -1692,10 +1768,14 @@ fn compact_path(path: BezPath) -> Rc<BezPath> {
 fn retain_local_path(record: &mut OcclusionRecord, node: &ExpandedNode) {
     let instance = borrow!(node.instance_node);
     if node.has_perspective_camera() && instance.local_occlusion_path_is_retained() {
-        retain_path(
-            &mut record.local_path,
-            instance.resolve_local_occlusion_path(node),
-        );
+        if let Some(path) = cached_local_occlusion_path(node) {
+            record.local_path = path;
+        } else {
+            retain_path(
+                &mut record.local_path,
+                instance.resolve_local_occlusion_path(node),
+            );
+        }
     } else {
         record.local_path = None;
     }
@@ -2294,7 +2374,7 @@ fn update_node_occlusion_recursive(
         Layer::Canvas => {
             #[cfg(feature = "3d")]
             retain_local_path(state.records.get_mut(&node.id.to_u32()).unwrap(), node);
-            if let Some(coverage_path) = borrow!(node.instance_node).resolve_occlusion_path(node) {
+            if let Some(coverage_path) = resolve_record_path(node) {
                 let record = state.records.get_mut(&node.id.to_u32()).unwrap();
                 retain_path(
                     &mut record.path,

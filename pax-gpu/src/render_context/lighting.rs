@@ -16,8 +16,8 @@ pub(super) fn to_gpu_tile_lighting(
     gpu
 }
 
-/// Conservative dependencies of retained vector draws. Images and unlit materials
-/// contribute nothing; radius/clip intersection is deliberately not inferred here.
+/// Conservative dependencies of retained vector draws. Images, unlit materials,
+/// and zero-alpha paint contribute nothing; radius/clip intersection is not inferred.
 #[derive(Clone, Copy, Default)]
 pub(super) struct LightingDependencies {
     pub(super) direct: u32,
@@ -27,7 +27,9 @@ pub(super) struct LightingDependencies {
 impl LightingDependencies {
     pub(super) fn from_ops(ops: &[PendingVectorOp]) -> Self {
         let mut result = Self::default();
-        for op in ops.iter().filter(|op| !op.material.unlit) {
+        for op in ops.iter().filter(|op| {
+            !op.material.unlit && op.opacity != 0.0 && paint_may_contribute_alpha(&op.fill)
+        }) {
             result.lit = true;
             result.direct |= op.light_mask;
         }
@@ -65,7 +67,69 @@ impl LightingDependencies {
     }
 }
 
+// Exclude only provably zero alpha. Non-finite values and cancellation between
+// blend terms stay conservative; small nonzero alpha must retain lighting.
+fn paint_may_contribute_alpha(fill: &Fill) -> bool {
+    match fill {
+        Fill::Solid(color) => color.rgba[3] != 0.0,
+        Fill::Gradient { stops, .. } => stops.iter().any(|stop| stop.color.rgba[3] != 0.0),
+        Fill::Mesh { rows, .. } => rows.iter().flatten().any(|(_, color)| color.rgba[3] != 0.0),
+        Fill::Blend(terms) => terms.iter().any(|(paint, weight)| {
+            !weight.is_finite() || (*weight != 0.0 && paint_may_contribute_alpha(paint))
+        }),
+    }
+}
+
 impl WgpuRenderer<'_> {
+    // Per-node dependency signatures explain the actual conservative redraw
+    // decision. Bounds classify candidates; they never change that decision.
+    pub(super) fn observe_lighting_change(&self, next: &GpuSceneLighting) {
+        self.observe_work(None, "lighting surface invalidation", 1, 0);
+        let previous = &self.scene_lighting;
+        for (changed, name) in [
+            (
+                previous.surface_to_world_x != next.surface_to_world_x
+                    || previous.surface_to_world_y != next.surface_to_world_y,
+                "lighting world mapping changed",
+            ),
+            (previous.view != next.view, "lighting view changed"),
+            (
+                bytemuck::bytes_of(&previous.ambient) != bytemuck::bytes_of(&next.ambient),
+                "lighting ambient changed",
+            ),
+            (
+                bytemuck::bytes_of(&previous.lights) != bytemuck::bytes_of(&next.lights),
+                "lighting direct values changed",
+            ),
+            (previous.meta != next.meta, "lighting configuration changed"),
+        ] {
+            if changed {
+                self.observe_work(None, name, 1, 0);
+            }
+        }
+        let viewport = self.viewport_bounds();
+        for (id, node) in &self.scene {
+            let deps = match node {
+                RetainedNode::Vector(node) => node.lighting_dependencies,
+                #[cfg(feature = "3d")]
+                RetainedNode::Solid(node) => LightingDependencies {
+                    direct: node.light_mask,
+                    lit: !node.material.unlit,
+                },
+                _ => continue,
+            };
+            if deps.signature(previous) != deps.signature(next) {
+                self.observe_work(Some(*id), "lighting recipient", 1, 0);
+                if self.source_nodes.contains_key(id) {
+                    self.observe_work(Some(*id), "lighting detached source recipient", 1, 0);
+                }
+                if !node.intersects_bounds(&viewport) {
+                    self.observe_work(Some(*id), "lighting recipient outside surface", 1, 0);
+                }
+            }
+        }
+    }
+
     pub(super) fn lighting_dependencies(&mut self) -> LightingDependencies {
         *self.lighting_dependencies.get_or_insert_with(|| {
             let mut dependencies = LightingDependencies::default();
@@ -91,6 +155,80 @@ impl WgpuRenderer<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn transparent_paint_dependencies_are_conservative_for_every_paint_kind() {
+        let clear = Fill::Solid(Color::rgba(1., 0., 0., 0.));
+        let visible = Fill::Solid(Color::rgba(1., 1., 1., 0.000001));
+        let gradient = |alpha| Fill::Gradient {
+            gradient_type: GradientType::Linear,
+            pos: point(0., 0.),
+            main_axis: Vector2D::new(1., 0.),
+            off_axis: Vector2D::new(0., 1.),
+            stops: vec![
+                GradientStop {
+                    color: Color::rgba(1., 0., 0., 0.),
+                    stop: 0.,
+                },
+                GradientStop {
+                    color: Color::rgba(0., 1., 0., alpha),
+                    stop: 1.,
+                },
+            ],
+        };
+        let mesh = |alpha| Fill::Mesh {
+            rows: vec![vec![
+                ([0., 0.], Color::rgba(1., 0., 0., 0.)),
+                ([1., 0.], Color::rgba(0., 1., 0., alpha)),
+            ]],
+            pos: point(0., 0.),
+            main_axis: Vector2D::new(1., 0.),
+            off_axis: Vector2D::new(0., 1.),
+        };
+        for (fill, expected) in [
+            (clear.clone(), false),
+            (visible.clone(), true),
+            (gradient(0.), false),
+            (gradient(0.001), true),
+            (mesh(0.), false),
+            (mesh(0.001), true),
+            (
+                Fill::Blend(vec![(clear.clone(), 1.), (visible.clone(), 0.)]),
+                false,
+            ),
+            (
+                Fill::Blend(vec![(clear, 0.5), (visible.clone(), 0.5)]),
+                true,
+            ),
+            (
+                Fill::Blend(vec![(visible.clone(), 1.), (visible, -1.)]),
+                true,
+            ),
+            (gradient(f32::NAN), true),
+        ] {
+            let mut op = PendingVectorOp {
+                path: Path::builder().build(),
+                fill,
+                material: Material::default(),
+                light_mask: 1,
+                #[cfg(feature = "3d")]
+                lighting_surface: None,
+                transform: Transform2D::identity(),
+                projection: None,
+                opacity: 1.,
+                kind: PendingVectorOpKind::Fill,
+                geometry_signature: 0,
+                draw_range: DrawRange::disabled(),
+                smoothing: PathSmoothing::None,
+            };
+            assert_eq!(
+                LightingDependencies::from_ops(std::slice::from_ref(&op)).lit,
+                expected
+            );
+            op.opacity = 0.;
+            assert!(!LightingDependencies::from_ops(std::slice::from_ref(&op)).lit);
+        }
+    }
 
     #[test]
     fn tile_lighting_preserves_logical_world_coordinates() {

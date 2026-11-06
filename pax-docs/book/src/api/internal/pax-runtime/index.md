@@ -11,6 +11,8 @@
 - [engine](engine.md)
 - [layout](layout.md)
 - [node_query](node_query.md)
+- [node_inspection](node_inspection.md)
+- [work_profile](work_profile.md)
 - [properties](properties.md)
 - [rendering](rendering.md)
 - [repeat](repeat.md)

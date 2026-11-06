@@ -963,6 +963,27 @@ mod tests {
     }
 
     #[test]
+    fn node_inspection_spans_survive_release_baking_without_source_paths() -> BinaryResult<()> {
+        let mut manifest = build_manifest();
+        let template = manifest.components.get_mut(&manifest.main_component_type_id)
+            .unwrap().template.as_mut().unwrap();
+        let id = template.get_root().into_iter()
+            .find(|id| template.get_node(id).unwrap().raw_comment_string.is_none()).unwrap();
+        let mut node = template.get_node(&id).unwrap().clone();
+        node.selector_info.source_location = Some(test_location());
+        template.set_node(id.clone(), node);
+        let rich = crate::binary::from_slice(&crate::binary::to_vec(&manifest)?)?;
+        let program = ProgramIR::from_manifest(&rich);
+        let decoded = super::binary::from_slice(&super::binary::to_vec(&program)?)?;
+        let template = decoded.components[&decoded.main_component_type_id].template.as_ref().unwrap();
+        assert_eq!(template.get_file_path(), None);
+        assert_eq!(template.get_node(&id).unwrap().selector_info.source_location, Some(test_location()));
+        #[cfg(feature = "compiler")]
+        assert!(crate::rust_manifest::to_rust_expression(&rich).contains("source_location: Some("));
+        Ok(())
+    }
+
+    #[test]
     fn imported_settings_policy_and_blended_paint_survive_rich_and_baked_programs(
     ) -> BinaryResult<()> {
         let policy = PaxValue::Enum(Box::new((

@@ -917,8 +917,10 @@ This starts the loader's `@out` at the first settled viewport, after native
 measurement and visible surface submission. Once the exit finishes, the host
 hides the loader even if background mounting is still pending. Ordinary
 animations remain at their prepared entry pose until full mounting completes;
-input and accessibility remain blocked until both mounting and loader exit
-finish. Choose an initial composition that is useful while stationary. This
+scrolling, application input, and accessibility become available as soon as the
+loader's exit finishes. Mounted controls can respond while the remaining scene
+mounts; their time-based animations wait for the main clock to start. Choose an
+initial composition that is useful while stationary. This
 option works in debug and release web builds with a configured loader; it does
 not affect Apple targets or applications without a loader. Rebuild after changing
 metadata. A custom JavaScript host can override it with
@@ -984,7 +986,8 @@ Its fields are:
 boundary has been reached and the loader can begin its exit. With
 `"first_viewport"`, remaining mounts may still be pending. `revealing` covers
 the exit and any remaining wait for full mounting, including time after the
-loader disappears; only `active` means the input handoff has finished.
+loader disappears and input is enabled. `active` means full mounting has
+finished and the main animation clock has started.
 
 A completed download is not a ready application. There is no overall percentage
 for compilation, mounting or rendering. The default screen dedicates the first

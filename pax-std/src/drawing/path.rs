@@ -20,6 +20,9 @@ use std::rc::Rc;
 #[cfg(test)]
 use pax_runtime::api::drawing::path_trim::trim_bez_path as trim_bez_path_to_unit_range;
 
+#[cfg(test)]
+mod coverage_tests;
+
 /// A 2D vector path for arbitrary Bézier and line-segment chains.
 ///
 /// `elements` describes the path in local coordinates. `fill` paints the
@@ -185,6 +188,10 @@ impl InstanceNode for PathInstance {
             .changed_listener
             .replace_with(LocalProperty::computed(
                 move || {
+                    let _work = cloned_context.profile_node_work(
+                        cloned_expanded_node.id.to_u32(),
+                        "path changed listener",
+                    );
                     appearance.get();
                     cloned_context.mark_canvas_node_dirty(cloned_expanded_node.id);
                     cloned_context
@@ -289,15 +296,25 @@ impl InstanceNode for PathInstance {
     }
 
     fn property_requires_occlusion_recompute(&self, property_name: &str) -> bool {
-        !matches!(property_name, "draw_start" | "draw_end" | "material")
+        // watch_appearance compares resolved fill/stroke coverage inputs, including
+        // nested edits. Replacing an RGB value must not rebuild the stroke outline.
+        !matches!(
+            property_name,
+            "draw_start" | "draw_end" | "material" | "fill" | "stroke"
+        )
     }
 
     fn local_occlusion_path_is_retained(&self) -> bool {
         true
     }
 
+    fn local_occlusion_path_is_placement_independent(&self) -> bool {
+        true
+    }
+
     fn resolve_local_occlusion_bounds(&self, node: &ExpandedNode) -> Option<kurbo::Rect> {
-        self.resolve_local_occlusion_path(node).map(|path| path.bounding_box())
+        self.resolve_local_occlusion_path(node)
+            .map(|path| path.bounding_box())
     }
 
     fn prepare_canvas_geometry(
@@ -344,6 +361,8 @@ impl InstanceNode for PathInstance {
         if rc.alpha_source_layer().is_none() && !rtc.is_canvas_node_dirty(&expanded_node.id) {
             return;
         }
+
+        let _work = rtc.profile_node_work(expanded_node.id.to_u32(), "path render");
 
         let geometry = rtc.canvas_geometry_for_node(expanded_node);
         let bez_path = geometry.local.path.as_deref();

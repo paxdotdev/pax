@@ -160,8 +160,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
     color.a *= scene_transform(primitive.transform_id).opacity;
-    color.a *= textureSampleLevel(alpha_mask, alpha_sampler,
-        (in.clip_position.xy / globals.dpr + globals.origin - alpha_domain.xy) / alpha_domain.zw, 0.0).r;
+    let bounded_mask = all(alpha_domain.zw > vec2<f32>(0.0));
+    let mask_uv = (in.clip_position.xy / globals.dpr + globals.origin - alpha_domain.xy) /
+        select(vec2<f32>(1.0), alpha_domain.zw, bounded_mask);
+    let mask_alpha = textureSampleLevel(alpha_mask, alpha_sampler, mask_uv, 0.0).r;
+    color.a *= select(0.0, mask_alpha, !bounded_mask ||
+        (all(mask_uv >= vec2<f32>(0.0)) && all(mask_uv <= vec2<f32>(1.0))));
     color = apply_lighting(
         color,
         materials.materials[primitive.material_id],

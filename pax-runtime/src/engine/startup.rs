@@ -354,9 +354,9 @@ impl PaxEngine {
         }
         let profile = self.runtime_context.startup.borrow_mut().profile.take()?;
         self.runtime_context.startup.borrow_mut().profile_phases = None;
-        self.runtime_context
-            .property_graph
-            .set_diagnostic_names_enabled(false);
+        if !self.runtime_context.work_profiling_enabled() {
+            self.runtime_context.property_graph.set_diagnostic_names_enabled(false);
+        }
         Some(profile.into_report())
     }
 
@@ -449,7 +449,8 @@ impl PaxEngine {
     }
 
     /// Acknowledge a rendered startup checkpoint and eagerly start the next
-    /// deferred subtrees. Input and ordinary ticks remain held until all work ends.
+    /// deferred subtrees. Ordinary ticks remain held until all work ends; the host
+    /// can release input separately once its loading screen has exited.
     /// The first acknowledgement must follow the host's font/measurement gate.
     pub fn resume_startup_after_presentation(&mut self) {
         let mut state = self.runtime_context.startup.borrow_mut();
@@ -745,6 +746,10 @@ impl Startup {
 
     pub(crate) fn is_active(&self) -> bool {
         self.active
+    }
+
+    pub(crate) fn input_scene_published(&self) -> bool {
+        !self.active || self.viewport_published
     }
 
     pub(crate) fn blocks_presentation(&self) -> bool {
@@ -1526,6 +1531,77 @@ mod tests {
                 .count()),
             1
         );
+    }
+
+    #[test]
+    fn queued_input_targets_the_revealed_viewport_before_full_mount() {
+        struct HitTarget(crate::BaseInstance);
+        impl InstanceNode for HitTarget {
+            fn instantiate(args: InstantiationArgs) -> Rc<Self> {
+                Rc::new(Self(crate::BaseInstance::new(
+                    args,
+                    crate::InstanceFlags {
+                        invisible_to_slot: false,
+                        invisible_to_raycasting: false,
+                        layer: crate::api::Layer::Canvas,
+                        is_component: false,
+                        is_slot: false,
+                    },
+                )))
+            }
+            fn base(&self) -> &crate::BaseInstance {
+                &self.0
+            }
+            fn resolve_debug(
+                &self,
+                f: &mut std::fmt::Formatter,
+                _: Option<&ExpandedNode>,
+            ) -> std::fmt::Result {
+                f.write_str("HitTarget")
+            }
+        }
+        let target = HitTarget::instantiate(InstantiationArgs {
+            prototypical_common_properties: crate::CommonPropertiesInit::Default,
+            prototypical_properties: crate::PropertiesInit::Factory(Box::new(|_, _| {
+                Some(Rc::new(RefCell::new(PaxAny::Builtin(PaxValue::default()))))
+            })),
+            handler_registry: None,
+            children: None,
+            component_template: None,
+            component_settings: None,
+            component_camera: None,
+            template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
+            transition_config: Default::default(),
+            properties_scope: crate::PropertiesScopeInit::None,
+        });
+        let mut engine = new_engine();
+        engine.hold_presentation();
+        let root = engine.mount_root_component(component(vec![
+            box_at(0., vec![target]),
+            box_at(500., vec![]),
+        ]));
+        let ctx = Rc::clone(&engine.runtime_context);
+        assert!(reach_checkpoint(&mut engine).pending);
+        let ray = Some(pax_runtime_api::math::Point2::new(10., 10.));
+        assert!(ctx.capture_startup_input(ray).target.is_none());
+        engine.resume_startup_after_presentation();
+        assert!(engine.startup_pending());
+        let snapshot = ctx.capture_startup_input(ray);
+        let target = snapshot
+            .target
+            .expect("a published viewport accepts queued clicks");
+        let pending = root.children.get()[1].clone();
+        assert_eq!(pending.attached.get(), 0);
+        finish(&mut engine);
+        let _guard = ctx.replay_startup_input(snapshot);
+        assert_eq!(
+            ctx.get_topmost_element_beneath_ray(ray.unwrap()).unwrap().id,
+            target
+        );
+        assert!(!ctx.accepts_startup_input(&pending));
+        assert_eq!(ctx.globals().elapsed_frames.get(), 0);
     }
 
     #[test]

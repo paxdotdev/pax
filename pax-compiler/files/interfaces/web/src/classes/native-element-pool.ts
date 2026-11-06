@@ -181,7 +181,11 @@ export class NativeElementPool {
         this.chassis = chassis;
         this.mount = mount instanceof HTMLElement ? mount : undefined;
         if (this.mount && new URLSearchParams(window.location.search).has('pax_surface_trace')) {
-            this.surfaceTrace = new SurfaceTrace(this.mount);
+            this.surfaceTrace = new SurfaceTrace(this.mount, 2048, id => chassis.inspect_node?.(id),
+                new URLSearchParams(window.location.search).get('pax_work_profile') === '1' ? {
+                    begin: () => chassis.begin_work_profile?.() ?? false,
+                    take: () => chassis.take_work_profile?.() ?? null,
+                } : undefined);
         }
         this.imageLoader = new ImageLoader({
             loaded: path => chassis.image_loaded(path),
@@ -2174,6 +2178,8 @@ export class NativeElementPool {
             // Historical rebuild metadata is not a cause for this pass.
             rebuild_reason: delta.rebuilds || delta.structural_reconciliations ? report.rebuild_reason : null,
             rebuild_node: delta.rebuilds ? report.rebuild_node : null,
+            rebuild_node_info: delta.rebuilds && report.rebuild_node != null
+                ? this.chassis?.inspect_node?.(report.rebuild_node) : undefined,
             rebuild_origins: delta.rebuilds || delta.structural_reconciliations ? report.rebuild_origins : [],
             phases: delta.rebuilds || delta.structural_reconciliations
                 ? phases.filter(([phase]) => phase === 'occlusion' || phase.startsWith('occlusion.'))

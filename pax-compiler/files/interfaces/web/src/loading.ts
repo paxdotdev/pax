@@ -104,6 +104,7 @@ export async function startLoadingApplication(options: WebInitOptions, glue: Glu
                 // A custom loader need not fade every element in its @out.
                 // Retire its visible slot even if the remaining mounts are pending.
                 loaderSlot.hidden = true;
+                main.enableInput();
                 await abortable(main.mounted, attempt.signal);
                 while (!main.publish()) await waitFrame(attempt.signal);
                 update('active');

@@ -1,0 +1,21 @@
+<Frame width=100% height=100% @touch_start=self.touch_start @touch_end=self.touch_end @touch_cancel=self.touch_cancel>
+    <Scroller width=100% height={100% + 12px} scroll_width={(self.cell_px * 60)px} scroll_height=100%
+        scroll_pos_x=bind:self.scroll_x scroll_pos_y=0>
+        for copy in 0..3 {
+            <Group x={(copy * 20 * self.cell_px)px} width={(20 * self.cell_px)px} height={(self.row_height)px}>
+                for glyph in self.glyphs key glyph.slot {
+                    <Path x={((glyph.slot + 0.04) * self.cell_px)px} y={(self.cell_px * 0.04)px}
+                        width={(self.cell_px * 0.92)px} height={(self.row_height - self.cell_px * 0.08)px} elements={glyph.elements}
+                        opacity={self.lit_overlay && glyph.slot == self.selected ? 0 : 1}
+                        smoothing=PathSmoothing::None
+                        fill={paint: {AcrosticRow::ink(0)}, material: {Material::unlit()}}
+                        stroke={paint: {AcrosticRow::ink(0)}, width: {(self.cell_px * 0.025)px}, join: StrokeJoin::Round, material: {Material::unlit()}}/>
+                }
+            </Group>
+        }
+    </Scroller>
+</Frame>
+
+@settings {
+    @mount: mount
+}

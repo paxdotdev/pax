@@ -105,6 +105,9 @@ export class PaxChassisWeb {
   finish_startup_presentation(): void;
   service_startup(budget_ms: number): [any[], {pending: boolean; units: number; mounted: number; effects: number; peak_queued_effects: number; elapsed_ms: number; longest_unit_ms: number; longest_unit: string}];
   take_startup_profile(): StartupProfile | null;
+  inspect_node?(id: number): object | null;
+  begin_work_profile?(): boolean;
+  take_work_profile?(): object | null;
   tick(): any;
   tick_profiled(): [any, [string, number][], {passes: number; rebuilds: number; structural_reconciliations: number; records_retained: number; orders_updated: number; records_updated: number; masks_evaluated: number; mask_candidates: number; rebuild_reason: string | null; rebuild_node: number | null; rebuild_origins: ({file: string; line: number; node: number | null; count: number} | null)[]}, InputQueryWork];
   set_surface_ready_callback(callback: (() => void) | undefined): void;

@@ -56,7 +56,12 @@ impl ExpandedNode {
         }
         let layer = self.occlusion.get().render_layer_id;
         let mut children = Vec::new();
-        fn collect(node: &Rc<ExpandedNode>, layer: usize, children: &mut Vec<u32>) {
+        fn collect(
+            node: &Rc<ExpandedNode>,
+            context: &RuntimeContext,
+            layer: usize,
+            children: &mut Vec<u32>,
+        ) {
             if node.is_render_source() {
                 return;
             }
@@ -74,8 +79,8 @@ impl ExpandedNode {
             }
             children.push(node.id.to_u32());
             if !node.shader_effect_bound.get() {
-                for child in node.children.get().iter() {
-                    collect(child, layer, children);
+                for child in node.presentation_children(context).iter() {
+                    collect(child, context, layer, children);
                 }
             }
         }
@@ -83,8 +88,11 @@ impl ExpandedNode {
             renderer.alpha_source_layer().is_none(),
             "shader effects inside detached mask sources are unsupported"
         );
-        for child in self.children.get().iter() {
-            collect(child, layer, &mut children);
+        // Match ordinary rendering: raw children can include unmounted startup
+        // continuations or nodes currently presented in a different destination.
+        let presentation_children = self.presentation_children(context);
+        for child in &presentation_children {
+            collect(child, context, layer, &mut children);
         }
         let projected = context.canvas_surface_projection_for_node(self);
         let geometry = context.canvas_geometry_for_node(self);
@@ -119,24 +127,28 @@ impl ExpandedNode {
             ),
         );
         if replay {
-            fn collect_replay(node: &Rc<ExpandedNode>, ids: &mut Vec<u32>) {
+            fn collect_replay(
+                node: &Rc<ExpandedNode>,
+                context: &RuntimeContext,
+                ids: &mut Vec<u32>,
+            ) {
                 if node.is_render_source() {
                     return;
                 }
                 ids.push(node.id.to_u32());
-                for child in node.children.get().iter() {
-                    collect_replay(child, ids);
+                for child in node.presentation_children(context).iter() {
+                    collect_replay(child, context, ids);
                 }
             }
             let mut ids = Vec::new();
-            for child in self.children.get().iter() {
-                collect_replay(child, &mut ids);
+            for child in &presentation_children {
+                collect_replay(child, context, &mut ids);
             }
             // Capture replays unchanged drawing state. Invalidating geometry here
             // would make cold-surface preparation reject its own atomic fallback.
             context.mark_canvas_nodes_on_layer_dirty_by_id(layer, &ids);
         }
-        for child in self.children.get().iter().rev() {
+        for child in presentation_children.iter().rev() {
             child.recurse_render(context, renderer);
         }
         renderer.end_shader_effect(layer, self.id.to_u32());

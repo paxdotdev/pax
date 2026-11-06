@@ -66,10 +66,10 @@ impl HeroLetter {
             },
             &deps,
         ));
-        self.tick(ctx);
+        self.on_pre_render(ctx);
     }
 
-    pub fn tick(&mut self, _ctx: &NodeContext) {
+    pub fn on_pre_render(&mut self, _ctx: &NodeContext) {
         let pose = letter_pose(self.kind.get(), self.ordinal.get(), self.time_ms.get());
         self.dx.set_if_neq(pose.x);
         self.dy.set_if_neq(pose.y);

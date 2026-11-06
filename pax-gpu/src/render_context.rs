@@ -300,6 +300,7 @@ impl ResourceChurnStats {
 /// retessellating or uploading vertex/index buffers.
 pub struct WgpuRenderer<'w> {
     render_backend: RenderBackend<'w>,
+    work_observer: Option<pax_runtime_api::RenderWorkObserver>,
     scene: HashMap<u32, RetainedNode>,
     opacity_scopes: HashMap<u32, Vec<OpacityScope>>,
     #[cfg(feature = "3d")]
@@ -311,7 +312,8 @@ pub struct WgpuRenderer<'w> {
     #[cfg(feature = "3d")]
     spatial: capture_scene::SpatialComposition,
     #[cfg(feature = "3d")]
-    capture_scenes: HashMap<crate::render_backend::capture::CaptureKey, capture_scene::SpatialComposition>,
+    capture_scenes:
+        HashMap<crate::render_backend::capture::CaptureKey, capture_scene::SpatialComposition>,
     source_nodes: HashMap<u32, u32>,
     source_captures: HashMap<u32, SourceCapture>,
     source_recordings: Vec<SourceRecording>,
@@ -802,6 +804,7 @@ impl<'w> WgpuRenderer<'w> {
     pub fn new(render_backend: RenderBackend<'w>) -> Self {
         Self {
             render_backend,
+            work_observer: None,
             tolerance: DEFAULT_TESSELLATION_TOLERANCE, // TODO expose as option
             scene: HashMap::new(),
             opacity_scopes: HashMap::new(),
@@ -1147,12 +1150,39 @@ impl<'w> WgpuRenderer<'w> {
         let dependencies = self.lighting_dependencies();
         let changed =
             dependencies.signature(&self.scene_lighting) != dependencies.signature(&gpu_lighting);
+        if changed && self.work_observer.is_some() {
+            self.observe_lighting_change(&gpu_lighting);
+        }
         // Keep uniforms current even without recipients. A later draw must see the
         // latest light values without requiring another lighting property change.
         self.render_backend.set_scene_lighting(gpu_lighting);
         self.scene_lighting = gpu_lighting;
         self.scene_dirty |= changed;
         changed
+    }
+
+    /// Observe work only during an explicit diagnostic window. Installing or
+    /// removing a sink does not invalidate retained contents.
+    pub fn set_render_work_observer(
+        &mut self,
+        observer: Option<pax_runtime_api::RenderWorkObserver>,
+    ) {
+        self.work_observer = observer;
+    }
+
+    fn observe_work(&self, node: Option<u32>, operation: &'static str, count: u64, pixels: u64) {
+        if count == 0 && pixels == 0 {
+            return;
+        }
+        if let Some(observer) = &self.work_observer {
+            observer(pax_runtime_api::RenderWorkObservation {
+                node,
+                operation,
+                count,
+                pixels,
+                ..Default::default()
+            });
+        }
     }
 
     pub fn clear(&mut self) {
@@ -1426,7 +1456,14 @@ impl<'w> WgpuRenderer<'w> {
             #[cfg_attr(not(feature = "3d"), allow(unused_mut))]
             let mut effective_clips = node.clip_stack().to_vec();
             #[cfg(feature = "3d")]
-            effective_clips.extend(self.spatial.solid_clips.get(node_id).into_iter().flatten().copied());
+            effective_clips.extend(
+                self.spatial
+                    .solid_clips
+                    .get(node_id)
+                    .into_iter()
+                    .flatten()
+                    .copied(),
+            );
             #[cfg(feature = "3d")]
             if let Some((_, _, clip_id)) = self.spatial.region {
                 effective_clips.push(ClipReference::Stencil { clip_id });
@@ -1919,6 +1956,15 @@ impl<'w> WgpuRenderer<'w> {
             PendingNodeKind::Vector(buffers) => {
                 let lighting_dependencies = LightingDependencies::from_ops(&buffers.ops);
                 let (bounds, _spatial_coverage) = compute_vector_node_extent(&buffers.ops);
+                if self.work_observer.is_some() {
+                    self.observe_work(Some(node_id), "vector record", 1, 0);
+                    if !matches!(previous, Some(RetainedNode::Vector(_))) {
+                        self.observe_work(Some(node_id), "vector new occurrence", 1, 0);
+                    }
+                    if !boxes_intersect(&bounds, &self.viewport_bounds()) {
+                        self.observe_work(Some(node_id), "vector record outside surface", 1, 0);
+                    }
+                }
                 let geometry_signatures = buffers
                     .ops
                     .iter()
@@ -1952,6 +1998,25 @@ impl<'w> WgpuRenderer<'w> {
                         let transform_changed = existing.transform_signature != transform_signature;
                         let transform_layout_changed =
                             existing.transform_layout_signature != transform_layout_signature;
+                        if self.work_observer.is_some() {
+                            for (changed, name) in [
+                                (geometry_changed, "vector geometry changed"),
+                                (fill_changed, "vector paint changed"),
+                                (primitive_changed, "vector primitive changed"),
+                                (transform_changed, "vector transform changed"),
+                                (
+                                    !(geometry_changed
+                                        || fill_changed
+                                        || primitive_changed
+                                        || transform_changed),
+                                    "vector unchanged",
+                                ),
+                            ] {
+                                if changed {
+                                    self.observe_work(Some(node_id), name, 1, 0);
+                                }
+                            }
+                        }
 
                         if geometry_changed
                             || fill_changed

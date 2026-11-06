@@ -342,6 +342,15 @@ name, bind it explicitly, for example `@mount: initialize` in `@settings`,
 with a public `initialize(&mut self, ctx: &NodeContext)` method. An explicit
 binding replaces automatic selection for that lifecycle event.
 
+Keep a lifecycle method's name aligned with its phase. Binding `@pre_render: tick`
+also leaves the automatic `@tick` binding active, so the same method runs twice
+per runtime tick. Use `on_pre_render` alone for work that belongs in pre-render,
+or give an explicitly bound handler a non-lifecycle name such as `update_picture`.
+
+Use computed properties or mount-time subscriptions for work that depends only
+on property changes, such as resizing an artboard when its bounds change. A
+pre-render callback runs every active tick even when its inputs are unchanged.
+
 Lifecycle bindings also work inline on a child element:
 
 ```pax

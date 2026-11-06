@@ -13,6 +13,8 @@ pub mod layout;
 mod mouse_input;
 mod wheel_input;
 pub mod node_query;
+pub mod node_inspection;
+pub mod work_profile;
 mod presentation;
 pub mod properties;
 mod render_instrumentation;

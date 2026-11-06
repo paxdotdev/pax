@@ -14,7 +14,7 @@ use pax_runtime::{
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined(
-    <Rectangle id=_link_raycast_ignore fill=TRANSPARENT/>
+    <Rectangle id=_link_raycast_ignore fill={paint: TRANSPARENT, material: {Material::unlit()}}/>
     for i in 0..self._projected_children {
         slot(i)
     }

@@ -64,8 +64,8 @@ test('startup service failure preserves its original error and closes the region
     assert.equal(h.disposals(), 1);
 });
 
-for (const partial of [false, true]) test(`revealing ${partial ? 'a viewport' : 'a complete scene'} retains input until full publication`, () => {
-    const state = {ready: false, partial, unpaused: 0, frames: 0, disposed: 0, resumes: 0};
+for (const partial of [false, true]) test(`revealing ${partial ? 'a viewport' : 'a complete scene'} releases input independently after loader exit`, () => {
+    const state = {ready: false, partial, unpaused: 0, frames: 0, disposed: 0, resumes: 0, inputReleased: false};
     const attributes = new Map();
     const region = {
         inert: false,
@@ -79,6 +79,7 @@ for (const partial of [false, true]) test(`revealing ${partial ? 'a viewport' : 
         const currentChassis = {
             prepare_startup_presentation: () => state.ready,
             publish_application() { state.unpaused++; },
+            finish_startup_presentation() { state.inputReleased = true; },
             resume_startup_after_presentation() { state.resumes++; },
         };
         const mountYieldEnabled = true;
@@ -96,6 +97,8 @@ for (const partial of [false, true]) test(`revealing ${partial ? 'a viewport' : 
         document: {createElement: () => region},
     });
     const {app} = module.exports;
+    assert.equal(app.enableInput(), false, 'an unrevealed region cannot accept input');
+    assert.equal(state.inputReleased, false);
     assert.equal(app.reveal(), false);
     assert.ok(attributes.has('data-pax-preparing'));
     state.ready = true;
@@ -108,10 +111,17 @@ for (const partial of [false, true]) test(`revealing ${partial ? 'a viewport' : 
     assert.equal(state.unpaused, partial ? 0 : 1);
     assert.equal(state.frames, 1);
     assert.equal(state.resumes, partial ? 1 : 0);
+    assert.equal(state.inputReleased, false, 'revealing beneath the loader retains input');
+    assert.equal(app.enableInput(), true);
+    assert.equal(region.inert, false);
+    assert.equal(attributes.has('aria-hidden'), false);
+    assert.equal(state.inputReleased, true);
+    assert.equal(state.unpaused, partial ? 0 : 1, 'input release cannot advance the animation clock');
+    assert.equal(app.enableInput(), true, 'input handoff is idempotent');
     if (partial) {
         assert.equal(app.publish(), false);
         assert.equal(state.disposed, 0, 'the remainder keeps its scheduler');
-        assert.equal(region.inert, true);
+        assert.equal(region.inert, false);
         module.exports.finish();
     }
     assert.equal(app.reveal(), true);

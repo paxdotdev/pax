@@ -275,8 +275,6 @@ impl WgpuRenderer<'_> {
             .render_backend
             .capture_is_cached(key, content_signature)
         {
-            self.render_backend.begin_capture();
-            self.draw_capture_scene(key, &nodes, active);
             let domain = self.viewport_bounds();
             let bounds = source_bounds[&owner];
             let bounds = ScissorRect {
@@ -285,12 +283,20 @@ impl WgpuRenderer<'_> {
                 max_x: (bounds.max.x + 1.0).min(domain.max.x),
                 max_y: (bounds.max.y + 1.0).min(domain.max.y),
             };
+            if !self.render_backend.begin_bounded_capture(bounds) {
+                self.render_backend.alpha_masks.set_empty(owner);
+                visited.insert(owner);
+                return;
+            }
+            self.draw_capture_scene(key, &nodes, active);
             self.render_backend
                 .end_capture(key, content_signature, bounds);
             self.resource_churn_stats.alpha_source_renders += 1;
+            self.observe_work(Some(owner), "alpha source raster", 1, 0);
         } else {
             self.retain_capture_scene(key, &nodes, active);
             self.resource_churn_stats.alpha_source_cache_hits += 1;
+            self.observe_work(Some(owner), "alpha source reuse", 1, 0);
         }
         feather.to_bits().hash(&mut hash);
         self.render_backend
@@ -305,6 +311,18 @@ impl WgpuRenderer<'_> {
 
 #[cfg(test)]
 impl WgpuRenderer<'_> {
+    pub(crate) fn has_capture_resources_for_test(&self) -> bool {
+        self.render_backend.has_capture_resources_for_test()
+    }
+
+    pub(crate) fn alpha_target_size_for_test(&self, id: u32) -> [u32; 2] {
+        self.render_backend.alpha_masks.size_for_test(id)
+    }
+
+    pub(crate) fn capture_scratch_sizes_for_test(&self) -> Vec<[u32; 2]> {
+        self.render_backend.capture_scratch_sizes_for_test()
+    }
+
     pub(crate) fn alpha_source_has_working_storage(&self) -> bool {
         self.render_backend.alpha_source_has_working_storage()
     }

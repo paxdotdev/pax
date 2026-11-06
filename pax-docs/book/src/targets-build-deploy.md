@@ -899,7 +899,7 @@ configuration portable between workstations.
 | `favicon` | Web | Explicit favicon file; takes priority over icon-derived favicon generation |
 | `background_color` | Web | Opaque `#RGB` or `#RRGGBB` host background, painted from inline HTML before JavaScript/Wasm loads |
 | `yield_mount` | Web | Experimental cooperative initial mounting; boolean, defaults to `false`. See [Yield initial web mounting](#yield-initial-web-mounting). |
-| `loader_exit` | Web | When a configured loading screen starts its exit: `"full_mount"` (default) or `"first_viewport"`. Animation and input gates still wait for full mounting. See [Loading-context components](components-composition.md#loading-context-components-experimental). |
+| `loader_exit` | Web | When a configured loading screen starts its exit: `"full_mount"` (default) or `"first_viewport"`. Input becomes available after loader exit; animations wait for full mounting. See [Loading-context components](components-composition.md#loading-context-components-experimental). |
 | `wheel_events` | Web | `"passive"` (default) or `"cancellable"`; controls whether wheel handlers can prevent native scrolling. Applies to the whole mount. See [Wheel input policy](scrolling-viewports.md#wheel-input-policy). |
 | `site_name` | Web | Open Graph site name; defaults to the resolved web title |
 | `server_owned_prefixes` | Web | Root-relative path prefixes delegated to ordinary browser navigation; defaults to `[]`. See [Server-owned web paths](routing.md#server-owned-web-paths). |

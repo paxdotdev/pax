@@ -760,7 +760,12 @@ new scroll position. Tile placement does not move an authored light.
 
 On the GPU renderer, animating light values repaints only retained surface
 tiles containing vector draws eligible for those lights. Unlit materials and
-bitmap images do not make a tile depend on a light. Cached opacity groups and
+bitmap images do not make a tile depend on a light. Neither do vector paint
+layers whose alpha is entirely zero or whose per-paint opacity is zero. Their
+logical hit regions remain unchanged, and making the paint visible again uses
+the current lighting. Group opacity, clipping, and light-radius intersection
+are not used to infer that a draw is invisible.
+Cached opacity groups and
 mask-source captures likewise retain their pixels when only unrelated lights
 change. A tile that does need repainting redraws its composition using retained
 geometry; moving a light alone does not require tessellating its paths again.

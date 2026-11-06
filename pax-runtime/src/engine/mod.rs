@@ -503,7 +503,8 @@ impl PaxEngine {
     }
 
     /// Keep entry animations at their initial state while this application prepares.
-    /// Hosts must also gate its canvas/native presentation and user input.
+    /// Hosts must separately gate its canvas/native presentation and user input;
+    /// a revealed viewport may accept input while the animation clock stays held.
     pub fn hold_presentation(&mut self) {
         assert!(self.root_expanded_node.is_none(), "hold before mounting");
         self.runtime_context.presentation_held.set(true);
@@ -559,7 +560,10 @@ impl PaxEngine {
         };
         self.runtime_context
             .property_graph
-            .set_diagnostic_names_enabled(false);
+            .set_diagnostic_names_enabled(self.runtime_context.work_profiling_enabled());
+        if let Some(profile) = self.runtime_context.work_profile.borrow_mut().as_mut() {
+            *profile = Default::default();
+        }
 
         #[cfg(feature = "designtime")]
         let root_id = root_expanded_node.id;
@@ -2073,37 +2077,75 @@ mod tests {
 
     #[test]
     fn lifecycle_handlers_run_once_per_tick() {
-        TICK_CALLS.store(0, Ordering::SeqCst);
-        PRE_RENDER_CALLS.store(0, Ordering::SeqCst);
-        let mut engine = crate::test_support::empty_engine(
-            (320.0, 240.0),
-            Platform::Web,
-            OS::Mac,
-            Box::new(|| 0),
-            layer_tiling::ScrollerTilingPolicy::default(),
-        );
+        let mut previous_phases = None;
+        for profiled in [false, true] {
+            TICK_CALLS.store(0, Ordering::SeqCst);
+            PRE_RENDER_CALLS.store(0, Ordering::SeqCst);
+            let mut engine = crate::test_support::empty_engine(
+                (320.0, 240.0),
+                Platform::Web,
+                OS::Mac,
+                Box::new(|| 0),
+                layer_tiling::ScrollerTilingPolicy::default(),
+            );
 
-        engine.mount_root_component(component_with_lifecycle_handlers());
-        let _ = engine.tick();
+            assert!(!engine.runtime_context.begin_work_profile());
+            if profiled {
+                engine.runtime_context.enable_work_profiling();
+            }
+            engine.mount_root_component(component_with_lifecycle_handlers());
+            assert_eq!(engine.runtime_context.begin_work_profile(), profiled);
+            let _ = engine.tick();
 
-        assert_eq!(TICK_CALLS.load(Ordering::SeqCst), 1);
-        assert_eq!(PRE_RENDER_CALLS.load(Ordering::SeqCst), 1);
-        let mut phases = Vec::new();
-        let _ = engine.tick_with_phase_observer(|phase| phases.push(phase));
-        assert_eq!(TICK_CALLS.load(Ordering::SeqCst), 2);
-        assert_eq!(PRE_RENDER_CALLS.load(Ordering::SeqCst), 2);
-        assert_eq!(phases.first(), Some(&"property_import"));
-        assert!(phases
-            .windows(3)
-            .any(|window| window == ["property_import", "property_cleanup", "property_effects"]));
-        assert!(phases.contains(&"imperative_update"));
-        assert!(phases
-            .windows(2)
-            .any(|window| window == ["tick_handlers", "property_import"]));
-        assert!(phases
-            .windows(2)
-            .any(|window| window == ["pre_render_handlers", "property_import"]));
-        assert_eq!(phases.last(), Some(&"native_culling"));
+            assert_eq!(TICK_CALLS.load(Ordering::SeqCst), 1);
+            assert_eq!(PRE_RENDER_CALLS.load(Ordering::SeqCst), 1);
+            let mut phases = Vec::new();
+            let _ = engine.tick_with_phase_observer(|phase| phases.push(phase));
+            assert_eq!(TICK_CALLS.load(Ordering::SeqCst), 2);
+            assert_eq!(PRE_RENDER_CALLS.load(Ordering::SeqCst), 2);
+            assert_eq!(phases.first(), Some(&"property_import"));
+            assert!(phases.windows(3).any(
+                |window| window == ["property_import", "property_cleanup", "property_effects"]
+            ));
+            assert!(phases.contains(&"imperative_update"));
+            assert!(phases
+                .windows(2)
+                .any(|window| window == ["tick_handlers", "property_import"]));
+            assert!(phases
+                .windows(2)
+                .any(|window| window == ["pre_render_handlers", "property_import"]));
+            assert_eq!(phases.last(), Some(&"native_culling"));
+
+            if let Some(previous) = &previous_phases {
+                assert_eq!(&phases, previous, "profiling preserves phase execution");
+            }
+            previous_phases = Some(phases);
+            let scope = engine.runtime_context.profile_node_work(0, "test operation");
+            assert_eq!(scope.is_some(), profiled);
+            drop(scope);
+            let report = engine.runtime_context.take_work_profile();
+            assert_eq!(report.is_some(), profiled);
+            assert!(engine.runtime_context.take_work_profile().is_none());
+            if let Some(report) = report {
+                assert_eq!(report.lifecycle.len(), 2);
+                assert!(report
+                    .lifecycle
+                    .iter()
+                    .all(|row| row.work.calls == 2 && row.identity.is_some()));
+                assert!(report.reactive_totals.evaluations() > 0);
+                assert_eq!(report.scopes.len(), 1);
+                assert_eq!(report.scopes[0].1, "test operation");
+                assert_eq!(report.scopes[0].2.calls, 1);
+                assert!(engine.runtime_context.begin_work_profile());
+                let empty = engine.runtime_context.take_work_profile().unwrap();
+                assert!(empty.lifecycle.is_empty());
+                assert!(empty.scopes.is_empty());
+                assert_eq!(empty.reactive_totals.evaluations(), 0);
+                engine.runtime_context.begin_work_profile();
+                engine.unmount();
+                assert!(engine.runtime_context.take_work_profile().is_none());
+            }
+        }
     }
 
     #[test]

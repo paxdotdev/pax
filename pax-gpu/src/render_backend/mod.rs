@@ -588,6 +588,7 @@ struct CaptureTarget {
     view: TextureView,
     multisampled_target: Option<Attachment>,
     initialized: bool,
+    parent_domain: Option<capture::CaptureDomain>,
 }
 
 impl CaptureTarget {
@@ -1553,6 +1554,8 @@ impl<'w> RenderBackend<'w> {
 
     fn finish_retained_encoding(&mut self) {
         if let Some(encoder) = self.retained_encoder.take() {
+            // Bounded captures interleave globals and quad uploads with retained draws.
+            self.staging_belt.finish();
             self.pending_command_buffers.push(encoder.finish());
         }
     }
@@ -2151,11 +2154,43 @@ impl<'w> RenderBackend<'w> {
         feather: f32,
         parent: Option<u32>,
     ) {
-        let (view, crop) = self
+        let (view, source) = self
             .retained_surfaces
             .as_ref()
             .unwrap()
-            .texture_view(key, [self.surface_config.width, self.surface_config.height]);
+            .texture_view(key, self.globals);
+        // Keep the source's pixel grid, but process only its coverage and Gaussian
+        // support. The parent mask has its own domain; sampling maps between them.
+        let halo = self
+            .globals
+            .dpr
+            .map(|dpr| ((3.0 * feather.max(0.0) * dpr).ceil() as u32).saturating_add(1));
+        let left = source.0.saturating_sub(halo[0]);
+        let top = source.1.saturating_sub(halo[1]);
+        let right = source
+            .0
+            .saturating_add(source.2)
+            .saturating_add(halo[0])
+            .min(self.surface_config.width);
+        let bottom = source
+            .1
+            .saturating_add(source.3)
+            .saturating_add(halo[1])
+            .min(self.surface_config.height);
+        let size = [right - left, bottom - top];
+        let mut globals = self.globals;
+        globals.origin[0] += left as f32 / globals.dpr[0];
+        globals.origin[1] += top as f32 / globals.dpr[1];
+        globals.resolution = [
+            size[0] as f32 / globals.dpr[0],
+            size[1] as f32 / globals.dpr[1],
+        ];
+        let crop = [
+            (source.0 - left) as f32 / size[0] as f32,
+            (source.1 - top) as f32 / size[1] as f32,
+            source.2 as f32 / size[0] as f32,
+            source.3 as f32 / size[1] as f32,
+        ];
         let mut encoder = None;
         self.alpha_masks.render(
             &self.device,
@@ -2164,8 +2199,8 @@ impl<'w> RenderBackend<'w> {
             id,
             signature,
             &[],
-            [self.surface_config.width, self.surface_config.height],
-            self.globals,
+            size,
+            globals,
             feather,
             parent,
             Some((&view, crop)),
@@ -2522,6 +2557,9 @@ impl<'w> RenderBackend<'w> {
             .retain_cached_resources(active_signatures, active_clip_ids);
         if let Some(stencil) = &mut self.source_stencil {
             stencil.retain_cached_resources(active_signatures, active_clip_ids);
+        }
+        if let Some(surfaces) = &mut self.retained_surfaces {
+            surfaces.retain_stencil_resources(active_signatures, active_clip_ids);
         }
     }
 
@@ -3335,6 +3373,7 @@ impl<'w> RenderBackend<'w> {
         self.capture_target = Some(CaptureTarget {
             texture,
             view,
+            parent_domain: None,
             multisampled_target,
             initialized: false,
         });

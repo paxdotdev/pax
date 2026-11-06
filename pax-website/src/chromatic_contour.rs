@@ -105,7 +105,7 @@ impl ChromaticContour {
         ));
     }
 
-    pub fn tick(&mut self, ctx: &NodeContext) {
+    pub fn on_pre_render(&mut self, ctx: &NodeContext) {
         let now = ctx.elapsed_time_millis() as f64;
         // A repeated timestamp is not a blank frame. Retain the last picture,
         // including accumulated scroll input, until the clock advances.

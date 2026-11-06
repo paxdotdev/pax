@@ -134,6 +134,34 @@ Type: `f32`
 
 ---
 
+### `RenderWorkObservation`
+One opt-in backend work sample. Counts and physical-pixel workload estimates
+are not GPU timings. Named CPU spans may include nested work.
+
+#### Properties
+##### `layer`
+Type: `usize`
+
+##### `surface`
+Type: `usize`
+
+##### `node`
+Type: `Option`<`u32`>
+
+##### `operation`
+Type: &'`static` `str`
+
+##### `count`
+Type: `u64`
+
+##### `pixels`
+Type: `u64`
+
+##### `cpu_ms`
+Type: `f64`
+
+---
+
 ### `ReplayCanvasLayerUpdate`
 Replay invalidation for one logical canvas layer.
 
@@ -173,3 +201,7 @@ The drawing contract shared by Pax runtime backends.
 <pre><code class="api-signature language-rust ignore">pub fn bez_path_to_svg_path_data(path: &amp;BezPath) -&gt; String</code></pre>
 
 Convert a kurbo BezPath to a SVG-friendly drawing string
+
+## Type Aliases
+### `RenderWorkObserver`
+Synchronous diagnostic sink. Backends must not retain runtime nodes through it.

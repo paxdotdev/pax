@@ -37,9 +37,13 @@ pub struct FeatureCard {
 }
 
 impl FeatureCard {
-    pub fn measure_artboard(&mut self, ctx: &NodeContext) {
-        self.art_scale
-            .set_if_neq(artboard_scale(ctx.bounds_self.get().0));
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        let bounds = ctx.bounds_self.clone();
+        let deps = [bounds.untyped()];
+        self.art_scale.replace_with(LocalProperty::computed(
+            move || artboard_scale(bounds.get().0),
+            &deps,
+        ));
     }
 
     pub fn pause_marquee_for_mouse(&mut self, _ctx: &NodeContext, _event: Event<MouseOver>) {

@@ -15,9 +15,8 @@ use crate::constants::{
     MOUSE_DOWN_HANDLERS, MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS, MOUSE_OVER_HANDLERS,
     MOUSE_UP_HANDLERS, PHOTO_PICKER_CHANGE_HANDLERS, SCROLL_HANDLERS, SELECT_START_HANDLERS,
     SLIDER_CHANGE_HANDLERS, SUBMIT_HANDLERS, TAP_HANDLERS, TEXTBOX_CHANGE_HANDLERS,
-    TEXTBOX_INPUT_HANDLERS,
-    TEXT_INPUT_HANDLERS, TOUCH_CANCEL_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS,
-    TOUCH_START_HANDLERS, WHEEL_HANDLERS,
+    TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS, TOUCH_CANCEL_HANDLERS, TOUCH_END_HANDLERS,
+    TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use_RefCell!();
 use crate::cartridge::{evaluate_timeline_duration, CommonPropertiesBindMode};
@@ -379,6 +378,8 @@ pub struct ExpandedNode {
     pub(crate) local_clip_geometry:
         LocalProperty<crate::scene_geometry::presentation::ClipGeometry>,
     pub(crate) world_clip_geometry:
+        LocalProperty<crate::scene_geometry::presentation::ClipGeometry>,
+    pub(crate) local_occlusion_geometry:
         LocalProperty<crate::scene_geometry::presentation::ClipGeometry>,
     /// Camera-projected geometry used by paint, native presentation and input.
     pub presentation_transform_and_bounds: LocalProperty<TransformAndBounds<NodeLocal, Window>>,
@@ -1040,11 +1041,19 @@ impl ExpandedNode {
         if let Some(registry) = borrow!(self.instance_node).base().get_handler_registry() {
             if let Some(handlers) = borrow!(registry).handlers.get(handler_key) {
                 for handler in handlers {
+                    let phase = match handler_key {
+                        "tick" => Some("tick"),
+                        "pre_render" => Some("pre_render"),
+                        _ => None,
+                    };
+                    let started = (phase.is_some() && context.work_profile_active())
+                        .then(web_time::Instant::now);
                     // Refresh target-local layout for each callback, then enter
                     // the authored owner's scope for any bindings it creates.
                     let target_context = self.get_node_context(context);
                     let owner = self.handler_owner(&handler.location);
                     let _scope = owner.property_binding_scope.borrow().enter();
+                    let body_started = started.map(|_| web_time::Instant::now());
                     // Final unmount marks ancestors detached before invoking
                     // children; their state and binding scopes are still live here.
                     (handler.function)(
@@ -1052,6 +1061,22 @@ impl ExpandedNode {
                         &target_context,
                         None,
                     );
+                    let body_finished = started.map(|_| web_time::Instant::now());
+                    drop(_scope);
+                    drop(owner);
+                    drop(target_context);
+                    if let (Some(started), Some(body_started), Some(phase)) =
+                        (started, body_started, phase)
+                    {
+                        let body_finished = body_finished.unwrap();
+                        context.record_lifecycle_work(
+                            self.id.to_u32(),
+                            phase,
+                            (body_started - started).as_secs_f64() * 1000.,
+                            (body_finished - body_started).as_secs_f64() * 1000.,
+                            body_finished.elapsed().as_secs_f64() * 1000.,
+                        );
+                    }
                 }
             }
         }
@@ -1294,6 +1319,7 @@ impl ExpandedNode {
             transform_and_bounds,
             scroll_state: LocalProperty::default(),
             local_clip_geometry: LocalProperty::default(),
+            local_occlusion_geometry: LocalProperty::default(),
             world_clip_geometry: LocalProperty::default(),
             presentation_transform_and_bounds,
             #[cfg(feature = "3d")]
@@ -2916,6 +2942,62 @@ impl ExpandedNode {
             .filter(|(name, _)| instance_node.property_requires_occlusion_recompute(name))
             .map(|(_, v)| v.get_untyped_property().clone())
             .collect();
+        if instance_node.local_occlusion_path_is_retained()
+            && instance_node.local_occlusion_path_is_placement_independent()
+        {
+            // The exposed scope merges common properties with typed properties.
+            // Only the latter describe local shape; layout bounds track sizing.
+            let common = self
+                .get_common_properties()
+                .borrow()
+                .retrieve_property_scope();
+            let mut local_deps: Vec<_> = self
+                .properties_scope
+                .borrow()
+                .iter()
+                .filter(|(name, value)| {
+                    instance_node.property_requires_occlusion_recompute(name)
+                        && common.get(*name).is_none_or(|property| {
+                            property.get_untyped_property().get_id()
+                                != value.get_untyped_property().get_id()
+                        })
+                })
+                .map(|(_, value)| value.get_untyped_property().clone())
+                .collect();
+            local_deps.push(self.layout_bounds.untyped());
+            let weak = Rc::downgrade(self);
+            let profile_context = ctx.work_profiling_enabled().then(|| Rc::downgrade(ctx));
+            self.local_occlusion_geometry
+                .replace_with(LocalProperty::computed(
+                    move || {
+                        crate::scene_geometry::presentation::ClipGeometry(
+                            weak.upgrade()
+                                .and_then(|node| {
+                                    let profile_context =
+                                        profile_context.as_ref().and_then(Weak::upgrade);
+                                    let _work = profile_context.as_ref().and_then(|context| {
+                                        context.profile_node_work(
+                                            node.id.to_u32(),
+                                            "local occlusion geometry",
+                                        )
+                                    });
+                                    // Resolve the sizing dependency even when a primitive
+                                    // reads bounds through its presentation geometry. A
+                                    // dependency left dirty cannot propagate later resizes.
+                                    node.layout_bounds.get();
+                                    node.instance_node
+                                        .borrow()
+                                        .resolve_local_occlusion_path(&node)
+                                })
+                                .map(Rc::new),
+                        )
+                    },
+                    &local_deps,
+                ));
+        } else {
+            self.local_occlusion_geometry
+                .replace_with(LocalProperty::default());
+        }
         drop(instance_node);
 
         // Structural child changes are handled by children_listener after
@@ -2941,7 +3023,9 @@ impl ExpandedNode {
             .replace_with(LocalProperty::computed_with_name(
                 move || {
                     context.set_wheel_scope(id, wheel_events.get());
-                    context.mark_node_occlusion_dirty(id);
+                    // Typed inputs already invalidate the local coverage property.
+                    // Placement/opacity still repair coverage without rebuilding its shape.
+                    context.mark_node_occlusion_placement_dirty(id);
                 },
                 &deps,
                 "occlusion listener",
@@ -3727,6 +3811,8 @@ impl ExpandedNode {
                 .replace_with(LocalProperty::default());
             self.world_clip_geometry
                 .replace_with(LocalProperty::default());
+            self.local_occlusion_geometry
+                .replace_with(LocalProperty::default());
             self.computed_opacity.replace_with(LocalProperty::new(1.0));
             self.subtree_layout_hull
                 .replace_with(LocalProperty::default());
@@ -4326,7 +4412,11 @@ impl ExpandedNode {
         // resolve a pending change before the reactive queue is drained.
         let received_children_count = LocalProperty::computed_with_cutoff_and_name(
             move || received_children_count_source.get().len(),
-            &[received_children.untyped(), deps[0].clone(), deps[1].clone()],
+            &[
+                received_children.untyped(),
+                deps[0].clone(),
+                deps[1].clone(),
+            ],
             usize::eq,
             &format!("received children count (node id: {})", self.id.0),
         );

@@ -374,8 +374,9 @@ and reactive graphs. The main clock stays paused until mounting completes.
 By default the loader remains active over the prepared viewport until then.
 `loader_exit = "first_viewport"` under `[package.metadata.pax.web]` starts its
 exit as soon as that viewport settles, leaving the prepared scene visible while
-remaining mounts complete. Input stays blocked until mounting and loader exit
-both finish. Their rendering scenes are independent while sharing
+remaining mounts complete. Scrolling, application input, and accessibility are
+released when the loader's exit finishes, even while the main clock remains
+paused. Their rendering scenes are independent while sharing
 the runtime's GPU device. Cooperative preparation and rendering share a 4 ms
 allowance per animation-frame opportunity across these hosted applications;
 an indivisible callback can exceed this soft budget.
@@ -396,15 +397,17 @@ feedback does not rerun application lifecycle handlers. Application input is
 queued with its existing recipients' mount lifetimes; removed or remounted
 recipients are skipped. Browser default actions for queued input are suppressed
 at capture time, and clicks on the unpublished background do not later target
-new controls. The queue drains in order, one event per ordinary frame after
-startup; consecutive pointer moves may be coalesced.
+new controls. Once input is released, the queue drains in order, one event per
+host frame, including during background mounting; consecutive pointer moves may
+be coalesced. Replaying input does not advance the paused animation clock.
 
 The first preparation checkpoint prioritizes the initial viewport. Without a
 loading screen, this checkpoint permits the first reveal described below. A
 configured loading screen additionally waits for the initial visible surfaces
 to be submitted before revealing that viewport underneath the active loader.
-The rest of the scene mounts cooperatively with input and ordinary ticks still
-held. Loader exit follows the configured `loader_exit` policy; see its
+The rest of the scene mounts cooperatively with ordinary ticks still held.
+Input waits for loader exit, or full mounting when there is no loader.
+Loader exit follows the configured `loader_exit` policy; see its
 [publication contract](components-composition.md#loading-context-components-experimental).
 A node with a known
 outer box entirely outside that viewport can defer its whole subtree; this

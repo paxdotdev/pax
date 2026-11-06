@@ -166,7 +166,8 @@ advance application time or replay already-dispatched lifecycle handlers.
 <pre><code class="api-signature language-rust ignore">pub fn resume_startup_after_presentation(&amp;mut self)</code></pre>
 
 Acknowledge a rendered startup checkpoint and eagerly start the next
-deferred subtrees. Input and ordinary ticks remain held until all work ends.
+deferred subtrees. Ordinary ticks remain held until all work ends; the host
+can release input separately once its loading screen has exited.
 The first acknowledgement must follow the host's font/measurement gate.
 
 ##### `service_startup`
@@ -201,7 +202,8 @@ Start the root's authored exit transitions without destroying its lifetime.
 <pre><code class="api-signature language-rust ignore">pub fn hold_presentation(&amp;mut self)</code></pre>
 
 Keep entry animations at their initial state while this application prepares.
-Hosts must also gate its canvas/native presentation and user input.
+Hosts must separately gate its canvas/native presentation and user input;
+a revealed viewport may accept input while the animation clock stays held.
 
 ##### `mount_root_component`
 <pre><code class="api-signature language-rust ignore">pub fn mount_root_component(&amp;mut self, main_component_instance: Rc&lt;<a href="../../../api/internal/pax-runtime/component.md#componentinstance">ComponentInstance</a>&gt;) -&gt; Rc&lt;ExpandedNode&gt;</code></pre>

@@ -24,6 +24,7 @@ export class SurfaceTrace {
     private lastUnready = '';
     private probeFrame?: number;
     private profileFrame?: number;
+    private workProfileTimer?: ReturnType<typeof setTimeout>;
     private profileStart = 0;
     private profileUntil = -Infinity;
     private profilePhases = new Map<string, {count: number; total: number; max: number; samples: number[]}>();
@@ -89,7 +90,8 @@ export class SurfaceTrace {
         });
     };
 
-    constructor(private mount: HTMLElement, private capacity = 2048) {
+    constructor(private mount: HTMLElement, private capacity = 2048, inspectNode?: (id: number) => object | null | undefined,
+        workProfile?: {begin: () => boolean; take: () => object | null}) {
         this.capacity = Math.max(1, Math.floor(capacity));
         this.events = new TraceRing(this.capacity);
         this.samples = new TraceRing(Math.min(this.capacity, 512));
@@ -122,6 +124,48 @@ export class SurfaceTrace {
             this.profileOutput = profileOutput;
             profile.addEventListener('click', () => { details.open = false; this.runProfile(2000); });
             details.append(profile, profileOutput);
+            const nodeId = doc.createElement('input');
+            nodeId.type = 'number'; nodeId.min = '0'; nodeId.max = '4294967295'; nodeId.step = '1';
+            nodeId.placeholder = 'Engine node ID'; nodeId.setAttribute('aria-label', 'Engine node ID');
+            const inspect = doc.createElement('button');
+            inspect.textContent = 'Inspect node';
+            const nodeOutput = doc.createElement('pre');
+            nodeOutput.id = 'pax-node-inspection';
+            inspect.addEventListener('click', () => {
+                const id = nodeId.valueAsNumber;
+                if (!Number.isInteger(id) || id < 0 || id > 4294967295) {
+                    nodeOutput.textContent = 'Enter an unsigned 32-bit engine node ID.';
+                    return;
+                }
+                const node = inspectNode?.(id);
+                nodeOutput.textContent = JSON.stringify(node === undefined ? {status: 'Node inspection unavailable in this cartridge'}
+                    : node === null ? {engine_id: id, status: 'Node is not in the runtime cache'} : node);
+                this.record('node-inspection', {engine_id: id, node});
+            });
+            details.append(nodeId, inspect, nodeOutput);
+            if (workProfile) {
+                const capture = doc.createElement('button');
+                capture.textContent = 'Profile CPU work 2 seconds';
+                const workOutput = doc.createElement('pre');
+                workOutput.id = 'pax-cpu-work-profile';
+                capture.addEventListener('click', () => {
+                    if (!workProfile.begin()) {
+                        workOutput.textContent = 'CPU work profiling unavailable in this cartridge.';
+                        return;
+                    }
+                    capture.disabled = true;
+                    details.open = false;
+                    this.workProfileTimer = setTimeout(() => {
+                        this.workProfileTimer = undefined;
+                        const report = workProfile.take();
+                        workOutput.textContent = JSON.stringify(report);
+                        this.record('cpu-work-profile', {report});
+                        capture.disabled = false;
+                        details.open = true;
+                    }, 2000);
+                });
+                details.append(capture, workOutput);
+            }
             for (const [name,direction] of [['Probe down',1],['Probe up',-1]] as const) {
                 const button=doc.createElement('button'); button.textContent=name;
                 button.addEventListener('click',()=>{
@@ -376,6 +420,8 @@ export class SurfaceTrace {
     firstVisibleAt(id: string) { return this.demand.get(id)?.firstVisibleAt; }
 
     dispose() {
+        if (this.workProfileTimer != null) clearTimeout(this.workProfileTimer);
+        this.workProfileTimer = undefined;
         if (this.probeFrame != null) cancelAnimationFrame(this.probeFrame);
         if (this.profileFrame != null) cancelAnimationFrame(this.profileFrame);
         this.profileUntil = -Infinity;

@@ -369,6 +369,13 @@ This does not suspend the source component or its reactive updates. Moving it
 back into the domain restores its coverage, and nearby off-tile geometry is
 still captured when its feathered edge can contribute.
 
+WGPU captures the intersecting source bounds and processes alpha only over those
+bounds plus the feather halo. Nested masks keep their own bounds and combine in
+surface coordinates. With zero feather, extracting captured alpha and multiplying
+the enclosing mask take one pass; no blur passes run. These optimizations are
+automatic in debug and release builds and preserve source-side opacity, clips,
+and stroke reveals.
+
 Alpha masks can reveal canvas content inside a Scroller, including a nested
 Scroller with intervening Frames or Masks. The source and content use the
 owning Scroller's content coordinates, so their authored offsets stay aligned
@@ -468,6 +475,10 @@ WGPU retains visible group content across opacity changes. Source image,
 paint, transform, clip and lighting changes invalidate that content; outer
 translation and native mask updates still perform work. Group surfaces add
 memory and composition passes, so caching is not a guarantee of faster frames.
+Ordinary WGPU opacity groups use scratch surfaces bounded to their visible
+content, with spare capacity for small size changes. At full opacity, a valid
+capture can still be reused; changed content draws directly instead of refreshing
+an unnecessary capture. This preserves group blending during partial opacity.
 Vello CPU compares replayed drawing commands with the last presented frame.
 Unchanged tiles need no rasterization or upload. Changed tiles recompose the
 affected rectangle, including its backdrop, opacity groups, clips and masks;
@@ -586,6 +597,12 @@ or removing content separately reconciles its scene membership.
 Ordinary leaf animation updates shared scene geometry and queries nearby native
 surfaces to refresh punch-through masks. Both the old and new coverage matter:
 a moving or disappearing shape must uncover the surface it leaves behind.
+`Path` retains its local fill/stroke coverage across placement and common-opacity
+changes, so moving a stroked path does not regenerate its stroke outline. The
+runtime still maps that shape into the current presentation and updates nearby
+native masks. Layout, shape, and paint changes invalidate the local coverage;
+each mounted occurrence owns its cache and releases it on unmount. This applies
+to both 2D and 3D runtime builds, independently of the rendering backend.
 Scroll-content geometry stays indexed in content coordinates, so scrolling a
 clipped, independently layered scroller queries the old and new visible regions
 without reindexing every descendant. Nested Scrollers and Frames retain their
@@ -953,7 +970,10 @@ replaying an animation or changing the source geometry.
 
 Effect bounds are checked against each tile's padded sampling domain before
 setting up capture attachments. Off-tile effects do not allocate or clear those
-attachments, and a cached source needs no capture setup even when shader
+attachments. Visible sources use scratch color and stencil attachments bounded
+to their aligned capture envelope, including sampling support and spare capacity,
+rather than the entire padded tile. This preserves coarse sampling alignment
+across adjacent tiles. A cached source needs no capture setup even when shader
 parameters change. This is a rendering optimization, not deferred component
 mounting; reactive updates and the sampling support of nearby effects remain
 active.
@@ -964,6 +984,10 @@ their settled layout or geometry, including through nested shader containers.
 The tile can then finish preparation and submission without waiting for an
 unrelated application change. Actual content and layout changes still follow
 the normal reactive update path.
+
+During incremental startup, shader captures follow mounted presentation children,
+just like ordinary drawing. Deferred children join the capture when they mount;
+an early viewport reveal does not force the remaining subtree to expand.
 
 For an inexpensive exit, stop both source animation and shader `phase`, then
 fade a stationary ancestor Group. WGPU can reuse the assembled pixels across

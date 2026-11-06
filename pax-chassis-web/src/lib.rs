@@ -7,15 +7,14 @@ use pax_message::{
     ClickInterruptArgs, ContextMenuInterruptArgs, DoubleClickInterruptArgs, DropFileArgs,
     FocusInterruptArgs, FormButtonClickArgs, FormCheckboxToggleArgs, FormDropdownChangeArgs,
     FormRadioListChangeArgs, FormSliderChangeArgs, FormTextboxChangeArgs, FormTextboxInputArgs,
-    FormTextboxSubmitArgs,
-    GyroInterruptArgs, ImageDataArgs, ImageLoadInterruptArgs, ImagePointerArgs,
-    KeyDownInterruptArgs, KeyPressInterruptArgs, KeyUpInterruptArgs, ModifierKeyMessage,
-    MouseButtonMessage, MouseDownInterruptArgs, MouseMoveInterruptArgs, MouseUpInterruptArgs,
-    NativeInterrupt, PhotoPickerAssetArgs, PhotoPickerInterruptArgs, RenderSurfaceUpdateArgs,
-    RouteChangeInterruptArgs, ScreenshotData, ScrollInterruptArgs, ScrollerPositionInterruptArgs,
-    SelectStartArgs, TapInterruptArgs, TextInputArgs, TouchCancelInterruptArgs,
-    TouchEndInterruptArgs, TouchMessage, TouchMoveInterruptArgs, TouchStartInterruptArgs,
-    ViewportResizeArgs, VisualViewportUpdateArgs, WheelInterruptArgs,
+    FormTextboxSubmitArgs, GyroInterruptArgs, ImageDataArgs, ImageLoadInterruptArgs,
+    ImagePointerArgs, KeyDownInterruptArgs, KeyPressInterruptArgs, KeyUpInterruptArgs,
+    ModifierKeyMessage, MouseButtonMessage, MouseDownInterruptArgs, MouseMoveInterruptArgs,
+    MouseUpInterruptArgs, NativeInterrupt, PhotoPickerAssetArgs, PhotoPickerInterruptArgs,
+    RenderSurfaceUpdateArgs, RouteChangeInterruptArgs, ScreenshotData, ScrollInterruptArgs,
+    ScrollerPositionInterruptArgs, SelectStartArgs, TapInterruptArgs, TextInputArgs,
+    TouchCancelInterruptArgs, TouchEndInterruptArgs, TouchMessage, TouchMoveInterruptArgs,
+    TouchStartInterruptArgs, ViewportResizeArgs, VisualViewportUpdateArgs, WheelInterruptArgs,
 };
 use pax_runtime::api::borrow;
 use pax_runtime::api::borrow_mut;
@@ -30,7 +29,9 @@ use pax_runtime::api::RenderContext;
 use pax_runtime::api::SelectStart;
 use pax_runtime::api::OS;
 use pax_runtime::api::{Accel, Gyro};
-use pax_runtime::api::{PhotoPickerChange, SliderChange, SubmitTrigger, TextboxChange, TextboxInput};
+use pax_runtime::api::{
+    PhotoPickerChange, SliderChange, SubmitTrigger, TextboxChange, TextboxInput,
+};
 use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, LayerCanvasPlan};
 use pax_runtime::DefinitionToInstanceTraverser;
 use web_time::Instant;
@@ -444,6 +445,10 @@ impl PaxChassisWeb {
         if hold {
             engine.hold_presentation();
         }
+        if query_param_value(&window_location_search(), "pax_work_profile").as_deref() == Some("1")
+        {
+            engine.runtime_context.enable_work_profiling();
+        }
         if yield_mount {
             engine.enable_resumable_startup();
             if query_param_value(&window_location_search(), "pax_startup_profile").as_deref()
@@ -525,6 +530,10 @@ impl PaxChassisWeb {
             .edit_globals(|globals| globals.renderer_is_gpu = renderer.is_gpu());
         if hold {
             engine.hold_presentation();
+        }
+        if query_param_value(&window_location_search(), "pax_work_profile").as_deref() == Some("1")
+        {
+            engine.runtime_context.enable_work_profiling();
         }
         if yield_mount {
             engine.enable_resumable_startup();
@@ -1757,8 +1766,8 @@ impl PaxChassisWeb {
         !self.startup_input.is_empty()
     }
 
-    /// Replay one frozen application event between ordinary frames, never a whole
-    /// unbounded input backlog. Feedback continues to bypass this queue.
+    /// Replay one frozen application event per host frame after input is released,
+    /// including during background mounting. Feedback continues to bypass this queue.
     pub fn replay_startup_input(&mut self) {
         if self.startup_hold_input {
             return;
@@ -1795,6 +1804,9 @@ impl PaxChassisWeb {
         self.engine.borrow().startup_pending()
     }
 
+    /// Release queued and live application input independently of the animation
+    /// clock. A loading host calls this after its loader exits, even if mounting
+    /// continues; `publish_application` still waits for the complete mount.
     pub fn finish_startup_presentation(&mut self) {
         self.startup_hold_input = false;
     }
@@ -1827,6 +1839,27 @@ impl PaxChassisWeb {
     /// Returns null when disabled, still pending, or already consumed.
     pub fn take_startup_profile(&mut self) -> JsValue {
         js_value_serde::to_value(&self.engine.borrow_mut().take_startup_profile())
+    }
+
+    /// Start or reset CPU and retained-render work capture; requires `?pax_work_profile=1`.
+    pub fn begin_work_profile(&mut self) -> bool {
+        let engine = self.engine.borrow();
+        let begun = engine.runtime_context.begin_work_profile();
+        self.render_context
+            .set_render_work_observer(begun.then(|| engine.runtime_context.render_work_observer()));
+        begun
+    }
+
+    /// Stop and consume CPU attribution and backend work counts with node identities.
+    pub fn take_work_profile(&mut self) -> JsValue {
+        self.render_context.set_render_work_observer(None);
+        js_value_serde::to_value(&self.engine.borrow().runtime_context.take_work_profile())
+    }
+
+    /// Resolve a live expanded-node ID to template coordinates and lifecycle
+    /// metadata. Available in release builds; performs no geometry preparation.
+    pub fn inspect_node(&self, id: u32) -> JsValue {
+        js_value_serde::to_value(&self.engine.borrow().runtime_context.inspect_node(id))
     }
 
     /// The same tick with opt-in, CPU-side phase timings in milliseconds.

@@ -15,7 +15,12 @@ function harness(holdPresentation = false) {
             state.measurementChecks++;
             return !state.needsNextFlowChild;
         },
-        startup_input_pending: () => false,
+        startup_input_pending: () => (state.inputQueue?.length ?? 0) > 0,
+        replay_startup_input: () => {
+            if (state.inputHeld) return;
+            state.events.push(state.inputQueue.shift());
+            state.enginePending = true;
+        },
         startup_pending: () => state.remainderPending,
         resume_startup_after_presentation: () => state.events.push('resume'),
         tick: () => { state.ticks++; return []; },
@@ -113,6 +118,26 @@ test('a detached mount cannot publish from a stale animation-frame callback', ()
     h.frame(); h.detach(); h.frame();
     assert.deepEqual(h.state.events, []);
     assert.equal(h.state.ticks, 0);
+});
+
+test('loader exit drains queued input during background mounting without advancing animations', () => {
+    const h = harness(true);
+    h.state.patchesPending = false; h.state.textReady = true; h.state.remainderPending = true;
+    h.frame(); h.frame(); h.reveal();
+    h.state.events.length = 0;
+    h.state.inputQueue = ['click', 'scroll']; h.state.inputHeld = true;
+    h.frame();
+    assert.equal(h.state.inputQueue.length, 2, 'the loader still owns input');
+    h.state.inputHeld = false;
+    h.frame();
+    assert.deepEqual(h.state.inputQueue, ['scroll'], 'one event per frame');
+    assert.ok(h.state.events.includes('click'));
+    h.frame();
+    assert.deepEqual(h.state.inputQueue, []);
+    assert.ok(h.state.events.indexOf('click') < h.state.events.indexOf('scroll'));
+    assert.ok(h.state.wakes > 0, 'input-driven properties schedule startup settlement');
+    assert.equal(h.state.ticks, 0);
+    assert.ok(!h.state.events.includes('mounted'));
 });
 
 test('held viewport waits for submitted surfaces before admitting deferred mounting', () => {
