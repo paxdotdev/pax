@@ -1,44 +1,33 @@
 <Group width=100% height=100% @viewport_proximity_change=self.visibility>
     if self.ready && @gpu {
-        // Allow the existing glow beyond the grid, but keep manually scrolled
-        // highlights from painting into the adjacent copy. The reach caps at 48px.
-        <Frame x={(-AcrosticRow::radiance_margin(self.cell_px))px} y={(-AcrosticRow::radiance_margin(self.cell_px))px}
-            width={100% + (2 * AcrosticRow::radiance_margin(self.cell_px))px}
-            height={100% + (2 * AcrosticRow::radiance_margin(self.cell_px))px}>
-            <Group x={(AcrosticRow::radiance_margin(self.cell_px))px} y={(AcrosticRow::radiance_margin(self.cell_px))px}
-                width={100% - (2 * AcrosticRow::radiance_margin(self.cell_px))px}
-                height={100% - (2 * AcrosticRow::radiance_margin(self.cell_px))px}>
-                for row in 0..4 {
-                    // Compact, normalized artboards keep Radiance's capture padding
-                    // proportional to a letter, rather than filtering the whole grid.
-                    <Group x={(AcrosticRow::radiance_position(self.selected[row], self.phases[row]) * self.cell_px)px}
-                        y={(row * self.row_height)px} anchor=0px width=1000px height=875px
-                        scale={((self.cell_px / 1000) * 100)%} opacity={self.moving ? 0 : 1}
-                        layout_role=LayoutRole::Breakout>
-                        <Radiance width=100% height=100% foreground={AcrosticRow::ink(self.light)} background={AcrosticRow::ink(0)}
-                            light_color={AcrosticRow::radiance_tint(self.light)} light_x=200
-                            light_y={AcrosticRow::radiance_light_y(self.phase_ms, row)} light_depth=900
-                            brightness={self.light > 0 ? 4.0 : 0} reach={AcrosticRow::radiance_reach(self.cell_px)}
-                            falloff=1.0 transmission=0 polish=0>
-                            <Path x=40px y=40px width=920px height=795px elements={self.glyphs[self.selected[row]].elements}
-                                smoothing=PathSmoothing::None
-                                fill={paint: {AcrosticRow::ink(self.light)}, material: {Material::unlit()}}
-                                stroke={paint: {AcrosticRow::ink(self.light)}, width: 25px, join: StrokeJoin::Round, material: {Material::unlit()}}/>
-                        </Radiance>
-                    </Group>
-                }
+        for row in 0..4 {
+            // Compact, normalized artboards keep Radiance's capture padding
+            // proportional to a letter, rather than filtering the whole grid.
+            <Group x={(AcrosticRow::position(self.selected[row], self.phases[row]) * self.cell_px)px}
+                y={(row * self.row_height)px} anchor=0px width=1000px height=875px
+                scale={((self.cell_px / 1000) * 100)%} opacity={self.moving ? 0 : 1}
+                layout_role=LayoutRole::Breakout>
+                <Radiance width=100% height=100% foreground={AcrosticRow::ink(self.light)} background={AcrosticRow::ink(0)}
+                    light_color={AcrosticRow::radiance_tint(self.light)} light_x=200
+                    light_y={AcrosticRow::radiance_light_y(self.phase_ms, row)} light_depth=900
+                    brightness={self.light > 0 ? 4.0 : 0} reach={AcrosticRow::radiance_reach(self.cell_px)}
+                    falloff=1.0 transmission=0 polish=0>
+                    <Path x=40px y=40px width=920px height=795px elements={self.glyphs[self.selected[row]].elements}
+                        smoothing=PathSmoothing::None
+                        fill={paint: {AcrosticRow::ink(self.light)}, material: {Material::unlit()}}
+                        stroke={paint: {AcrosticRow::ink(self.light)}, width: 25px, join: StrokeJoin::Round, material: {Material::unlit()}}/>
+                </Radiance>
             </Group>
-        </Frame>
+        }
     }
     <Frame width=100% height={(self.row_height * 4)px}>
         if self.ready {
             for row in 0..4 {
                 if @gpu {
-                    <AcrosticScrollRow y={(row * self.row_height)px} width=100% height={(self.row_height)px}
-                        glyphs={self.glyphs} phases=bind:self.phases row={row}
-                        journey={self.journeys[row]} journey_id={self.journey_id} moving={self.moving}
-                        selected={self.selected[row]} cell_px={self.cell_px} row_height={self.row_height}
-                        manual_until=bind:self.manual_until manual_contacts=bind:self.manual_contacts
+                    // The selected base glyph is hidden beneath Radiance during
+                    // the light sweep. Keep the entire base row's paint constant.
+                    <AcrosticRow y={(row * self.row_height)px} width=100% height={(self.row_height)px} glyphs={self.glyphs} phase={self.phases[row]}
+                        selected={self.selected[row]} light=0 cell_px={self.cell_px} row_height={self.row_height}
                         lit_overlay={!self.moving}/>
                 } else {
                     <AcrosticRow y={(row * self.row_height)px} width=100% height={(self.row_height)px} glyphs={self.glyphs} phase={self.phases[row]}

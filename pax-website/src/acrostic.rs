@@ -40,9 +40,6 @@ pub struct Acrostic {
     pub phase_ms: Property<f64>,
     pub _visible: Property<bool>,
     pub _last_ms: Property<f64>,
-    pub journey_id: Property<usize>,
-    pub manual_until: Property<f64>,
-    pub manual_contacts: Property<usize>,
 }
 
 impl Acrostic {
@@ -67,18 +64,6 @@ impl Acrostic {
         self.phases.set(
             (0..4)
                 .map(|row| wrap(LANDING_COLUMNS[0] as f64 - row as f64))
-                .collect(),
-        );
-        self.journeys.set(
-            self.phases
-                .get()
-                .iter()
-                .enumerate()
-                .map(|(row, phase)| RowJourney {
-                    from: *phase,
-                    distance: 0.0,
-                    slot: row,
-                })
                 .collect(),
         );
         self.light.set(1.0);
@@ -112,13 +97,6 @@ impl Acrostic {
         if !self.ready.get() || !self._visible.get() {
             return;
         }
-        if self.manual_contacts.get() > 0 || self.manual_until.get() > 0.0 {
-            if self.manual_contacts.get() == 0 && now >= self.manual_until.get() {
-                self.manual_until.set(0.0);
-                self.begin_next_journey();
-            }
-            return;
-        }
         let time = self.phase_ms.get() + dt;
         if self.moving.get() {
             let journeys = self.journeys.get();
@@ -127,7 +105,7 @@ impl Acrostic {
                     .iter()
                     .enumerate()
                     .map(|(row, journey)| {
-                        journey.from + journey.distance * ease(time / ROW_DURATIONS[row])
+                        wrap(journey.from + journey.distance * ease(time / ROW_DURATIONS[row]))
                     })
                     .collect(),
             );
@@ -140,30 +118,26 @@ impl Acrostic {
         } else {
             self.light.set_if_neq(illumination(time));
             if time >= HOLD_MS {
-                self.begin_next_journey();
+                let next = (self.word_index.get() + 1) % WORDS.len();
+                let phases = self.phases.get();
+                let journeys: Vec<_> = WORDS[next]
+                    .bytes()
+                    .enumerate()
+                    .map(|(row, letter)| {
+                        plan_row(phases[row], letter, LANDING_COLUMNS[next], row, next)
+                    })
+                    .collect();
+                self.selected
+                    .set(journeys.iter().map(|journey| journey.slot).collect());
+                self.journeys.set(journeys);
+                self.word_index.set(next);
+                self.phase_ms.set(0.0);
+                self.light.set(0.0);
+                self.moving.set(true);
             } else {
                 self.phase_ms.set(time);
             }
         }
-    }
-
-    fn begin_next_journey(&mut self) {
-        let next = (self.word_index.get() + 1) % WORDS.len();
-        let phases: Vec<_> = self.phases.get().into_iter().map(wrap).collect();
-        let journeys: Vec<_> = WORDS[next]
-            .bytes()
-            .enumerate()
-            .map(|(row, letter)| plan_row(phases[row], letter, LANDING_COLUMNS[next], row, next))
-            .collect();
-        self.selected
-            .set(journeys.iter().map(|journey| journey.slot).collect());
-        self.phases.set(phases);
-        self.journeys.set(journeys);
-        self.journey_id.set(self.journey_id.get() + 1);
-        self.word_index.set(next);
-        self.phase_ms.set(0.0);
-        self.light.set(0.0);
-        self.moving.set(true);
     }
 }
 
@@ -178,132 +152,6 @@ pub struct AcrosticRow {
     pub cell_px: Property<f64>,
     pub row_height: Property<f64>,
     pub lit_overlay: Property<bool>,
-}
-
-/// A finite native-scroll experiment: three fixed tapes share one animated offset.
-/// The illuminated glyph remains in the parent's overlay so its glow is not row-clipped.
-#[pax]
-#[file("acrostic_scroll_row.pax")]
-pub struct AcrosticScrollRow {
-    pub glyphs: Property<Vec<AcrosticGlyph>>,
-    pub phases: Property<Vec<f64>>,
-    pub row: Property<usize>,
-    pub journey: Property<RowJourney>,
-    pub journey_id: Property<usize>,
-    pub selected: Property<usize>,
-    pub cell_px: Property<f64>,
-    pub row_height: Property<f64>,
-    pub lit_overlay: Property<bool>,
-    pub moving: Property<bool>,
-    pub manual_until: Property<f64>,
-    pub manual_contacts: Property<usize>,
-    pub scroll_x: Property<f64>,
-    pub _anchor: Property<f64>,
-    pub _expected_scroll: Property<f64>,
-    pub _last_cell: Property<f64>,
-    pub _last_journey: Property<usize>,
-    pub _touching: Property<bool>,
-}
-
-impl AcrosticScrollRow {
-    pub fn mount(&mut self, ctx: &NodeContext) {
-        self.sync_scroll(ctx);
-    }
-
-    pub fn on_pre_render(&mut self, ctx: &NodeContext) {
-        self.sync_scroll(ctx);
-    }
-
-    fn sync_scroll(&mut self, ctx: &NodeContext) {
-        let cell = self.cell_px.get();
-        if cell <= 0.0 {
-            return;
-        }
-        let row = self.row.get();
-        let mut phases = self.phases.get();
-        let phase = phases[row];
-        let reset =
-            self._last_cell.get() != cell || self._last_journey.get() != self.journey_id.get();
-        let now = ctx.elapsed_time_millis() as f64;
-        let actual = self.scroll_x.get();
-        if !reset && (actual - self._expected_scroll.get()).abs() > 0.75 {
-            // Native observations update the binding; autoplay must yield to them.
-            phases[row] = self._anchor.get() - actual / cell;
-            self.phases.set(phases);
-            self._expected_scroll.set(actual);
-            self.manual_until.set(now + 900.0);
-            return;
-        }
-        if !reset && (self.manual_contacts.get() > 0 || self.manual_until.get() > 0.0) {
-            return;
-        }
-        if reset {
-            let journey = self.journey.get();
-            let remaining = if self.moving.get() {
-                journey.from + journey.distance - phase
-            } else {
-                0.0
-            };
-            let previous = (self._last_cell.get() > 0.0).then(|| self._anchor.get());
-            self._anchor.set(scroll_anchor(
-                phase,
-                remaining,
-                ctx.bounds_self.get().0 / cell,
-                previous,
-            ));
-            self._last_cell.set(cell);
-            self._last_journey.set(self.journey_id.get());
-        }
-        let requested = (self._anchor.get() - phase) * cell;
-        self.scroll_x.set_if_neq(requested);
-        self._expected_scroll.set(requested);
-    }
-
-    pub fn touch_start(&mut self, ctx: &NodeContext, _event: Event<TouchStart>) {
-        if !self._touching.get() {
-            self._touching.set(true);
-            self.manual_contacts.set(self.manual_contacts.get() + 1);
-        }
-        self.manual_until
-            .set(ctx.elapsed_time_millis() as f64 + 900.0);
-    }
-
-    fn release_touch(&mut self, ctx: &NodeContext) {
-        if self._touching.get() {
-            self._touching.set(false);
-            self.manual_contacts
-                .set(self.manual_contacts.get().saturating_sub(1));
-            self.manual_until
-                .set(ctx.elapsed_time_millis() as f64 + 900.0);
-        }
-    }
-
-    pub fn touch_end(&mut self, ctx: &NodeContext, _event: Event<TouchEnd>) {
-        self.release_touch(ctx);
-    }
-    pub fn touch_cancel(&mut self, ctx: &NodeContext, _event: Event<TouchCancel>) {
-        self.release_touch(ctx);
-    }
-    pub fn on_unmount(&mut self, ctx: &NodeContext) {
-        self.release_touch(ctx);
-    }
-}
-
-fn scroll_anchor(phase: f64, distance: f64, columns: f64, previous: Option<f64>) -> f64 {
-    let period = TAPE.len() as f64;
-    let max_scroll = 3.0 * period - columns;
-    // A whole-period shift changes the finite scroll coordinate, not the visible letters.
-    // Reserve the entire journey before it begins; never rebase in mid-flight.
-    let first = ((phase + distance.max(0.0)) / period - 1e-9).ceil();
-    let last = ((phase + max_scroll + distance.min(0.0)) / period + 1e-9).floor();
-    assert!(
-        first <= last,
-        "three acrostic tapes must fit the complete journey"
-    );
-    let preferred = previous
-        .map(|a| a / period)
-        .unwrap_or((phase + max_scroll / 2.0) / period);
-    preferred.round().clamp(first, last) * period
 }
 
 #[helpers]
@@ -328,25 +176,12 @@ impl AcrosticRow {
         if !cell_px.is_finite() || cell_px <= 0.0 {
             return 0.0;
         }
-        Self::radiance_margin(cell_px) * 1000.0 / cell_px
-    }
-
-    pub fn radiance_margin(cell_px: f64) -> f64 {
-        if !cell_px.is_finite() || cell_px <= 0.0 {
-            return 0.0;
-        }
-        (cell_px * 0.36).min(48.0)
+        (cell_px * 0.36).min(48.0) * 1000.0 / cell_px
     }
 
     pub fn position(slot: usize, phase: f64) -> f64 {
         // Recycle only in the clipped overscan, never at a visible cell boundary.
         wrap(slot as f64 + phase + 1.0) - 1.0
-    }
-
-    pub fn radiance_position(slot: usize, phase: f64) -> f64 {
-        // The letter plus its <=0.36-cell glow must leave the viewport before
-        // recycling. A two-cell left margin keeps that seam outside the clip.
-        wrap(slot as f64 + phase + 2.0) - 2.0
     }
 
     pub fn ink(light: f64) -> Color {
@@ -405,77 +240,6 @@ fn plan_row(from: f64, letter: u8, column: usize, row: usize, word: usize) -> Ro
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn manual_highlight_tracks_visible_copies_including_the_glow_margin() {
-        for columns in [6.0, 7.0] {
-            for cell in [28.0, 57.0, 138.0, 400.0] {
-                let margin = AcrosticRow::radiance_margin(cell) / cell;
-                for slot in 0..TAPE.len() {
-                    for step in 0..=1060 {
-                        let scroll = (60.0 - columns) * step as f64 / 1060.0;
-                        let highlight = AcrosticRow::radiance_position(slot, 40.0 - scroll);
-                        for copy in 0..3 {
-                            let letter = (copy * TAPE.len() + slot) as f64 - scroll;
-                            // Include rays from letters just outside the scroll viewport,
-                            // and the outer clip's allowance for the original glow.
-                            if letter + 1.0 + margin > -margin && letter - margin < columns + margin
-                            {
-                                assert!((highlight - letter).abs() < 1e-9);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn finite_scroll_tapes_preserve_every_journey_and_fractional_manual_start() {
-        for columns in [6.0, 7.0] {
-            for row in 0..4 {
-                let mut anchor = None;
-                for step in 0..100 {
-                    let word = step % WORDS.len();
-                    let phase = wrap(step as f64 * 0.731);
-                    let journey = plan_row(
-                        phase,
-                        WORDS[word].as_bytes()[row],
-                        LANDING_COLUMNS[word],
-                        row,
-                        word,
-                    );
-                    let next = scroll_anchor(phase, journey.distance, columns, anchor);
-                    let max_scroll = 3.0 * TAPE.len() as f64 - columns;
-                    for tick in 0..=50 {
-                        let current = phase + journey.distance * ease(tick as f64 / 50.0);
-                        let scroll = next - current;
-                        assert!(scroll >= -1e-9 && scroll <= max_scroll + 1e-9);
-                        let mut visible = Vec::new();
-                        for index in 0..3 * TAPE.len() {
-                            let x = index as f64 - scroll;
-                            if x > -1.0 && x < columns {
-                                let slot = index % TAPE.len();
-                                assert!((x - AcrosticRow::position(slot, current)).abs() < 1e-8);
-                                visible.push(x);
-                            }
-                        }
-                        assert!(visible.len() >= columns as usize);
-                        // Resizing midway chooses a valid equivalent coordinate for the remaining trip.
-                        let resized = scroll_anchor(
-                            current,
-                            phase + journey.distance - current,
-                            7.0,
-                            Some(next),
-                        );
-                        assert!((resized / TAPE.len() as f64).fract().abs() < 1e-9);
-                        assert!(resized - current >= -1e-9);
-                    }
-                    anchor = Some(next);
-                }
-            }
-        }
-    }
 
     #[test]
     fn backlight_sweeps_up_once_per_hold_in_shared_column_space() {

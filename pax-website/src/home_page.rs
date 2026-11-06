@@ -243,11 +243,6 @@ impl HomePage {
                 include_str!("acrostic_row.pax"),
             ),
             (
-                "src/acrostic_scroll_row.pax",
-                "pax",
-                include_str!("acrostic_scroll_row.pax"),
-            ),
-            (
                 "src/hero_outlines.rs",
                 "rust",
                 include_str!("hero_outlines.rs"),
