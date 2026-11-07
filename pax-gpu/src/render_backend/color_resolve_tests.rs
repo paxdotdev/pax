@@ -35,6 +35,7 @@ fn make_target(device: &Device, uses: &AttachmentUses, samples: u32) -> CaptureT
         view,
         multisampled_target,
         initialized: false,
+        parent_domain: None,
         color_resolve: ColorResolve::default(),
     }
 }
