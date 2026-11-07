@@ -814,7 +814,7 @@ provides a projection switch, field-of-view and dolly controls, and native input
 for exploring these differences on GPU web and macOS. It starts in orthographic mode.
 
 Perspective integration is **experimental and incomplete**. Shared GPU vector,
-image, and clip rendering use homogeneous projection; basic web and macOS native
+image, and clip rendering use homogeneous projection; basic web, macOS, and iOS native
 controls also receive projective transforms. Within one canvas layer, nearer opaque vector
 paint masks the covered portions of native text and controls, including where two
 surfaces cross. Moving either surface updates these masks without remounting the
@@ -838,6 +838,18 @@ occluders. Moving a projected control outside the viewport leaves it mounted;
 its text and control state recover when it comes back into view, including after
 camera or window-size changes. Full assistive-technology workflows and separately hosted native menus
 and popovers have not been qualified under perspective.
+
+The iOS adapter also keeps native text, buttons, editors, frames, and scrollers
+mounted while applying projective placement. Layout and scrolling remain in local
+points; UIKit converts touches through the projected hierarchy. Native occlusion
+masks and clipping apertures restrict touch targets as well as visible content.
+Returning from an edge-on or clipped pose preserves the controls and their state.
+The adapter's simulator tests cover both turn directions, nested scrolling, rich
+text, editor selection, and viewport resizing. This does not qualify full
+VoiceOver workflows, keyboard suggestion UI, or separately presented menus and
+popovers under perspective. A card's native text can stay visible throughout a
+turn; applications do not need an angle-based opacity fade to compensate for the
+adapter.
 
 CPU renderers diagnose perspective as
 unsupported and display the default orthographic view. This includes a web session

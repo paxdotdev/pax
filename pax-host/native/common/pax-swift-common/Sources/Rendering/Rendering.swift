@@ -1209,9 +1209,9 @@ public struct NativeRenderingLayer: View {
             let opacity: Double
         }
         private var appliedGeometry: AppliedGeometry?
+        private(set) var nativeProjection: PaxNativeProjection?
 #if os(macOS)
         private var appliedViewBackedTransform: ViewBackedTransform?
-        private(set) var nativeProjection: PaxNativeProjection?
         private let projectedFocusLayer = CAShapeLayer()
         private weak var projectedFocusOwner: NSView?
         private var originalFocusRingType: NSFocusRingType?
@@ -1236,6 +1236,13 @@ public struct NativeRenderingLayer: View {
         }
 
         override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+            // UIKit converts into the layer's projective local coordinates before
+            // hitTest. Masks do not constrain UIKit input, so apply the same local
+            // aperture explicitly and reject a collapsed/behind-camera plane.
+            guard point.x.isFinite, point.y.isFinite else { return nil }
+            if let projection = nativeProjection,
+               projection.inverse() == nil || projection.project(point) == nil { return nil }
+            if let inputClipPath, !inputClipPath.contains(point) { return nil }
             let hitView = super.hitTest(point, with: event)
             return hitView === self ? nil : hitView
         }
@@ -1484,7 +1491,37 @@ public struct NativeRenderingLayer: View {
             if appliedGeometry == geometry {
                 return
             }
-#if os(macOS)
+#if os(iOS) || os(tvOS) || os(watchOS)
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            // A transformed UIView's frame is undefined. Keep native layout in
+            // logical bounds and place its anchor directly; writing frame here
+            // would feed the previous projection back into layout on every tick.
+            let rect = CGRect(origin: .zero, size: size)
+            if bounds != rect { bounds = rect }
+            let position = projection == nil
+                ? CGPoint(x: localTransform.tx, y: localTransform.ty) : .zero
+            if layer.position != position { layer.position = position }
+            if let projection {
+                if !CATransform3DEqualToTransform(layer.transform, projection.layerTransform) {
+                    layer.transform = projection.layerTransform
+                }
+            } else {
+                let linear = CGAffineTransform(a: localTransform.a, b: localTransform.b,
+                    c: localTransform.c, d: localTransform.d, tx: 0, ty: 0)
+                if nativeProjection != nil || layer.affineTransform() != linear {
+                    layer.setAffineTransform(linear)
+                }
+            }
+            nativeProjection = projection
+            if layer.zPosition != CGFloat(zIndex) { layer.zPosition = CGFloat(zIndex) }
+            let effectiveOpacity = Float(Self.clampedOpacity(opacity * nativeMaskOpacityMultiplier))
+            if layer.opacity != effectiveOpacity { layer.opacity = effectiveOpacity }
+            CATransaction.commit()
+            if appliedGeometry?.size != size { syncGlassContainerFrame() }
+            appliedGeometry = geometry
+            return
+#elseif os(macOS)
             if let projection {
                 CATransaction.begin()
                 CATransaction.setDisableActions(true)
@@ -1517,7 +1554,6 @@ public struct NativeRenderingLayer: View {
                 appliedGeometry = nil
                 updateProjectedFocus(projectedFocusOwner, focused: true)
             }
-#endif
             let rect = CGRect(
                 origin: CGPoint(x: localTransform.tx, y: localTransform.ty),
                 size: size
@@ -1531,22 +1567,17 @@ public struct NativeRenderingLayer: View {
                 tx: 0,
                 ty: 0
             )
-#if os(macOS)
             let viewBackedTransform = Self.viewBackedTransform(
                 size: size,
                 linearTransform: linearTransform
             )
             let rectSize = viewBackedTransform.frameSize
-#else
-            let rectSize = size
-#endif
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             let layer = backingLayer
             let layoutChanged = appliedGeometry?.size != size
                 || appliedGeometry?.localTransform != localTransform
             if layoutChanged {
-#if os(macOS)
                 // Moving a retained control must not take AppKit's resize path.
                 if frame.origin != rect.origin {
                     setFrameOrigin(rect.origin)
@@ -1560,10 +1591,6 @@ public struct NativeRenderingLayer: View {
                     NativeSceneInvalidation.singleton.geometryWrites.size += 1
 #endif
                 }
-#else
-                let nextFrame = CGRect(origin: rect.origin, size: rectSize)
-                if frame != nextFrame { frame = nextFrame }
-#endif
                 // AppKit can resize bounds with the frame. Restore logical content
                 // coordinates after scaling; opacity/stacking updates never enter here.
                 let boundsChanged = appliedGeometry == nil || bounds != boundsRect
@@ -1573,7 +1600,6 @@ public struct NativeRenderingLayer: View {
                     NativeSceneInvalidation.singleton.geometryWrites.bounds += 1
 #endif
                 }
-#if os(macOS)
                 if let layerTransform = viewBackedTransform.layerTransform {
                     if frameRotation != viewBackedTransform.frameRotationDegrees {
                         frameRotation = viewBackedTransform.frameRotationDegrees
@@ -1606,9 +1632,6 @@ public struct NativeRenderingLayer: View {
                     }
                 }
                 appliedViewBackedTransform = viewBackedTransform
-#else
-                if layer.affineTransform() != linearTransform { layer.setAffineTransform(linearTransform) }
-#endif
             }
             if layer.zPosition != CGFloat(zIndex) {
                 layer.zPosition = CGFloat(zIndex)
@@ -1626,6 +1649,7 @@ public struct NativeRenderingLayer: View {
             CATransaction.commit()
             if appliedGeometry?.size != size { syncGlassContainerFrame() }
             appliedGeometry = geometry
+#endif
         }
 
         func applyNativeMaskOpacityMultiplier(_ multiplier: Double) {
@@ -1755,7 +1779,12 @@ public struct NativeRenderingLayer: View {
         }
 #endif
 
-#if os(macOS)
+#if os(iOS) || os(tvOS) || os(watchOS)
+        override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+            if nativeMaskOccludesPoint(pointerMask, point: point) { return nil }
+            return super.hitTest(point, with: event)
+        }
+#elseif os(macOS)
         override func hitTest(_ point: NSPoint) -> NSView? {
             guard contentKey != "text-static" else {
                 return nil
@@ -2397,6 +2426,8 @@ public struct NativeRenderingLayer: View {
         private var appliedScrollPosition: CGPoint = .zero
 #if os(iOS) || os(tvOS) || os(watchOS)
         private var pendingIOSSnapTarget: CGPoint?
+        private var inputPositiveClipPaths: [CGPath] = []
+        private var pointerMask: ResolvedNativeMask?
         private var isProgrammaticSnapAnimating = false
         private var iosSnapGeneration: UInt64 = 0
         private var iosSnapDisplayLink: CADisplayLink?
@@ -2555,6 +2586,12 @@ public struct NativeRenderingLayer: View {
         }
 
 #if os(iOS) || os(tvOS) || os(watchOS)
+        override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+            guard inputPositiveClipPaths.allSatisfy({ $0.contains(point) }),
+                  !nativeMaskOccludesPoint(pointerMask, point: point) else { return nil }
+            return super.hitTest(point, with: event)
+        }
+
         override func layoutSubviews() {
             super.layoutSubviews()
             scrollView.frame = bounds
@@ -2610,6 +2647,9 @@ public struct NativeRenderingLayer: View {
         }
 
         func updatePositiveClip(paths: [CGPath], size: CGSize) {
+#if os(iOS) || os(tvOS) || os(watchOS)
+            inputPositiveClipPaths = paths
+#endif
             let signature = clipPathSignature(paths, size: size)
             guard appliedPositiveClipSignature != signature else {
                 return
@@ -2662,6 +2702,9 @@ public struct NativeRenderingLayer: View {
         }
 
         func updateNativeMask(_ mask: ResolvedNativeMask?) {
+#if os(iOS) || os(tvOS) || os(watchOS)
+            pointerMask = mask
+#endif
             guard let mask else {
                 NativeMaskDebug.log("scroller clear id=\(scrollerId)")
                 applyScrollerMaskOpacityMultiplier(1.0)

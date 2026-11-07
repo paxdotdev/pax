@@ -1,5 +1,8 @@
 #if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 import SwiftUI
 import Messages
 import XCTest
@@ -41,6 +44,7 @@ final class NativeProjectionTests: XCTestCase {
         }
     }
 
+#if os(macOS)
     private final class Host: NSView, PaxProjectedNativeHost {
         override var isFlipped: Bool { true }
         var nativeProjection: PaxNativeProjection?
@@ -268,5 +272,5 @@ final class NativeProjectionTests: XCTestCase {
         let ring = leaf.layer?.sublayers?.first { $0.zPosition == 2_000 } as? CAShapeLayer
         XCTAssertNil(ring?.path, "Returning to perspective must not restore a stale focus ring")
     }
-}
 #endif
+}
