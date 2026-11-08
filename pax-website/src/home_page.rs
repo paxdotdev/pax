@@ -150,6 +150,12 @@ impl HomePage {
             include_str!("site_shell.rs"),
         ));
         hero_sources.extend(section_sources(
+            "src/site_header.pax",
+            include_str!("site_header.pax"),
+            "src/site_header.rs",
+            include_str!("site_header.rs"),
+        ));
+        hero_sources.extend(section_sources(
             "src/rotating_headline.pax",
             include_str!("rotating_headline.pax"),
             "src/rotating_headline.rs",

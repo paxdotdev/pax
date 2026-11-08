@@ -1,5 +1,7 @@
 """Local integration-path tests; no Zola download, server, or AWS calls."""
 import importlib.util
+import json
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -69,6 +71,102 @@ class WebsiteStagingTests(unittest.TestCase):
             self.invoke("build")
         run.assert_called_once_with(["zola", "--root", str(self.root), "build"], check=True)
         self.assertFalse(self.staged.exists())
+
+    def make_header(self, profile="debug"):
+        source = self.root / "header/.pax/build" / profile / "web"
+        source.mkdir(parents=True)
+        for name in ("pax-interface-web.js", "pax-interface-web.css", "pax-cartridge.js", "pax-cartridge_bg.wasm"):
+            (source / name).write_text("bundle")
+        for name in blog.HEADER_ASSETS:
+            asset = source / "assets" / name
+            asset.parent.mkdir(parents=True, exist_ok=True)
+            asset.write_text(name)
+        (source / "assets/unused-demo.png").write_text("not used by the header")
+        snippets = source / "snippets/runtime"
+        snippets.mkdir(parents=True)
+        (snippets / "imports.js").write_text("runtime imports")
+        (source / "pax-fonts.json").write_text(json.dumps([
+            {"family": "Manrope", "url": "/assets/fonts/Manrope.ttf"},
+        ]))
+        return source
+
+    def test_header_staging_trims_assets_but_preserves_runtime_and_license(self):
+        self.make_header()
+        with patch.object(blog.subprocess, "run") as run:
+            self.invoke("stage-header")
+        run.assert_not_called()
+        destination = self.root / "static/_pax/header"
+        for name in blog.HEADER_ASSETS:
+            self.assertEqual((destination / "assets" / name).read_text(), name)
+        self.assertFalse((destination / "assets/unused-demo.png").exists())
+        self.assertEqual((destination / "snippets/runtime/imports.js").read_text(), "runtime imports")
+        self.assertEqual(json.loads((destination / "pax-fonts.json").read_text()), [
+            {"family": "Manrope", "url": "/blog/_pax/header/assets/fonts/Manrope.ttf"},
+        ])
+        self.assertEqual(json.loads((destination / ".pax-blog-header.json").read_text())["profile"], "debug")
+        with self.assertRaisesRegex(SystemExit, "release header"):
+            self.invoke("build")
+
+    def test_header_staging_refuses_unmarked_directory(self):
+        self.make_header()
+        destination = self.root / "static/_pax/header"
+        destination.mkdir(parents=True)
+        (destination / "keep").write_text("user content")
+        with self.assertRaisesRegex(SystemExit, "unmarked header"):
+            self.invoke("stage-header")
+        self.assertTrue((destination / "keep").exists())
+
+    def test_release_header_can_replace_debug_for_a_production_build(self):
+        self.make_header()
+        self.invoke("stage-header")
+        self.make_header("release")
+        with patch.object(blog.subprocess, "run") as minify:
+            self.invoke("stage-header", "--profile", "release")
+        self.assertEqual(minify.call_args.args[0][:2], ["node", str(self.root / "minify-header.mjs")])
+        marker = self.root / "static/_pax/header/.pax-blog-header.json"
+        self.assertEqual(json.loads(marker.read_text())["profile"], "release")
+        with patch.object(blog, "zola", return_value="zola"), patch.object(
+            blog.subprocess, "run"
+        ) as run:
+            self.invoke("build")
+        run.assert_called_once_with(["zola", "--root", str(self.root), "build"], check=True)
+
+    def test_incomplete_header_does_not_replace_previous_bundle(self):
+        source = self.make_header()
+        self.invoke("stage-header")
+        (source / "pax-cartridge_bg.wasm").unlink()
+        with self.assertRaisesRegex(SystemExit, "Missing header bundle"):
+            self.invoke("stage-header")
+        self.assertTrue((self.root / "static/_pax/header/pax-cartridge_bg.wasm").exists())
+
+    def test_missing_font_or_license_does_not_replace_previous_bundle(self):
+        source = self.make_header()
+        self.invoke("stage-header")
+        (source / "assets/fonts/OFL-Manrope.txt").unlink()
+        with self.assertRaisesRegex(SystemExit, "Missing header asset"):
+            self.invoke("stage-header")
+        self.assertTrue((self.root / "static/_pax/header/assets/fonts/OFL-Manrope.txt").exists())
+
+    def test_failed_minification_does_not_replace_previous_bundle(self):
+        self.make_header()
+        self.invoke("stage-header")
+        self.make_header("release")
+        with patch.object(blog.subprocess, "run", side_effect=subprocess.CalledProcessError(1, "node")):
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.invoke("stage-header", "--profile", "release")
+        marker = self.root / "static/_pax/header/.pax-blog-header.json"
+        self.assertEqual(json.loads(marker.read_text())["profile"], "debug")
+
+    def test_unlisted_preloaded_font_requires_an_explicit_asset_update(self):
+        source = self.make_header()
+        self.invoke("stage-header")
+        (source / "pax-fonts.json").write_text(json.dumps([
+            {"family": "Unexpected", "url": "/assets/fonts/Unexpected.ttf"},
+        ]))
+        with self.assertRaisesRegex(SystemExit, "not in HEADER_ASSETS"):
+            self.invoke("stage-header")
+        fonts = self.root / "static/_pax/header/pax-fonts.json"
+        self.assertEqual(json.loads(fonts.read_text())[0]["family"], "Manrope")
 
 
 if __name__ == "__main__":

@@ -23,12 +23,17 @@ site_url = "https://pax.dev"
 social_image = "assets/branding/pax-logo.png"
 social_image_alt = "Pax logo"
 
+[features]
+default = ["app"]
+# Embedded headers share the component source without demo cartridges or filters.
+app = ["dep:led-oscilloscope", "dep:calculator", "dep:paxflix", "dep:space-game", "pax-kit/shaders"]
+
 [dependencies]
-led-oscilloscope = { version = "0.39.1", path = "../examples/led-oscilloscope", default-features = false }
-pax-kit = { version = "0.39.1", path = "../pax-kit", features = ["shaders"] }
-calculator = { version = "0.39.1", path = "../examples/calculator", default-features = false }
-paxflix = { version = "0.39.1", path = "../examples/paxflix", default-features = false }
-space-game = { version = "0.39.1", path = "../examples/fixtures/space-game", default-features = false }
+led-oscilloscope = { version = "0.39.1", path = "../examples/led-oscilloscope", default-features = false, optional = true }
+pax-kit = { version = "0.39.1", path = "../pax-kit" }
+calculator = { version = "0.39.1", path = "../examples/calculator", default-features = false, optional = true }
+paxflix = { version = "0.39.1", path = "../examples/paxflix", default-features = false, optional = true }
+space-game = { version = "0.39.1", path = "../examples/fixtures/space-game", default-features = false, optional = true }
 
 [target.'cfg(target_vendor = "apple")'.dependencies]
 # backtrace 0.3.76 needs dyld bindings removed from iOS in libc 0.2.190.
@@ -40,6 +45,7 @@ crate-type = ["cdylib", "rlib"]
 [[bin]]
 name = "run"
 path = "bin/run.rs"
+required-features = ["app"]
 
 # Optimize runtime dependencies while keeping application rebuilds fast.
 # Build scripts and proc macros keep Cargo's unoptimized defaults.

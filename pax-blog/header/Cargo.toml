@@ -1,0 +1,20 @@
+[package]
+name = "pax-blog-header"
+version = "0.39.1"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pax-kit = { path = "../../pax-kit" }
+pax-website = { path = "../../pax-website", default-features = false }
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package.pax-blog-header]
+opt-level = 0

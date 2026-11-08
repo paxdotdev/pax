@@ -23,6 +23,13 @@ show_author = true
 show_reading_time = false
 copy_button = false
 full_content_in_feed = false
+allowed_domains = [
+    { directive = "font-src", domains = ["'self'", "data:"] },
+    { directive = "img-src", domains = ["'self'", "data:", "blob:"] },
+    { directive = "script-src", domains = ["'self'", "'wasm-unsafe-eval'"] },
+    { directive = "style-src", domains = ["'self'", "'unsafe-inline'"] },
+    { directive = "connect-src", domains = ["'self'", "ws:"] },
+]
 menu = [
     { name = "Pax", url = "/", root_relative = true },
     { name = "Archive", url = "archive", trailing_slash = true },

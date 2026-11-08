@@ -251,6 +251,15 @@ when no explicit declaration exists. Mixing the legacy shorthand with explicit d
 Library use does not initialize or mount the application; each cartridge keeps
 its own platform entrypoints and immutable program definitions.
 
+For a lightweight embedded bundle, also separate **compilation** from mounting.
+A dependency's exported runnable entrypoints can retain application code even
+when that application is never mounted. Put application-only modules, runnable
+declarations, optional dependencies, and capabilities such as `pax-kit/shaders`
+behind a Cargo feature; leave shared components available without it. A host can
+then use `default-features = false`. That setting does not disable unconditional
+dependencies or features explicitly requested by another dependency. Check the
+resolved feature graph and measure the release bundle, not just the mounted tree.
+
 ### Use a separate UI package
 
 In a Cargo workspace, a host package can own `src/main.rs` while a sibling UI

@@ -50,10 +50,10 @@ impl HeroLetter {
         self.material.replace_with(LocalProperty::computed(
             move || {
                 if kind.get() == 1 {
-                    // Lift this material's ambient response, without adding a
-                    // layer-wide AmbientLight that would change nearby demos.
+                    // The shell supplies unit ambient. Preserve the former
+                    // 2.6 * 0.35 response without clipping the chrome bands white.
                     Material::custom(MaterialParams {
-                        ambient: Property::new(2.6),
+                        ambient: Property::new(0.91),
                         diffuse: Property::new(0.18),
                         specular: Property::new(0.62),
                         roughness: Property::new(0.18),

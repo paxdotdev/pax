@@ -13,6 +13,9 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parent
 LOCK = json.loads((ROOT / "dependencies.json").read_text())
+# Explicit deployment closure for SiteHeader. Keep the font license with the
+# bytes; other website assets are not used by this embedded instance.
+HEADER_ASSETS = ("fonts/Manrope.ttf", "fonts/OFL-Manrope.txt", "fonts/README.md")
 
 
 def unpack(dependency, destination, strip_root=False):
@@ -60,11 +63,67 @@ def zola():
     raise SystemExit(f"Install Zola {LOCK['zola_version']} and set ZOLA_BIN, or run `python3 pax-blog/blog.py setup` on Apple Silicon macOS.")
 
 
+def stage_header(profile):
+    """Package the header without changing the caller's build or website assets."""
+    source = ROOT / "header/.pax/build" / profile / "web"
+    for name in ("pax-interface-web.js", "pax-interface-web.css", "pax-cartridge.js", "pax-cartridge_bg.wasm"):
+        if not (source / name).is_file():
+            raise SystemExit(f"Missing header bundle file: {source / name}. Build pax-blog/header first.")
+    for name in HEADER_ASSETS:
+        if not (source / "assets" / name).is_file():
+            raise SystemExit(f"Missing header asset: {source / 'assets' / name}. Rebuild pax-blog/header first.")
+    destination = ROOT / "static/_pax/header"
+    marker = destination / ".pax-blog-header.json"
+    if destination.exists():
+        if destination.is_symlink() or not marker.is_file():
+            raise SystemExit(f"Refusing to replace an unmarked header bundle: {destination}")
+        saved = json.loads(marker.read_text())
+        if saved.get("generator") != "pax-blog/blog.py":
+            raise SystemExit(f"Unexpected header bundle marker: {marker}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    # Validate and optimize in isolation, so a failed minifier or missing asset
+    # cannot destroy the previous working preview.
+    with tempfile.TemporaryDirectory(prefix=".header-stage-", dir=destination.parent) as temporary:
+        staging = Path(temporary) / "header"
+        shutil.copytree(source, staging, ignore=lambda directory, names:
+                        ["assets"] if Path(directory) == source else [])
+        for name in HEADER_ASSETS:
+            target = staging / "assets" / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source / "assets" / name, target)
+        # Shared settings describe website-root URLs, while this host uses a
+        # nested deployment prefix. Preload the same bytes as its Text nodes.
+        fonts_path = staging / "pax-fonts.json"
+        if fonts_path.is_file():
+            fonts = json.loads(fonts_path.read_text())
+            for font in fonts:
+                url = font.get("url", "")
+                if url.startswith("/assets/"):
+                    asset = url[len("/assets/"):]
+                    if asset not in HEADER_ASSETS:
+                        raise SystemExit(f"Header font is not in HEADER_ASSETS: {asset}")
+                    font["url"] = "/blog/_pax/header/assets/" + asset
+            fonts_path.write_text(json.dumps(fonts) + "\n")
+        if profile == "release":
+            subprocess.run(["node", str(ROOT / "minify-header.mjs"), str(staging)], check=True)
+        (staging / marker.name).write_text(json.dumps({
+            "generator": "pax-blog/blog.py", "profile": profile,
+            "assets": list(HEADER_ASSETS), "minified": profile == "release",
+        }) + "\n")
+        if destination.exists():
+            shutil.rmtree(destination)
+        staging.rename(destination)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["setup", "serve", "build", "preview-build", "stage", "unstage", "check"])
+    parser.add_argument("command", choices=["setup", "serve", "build", "preview-build", "stage", "stage-header", "unstage", "check"])
     parser.add_argument("--port", type=int, default=8095)
+    parser.add_argument("--profile", choices=["debug", "release"], default="debug", help="Header bundle profile for stage-header")
     args = parser.parse_args()
+    if args.command == "stage-header":
+        stage_header(args.profile)
+        return
     staged = ROOT.parent / "pax-website/public/blog"
     marker = staged / ".pax-blog-preview"
     if args.command == "unstage":
@@ -86,6 +145,10 @@ def main():
         return
     if not (ROOT / "themes/tabi/theme.toml").is_file():
         raise SystemExit("Run `python3 pax-blog/blog.py setup` first.")
+    if args.command == "build":
+        header_marker = ROOT / "static/_pax/header/.pax-blog-header.json"
+        if header_marker.is_file() and json.loads(header_marker.read_text()).get("profile") != "release":
+            raise SystemExit("Production blog builds require a release header. Rebuild it with --release, then stage-header --profile release.")
     command = [zola(), "--root", str(ROOT)]
     if args.command == "serve":
         command += ["serve", "--drafts", "--interface", "127.0.0.1", "--port", str(args.port),

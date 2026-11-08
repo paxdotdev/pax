@@ -20,39 +20,9 @@
             <Group id=logo_container x={self.compact ? 18px : 38px} y={self.compact ? 8px : 12px}
                 width={self.compact ? 95.26px : 111.13px} height={self.compact ? 48px : 56px}
                 _raycastable={!self.hide_nav}/>
-            if !self.hide_nav && self.nav_reveal > 0.001 {
-                <Group width=100% height=100%>
-                    if !self.has_hero {
-                        <NavLogo x={self.compact ? 18px : 38px} y=50% anchor_x=0px anchor_y=50% width=920.72px height=463.95px
-                            scale={((self.compact ? 64 : 80) / 920.72 * 100)%} layout_role=LayoutRole::Breakout/>
-                    }
-                    if !self.compact {
-                        <Stacker x={100% - 40px} anchor_x=100% y=20px width=414px height=40px direction=StackerDirection::Horizontal gutter=8px
-                            sizes=[Some(74px), Some(78px), Some(88px), None]>
-                            <Link width=100% height=100% url="https://docs.pax.dev" target=Target::New>
-                                <Text class="nav_link" width=100% height=100% selectable=false>Docs</Text>
-                            </Link>
-                            <Link width=100% height=100% url="https://github.com/paxdotdev/pax" target=Target::New>
-                                <Text class="nav_link" width=100% height=100% selectable=false>GitHub</Text>
-                            </Link>
-                            <Link width=100% height=100% url="https://discord.com/invite/Eq8KWAUc6b" target=Target::New>
-                                <Text class="nav_link" width=100% height=100% selectable=false>Discord</Text>
-                            </Link>
-                            <Link width=100% height=100% url="https://docs.pax.dev/getting-started/" target=Target::New>
-                                <Text class="nav_cta_label" width=100% height=100% selectable=false>Get Started</Text>
-                                <Rectangle class="nav_cta_surface" width=100% height=100%/>
-                            </Link>
-                        </Stacker>
-                    } else {
-                        <Link x={100% - 20px} anchor_x=100% y=14px width=116px height=36px url="https://docs.pax.dev/getting-started/"
-                            target=Target::New>
-                            <Text class="nav_cta_label" width=100% height=100% selectable=false>Get Started</Text>
-                            <Rectangle class="nav_cta_surface" width=100% height=100%/>
-                        </Link>
-                    }
-                    <Rectangle class="shell_nav_bg" width=100% height=100%/>
-                </Group>
-            }
+            <SiteHeader width=100% height=100% show_logo={!self.has_hero}
+                controls_visible={!self.hide_nav && self.nav_reveal > 0.001}
+                font_url="/assets/fonts/Manrope.ttf"/>
         </Group>
     </Overlay>
     <Group x={(self.safe_left)px} y={(self.safe_top)px} width={100% - (self.safe_left + self.safe_right)px}
@@ -71,31 +41,4 @@
     @mouse_move: move_pointer_light
     @touch_start: touch_pointer_light
     @touch_move: drag_pointer_light
-    .shell_nav_bg {
-        fill: {paint: {SiteTheme::ink()}, material: {Material::unlit()}}
-    }
-    .nav_link {
-        style: TextStyle {
-            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::SemiBold)
-            font_size: 13px
-            fill: {SiteTheme::muted()}
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Center
-            align_multiline: TextAlignHorizontal::Center
-        }
-    }
-    .nav_cta_label {
-        style: TextStyle {
-            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Bold)
-            font_size: 13px
-            fill: {SiteTheme::ink()}
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Center
-            align_multiline: TextAlignHorizontal::Center
-        }
-    }
-    .nav_cta_surface {
-        fill: {SiteTheme::signal()}
-        corner_radius: 0px
-    }
 }

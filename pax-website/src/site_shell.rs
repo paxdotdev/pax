@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 
-use crate::{NavLogo, SiteTheme};
+use crate::{SiteHeader, SiteTheme};
 use pax_kit::math::Point2;
 use pax_kit::*;
 

@@ -133,9 +133,10 @@ is the handoff for the small blog publisher and PAX-869's website integration:
    `EYKZZ3KH242XU`. A combined publication can invalidate `"/*"` once after both
    uploads. Wait for invalidation completion, then verify live HTML and assets,
    canonical URLs, feed/sitemap, MIME/cache headers, deep links, slash handling,
-   missing-page status, and unchanged homepage/AI paths. Article documents must
-   not bootstrap Pax. Retain the previous complete outputs for recovery; multiple
-   S3 uploads do not make an atomic release.
+   missing-page status, and unchanged homepage/AI paths. Article documents may
+   mount the dedicated header bundle, but must not bootstrap the full website
+   root or depend on Pax to display article content. Retain the previous complete
+   outputs for recovery; multiple S3 uploads do not make an atomic release.
 
 Before accepting the publisher changes, exercise preservation with sentinel
 blog objects and a local colliding preview, with and without `--delete`; verify

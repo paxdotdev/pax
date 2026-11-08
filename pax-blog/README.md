@@ -8,7 +8,7 @@ application server or database is needed.
 
 The selected baseline is **Zola 0.23.6 + Tabi 5.0.0**, pinned in
 `dependencies.json`. The small local theme overlay uses the website's warm dark
-palette and yellow accent. Theme sources, tool binaries, and generated output
+palette, Manrope typography, and white accents. Theme sources, tool binaries, and generated output
 are ignored; authored content, configuration, and overrides are versioned.
 
 ## Local setup and preview
@@ -20,7 +20,7 @@ python3 pax-blog/blog.py setup
 python3 pax-blog/blog.py serve
 ```
 
-Open **http://127.0.0.1:8095/blog/pax-0-39-0/**. Zola watches content, templates,
+Open **http://127.0.0.1:8095/blog/a-place-for-notes/**. Zola watches content, templates,
 and styles and reloads the browser. `--port 8100` selects another port and updates
 the generated base URL. The server binds to loopback only.
 
@@ -32,7 +32,67 @@ setup with `ZOLA_BIN=/absolute/path/to/zola`. The same override can be used on
 macOS. Setup refuses unexpected archive checksums; dependency updates require
 reviewing the version, source, digest, and compatibility together.
 
-The announcement is an explicitly marked draft stub. Its date and byline are
+### Shared Pax header
+
+The navigation's single source is `pax-website/src/site_header.{rs,pax}`.
+The website's `SiteShell` composes it alongside the homepage logo-transfer
+destination. `pax-blog/header` is only a runnable host with a local Cargo path
+dependency on `pax-website`; it does not contain another header implementation.
+Changing the shared component requires rebuilding both applications.
+The dependency disables the website's default `app` feature, omitting its
+application entry point, split-Wasm loader, non-header modules, four demo
+dependencies, and custom shader support. `SiteHeader`, `NavLogo`, and `SiteTheme`
+remain available from the same website source files. The ordinary renderer and
+software fallback remain enabled; this is not a reduced-compatibility build.
+
+Build and stage the header before previewing the blog:
+
+```sh
+source ~/.zshrc
+nvm use
+cargo build -p pax-cli
+./target/debug/pax-cli build --path pax-blog/header --target web --libdev
+python3 pax-blog/blog.py stage-header
+python3 pax-blog/blog.py serve
+```
+
+The staged bundle lives in ignored `static/_pax/header/`, then Zola includes it
+at `/blog/_pax/header/`. Staging preserves the matching JS, Wasm, CSS, and snippets,
+but packages only the assets explicitly listed in `blog.py`'s `HEADER_ASSETS`:
+Manrope and its license/provenance. Update that list when the header acquires
+another local asset. This is an explicit header deployment closure, not automatic
+asset tree-shaking: the underlying Pax build still copies component-package assets.
+Staging relocates website-root font preloads to the header's deployment prefix
+and rejects preloaded local fonts missing from the asset list. The original
+build and website assets are never pruned.
+
+Release staging also minifies the interface and cartridge JS with the existing
+Pax interface toolchain's pinned esbuild. Its classic `window.Pax` entry and ESM
+exports/import URLs are preserved, as are legal comments. Debug staging leaves
+JS readable. Source NVM in the staging shell too; if dependencies are missing,
+run `npm ci --prefix pax-compiler/files/interfaces/web` from the repository root.
+Staging validates assets and completes minification before replacing the previous
+marked bundle, so a failed build/minifier leaves the previous preview intact.
+The debug bundle also attempts a development connection to its serving origin;
+on the website's server this belongs to a different cartridge, so its manifest
+is rejected. Stage a release header for a clean integrated preview without that
+development connection.
+
+The blog's ordinary HTML remains readable and scrollable throughout startup.
+The mount uses `init_web` without page-scroll/history ownership and handles
+`pax-navigate` as document navigation. The HTML header is the startup/error
+fallback and remains the keyboard/screen-reader navigation after enhancement;
+keyboard focus restores its visual rendering. No blog Router or iframe is used.
+An embedded instance is retained during browser back/forward-cache suspension.
+
+For publication, build the header with `--release`, then run (from a shell with
+the repository's Node version selected)
+`python3 pax-blog/blog.py stage-header --profile release`. Production blog builds
+reject a staged debug header. This copies local artifacts; it does not deploy.
+
+`content/a-place-for-notes.md` is a lorem ipsum reading-layout draft, available at
+`/blog/a-place-for-notes/` in draft previews. It is not launch copy.
+The old 0.39.0 announcement is an explicitly marked draft stub. Its date and byline are
 layout placeholders, not a publication decision. Replace its body with the
 approved Markdown from PAX-978, confirm metadata, and only then remove
 `draft = true`. PAX-985 is a different article. Historical imports and any
@@ -65,14 +125,16 @@ Edit `static/pax.css`, `templates/partials/nav.html`, or
 theme files. The header deliberately links to `/` on the current origin, allowing
 the same navigation in production and an integrated local preview. The standalone
 Zola server has no Pax homepage at `/`; use the integrated preview for that link.
-Search, analytics, theme-switching scripts, and comments are disabled. Built
-article HTML has no JavaScript; Zola's development server adds only live reload.
+Search, analytics, theme-switching scripts, and comments are disabled. Article
+content is static HTML; the optional header enhancement loads a Pax bundle.
+The CSP allows same-origin scripts, Wasm compilation, and Pax's dynamic styles.
+Zola's development server additionally uses live reload.
 
 For future interactive examples, use a same-origin iframe containing a complete,
 versioned Pax web bundle, loaded after an explicit activation. Keep article text,
 poster, caption, and links in ordinary HTML. The existing embedding research is
-archived in [PAX-984](https://linear.app/paxdev/issue/PAX-984); no multi-mount
-capability is assumed.
+archived in [PAX-984](https://linear.app/paxdev/issue/PAX-984). The header now uses
+the embedded-mount API directly; article examples remain a separate future step.
 
 ## Verify navigation from the Pax website
 
@@ -94,8 +156,8 @@ This generates a **local draft preview** in the website's ignored `public/blog/`
 The running Pax server sees the new files without restarting. Click **PAX NOTES**
 near the bottom of the homepage, then the announcement. Check Back, Forward,
 refresh, and direct article links. `/blog/missing` should return 404; `/blogger`
-should remain an application path. No root-app script or Wasm should appear in
-the article's initial document.
+should remain an application path. Header script/Wasm requests must use the
+dedicated `/blog/_pax/header/` bundle, never bootstrap the full website root.
 
 `stage` is a snapshot; rerun it after edits. Use the separate Zola server for
 automatic rebuilding. The website declares `/blog`, `/ai`, and `/ai.md` in
@@ -138,6 +200,8 @@ Focused checks from the monorepo root:
 python3 -B -m unittest discover -s pax-blog -p 'test_*.py' -v
 source ~/.zshrc
 nvm use
+node --test pax-blog/pax-header.test.mjs
+node --test pax-blog/minify-header.test.mjs pax-blog/header-boundary.test.mjs
 node --test pax-compiler/files/interfaces/web/tests/navigation.test.mjs
 node --test pax-compiler/files/interfaces/web/tests/route-location.test.mjs
 node --test pax-compiler/files/interfaces/web/tests/route-metadata.test.mjs

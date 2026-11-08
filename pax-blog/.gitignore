@@ -2,6 +2,8 @@
 /.tools/
 /public/
 /preview/
+/static/_pax/
+/header/.pax/
 /infra/.terraform/
 /infra/*.tfstate*
 /infra/*.tfplan

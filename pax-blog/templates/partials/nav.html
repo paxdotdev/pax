@@ -1,21 +1,16 @@
-{# Keep the product link on the current origin, including integrated previews. #}
-<header>
-    <nav class="navbar" aria-label="Main navigation">
-        <div class="nav-title">
-            <a class="home-title" href="{{ get_url(path='/', trailing_slash=true) }}">{{ config.title }}</a>
-        </div>
-        <div class="nav-navs">
-            <ul>
-                {% for menu in config.extra.menu %}
-                <li>
-                    {% if menu.root_relative or menu.url is starting_with(pat="http") %}
-                    <a class="nav-links no-hover-padding" href="{{ menu.url }}">{{ menu.name }}</a>
-                    {% else %}
-                    <a class="nav-links no-hover-padding" href="{{ get_url(path=menu.url, trailing_slash=true) }}">{{ menu.name }}</a>
-                    {% endif %}
-                </li>
-                {% endfor %}
-            </ul>
+{# HTML remains the keyboard/screen-reader navigation and the startup fallback. #}
+<header class="pax-site-header" data-pax-header>
+    <nav class="pax-header-fallback" aria-label="Main navigation">
+        <a class="pax-home no-hover-padding" href="/" aria-label="Pax home">
+            <img src="{{ get_url(path='_pax/header/assets/branding/pax-logo.png') }}" alt="Pax" width="111" height="56">
+        </a>
+        <div class="pax-header-links">
+            <a class="no-hover-padding" href="{{ get_url(path='/') }}">Blog</a>
+            <a class="pax-desktop-link no-hover-padding" href="https://docs.pax.dev/" target="_blank" rel="noopener">Docs</a>
+            <a class="pax-desktop-link no-hover-padding" href="https://github.com/paxdotdev/pax" target="_blank" rel="noopener">GitHub</a>
+            <a class="pax-desktop-link no-hover-padding" href="https://discord.com/invite/Eq8KWAUc6b" target="_blank" rel="noopener">Discord</a>
+            <a class="pax-get-started no-hover-padding" href="https://docs.pax.dev/getting-started/" target="_blank" rel="noopener">Get Started</a>
         </div>
     </nav>
+    <div class="pax-header-mount" data-pax-header-mount aria-hidden="true" inert></div>
 </header>

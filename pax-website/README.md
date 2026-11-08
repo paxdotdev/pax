@@ -234,6 +234,20 @@ as `/pax-favicon.ico`, independently of the legacy macOS app icon.
 
 ## Website and blog boundary
 
+`SiteHeader` in `src/site_header.{rs,pax}` owns the shared navigation visuals
+and links. `SiteShell` retains the homepage's logo-transfer destination and
+scroll-driven positioning around it. The static blog's separate
+`pax-blog/header` runnable imports this exact component through a local Cargo
+dependency on the website; there is no copied Pax header or separate component
+library. Its dependency disables the default `app` feature, excluding the website
+runnable, split-Wasm loader, non-header modules, optional demo dependencies, and
+`pax-kit/shaders`. Default website builds still enable all of those. Keep
+header-only dependencies in `SiteHeader`, `NavLogo`, and `SiteTheme`; new
+website-only modules and dependencies belong behind `app`. Rebuild both bundles after
+shared-header source changes. The blog uses
+an ordinary HTML article with an independently mounted header and HTML navigation
+fallback; see the [blog workflow](../pax-blog/README.md#shared-pax-header).
+
 The website declares `/blog`, `/ai`, `/ai.md`, `/paxflix`, `/calculator`,
 `/oscilloscope`, and `/space-game` as `server_owned_prefixes`.
 Navigating to these paths loads a server document instead of a Pax client route.
@@ -400,7 +414,10 @@ Its stroke width is `max(1.6, font_px * 0.038) + 1.5` logical pixels.
 The source drawer includes the path loader, generated geometry, and letter component.
 
 High-performance uses a cool silver gradient and a moving GPU light scoped by
-`LightFrame`. Its sweep begins during the reveal and lasts 1.04 seconds.
+`LightFrame`. Its ambient response is 0.91 under the shell's unit ambient light,
+preserving contrast in the chrome bands and headroom for highlights. The frame
+contains its own light but does not exclude the shell's lighting.
+Its sweep begins during the reveal and lasts 1.04 seconds.
 Portable uses `ImpressionistMode::Gauguin` on a field of 18 white star
 trails sweeping diagonally upward. Staggered speeds, lengths, and thicknesses
 create bright heads and long translucent tails; overlapping trails accumulate
