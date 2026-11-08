@@ -945,7 +945,11 @@ function containerContent(element: HTMLElement): HTMLElement {
 // Explicit shape metadata is essential: a Mask's arbitrary path can have the
 // same bounds as a Frame and must never silently become a rectangular clip.
 export function nativeFrameBoxInverse(styles: ContainerStyle): number[] | undefined {
-    if (!styles.clipContent || !styles.clipIsRect || styles.width <= 0 || styles.height <= 0
+    // The box optimization is affine-only. A perspective Frame's aperture may
+    // be cut by the camera's near/far planes; retain its engine-projected SVG
+    // outline instead of substituting the full, uncut local rectangle.
+    if (styles.transform.length !== 6
+        || !styles.clipContent || !styles.clipIsRect || styles.width <= 0 || styles.height <= 0
         || ![styles.width, styles.height, styles.borderRadius, ...styles.transform].every(Number.isFinite)) return;
     return invertAffineCoeffs(styles.transform);
 }

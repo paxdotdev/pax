@@ -56,6 +56,44 @@ final class NativeProjectionTests: XCTestCase {
     }
 
     @MainActor
+    func testRotatingControlRetainsItsHostAndInputInBothDirections() throws {
+        _ = NSApplication.shared
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 600, height: 400),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        let root = Host(frame: CGRect(x: 0, y: 0, width: 600, height: 400))
+        window.contentView = root
+        let host = NativeRenderingLayer.PlatformContainerView(frame: .zero)
+        root.addSubview(host)
+        let button = PaxProjectedButton(frame: CGRect(x: 30, y: 35, width: 120, height: 50))
+        button.title = "Live lesson"
+        host.addSubview(button)
+        let size = CGSize(width: 240, height: 160)
+        for angle: CGFloat in [0, 30, 70, 89, 91, 120, 180, -30, -70, -89, -91, -120, -180, 0] {
+            let c = cos(angle * .pi / 180), s = sin(angle * .pi / 180) / 700
+            let x: CGFloat = 300, y: CGFloat = 200
+            let p = try XCTUnwrap(PaxNativeProjection([
+                Float(c + x*s), Float(y*s), 0, Float(s),
+                0, 1, 0, 0, 0, 0, 1, 0,
+                Float(x - 120*(c + x*s)), Float(y - 80 - 120*y*s), 0, Float(1 - 120*s)
+            ]))
+            host.applyGeometry(size: size, localTransform: .identity,
+                               projection: p, zIndex: 1, opacity: 1)
+            root.layoutSubtreeIfNeeded()
+            let local = CGPoint(x: 80, y: 60)
+            let screen = try XCTUnwrap(p.project(local))
+            // AppKit hitTest accepts the receiver's superview coordinates.
+            XCTAssertTrue(root.hitTest(root.convert(screen, to: root.superview)) === button, "angle \(angle)")
+            XCTAssertFalse(button.visibleRect.isEmpty, "angle \(angle)")
+            XCTAssertTrue(button.superview === host)
+            XCTAssertEqual(host.bounds.size, size)
+            XCTAssertEqual(host.layer?.opacity, 1)
+            XCTAssertTrue(CATransform3DEqualToTransform(host.layer!.transform, p.layerTransform))
+        }
+    }
+
+    @MainActor
     func testTextScreenQueriesAndAutoscrollUseTheProjectedViewport() throws {
         _ = NSApplication.shared
         let window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 950, height: 680),

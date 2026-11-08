@@ -11,7 +11,10 @@ function load(path, globals = {}) {
         {module, exports:module.exports, require: () => ({}), ...globals});
     return module.exports;
 }
-const helpers = load('../src/utils/helpers.ts');
+const projection = load('../src/utils/projection.ts');
+const helpers = load('../src/utils/helpers.ts', {
+    require: path => path === './projection' ? projection : {},
+});
 class Element {
     style = {}; dataset = {}; children = []; parentElement;
     classList = {contains: () => false};
@@ -79,6 +82,36 @@ test('box transitions to SVG and unclipped preserve children and clear compensat
     manager.updateContainer(1, {clipContent:false});
     assert.equal(box.style.clipPath, 'none');
     assert.equal(box.dataset.clipBounds, undefined);
+});
+
+test('perspective frames retain their projected aperture through affine and near-plane transitions', () => {
+    const {root, manager, nativeFrameBoxInverse, ContainerStyle} = fixture();
+    manager.addContainer(1);
+    manager.updateContainer(1, geometry);
+    const content = manager.getOrCreateContainer(1, 0);
+    const leaf = new Element(); content.appendChild(leaf);
+    const box = root.children[0];
+    // The engine clips the projected aperture at the camera depth range. Even
+    // an invertible homography cannot replace this with the whole local box.
+    const transform = [1,0,0,0.003, 0,1,0,0, 0,0,1,0, 120,40,0,1];
+    const clipPath = 'M120,40L200,25L200,87.5L120,140Z';
+    assert.equal(nativeFrameBoxInverse({...new ContainerStyle(), ...geometry, transform}), undefined);
+    manager.updateContainer(1, {transform, clipPath});
+    assert.equal(box.dataset.paxClipMode, 'svg');
+    assert.equal(box.style.clipPath, 'url(#pax-container-clip-1)');
+    assert.equal(box.style.transform, '', 'never serialize sixteen coefficients into CSS matrix()');
+    assert.equal(content.style.transform, '', 'clear the previous affine box compensation');
+    assert.equal(manager.containers.get(1).clipPathData(), clipPath);
+    assert.equal(content.children[0], leaf);
+
+    manager.updateContainer(1, {transform: Array(16).fill(0), clipPath: 'M0,0Z'});
+    assert.equal(box.dataset.paxClipMode, 'svg');
+    assert.equal(manager.containers.get(1).clipPathData(), 'M0,0Z');
+    manager.updateContainer(1, {...geometry, clipPath: undefined});
+    assert.equal(box.dataset.paxClipMode, 'box');
+    assert.equal(box.style.transform, 'matrix(0.5,0,0,0.5,120,40)');
+    assert.equal(content.style.transform, 'matrix(2,0,0,2,-240,-80)');
+    assert.equal(content.children[0], leaf, 'camera recovery must preserve mounted native content');
 });
 
 test('arbitrary masks, degenerate transforms and unsupported geometry never become box clips', () => {

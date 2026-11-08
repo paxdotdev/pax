@@ -821,6 +821,9 @@ surfaces cross. Moving either surface updates these masks without remounting the
 controls. Paint excluded by an ancestor clip or by the depth intersection does
 not hide native content, including while those intersections change during motion.
 This does not provide general native/native depth composition.
+On web, a perspective `Frame` clips native descendants to the engine's projected
+aperture, including camera near/far clipping. Switching between affine and
+perspective placement preserves the mounted controls and their state.
 GPU shader captures and detached vector mask sources retain projective coordinates
 and camera clipping. Lighting uses world-space surface normals and the current
 camera position or viewing direction. Opaque `Ellipsoid` meshes share camera
