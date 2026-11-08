@@ -89,6 +89,114 @@ fn pixel(frame: &CapturedFrame, x: usize) -> &[u8] {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+fn shared_image_textures_bounded_residency_survives_last_tile_retirement() {
+    let layer_a = MetalLayer::new();
+    let layer_b = MetalLayer::new();
+    let (a, context) = backend(&layer_a, None);
+    *context.image_textures.borrow_mut() = ImageTextureCache::with_retention_budget(4);
+    let mut a = WgpuRenderer::new(a);
+    draw(&mut a, 1, [255, 0, 0, 255], 0.0, 1.0, false);
+    assert_eq!(
+        pixel(&capture(&mut a, &context.device), 8),
+        &[255, 0, 0, 255]
+    );
+    drop(a);
+    assert_eq!(context.image_textures.borrow().retained_bytes(), 4);
+
+    let (b, _) = backend(&layer_b, Some(context.clone()));
+    let mut b = WgpuRenderer::new(b);
+    draw(&mut b, 1, [255, 0, 0, 255], 0.0, 0.5, true);
+    let stats = b.take_resource_churn_stats();
+    assert_eq!((stats.texture_creates, stats.texture_cache_hits), (0, 1));
+    let frame = capture(&mut b, &context.device);
+    assert!(pixel(&frame, 8)[3].abs_diff(128) <= 1);
+    assert_eq!(pixel(&frame, 1), &[0, 0, 0, 0]);
+    drop(b);
+    *context.image_textures.borrow_mut() = ImageTextureCache::with_retention_budget(0);
+    assert_eq!(context.image_textures.borrow().live_count(), 0);
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shared_image_textures_residency_eviction_preserves_active_versions() {
+    let layer_a = MetalLayer::new();
+    let layer_b = MetalLayer::new();
+    let (a, context) = backend(&layer_a, None);
+    *context.image_textures.borrow_mut() = ImageTextureCache::with_retention_budget(4);
+    let (b, _) = backend(&layer_b, Some(context.clone()));
+    let mut a = WgpuRenderer::new(a);
+    let mut b = WgpuRenderer::new(b);
+    draw(&mut a, 1, [255, 0, 0, 255], 0.0, 1.0, false);
+    draw(&mut b, 2, [0, 255, 0, 255], 0.0, 1.0, false);
+    assert_eq!(context.image_textures.borrow().retained_bytes(), 4);
+    assert_eq!(context.image_textures.borrow().live_count(), 2);
+    assert_eq!(
+        pixel(&capture(&mut a, &context.device), 8),
+        &[255, 0, 0, 255]
+    );
+    assert_eq!(
+        pixel(&capture(&mut b, &context.device), 8),
+        &[0, 255, 0, 255]
+    );
+    drop(a);
+    assert_eq!(context.image_textures.borrow().live_count(), 1);
+    drop(b);
+    assert_eq!(context.image_textures.borrow().live_count(), 1);
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shared_image_textures_residency_lru_dimensions_and_oversize() {
+    let layer = MetalLayer::new();
+    let (backend, context) = backend(&layer, None);
+    *context.image_textures.borrow_mut() = ImageTextureCache::with_retention_budget(8);
+    let request = |key: &str, version: u64, width: u32| {
+        let (binding, uploaded) = backend.create_cached_texture(
+            key,
+            version,
+            &[255, 0, 0, 255].repeat(width as usize),
+            width,
+            1,
+        );
+        drop(binding);
+        assert!(context.image_textures.borrow().retained_bytes() <= 8);
+        uploaded
+    };
+    assert!(request("a", 1, 1));
+    assert!(request("b", 1, 1));
+    assert!(!request("a", 1, 1)); // Touch A, making B the eviction candidate.
+    assert!(request("c", 1, 1));
+    assert!(!request("a", 1, 1));
+    assert!(request("b", 1, 1));
+    assert!(request("b", 2, 1));
+    assert!(request("b", 2, 2)); // Same identity/version, incompatible dimensions.
+    assert!(!request("b", 2, 2));
+    assert!(request("oversized", 1, 3));
+    assert!(request("oversized", 1, 3));
+    assert!(!request("b", 2, 2)); // Oversized uploads do not flush the working set.
+    assert_eq!(context.image_textures.borrow().retained_bytes(), 8);
+    assert_eq!(context.image_textures.borrow().live_count(), 1);
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shared_image_textures_residency_caps_small_image_metadata() {
+    let layer = MetalLayer::new();
+    let (backend, context) = backend(&layer, None);
+    *context.image_textures.borrow_mut() = ImageTextureCache::with_retention_budget(4096);
+    for id in 0..513 {
+        let (binding, uploaded) = backend.create_cached_texture(&id.to_string(), 1, &[0; 4], 1, 1);
+        assert!(uploaded);
+        drop(binding);
+    }
+    assert_eq!(context.image_textures.borrow().retained_bytes(), 512 * 4);
+    assert_eq!(context.image_textures.borrow().live_count(), 512);
+    let (_, uploaded) = backend.create_cached_texture("0", 1, &[0; 4], 1, 1);
+    assert!(uploaded);
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
 fn shared_context_resources_survive_surface_resize_and_remain_device_local() {
     let layer_a = MetalLayer::new();
     let layer_b = MetalLayer::new();

@@ -6,7 +6,7 @@ use wgpu::IndexFormat;
 
 use crate::Box2D;
 use crate::Transform2D;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::rc::{Rc, Weak};
 use wgpu::util::DeviceExt;
 use wgpu::TextureFormat;
@@ -38,7 +38,7 @@ pub(crate) struct CachedTextureResource {
     _image: Rc<ImageTexture>,
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 struct ImageTextureKey {
     identity: String,
     version: u64,
@@ -53,13 +53,66 @@ struct ImageTexture {
     height: u32,
 }
 
-/// A context-local index, not an owner: tiles keep textures alive through their bindings.
-#[derive(Default)]
+// PAX-1014 comparison only. Ordinary builds retain no unused pixels; the private build knob
+// permits measuring bounded content reuse without retaining canvases or their attachments.
+const MAX_EXPERIMENT_IMAGE_RESIDENCY_BYTES: usize = 32 * 1024 * 1024;
+const MAX_RETAINED_IMAGES: usize = 512;
+
+/// A context-local weak index with optional byte-capped experimental ownership.
 pub(super) struct ImageTextureCache {
     entries: HashMap<ImageTextureKey, Weak<ImageTexture>>,
+    retained: VecDeque<(ImageTextureKey, Rc<ImageTexture>, usize)>,
+    retained_bytes: usize,
+    retention_budget: usize,
+}
+
+impl Default for ImageTextureCache {
+    fn default() -> Self {
+        let budget = option_env!("PAX_EXPERIMENT_IMAGE_RESIDENCY_BYTES")
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(0);
+        Self::with_retention_budget(budget)
+    }
 }
 
 impl ImageTextureCache {
+    pub(super) fn with_retention_budget(bytes: usize) -> Self {
+        Self {
+            entries: HashMap::new(),
+            retained: VecDeque::new(),
+            retained_bytes: 0,
+            retention_budget: bytes.min(MAX_EXPERIMENT_IMAGE_RESIDENCY_BYTES),
+        }
+    }
+
+    fn retain_recent(&mut self, key: ImageTextureKey, image: &Rc<ImageTexture>) {
+        // Charge the single-mip RGBA8 payload. Driver overhead and independently live bindings
+        // are not covered by this extra-retention cap.
+        let Some(bytes) = (key.width as usize)
+            .checked_mul(key.height as usize)
+            .and_then(|pixels| pixels.checked_mul(4))
+        else {
+            return;
+        };
+        if bytes > self.retention_budget || self.retention_budget == 0 {
+            return;
+        }
+        if let Some(index) = self.retained.iter().position(|(entry, _, _)| entry == &key) {
+            let existing = self.retained.remove(index).unwrap();
+            self.retained.push_back(existing);
+            return;
+        }
+        while self.retained_bytes + bytes > self.retention_budget
+            || self.retained.len() >= MAX_RETAINED_IMAGES
+        {
+            let (_, _, released_bytes) = self.retained.pop_front().unwrap();
+            self.retained_bytes -= released_bytes;
+        }
+        // Eviction drops only our Rc. A tile's binding (including pending work) remains valid.
+        self.retained.push_back((key, Rc::clone(image), bytes));
+        self.retained_bytes += bytes;
+    }
+
     fn get_or_upload(
         &mut self,
         device: &wgpu::Device,
@@ -77,13 +130,20 @@ impl ImageTextureCache {
             height,
         };
         if let Some(image) = self.entries.get(&key).and_then(Weak::upgrade) {
+            self.retain_recent(key, &image);
             return (image, false);
         }
-        // Reclaim dead lookup metadata on misses, without retaining unused pixel storage.
+        // Prune weak metadata once neither tile bindings nor the optional cache own the pixels.
         self.entries.retain(|_, image| image.strong_count() > 0);
         let image = Rc::new(ImageTexture::upload(device, queue, rgba, width, height));
-        self.entries.insert(key, Rc::downgrade(&image));
+        self.entries.insert(key.clone(), Rc::downgrade(&image));
+        self.retain_recent(key, &image);
         (image, true)
+    }
+
+    #[cfg(any(target_arch = "wasm32", test))]
+    pub(super) fn retained_bytes(&self) -> usize {
+        self.retained_bytes
     }
 
     #[cfg(test)]

@@ -577,6 +577,16 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
             // callback must not start a tick while a continuation owns Rust borrows.
             if (!fromFrame) frameInProgress = true;
             try {
+                if (sharedWorkBudget.remaining <= 0) {
+                    // Do not measure/replan surfaces when this turn cannot draw.
+                    // The next admitted turn still observes current input before
+                    // selecting work. A new frame must retain its tick hold until
+                    // classification; a warm-only continuation must not add one.
+                    if (fromFrame) ordinaryRenderPending = true;
+                    recordService?.({pending:true,
+                        allowance_exhausted:true, blocker:'shared_frame_allowance'});
+                    return {pending: true, allowance_exhausted: true};
+                }
                 // Keep demand current without invoking application scroll
                 // handlers just before drawing the settled scene. Ordinary
                 // frames publish the latest observations before ticking.
@@ -590,14 +600,6 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
                         return report;
                     }
                     nativePool.syncRenderSurfaceLayouts(true);
-                }
-                if (sharedWorkBudget.remaining <= 0) {
-                    // A new frame has not classified its drawing yet. A queued
-                    // warm-only continuation must not put ticks on hold again.
-                    if (fromFrame) ordinaryRenderPending = true;
-                    recordService?.({pending:true,
-                        allowance_exhausted:true, blocker:'shared_frame_allowance'});
-                    return {pending: true, allowance_exhausted: true};
                 }
                 const report = sharedWorkBudget.run(3, budget => chassis.service_render_work(budget));
                 ordinaryRenderPending = report.visible_pending && !report.blocked;

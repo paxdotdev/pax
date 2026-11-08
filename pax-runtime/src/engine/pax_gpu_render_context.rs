@@ -531,9 +531,10 @@ fn pop_next_layer_initialization(
     let index = queue
         .iter()
         .enumerate()
-        .filter(|(_, entry)| priority(entry.index) != i32::MAX)
-        .min_by_key(|(index, entry)| (priority(entry.index), *index))
-        .map(|(index, _)| index)?;
+        .map(|(index, entry)| (priority(entry.index), index))
+        .filter(|(rank, _)| *rank != i32::MAX)
+        .min()
+        .map(|(_, index)| index)?;
     queue.remove(index)
 }
 
@@ -1873,7 +1874,10 @@ impl RenderContext for PaxGpuRenderer {
     }
 
     fn start_surface_initialization(&mut self, before: i32) -> bool {
-        if !self.prepare_surface_content {
+        // All initialization ranks are clamped to zero for this comparison.
+        // A ready visible replay therefore excludes every initializer without
+        // querying host availability across the pending queue.
+        if !self.prepare_surface_content || before <= 0 {
             return false;
         }
         let current_priority = self.layer_initialization_priority.clone();
@@ -3748,6 +3752,91 @@ mod tests {
             1
         );
         assert!(pop_next_layer_initialization(&queue, &priority).is_none());
+    }
+
+    #[test]
+    fn initialization_selection_reads_each_live_priority_once_per_dispatch() {
+        let queue = RefCell::new(VecDeque::from_iter(
+            (0..5).map(|index| Rc::new(LayerInitialization::new(index))),
+        ));
+        queue.borrow()[2].cancelled.set(true);
+        let ranks = RefCell::new([3, i32::MAX, -9, -1, -1]);
+        let reads = RefCell::new(Vec::new());
+        let priority = |layer| {
+            reads.borrow_mut().push(layer);
+            ranks.borrow()[layer]
+        };
+        assert_eq!(
+            pop_next_layer_initialization(&queue, &priority).unwrap().index,
+            3
+        );
+        assert_eq!(*reads.borrow(), vec![0, 1, 3, 4]);
+        // A reversal/installation changes eligibility on the next dispatch,
+        // not after the old snapshot has drained. Equal ranks still use FIFO.
+        reads.borrow_mut().clear();
+        *ranks.borrow_mut() = [-2, -2, -9, 9, 0];
+        assert_eq!(
+            pop_next_layer_initialization(&queue, &priority).unwrap().index,
+            0
+        );
+        assert_eq!(*reads.borrow(), vec![0, 1, 4]);
+        reads.borrow_mut().clear();
+        assert_eq!(
+            pop_next_layer_initialization(&queue, &priority).unwrap().index,
+            1
+        );
+        assert_eq!(*reads.borrow(), vec![1, 4]);
+    }
+
+    #[test]
+    fn visible_replay_cutoff_skips_host_queries_and_preserves_queued_initializers() {
+        let reads = Rc::new(RefCell::new(Vec::new()));
+        let rank = Rc::new(Cell::new(i32::MIN));
+        let calls = Rc::new(Cell::new(0));
+        let mut renderer = PaxGpuRenderer::new({
+            let calls = calls.clone();
+            move |_, _| {
+                calls.set(calls.get() + 1);
+                Box::pin(async { Some(empty_layer(true, true)) })
+            }
+        })
+        .with_surface_content_preparation()
+        .with_layer_initialization_priority({
+            let reads = reads.clone();
+            let rank = rank.clone();
+            move |layer| {
+                reads.borrow_mut().push(layer);
+                rank.get()
+            }
+        });
+        renderer.resize_layers_to(2, Default::default());
+        reads.borrow_mut().clear();
+        let queued: Vec<_> = renderer
+            .pending_layer_initializations
+            .borrow()
+            .iter()
+            .cloned()
+            .collect();
+        for before in [i32::MIN, -1, 0] {
+            assert!(!renderer.start_surface_initialization(before));
+            assert!(reads.borrow().is_empty());
+            assert_eq!(calls.get(), 0);
+            assert_eq!(renderer.layer_initializations_in_flight.get(), 0);
+            let pending = renderer.pending_layer_initializations.borrow();
+            assert_eq!(pending.len(), queued.len());
+            assert!(pending.iter().zip(&queued).all(|(a, b)| Rc::ptr_eq(a, b)));
+        }
+        // Removing the visible replay's cutoff still checks the current plan:
+        // these same requests are temporarily uninstalled, then eligible again.
+        rank.set(i32::MAX);
+        assert!(!renderer.start_surface_initialization(1));
+        assert_eq!(*reads.borrow(), vec![0, 1]);
+        reads.borrow_mut().clear();
+        rank.set(-1);
+        assert!(renderer.start_surface_initialization(1));
+        assert_eq!(*reads.borrow(), vec![0, 1]);
+        assert_eq!(calls.get(), 1);
+        assert_eq!(renderer.take_ready_canvas_layers(), vec![0]);
     }
 
     #[test]

@@ -3323,6 +3323,11 @@ impl<'w> RenderBackend<'w> {
             let _ = canvas.set_attribute("data-image-path", path);
             let _ = canvas.set_attribute("data-image-version", &version.to_string());
             let _ = canvas.set_attribute("data-image-bytes", &bytes.to_string());
+            // Temporary PAX-1014 experiment accounting, consumed only by the local harness.
+            let _ = canvas.set_attribute(
+                "data-image-residency-bytes",
+                &self.context.image_textures.borrow().retained_bytes().to_string(),
+            );
             record_browser_surface_event(canvas, event);
             for name in [
                 "data-image-node",
