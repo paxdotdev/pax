@@ -2,7 +2,7 @@ use crate::{NavLogo, SiteTheme};
 use pax_kit::*;
 
 /// Shared navigation for the full website and the static blog's embedded header.
-/// The owning shell supplies positioning and the homepage's flying logo.
+/// The owning shell supplies positioning and the homepage's portal-logo twin.
 #[pax]
 #[file("site_header.pax")]
 pub struct SiteHeader {

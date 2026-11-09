@@ -1,5 +1,5 @@
 ///#ignore
-if self._logo_started && (self.logo_visible || self.logo_docked) && (self.playhead_ms < 1440.0 || (@gpu && self.radiance_enabled)) {
+if self._logo_started && self.logo_visible && self.portal_departure < 1.0 && (self.playhead_ms < 1440.0 || (@gpu && self.radiance_enabled)) {
     <Group width=0px height=0px @tick=self.advance_logo/>
 }
 <Group width=100% height=100%>
@@ -14,12 +14,16 @@ if self._logo_started && (self.logo_visible || self.logo_docked) && (self.playhe
             // Match the headline's visible cap height, including its centered line-box inset.
             <Group id=hero_logo_home x=0px y={self.compact ? 0px : (56 + self.font_px * 0.28)px}
                 width={(self.logo_width)px} height={(self.logo_width * 463.95 / 920.72)px}
-                anchor_x=0px anchor_y=0px layout_role=LayoutRole::Breakout @mount=self.bind_logo_transfer>
+                anchor_x=0px anchor_y=0px layout_role=LayoutRole::Breakout @mount=self.bind_logo_portal>
+                <Group x=50% y={50% - (self.portal_lift * self.portal_departure)px} anchor=50% width=100% height=100%
+                    scale={(100 * (1 - (1 - self.portal_scale) * self.portal_departure))%}
+                    rotate={(-18 * self.portal_departure)deg}>
                 <SiteLogo id=hero_logo width=100% height=100% progress={self.logo_progress} click_to_replay=false
                     radiance_enabled={self.radiance_enabled} light_x={self.playhead_ms < 2100.0 ? self.intro_light_x : self.idle_light_x}
                     light_y={self.playhead_ms < 2100.0 ? self.intro_light_y : self.idle_light_y} brightness={self.light_brightness}
                     @viewport_proximity_change=self.logo_visibility
-                    @click=self.activate_logo/>
+                    @click=self.replay_logo/>
+                </Group>
             </Group>
         </Group>
         <Stacker y={self.compact ? 0px : 56px} width=100% autosize=true gutter=26px>
@@ -95,13 +99,6 @@ cd my-app && pax-cli run"}</Text>
     duration: 100,
     playhead: {self.exit_progress},
     loop: false,
-    #hero_logo_home {
-        x: {
-            0%: 0px, Linear,
-            30%: 0px, InOutQuad,
-            100%: -24px,
-        }
-    }
     #hero_heading {
         x: {
             0%: 0px, Linear,

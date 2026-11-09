@@ -250,23 +250,26 @@ impl OutlinePen for Pen {
 mod tests {
     use super::*;
     const FONT: &[u8] = include_bytes!("../../../assets/fonts/Manrope.ttf");
-    const WORDS: [&str; 3] = ["high-performance", "native", "portable"];
+    use crate::WORDS;
 
     #[test]
     fn pinned_hero_preserves_advances_and_reuses_outlines() {
         let mut font = OutlineFont::new(FONT, 800.0).unwrap();
-        for ((text, count), advance) in WORDS.into_iter().zip([16, 6, 8]).zip([8.962, 3.115, 4.218])
+        for ((text, count), advance) in WORDS
+            .into_iter()
+            .zip([9, 6, 8, 5])
+            .zip([4.883, 3.115, 4.218, 3.047])
         {
             let run = font.shape_line(text).unwrap();
             assert_eq!(run.clusters.len(), count);
             assert!((run.advance - advance).abs() < 0.00001);
             assert!(run.clusters.iter().all(|c| !c.outline.is_empty()));
         }
-        assert_eq!(font.outlines.len(), 17);
+        assert_eq!(font.outlines.len(), 19);
         for text in WORDS {
             font.shape_line(text).unwrap();
         }
-        assert_eq!(font.outlines.len(), 17);
+        assert_eq!(font.outlines.len(), 19);
     }
 
     #[test]

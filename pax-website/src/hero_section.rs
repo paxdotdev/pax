@@ -21,7 +21,10 @@ pub struct HeroSection {
     pub _light_last_ms: Property<f64>,
     pub _vertical_padding: Property<f64>,
     pub logo_docked: Property<bool>,
-    pub _transfer_ready: Property<bool>,
+    pub _portal_ready: Property<bool>,
+    pub portal_departure: Property<f64>,
+    pub portal_lift: Property<f64>,
+    pub portal_scale: Property<f64>,
     pub _last_ms: Property<f64>,
     pub _last_content_height: Property<f64>,
     pub _startup_quiet_ms: Property<f64>,
@@ -44,12 +47,28 @@ impl HeroSection {
         if let Ok(present) = ctx.with_store(|nav: &mut LogoNavigation| nav.hero_present.clone()) {
             present.local().set(true);
         }
+        if let Ok(nav) = ctx.with_store(|nav: &mut LogoNavigation| nav.clone()) {
+            let progress = nav.portal_progress.local();
+            self.portal_departure.replace_with(LocalProperty::computed(
+                move || crate::logo_portal::hero_departure(progress.get()),
+                &[nav.portal_progress.untyped()],
+            ));
+            let width = self.logo_width.local();
+            let nav_width = nav.nav_logo_width.clone();
+            let deps = [width.untyped(), nav_width.untyped()];
+            self.portal_scale.replace_with(LocalProperty::computed(
+                move || (nav_width.get() * 1.35 / width.get().max(1.0)).min(1.0),
+                &deps,
+            ));
+            let scroll_y = self.scroll_y.clone();
+            ctx.subscribe(&[nav.home_request.untyped()], move || scroll_y.set(0.0));
+        }
     }
 
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         // The home mount handler runs before all of its descendants and the nav
         // exist. Arm its subscription once the initial tree has been mounted.
-        self._transfer_ready.set_if_neq(true);
+        self._portal_ready.set_if_neq(true);
         let previous_height = self._last_content_height.get();
         if !self._height_bound.get() {
             self._height_bound
@@ -136,7 +155,7 @@ impl HeroSection {
         ctx.subscribe(&deps, update);
     }
 
-    pub fn bind_logo_transfer(&mut self, ctx: &NodeContext) {
+    pub fn bind_logo_portal(&mut self, ctx: &NodeContext) {
         // get_node_interface() addresses the containing component; this inline
         // handler needs the home Group itself, whose footprint stays put.
         let Some(home) = ctx.expanded_node.upgrade().map(NodeInterface::from) else {
@@ -147,8 +166,9 @@ impl HeroSection {
         };
         let geometry = home.transform_and_bounds();
         let scroll_y = self.scroll_y.local();
-        let ready = self._transfer_ready.local();
+        let ready = self._portal_ready.local();
         let docked = self.logo_docked.local();
+        let lift = self.portal_lift.local();
         let deps = [
             geometry.untyped(),
             scroll_y.untyped(),
@@ -156,7 +176,6 @@ impl HeroSection {
             nav.hidden.local().untyped(),
             ready.untyped(),
         ];
-        let context = ctx.clone();
         ctx.subscribe(&deps, move || {
             if !ready.get() {
                 return;
@@ -165,13 +184,16 @@ impl HeroSection {
             if home.bounds.0 <= 0.0 || home.bounds.1 <= 0.0 {
                 return;
             }
-            // This footprint stays at home. Following the moving logo itself
-            // would feed the animation back into its own transfer threshold.
+            // Measure the reserved home, not the animated child, so the portal
+            // cannot feed back into its own threshold or alter section layout.
             let home_top = home
                 .corners()
                 .iter()
                 .map(|p| p.y)
                 .fold(f64::INFINITY, f64::min);
+            // Include a generous painted-outset margin, not just the glyph box.
+            // This remains fully above the viewport even if scrolling reverses to 0.
+            lift.set_if_neq(home_top.max(0.0) + home.bounds.1 * 1.4 + 96.0);
             // Main's compact hero starts inside the future nav's bounds. Leave
             // enough departure distance for the 24px return hysteresis at rest.
             let boundary = nav.nav_bottom.get().min(home_top - 32.0);
@@ -180,41 +202,9 @@ impl HeroSection {
             if next == docked.get() {
                 return;
             }
-            let result = (|| {
-                let root = context.app_root()?;
-                let logo = root.query("#hero_logo").one()?;
-                if hidden {
-                    return logo.move_to_home();
-                }
-                let movement =
-                    logo.animated(Duration::Milliseconds(320.into()), EasingCurve::OutQuad);
-                if next {
-                    movement.move_to_append_child(
-                        &root.query("#site_nav").query("#logo_container").one()?,
-                    )
-                } else {
-                    movement.move_to_home()
-                }
-            })();
-            match result {
-                Ok(()) => {
-                    docked.set(next);
-                    nav.hero_docked.local().set(next);
-                }
-                Err(error) => eprintln!("website logo transfer: {error}"),
-            }
+            docked.set(next);
+            nav.hero_docked.local().set(next);
         });
-    }
-
-    pub fn activate_logo(&mut self, ctx: &NodeContext, event: Event<Click>) {
-        // Moves preserve declaration/event ownership, so the visiting logo
-        // handles navigation through its original component.
-        if self.logo_docked.get() {
-            self.scroll_y.set(0.0);
-            ctx.navigate_to("/", NavigationTarget::Current);
-        } else {
-            self.replay_logo(ctx, event);
-        }
     }
 
     pub fn on_unmount(&mut self, ctx: &NodeContext) {
@@ -234,7 +224,7 @@ fn should_dock(home_top: f64, nav_bottom: f64, docked: bool) -> bool {
 }
 
 #[cfg(test)]
-mod transfer_tests {
+mod portal_tests {
     use super::*;
 
     #[test]

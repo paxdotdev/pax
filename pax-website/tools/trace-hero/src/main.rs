@@ -4,7 +4,7 @@ use font::{OutlineCommand, OutlineFont};
 use sha2::{Digest, Sha256};
 use std::{error::Error, fmt::Write, fs, path::Path};
 
-const WORDS: [&str; 3] = ["high-performance", "native", "portable"];
+const WORDS: [&str; 4] = ["game-like", "native", "portable", "flashy"];
 const WEIGHT: f32 = 800.0;
 const ACROSTIC_ALPHABET: &str = "ACDEFKLMNOPRY";
 
@@ -25,7 +25,8 @@ fn main() -> Result<(), Box<dyn Error>> {
          // Manrope.ttf SHA-256: {checksum}; wght={WEIGHT}; HarfRust 0.14.0 / Skrifa 0.48.0.\n\
          // Exact unhinted Bézier outlines in em units, y down, baseline y=0.\n\
          // Layout follows whole-phrase shaping; contours are shared where identical.\n\n\
-         #[rustfmt::skip]\nconst RUNS: &[BakedRun; 3] = &[\n"
+         #[rustfmt::skip]\nconst RUNS: &[BakedRun; {}] = &[\n",
+        WORDS.len()
     );
     for word in WORDS {
         let run = font.shape_line(word)?;

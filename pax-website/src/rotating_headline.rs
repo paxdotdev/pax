@@ -2,11 +2,12 @@ use crate::{HeroCluster, HeroLetter, SiteTheme};
 use pax_kit::math::Point2;
 use pax_kit::*;
 
-const WORDS: [&str; 4] = [
+const WORDS: [&str; 5] = [
     "creative",
     crate::hero_outlines::WORDS[0],
     crate::hero_outlines::WORDS[1],
     crate::hero_outlines::WORDS[2],
+    crate::hero_outlines::WORDS[3],
 ];
 pub(crate) const HERO_TIMING_SCALE: f64 = 0.8;
 const HOLD_MS: f64 = 4200.0 * HERO_TIMING_SCALE;
@@ -99,14 +100,14 @@ impl RotatingHeadline {
         }
         if self.playing.get() {
             self._elapsed_ms
-                .set((self._elapsed_ms.get() + dt).rem_euclid(CYCLE_MS * 4.0));
+                .set((self._elapsed_ms.get() + dt).rem_euclid(CYCLE_MS * WORDS.len() as f64));
         } else {
             // Pausing resolves a half-flipped word to a legible resting pose.
             self._elapsed_ms
                 .set_if_neq(rest_time(self._elapsed_ms.get()));
         }
         let pose = pose_at(self._elapsed_ms.get());
-        if pose.index >= 2 && pose.opacity == 1.0 && self.playing.get() {
+        if matches!(pose.index, 2 | 3) && pose.opacity == 1.0 && self.playing.get() {
             // Freeze the painted field during exit so only its cached composite fades.
             self.pigment_phase
                 .set(self.pigment_phase.get() + dt * 0.0015);
@@ -302,7 +303,7 @@ fn rest_time(time: f64) -> f64 {
 }
 
 fn pose_at(time: f64) -> WordPose {
-    let time = time.rem_euclid(CYCLE_MS * 4.0);
+    let time = time.rem_euclid(CYCLE_MS * WORDS.len() as f64);
     let index = (time / CYCLE_MS).floor() as usize;
     let phase = time % CYCLE_MS;
     let mut pose = WordPose {
@@ -332,7 +333,7 @@ fn pose_at(time: f64) -> WordPose {
     match RotatingHeadline::treatment_kind(index) {
         0 => {
             pose.x = -excursion * 1.65;
-        } // Express slide → high-performance.
+        } // Express slide → game-like.
         1 => {
             pose.sy = (1.0 - excursion).max(0.015);
         } // Split-flap → native.
@@ -349,9 +350,13 @@ mod tests {
 
     #[test]
     fn words_hold_in_requested_order_and_loop() {
-        for index in 0..8 {
+        assert_eq!(
+            WORDS,
+            ["creative", "game-like", "native", "portable", "flashy"]
+        );
+        for index in 0..WORDS.len() * 2 {
             let pose = pose_at(index as f64 * CYCLE_MS + HOLD_MS / 2.0);
-            assert_eq!(pose.index, index % 4);
+            assert_eq!(pose.index, index % WORDS.len());
             assert_eq!(
                 (pose.x, pose.y, pose.sx, pose.sy, pose.opacity),
                 (0.0, 0.0, 1.0, 1.0, 1.0)
@@ -361,7 +366,7 @@ mod tests {
 
     #[test]
     fn handoffs_are_hidden_and_pause_always_is_legible() {
-        for ms in (0..(CYCLE_MS * 4.0) as usize).step_by(13) {
+        for ms in (0..(CYCLE_MS * WORDS.len() as f64) as usize).step_by(13) {
             let time = ms as f64;
             let pose = pose_at(time);
             assert!(pose.sx > 0.0 && pose.sy > 0.0);
@@ -370,7 +375,7 @@ mod tests {
             assert_eq!(rest.index, pose.index);
             assert_eq!(rest.opacity, 1.0);
         }
-        for index in 0..4 {
+        for index in 0..WORDS.len() {
             let midpoint = index as f64 * CYCLE_MS + HOLD_MS + CHANGE_MS / 2.0;
             assert_eq!(pose_at(midpoint - 0.01).opacity, 0.0);
             assert_eq!(pose_at(midpoint).opacity, 1.0);
@@ -380,7 +385,7 @@ mod tests {
 
     #[test]
     fn unfiltered_exits_move_and_filtered_exits_only_fade() {
-        let poses: Vec<_> = (0..4)
+        let poses: Vec<_> = (0..WORDS.len())
             .map(|i| pose_at(i as f64 * CYCLE_MS + HOLD_MS + 225.0))
             .collect();
         assert!(poses[0].x < 0.0 && poses[0].y == 0.0);
@@ -418,7 +423,7 @@ mod tests {
             1.0
         );
         assert_eq!(writing_progress(WRITE_MS + 16.0), 1.0);
-        let incoming = pose_at(CYCLE_MS * 4.0 - 100.0);
+        let incoming = pose_at(CYCLE_MS * WORDS.len() as f64 - 100.0);
         assert_eq!(incoming.index, 0);
         assert_eq!(
             (incoming.x, incoming.y, incoming.angle, incoming.opacity),

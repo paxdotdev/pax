@@ -2,7 +2,7 @@
 use crate::HeroCluster;
 use pax_kit::{PathElement, Size};
 
-pub const WORDS: [&str; 3] = [RUNS[0].text, RUNS[1].text, RUNS[2].text];
+pub const WORDS: [&str; 4] = [RUNS[0].text, RUNS[1].text, RUNS[2].text, RUNS[3].text];
 
 pub struct HeroRun {
     pub clusters: Vec<HeroCluster>,
@@ -114,7 +114,7 @@ pub fn acrostic_glyphs() -> Vec<(char, Vec<PathElement>)> {
         .collect()
 }
 
-pub fn hero_runs() -> [HeroRun; 3] {
+pub fn hero_runs() -> [HeroRun; WORDS.len()] {
     let outlines: Vec<Vec<PathElement>> = OUTLINES
         .iter()
         .map(|commands| {

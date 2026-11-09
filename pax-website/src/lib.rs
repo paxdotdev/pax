@@ -35,6 +35,8 @@ pub mod hero_section;
 #[cfg(feature = "app")]
 pub mod home_page;
 #[cfg(feature = "app")]
+mod logo_portal;
+#[cfg(feature = "app")]
 pub mod mobile_source_sheet;
 pub mod nav_logo;
 #[cfg(feature = "app")]

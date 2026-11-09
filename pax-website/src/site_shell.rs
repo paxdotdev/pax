@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 
-use crate::{SiteHeader, SiteTheme};
+use crate::{SiteHeader, SiteLogo, SiteTheme};
 use pax_kit::math::Point2;
 use pax_kit::*;
 
@@ -71,13 +71,16 @@ mod tests {
 }
 
 // The shell owns the navigation boundary and whether its route supplies a logo.
-// Geometry and presence are shared through the declaration tree, even in flight.
+// The two logos share a clock, not presentation ownership or shader captures.
 #[derive(Clone)]
 pub(crate) struct LogoNavigation {
     pub hero_present: Property<bool>,
     pub hero_docked: Property<bool>,
     pub nav_bottom: LocalProperty<f64>,
     pub hidden: Property<bool>,
+    pub portal_progress: Property<f64>,
+    pub nav_logo_width: LocalProperty<f64>,
+    pub home_request: Property<u64>,
 }
 impl Store for LogoNavigation {}
 
@@ -88,6 +91,9 @@ pub struct SiteShell {
     pub hide_nav: Property<bool>,
     pub nav_shown: Property<bool>,
     pub nav_reveal: Property<f64>,
+    pub portal_progress: Property<f64>,
+    pub nav_logo_entry: Property<f64>,
+    pub home_request: Property<u64>,
     pub compact: Property<bool>,
     pub safe_top: Property<f64>,
     pub safe_bottom: Property<f64>,
@@ -111,11 +117,19 @@ impl SiteShell {
             move || top.get() + if compact.get() { 64.0 } else { 80.0 },
             &deps,
         );
+        let compact = self.compact.local();
+        let nav_logo_width = LocalProperty::computed(
+            move || if compact.get() { 95.26 } else { 111.13 },
+            &[self.compact.untyped()],
+        );
         ctx.provide_store(LogoNavigation {
             hero_present: self.hero_present.clone(),
             hero_docked: self.hero_docked.clone(),
             nav_bottom,
             hidden: self.hide_nav.clone(),
+            portal_progress: self.portal_progress.clone(),
+            nav_logo_width,
+            home_request: self.home_request.clone(),
         })
         .expect("the mounted site shell owns its navigation store");
         let bounds = ctx.bounds_self.clone();
@@ -137,6 +151,27 @@ impl SiteShell {
         let shown = self.should_show_nav();
         self.nav_shown.local().set(shown);
         self.nav_reveal.local().set(if shown { 1.0 } else { 0.0 });
+        let progress = self.portal_progress.local();
+        let has_hero = self.has_hero.local();
+        let deps = [progress.untyped(), has_hero.untyped()];
+        self.nav_reveal.replace_with(LocalProperty::computed(
+            move || {
+                if has_hero.get() {
+                    crate::logo_portal::nav_reveal(progress.get())
+                } else {
+                    progress.get()
+                }
+            },
+            &deps,
+        ));
+        let progress = self.portal_progress.local();
+        self.nav_logo_entry.replace_with(LocalProperty::computed(
+            move || crate::logo_portal::nav_entry(progress.get()),
+            &[self.portal_progress.untyped()],
+        ));
+        self.portal_progress
+            .local()
+            .set(if shown { 1.0 } else { 0.0 });
     }
 
     pub fn move_pointer_light(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
@@ -169,17 +204,20 @@ impl SiteShell {
         let shown = self.should_show_nav();
         if self.hide_nav.get() {
             self.nav_shown.local().set(false);
-            self.nav_reveal.local().cancel_transitions();
-            self.nav_reveal.local().set_if_neq(0.0);
+            self.portal_progress.local().cancel_transitions();
+            self.portal_progress.local().set_if_neq(0.0);
         } else if shown != self.nav_shown.get() {
             self.nav_shown.local().set(shown);
-            let reveal = self.nav_reveal.local();
-            // Move the opaque nav as one surface; reversal starts from its current pose.
+            let reveal = self.portal_progress.local();
+            // Reversal samples the same choreography from its current pose.
+            let target = if shown { 1.0 } else { 0.0 };
+            let duration =
+                (crate::logo_portal::DURATION_MS * (target - reveal.get()).abs()).max(1.0);
             reveal.cancel_transitions();
             reveal.ease_to(
-                if shown { 1.0 } else { 0.0 },
-                Duration::Milliseconds(if shown { 500.into() } else { 450.into() }),
-                EasingCurve::InOutQuad,
+                target,
+                Duration::Milliseconds(duration.into()),
+                EasingCurve::Linear,
             );
         }
     }
@@ -194,10 +232,9 @@ impl SiteShell {
         self.hero_present.get() && self.hero_docked.get()
     }
 
-    pub fn on_pre_unmount(&mut self, ctx: &NodeContext) {
-        for visitor in ctx.visiting_nodes().all().unwrap_or_default() {
-            // The original owner may already be ending with this route.
-            let _ = visitor.move_to_home();
-        }
+    pub fn return_to_hero(&mut self, _ctx: &NodeContext, _: Event<Click>) {
+        self.home_request
+            .local()
+            .update(|request| *request = request.wrapping_add(1));
     }
 }

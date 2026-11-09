@@ -17,9 +17,17 @@
         <Group id=site_nav x={(self.safe_left)px} anchor_y=0px
             y={(self.safe_top - (1 - self.nav_reveal) * (self.safe_top + (self.compact ? 64 : 80)))px}
             width={100% - (self.safe_left + self.safe_right)px} height={self.compact ? 64px : 80px}>
-            <Group id=logo_container x={self.compact ? 18px : 38px} y={self.compact ? 8px : 12px}
-                width={self.compact ? 95.26px : 111.13px} height={self.compact ? 48px : 56px}
-                _raycastable={!self.hide_nav}/>
+            if self.has_hero {
+                // This finished twin never leaves the nav's presentation context.
+                <Group x={((self.compact ? 18 + 95.26 * 0.5 : 38 + 111.13 * 0.5) - (1 - self.nav_logo_entry) * (self.compact ? 300 : 360))px}
+                    y=50% anchor=50% width={self.compact ? 95.26px : 111.13px} height={self.compact ? 48px : 56px}
+                    scale={(135 - 35 * self.nav_logo_entry)%} rotate={(16 * (1 - self.nav_logo_entry))deg}>
+                    <SiteLogo id=nav_portal_logo width=100% height=100% progress=1 click_to_replay=false
+                        radiance_enabled=true light_x=28 light_y=233 brightness=1.7
+                        _raycastable={!self.hide_nav && self.nav_logo_entry > 0.95}
+                        @click=self.return_to_hero/>
+                </Group>
+            }
             <SiteHeader width=100% height=100% show_logo={!self.has_hero}
                 controls_visible={!self.hide_nav && self.nav_reveal > 0.001}
                 font_url="/assets/fonts/Manrope.ttf"/>

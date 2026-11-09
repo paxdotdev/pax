@@ -58,19 +58,18 @@ The hero uses `AnimatedPaxLogo` from `pax-std` through the `pax_kit` re-export.
 Its website-local `SiteLogo` wrapper carries the new radiance treatment and fits
 the artwork into its hero home or the navigation's smaller container. View Source
 includes the wrapper and canonical files in `pax-std/src/drawing/pax_logo/`.
-The navigation uses main's fixed `Overlay` and mounted-node transfer mechanism
-(described below), with an opaque vertical slide instead of group opacity.
-The controls and background slide down over 500ms when the logo docks and back
-up over 450ms when it returns. The hidden offset includes the top safe-area inset;
-reversals ease from the current position. The logo's destination remains mounted
-so transfers have a stable target, while fully hidden controls are unmounted.
+The navigation uses a fixed `Overlay` with an opaque vertical slide instead of
+group opacity. Hero and nav each retain a separate `SiteLogo`, coordinated by
+one reversible 800ms portal clock (described below). The hidden offset includes
+the top safe-area inset; reversals continue from the current pose. Both logos
+stay mounted in their own rendering contexts, while fully hidden controls unmount.
 Source inspection hides the nav. The homepage starts without a reserved nav gap;
 other routes keep their nav-sized inset and static logo.
 
 The opening sequence uses the outer native scroller as a shared clock.
 `scroll_story.rs` maps its offset into overlapping chapter-local clocks for the
 hero, the paired Paxflix/calculator showcase, and creative examples. The hero starts fully composed;
-its logo and heading separate slightly on departure, while screenshot-backed
+its heading shifts slightly on departure, while screenshot-backed
 device frames assemble, hold their poses, and depart. Named component timelines sample those ranges in either
 scroll direction. Measured content and viewport minima determine section heights,
 with additional breathing room capped so tall screens do not introduce empty
@@ -99,24 +98,23 @@ it nor the `pax-logo` harness is a website dependency. Cargo dependency paths
 and favicon paths are relative to this manifest; Rust `include_str!` paths are
 relative to their source file.
 
-The navigation contributes an `Overlay` above scrolling content. As the top of
-the logo's reserved home reaches the nav's lower edge, the same mounted
-`SiteLogo` moves into `#site_nav`'s `#logo_container` Group. A subscription follows
-the home's layout, the page's scroll position, and the responsive nav boundary;
-returning requires 24px of clearance to prevent jitter at that edge. If the
-compact home already overlaps the future nav, departure waits for 32px of scroll
-so the initial page stays at home and can return through that hysteresis. Both moves
-use a 320ms ease-out, preserving the logo playhead and leaving the home footprint
-intact. The return flight stays above the nav until it settles home.
-The destination is a plain Group, separate from the fallback brand's Link,
-so the visiting logo's own hit area receives its clicks.
+The navigation contributes an `Overlay` above scrolling content. As the logo's
+reserved home reaches the nav boundary, the hero logo shrinks and rocks upward
+offscreen. The nav slides down, and its finished-logo twin enters from the left,
+rocking level and shrinking to nav size. The two edge crossings overlap slightly;
+scrolling back reverses the same choreography. `logo_portal.rs` defines the shared
+phase ranges. No node or shader capture transfers between canvas contexts.
+A subscription follows the stationary home's layout, page scroll, and responsive
+nav boundary; returning requires 24px of clearance to avoid threshold jitter.
+If the compact home already overlaps the future nav, departure waits for 32px of
+scroll. Animated transforms leave the reserved home and section layout unchanged.
 
 The shell retains its 64px/80px responsive nav and safe-area insets. Pages without
-a hero show the static `NavLogo`; removing the hero also ends the transferred
-instance's lifetime. The shell returns visitors in `on_pre_unmount` when their
-original owners still exist. The hero logo replays on click at home; in the nav,
-it acts as the shell's home link and scrolls back to the top. See [node transfers](../pax-docs/book/src/event-handling-rust.md#find-and-move-existing-nodes)
-for the runtime ownership and recovery contract.
+a hero show the static `NavLogo`. The hero logo replays on click; the nav twin
+requests a scroll back to the top. The nav twin uses the completed logo and a
+stationary Radiance light, without replaying the hero's intro. This is a website
+motion-design workaround, not a fix for the deferred foreground-compositing
+limitation in PAX-1041.
 
 The creative-freedom section uses screenshot-backed links to the oscilloscope
 and Space Game. Their live components mount only on their standalone routes;
@@ -235,7 +233,7 @@ as `/pax-favicon.ico`, independently of the legacy macOS app icon.
 ## Website and blog boundary
 
 `SiteHeader` in `src/site_header.{rs,pax}` owns the shared navigation visuals
-and links. `SiteShell` retains the homepage's logo-transfer destination and
+and links. `SiteShell` retains the homepage's portal-logo twin and
 scroll-driven positioning around it. The static blog's separate
 `pax-blog/header` runnable imports this exact component through a local Cargo
 dependency on the website; there is no copied Pax header or separate component
@@ -401,9 +399,9 @@ does not allocate source-viewer state or source strings for this parked section.
 
 ## Hero lettering
 
-The three Manrope words in `RotatingHeadline` use checked-in Bézier outlines at
+The four Manrope words in `RotatingHeadline` use checked-in Bézier outlines at
 weight 800 of the [bundled font](assets/fonts/README.md). `HeroLetter` animates
-ordinary Pax paths: high-performance accelerates and brakes, native assembles along
+ordinary Pax paths: game-like accelerates and brakes, native assembles along
 short arcs, and portable presses and rebounds. Native and portable freeze their
 painted fields and fade in place on exit, reusing the assembled pixels rather
 than resizing shader captures. Creative keeps its EMSLeague handwriting and CMY
@@ -413,11 +411,16 @@ two seconds, twice the previous morph speed.
 Its stroke width is `max(1.6, font_px * 0.038) + 1.5` logical pixels.
 The source drawer includes the path loader, generated geometry, and letter component.
 
-High-performance uses a cool silver gradient and a moving GPU light scoped by
+Game-like uses a cool silver gradient and a moving GPU light scoped by
 `LightFrame`. Its ambient response is 0.91 under the shell's unit ambient light,
 preserving contrast in the chrome bands and headroom for highlights. The frame
 contains its own light but does not exclude the shell's lighting.
 Its sweep begins during the reveal and lasts 1.04 seconds.
+Flashy currently uses `Radiance` on white outlined letters, with the same moving
+light clock and an arc entrance, pending the dedicated sequin-glint effect.
+One normalized word artboard keeps the glow's reach and capture padding
+proportional to the type size; the native selection text stays outside the
+effect. CPU rendering retains the plain white letter paths.
 Portable uses `ImpressionistMode::Gauguin` on a field of 18 white star
 trails sweeping diagonally upward. Staggered speeds, lengths, and thicknesses
 create bright heads and long translucent tails; overlapping trails accumulate
@@ -515,8 +518,8 @@ cargo test --manifest-path pax-website/tools/trace-hero/Cargo.toml
 ```
 
 Commit `src/hero_outlines_data.rs` with the source change. It records the font
-checksum, weight, and shaping versions, shares 17 unique cluster outlines
-across the three phrases, and retains source ranges, glyph IDs, advances and
+checksum, weight, and shaping versions, shares 19 unique cluster outlines
+across the four phrases, and retains source ranges, glyph IDs, advances and
 baseline metrics. `--check` compares the entire generated source, including every
 coordinate and cluster placement, against fresh extraction. No manual curve
 fitting or raster tracing is involved. The existing `build.rs` still only
