@@ -328,10 +328,10 @@ impl HomePage {
         ));
         self.framework_sources.update(|files| {
             files.extend(section_sources(
-                "src/screenshot_study.pax",
-                include_str!("screenshot_study.pax"),
-                "src/screenshot_study.rs",
-                include_str!("screenshot_study.rs"),
+                "src/framed_study.pax",
+                include_str!("framed_study.pax"),
+                "src/framed_study.rs",
+                include_str!("framed_study.rs"),
             ));
             files.extend(section_sources(
                 "space-game/src/lib.pax",

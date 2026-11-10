@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use kurbo::{Affine, BezPath, Rect, Shape};
 
+pub(crate) mod canvas_placement;
 pub(crate) mod input;
 pub(crate) mod presentation;
 #[cfg(test)]
@@ -93,6 +94,7 @@ impl CanvasGeometry {
 /// Coverage is in the owning canvas's content coordinates. Affine native scrolling
 /// changes only the queried region. Perspective scrolling also updates projected
 /// records because surfaces at different depths move by different screen distances.
+#[derive(Clone)]
 pub struct PreparedCanvasGeometry {
     /// Camera-projected transform before native scroll offsets, shared with viewport observation.
     pub world_transform: Affine,
@@ -180,8 +182,12 @@ impl PreparedCanvasGeometry {
 /// Cumulative work counters for verifying geometry reuse and spatial-query scaling.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SceneGeometryStats {
-    /// Primitive geometry preparations, excluding cache hits.
+    /// Prepared record updates, excluding clean-record cache hits.
     pub preparations: u64,
+    /// Calls to a primitive's local paint-geometry preparation hook.
+    pub local_preparations: u64,
+    /// Placement updates reusing unchanged surface-local paint coverage.
+    pub surface_coverage_reuses: u64,
     /// Insertions or changes to indexed coverage/layer ownership.
     pub index_updates: u64,
     /// Region-query requests.
@@ -201,6 +207,7 @@ pub(crate) struct SceneGeometry {
     pub(crate) relations: Rc<std::cell::RefCell<crate::visibility::Relations>>,
     records: HashMap<u32, Rc<PreparedCanvasGeometry>>,
     dirty: HashSet<u32>,
+    content_dirty: HashSet<u32>,
     pending: Vec<u32>,
     layers: HashMap<usize, SpatialIndex>,
     native_layers: HashMap<usize, SpatialIndex>,
@@ -227,6 +234,17 @@ impl SceneGeometry {
         if self.dirty.insert(id) {
             self.pending.push(id);
         }
+    }
+
+    pub fn invalidate_content(&mut self, id: u32) {
+        self.content_dirty.insert(id);
+        self.invalidate(id);
+    }
+
+    pub fn retained_paint(&self, id: u32) -> Option<Rc<PreparedCanvasGeometry>> {
+        (!self.content_dirty.contains(&id))
+            .then(|| self.records.get(&id).cloned())
+            .flatten()
     }
 
     pub(crate) fn invalidate_existing(&mut self, id: u32) {
@@ -256,6 +274,7 @@ impl SceneGeometry {
         geometry: PreparedCanvasGeometry,
     ) -> Rc<PreparedCanvasGeometry> {
         self.dirty.remove(&id);
+        self.content_dirty.remove(&id);
         self.stats.preparations += 1;
         #[cfg(feature = "3d")]
         {
@@ -316,6 +335,7 @@ impl SceneGeometry {
     }
 
     pub fn remove(&mut self, id: u32) {
+        self.content_dirty.remove(&id);
         self.input.remove(id);
         self.mask_plans.remove(id);
         self.set_occlusion_bounds(id, 0, CoverageBounds::Empty);
@@ -329,6 +349,7 @@ impl SceneGeometry {
     // A layout-only support can lose its observation/paint record while staying
     // mounted. Retire dependent visibility only on actual mount retirement.
     pub fn remove_geometry(&mut self, id: u32) {
+        self.content_dirty.remove(&id);
         #[cfg(feature = "3d")]
         self.spatial_nodes.remove(&id);
         self.dirty.remove(&id);

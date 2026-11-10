@@ -42,7 +42,8 @@ xcrun simctl status_bar DEVICE_UUID clear
 Inspect both captures before replacing the assets. Preserve their proportions;
 `NativeImage` displays the captures without canvas color conversion;
 `ImageFit::Paint` trims the small aspect-ratio difference inside the website's
-stylized shells. All homepage devices are captures: there is no background
-screenshot polling or hidden instance. To refresh the tablet image, run the
+stylized shells. The homepage wings always use these captures; the center tablet
+uses a capture on compact layouts and one live app on desktop. There is no
+background screenshot polling or hidden preview instance. To refresh the tablet image, run the
 website, open `/paxflix/`, use an approximately 1024×871 CSS-pixel viewport,
 wait for artwork to load, and crop off the 52px route header.

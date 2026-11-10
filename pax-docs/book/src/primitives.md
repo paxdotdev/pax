@@ -228,6 +228,28 @@ active stroke's width, cap, and join. Changes to those inputs, path elements,
 smoothing, or layout bounds rebuild the outline. Partial-alpha changes still
 refresh native compositing even when the local outline stays the same.
 
+### Retained paint geometry
+
+For local **paint** geometry, the separate opt-in is:
+
+```rust
+fn canvas_geometry_is_local(&self) -> bool { true }
+```
+
+Use it only when `prepare_canvas_geometry` reads local dimensions and primitive
+content, not world placement or camera state. Invalidate every content change
+with `RuntimeContext::mark_canvas_node_dirty`; layout dimensions are checked by
+the runtime. Each expanded occurrence retains its own result across world-only
+movement. Without the opt-in, custom preparation hooks keep their conservative
+behavior. This contract is separate from native occlusion and hit geometry.
+
+Standard affine canvas primitives observe
+`ExpandedNode::canvas_transform_and_bounds` for paint invalidation rather than
+world placement. This value composes placement inside an allocated scroll surface
+and retains world-dependent invalidation for unsupported projection/flight cases.
+Use the normal world geometry for native placement, input, or world-dependent
+effects; do not substitute paint coordinates for those contracts.
+
 ### Input geometry
 
 Override `InstanceNode::prepare_hit_shape` when the logical rectangle is not

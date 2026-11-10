@@ -68,14 +68,15 @@ other routes keep their nav-sized inset and static logo.
 
 The opening sequence uses the outer native scroller as a shared clock.
 `scroll_story.rs` maps its offset into overlapping chapter-local clocks for the
-hero, the paired Paxflix/calculator showcase, and creative examples. The hero starts fully composed;
-its heading shifts slightly on departure, while screenshot-backed
+hero, the Paxflix/calculator section, and creative examples. The hero starts fully composed;
+its heading shifts slightly on departure, while
 device frames assemble, hold their poses, and depart. Named component timelines sample those ranges in either
 scroll direction. Measured content and viewport minima determine section heights,
 with additional breathing room capped so tall screens do not introduce empty
 screenfuls. Animated child transforms do not change those heights. This first slice
-does not pin scenes. On compact layouts the Paxflix and calculator fanouts each
-become a single screenshot link, while the creative studies stack vertically.
+does not pin scenes. Paxflix keeps three devices at every width, with a live
+center tablet on desktop and linked screenshots on compact layouts. The compact
+calculator becomes a single screenshot link, while the creative studies stack vertically.
 
 `GlassAction` shares opal/obsidian paint and material helpers, with 5⅓px corners, from
 `SiteTheme`, without outline strokes. `SiteShell` owns one stationary `StripLight`
@@ -116,10 +117,14 @@ stationary Radiance light, without replaying the hero's intro. This is a website
 motion-design workaround, not a fix for the deferred foreground-compositing
 limitation in PAX-1041.
 
-The creative-freedom section uses screenshot-backed links to the oscilloscope
-and Space Game. Their live components mount only on their standalone routes;
-the homepage keeps the device-frame choreography and View Source without
-running the demos. System reduced-motion integration is tracked in PAX-1048.
+The creative-freedom section embeds a live oscilloscope on desktop; below its
+900px breakpoint it uses a linked screenshot. Space Game remains a linked
+screenshot at every size. `FramedStudy` projects either content into the same
+tilted device frame. The oscilloscope has a fixed 1000×600 logical viewport:
+scroll choreography scales and rotates the surrounding frame without resizing
+the instrument. Its existing visibility handling pauses animation offscreen,
+but the initial scene still mounts. System reduced-motion integration is tracked
+in PAX-1048.
 
 The HTML background uses `package.metadata.pax.web.background_color` to match
 the scene's dark ink before the cartridge starts. The hero logo holds its
@@ -156,8 +161,10 @@ yielded startup can reveal the initial viewport and progressively present the
 remainder, with native text appearing before artwork. Keep the loader setting,
 startup mode, and viewport dimensions the same when comparing measurements;
 the standalone Paxflix desktop route mounts the full 21-shelf catalogue.
-Homepage scrolling never mounts the four showcased apps; opening their routes
-mounts a single example. See
+The desktop homepage also mounts one embedded Paxflix instance and one
+oscilloscope; their device choreography does not mount or unmount them. The
+calculator, Space Game, and compact previews remain screenshot-only. Opening an example's route mounts a
+single example without the homepage. See
 [resumable startup](../pax-docs/book/src/how-pax-runs.md#experimental-resumable-startup-on-web).
 
 Ordinary URLs use cooperative rendering, passive wheel input, and feature-detected
@@ -279,15 +286,22 @@ that separate snapshot with `python3 scripts/sync-docs-examples.py`.
 
 ## Paxflix showcase
 
-At a showcase width of 760px or more, the homepage shows three linked captures:
-a tablet in front, with macOS and iPhone wings. Below that width it shows only the
-tappable iPhone capture. No homepage layout mounts Paxflix. The
-fixed device footprint scales with the section width, and sizing subscribes to
-reactive bounds so it settles during initial mounting. All three desktop frames
-have scroll-sampled arrival, hold, and departure poses. There are no hidden
-preview apps, screenshot polling, or deferred live mounts.
+The homepage shows a gutter-to-gutter fan of three devices: a tablet in front,
+with macOS and iPhone screenshot wings. The section's 760px breakpoint chooses
+the center screen: one live Paxflix instance on desktop, a linked tablet capture
+on compact layouts. All three devices remain visible in either layout.
 
-Every device and the full-screen action open `/paxflix/`.
+The live tablet uses `embedded=true`, `disable_keyboard=true`, and
+`disable_card_entrances=true`: it omits standalone safe-area UI and global keyboard
+handling, and skips shelf-card entrance observers while retaining interaction and
+nested scrolling. Its viewport stays at 1024×768 logical pixels. Only the outer
+device stage scales to the available width, without a maximum-width cap; the
+scroll-sampled arrival, hold, and departure poses transform those frames without
+resizing the app. It stays mounted as the page scrolls. Crossing the compact
+breakpoint replaces the app with a capture, so returning to desktop starts fresh.
+
+The screenshot devices and full-screen action open `/paxflix/`; the desktop
+center stays interactive in place.
 The generated `/paxflix/index.html` is a standalone document entry into the
 website's demo route. Its server-owned navigation policy deliberately reloads
 the document so the demo participates in the configured yielded startup and
@@ -303,7 +317,7 @@ implemented in this version.
 
 ## Calculator showcase
 
-The native-and-web section pairs Paxflix with a calculator three-device fanout: a captured,
+Below Paxflix, the native-and-web section shows a calculator three-device fanout: a captured,
 upright phone in front, with a smaller tilted macOS-style window on the left and
 a tablet on the right. The window uses `DeviceFrame kind="window"`, with a dark
 title bar and traffic-light controls. Its narrow capture fills the content area
@@ -311,10 +325,11 @@ without the calculator's wide-window background gutters.
 All three screens use `NativeImage`; none mounts a calculator. The frame poses
 respond to the shared runtime chapter clock without resizing their captured content.
 
-Above the section's 1000px breakpoint, the showcases sit side by side in a 62/38
-row. Below it, they stack and each fanout becomes one tappable phone capture.
-The section chooses both presentation modes, rather than each narrow column
-mistaking itself for a mobile viewport. Resizing only switches presentation. The
+Paxflix has its own full-width row. Above the section's 760px breakpoint, the
+calculator occupies 38% of the following row, with supporting copy alongside it.
+Below that breakpoint, the calculator becomes one tappable phone capture and the
+copy stacks underneath. The section chooses the presentation mode rather than
+the narrow calculator column mistaking itself for a mobile viewport. The
 fixed-aspect stage scales to its assigned column without stretching the devices.
 
 The compact preview, captured wings, and full-screen action open `/calculator/`.
@@ -335,8 +350,10 @@ them. The website asset namespace symlinks Space Game's canonical sprite files,
 just as it does for Paxflix media.
 
 All four live examples still share the website's Wasm bundle. Screenshot-only
-presentation removes their homepage node trees, timers, nested scrollers, and
-rendering work; it does **not** split the initial download. Independent example
+presentation for the calculator, Space Game, and compact Paxflix/oscilloscope
+removes their homepage node trees, timers, nested scrollers, and rendering work;
+it does **not** split the initial download. Desktop Paxflix and the oscilloscope
+intentionally retain one live instance each for performance evaluation. Independent example
 bundles would be a separate packaging improvement. Returning to the homepage
 does not retain the abandoned example's application state, except where the
 browser itself restores a document from its back/forward cache.

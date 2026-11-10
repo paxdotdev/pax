@@ -1,7 +1,8 @@
 use crate::{DeviceFrame, SiteTheme};
 use pax_kit::*;
+use paxflix::Paxflix;
 
-/// Screenshot-backed devices that link to the standalone Paxflix route.
+/// A full-width device fan: one live desktop tablet, linked captures on mobile.
 #[pax]
 #[file("paxflix_showcase.pax")]
 pub struct PaxflixShowcase {
@@ -9,7 +10,6 @@ pub struct PaxflixShowcase {
     pub compact: Property<bool>,
     pub layout_ready: Property<bool>,
     pub stage_scale: Property<f64>,
-    pub stage_x: Property<f64>,
     pub devices_height: Property<f64>,
     pub scene_progress: Property<f64>,
 }
@@ -17,18 +17,16 @@ pub struct PaxflixShowcase {
 impl PaxflixShowcase {
     pub fn mount(&mut self, ctx: &NodeContext) {
         let bounds = ctx.bounds_self.clone();
-        let compact = self.compact.clone();
-        let deps = [bounds.untyped(), compact.untyped()];
+        let deps = [bounds.untyped()];
         let ready = self.layout_ready.local();
         let scale = self.stage_scale.local();
-        let x = self.stage_x.local();
         let height = self.devices_height.local();
         let content_height = self.content_height.local();
         let update = move || {
-            // The containing section chooses the presentation, not this narrow column.
-            let layout = DeviceLayout::for_width(bounds.get().0, compact.get());
+            // Only the outer stage scales. The live app always lays out at the
+            // tablet's logical resolution, even while its frame is choreographed.
+            let layout = DeviceLayout::for_width(bounds.get().0);
             scale.set_if_neq(layout.scale * 100.0);
-            x.set_if_neq(layout.x);
             height.set_if_neq(layout.height);
             content_height.set_if_neq(layout.height + 76.0);
             // Do not render a provisional zero-sized stage.
@@ -41,28 +39,20 @@ impl PaxflixShowcase {
 
 struct DeviceLayout {
     scale: f64,
-    x: f64,
     height: f64,
 }
 
 impl DeviceLayout {
-    fn for_width(width: f64, compact: bool) -> Self {
+    fn for_width(width: f64) -> Self {
         let width = if width.is_finite() {
             width.max(0.0)
         } else {
             0.0
         };
-        let (design_width, design_height, max_width) = if compact {
-            (390.0, 844.0, 312.0)
-        } else {
-            (1280.0, 780.0, 1280.0)
-        };
-        let displayed_width = width.min(max_width);
-        let scale = displayed_width / design_width;
+        let scale = width / 1280.0;
         Self {
             scale,
-            x: (width - displayed_width) / 2.0,
-            height: design_height * scale,
+            height: 780.0 * scale,
         }
     }
 }
@@ -72,40 +62,35 @@ mod tests {
     use super::*;
 
     #[test]
-    fn provisional_and_mobile_layouts_use_the_compact_stage() {
-        for width in [f64::NAN, f64::INFINITY, -1.0, 0.0, 272.0, 342.0, 759.0] {
-            let layout = DeviceLayout::for_width(width, true);
-            assert!(layout.height.is_finite());
+    fn provisional_bounds_do_not_mount_a_live_app() {
+        for width in [f64::NAN, f64::INFINITY, -1.0, 0.0] {
+            let layout = DeviceLayout::for_width(width);
+            assert_eq!(layout.scale, 0.0);
+            assert_eq!(layout.height, 0.0);
         }
     }
 
     #[test]
-    fn device_stage_fits_and_has_a_stable_aspect_ratio() {
-        for (width, compact) in [
-            (272.0, true),
-            (342.0, true),
-            (540.0, false),
-            (760.0, false),
-            (1126.0, false),
-            (1800.0, false),
-        ] {
-            let layout = DeviceLayout::for_width(width, compact);
-            let (w, h) = if compact {
-                (390.0, 844.0)
-            } else {
-                (1280.0, 780.0)
-            };
-            assert!(layout.x >= 0.0);
-            assert!(layout.x + w * layout.scale <= width + 0.001);
-            assert_eq!(layout.height, h * layout.scale);
+    fn fan_fills_the_available_width_without_a_desktop_or_mobile_cap() {
+        for width in [272.0, 342.0, 540.0, 760.0, 1126.0, 1800.0, 2560.0] {
+            let layout = DeviceLayout::for_width(width);
+            assert!((1280.0 * layout.scale - width).abs() < 0.001);
+            assert_eq!(layout.height, 780.0 * layout.scale);
         }
     }
 
     #[test]
-    fn every_device_is_a_linked_capture_and_all_desktop_frames_can_move() {
+    fn only_the_desktop_center_is_live_and_all_layouts_keep_three_devices() {
         let template = include_str!("paxflix_showcase.pax");
-        assert!(!template.contains("<Paxflix"));
-        assert_eq!(template.matches("url=\"/paxflix/\"").count(), 5);
+        assert_eq!(template.matches("<Paxflix ").count(), 1);
+        assert!(
+            template.contains("embedded=true disable_keyboard=true disable_card_entrances=true")
+        );
+        assert_eq!(template.matches("url=\"/paxflix/\"").count(), 4);
+        assert_eq!(template.matches("id=front_tablet").count(), 1);
+        assert_eq!(template.matches("id=phone_wing").count(), 1);
+        assert_eq!(template.matches("id=desktop_wing").count(), 1);
+        assert!(template.contains("if self.compact"));
         assert!(template.contains("#desktop_wing"));
         assert!(template.contains("#phone_wing"));
         assert!(template.contains("#front_tablet"));

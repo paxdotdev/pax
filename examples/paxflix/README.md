@@ -78,11 +78,12 @@ This intentionally separates startup cost from tile and image readiness during
 scrolling. In animated mode, helper components own the mount subscriptions and
 proximity bindings for scheduled text entrances.
 
-The website uses two live instances, inside scaled tablet and phone frames,
-and mounts them with the page, with card entrances disabled. The calculator also
-mounts with the page; proximity only pauses its recurring offscreen work. These
-hosts no longer defer application lifecycle work until viewport approach. This
-can increase startup work; it is not a runtime lazy-init implementation.
+The website mounts one live instance in a scaled tablet frame on desktop, with
+card entrances disabled. The wing devices and all compact-layout devices use
+linked screenshots. The live instance stays mounted as the page scrolls; it does
+not defer application lifecycle work until viewport approach. This adds startup
+work and is not a runtime lazy-init implementation. See the
+[website showcase](../../pax-website/README.md#paxflix-showcase) for its current layout.
 The website imports the source directly and links
 `pax-website/assets` to this example's assets, so artwork is not duplicated in
 source control. The built web output contains ordinary copied assets.

@@ -162,6 +162,108 @@ fn clear(ctx: &RuntimeContext) {
 }
 
 #[test]
+fn surface_motion_reuses_opted_in_local_paint_but_not_custom_world_hooks() {
+    use std::cell::Cell;
+    struct PaintProbe {
+        base: BaseInstance,
+        local: bool,
+        calls: Cell<usize>,
+        extent: Cell<f64>,
+    }
+    impl InstanceNode for PaintProbe {
+        fn instantiate(_: InstantiationArgs) -> Rc<Self> {
+            unreachable!()
+        }
+        fn base(&self) -> &BaseInstance {
+            &self.base
+        }
+        fn resolve_debug(
+            &self,
+            f: &mut std::fmt::Formatter,
+            _: Option<&ExpandedNode>,
+        ) -> std::fmt::Result {
+            f.write_str("PaintProbe")
+        }
+        fn canvas_geometry_is_local(&self) -> bool {
+            self.local
+        }
+        fn prepare_canvas_geometry(
+            &self,
+            node: &ExpandedNode,
+        ) -> crate::scene_geometry::CanvasGeometry {
+            self.calls.set(self.calls.get() + 1);
+            let x = if self.local {
+                0.
+            } else {
+                node.presentation_transform_and_bounds.get().transform.m[4]
+            };
+            crate::scene_geometry::CanvasGeometry {
+                local_bounds: Some(Rect::new(x, 0., x + self.extent.get(), 20.)),
+                path: None,
+            }
+        }
+    }
+    let make = |local| {
+        Rc::new(PaintProbe {
+            base: BaseInstance::new(
+                args(vec![]),
+                InstanceFlags {
+                    layer: Layer::Canvas,
+                    invisible_to_slot: false,
+                    invisible_to_raycasting: true,
+                    is_component: false,
+                    is_slot: false,
+                },
+            ),
+            local,
+            calls: Cell::new(0),
+            extent: Cell::new(40.),
+        })
+    };
+    let local = make(true);
+    let custom = make(false);
+    let (ctx, root) = mount(vec![probe(
+        Kind::Scroller,
+        vec![local.clone(), local.clone(), custom.clone()],
+    )]);
+    let scroller = root.children.get()[0].children.get()[0].clone();
+    let children = scroller.children.get();
+    let calls = (local.calls.get(), custom.calls.get());
+    for x in [2., 13., -8.] {
+        scroller
+            .get_common_properties()
+            .borrow()
+            .x
+            .set(Some(Size::Pixels(x.into())));
+        settle(&root, &ctx);
+    }
+    assert_eq!(
+        local.calls.get(),
+        calls.0,
+        "local shape preparation must not scale with movement"
+    );
+    assert!(
+        custom.calls.get() > calls.1,
+        "custom world-dependent hooks retain their contract"
+    );
+    let before = ctx.canvas_geometry_for_node(&children[0]);
+    local.extent.set(90.);
+    ctx.mark_canvas_node_dirty(children[0].id);
+    let after = ctx.canvas_geometry_for_node(&children[0]);
+    assert_eq!(after.local.local_bounds.unwrap().width(), 90.);
+    assert_ne!(before.coverage_bounds, after.coverage_bounds);
+    assert_eq!(
+        ctx.canvas_geometry_for_node(&children[1])
+            .local
+            .local_bounds
+            .unwrap()
+            .width(),
+        40.,
+        "each expanded occurrence owns its cache"
+    );
+}
+
+#[test]
 fn local_coverage_cache_tracks_shape_inputs_and_occurrence_lifetimes() {
     use pax_runtime_api::{LocalProperty, Variable};
     use std::cell::Cell;
@@ -780,7 +882,9 @@ fn occluder_only_clips_and_relative_geometry_still_update_cutouts() {
         * ctx.occlusion_state.borrow().records[&clip.id.to_u32()]
             .clip
             .as_ref()
-            .unwrap().as_ref().clone();
+            .unwrap()
+            .as_ref()
+            .clone();
     assert_eq!(mask.entries[0].clips[0], bez_path_to_svg_path_data(&exact));
     let initial = native.native_mask_hash.get();
     clip.get_common_properties()

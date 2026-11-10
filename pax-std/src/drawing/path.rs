@@ -154,7 +154,7 @@ impl InstanceNode for PathInstance {
             }
         });
 
-        let tab = expanded_node.presentation_transform_and_bounds.clone();
+        let tab = expanded_node.canvas_transform_and_bounds.clone();
         let (elements, stroke, fill, smoothing, draw_start, draw_end) = expanded_node
             .with_properties_unwrapped(|properties: &mut Path| {
                 (
@@ -315,6 +315,10 @@ impl InstanceNode for PathInstance {
     fn resolve_local_occlusion_bounds(&self, node: &ExpandedNode) -> Option<kurbo::Rect> {
         self.resolve_local_occlusion_path(node)
             .map(|path| path.bounding_box())
+    }
+
+    fn canvas_geometry_is_local(&self) -> bool {
+        true
     }
 
     fn prepare_canvas_geometry(

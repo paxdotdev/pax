@@ -68,7 +68,7 @@ impl InstanceNode for LineInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
-        let tab = expanded_node.presentation_transform_and_bounds.clone();
+        let tab = expanded_node.canvas_transform_and_bounds.clone();
         let (x1, y1, x2, y2, stroke) =
             expanded_node.with_properties_unwrapped(|properties: &mut Line| {
                 (
@@ -114,9 +114,12 @@ impl InstanceNode for LineInstance {
     }
 
     fn prepare_hit_shape(&self, node: &ExpandedNode) -> pax_runtime_api::HitShape {
-        self.resolve_local_coverage_path(node).map(|path| pax_runtime_api::HitShape::Path {
-            path: Rc::new(path), tolerance: 1e-3,
-        }).unwrap_or_default()
+        self.resolve_local_coverage_path(node)
+            .map(|path| pax_runtime_api::HitShape::Path {
+                path: Rc::new(path),
+                tolerance: 1e-3,
+            })
+            .unwrap_or_default()
     }
 
     fn resolve_local_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
@@ -162,7 +165,12 @@ impl InstanceNode for LineInstance {
     }
 
     fn resolve_local_occlusion_bounds(&self, node: &ExpandedNode) -> Option<kurbo::Rect> {
-        self.resolve_local_occlusion_path(node).map(|path| path.bounding_box())
+        self.resolve_local_occlusion_path(node)
+            .map(|path| path.bounding_box())
+    }
+
+    fn canvas_geometry_is_local(&self) -> bool {
+        true
     }
 
     fn prepare_canvas_geometry(
@@ -268,8 +276,11 @@ fn line_coverage_path(
 
 #[cfg(test)]
 fn path_contains_with_tolerance(path: &BezPath, point: kurbo::Point) -> bool {
-    pax_runtime_api::HitShape::Path { path: Rc::new(path.clone()), tolerance: 1e-3 }
-        .contains_local(point)
+    pax_runtime_api::HitShape::Path {
+        path: Rc::new(path.clone()),
+        tolerance: 1e-3,
+    }
+    .contains_local(point)
 }
 
 #[cfg(test)]

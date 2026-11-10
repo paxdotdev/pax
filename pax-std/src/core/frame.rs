@@ -17,6 +17,15 @@ use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 
 fn mark_canvas_descendants_dirty(expanded_node: &ExpandedNode, context: &Rc<RuntimeContext>) {
     for child in expanded_node.presentation_children(context).iter() {
+        // This Frame clips its own canvas layer. A nested native scroll surface
+        // owns its clipping/exposure and must not have its contents re-recorded.
+        if child.occlusion.get().render_layer_id != expanded_node.occlusion.get().render_layer_id
+            && context
+                .get_layer_scroller_owner(child.occlusion.get().render_layer_id)
+                .is_some()
+        {
+            continue;
+        }
         if borrow!(child.instance_node).base().flags().layer == Layer::Canvas {
             context.mark_canvas_node_dirty(child.id);
             context.set_canvas_dirty(child.occlusion.get().render_layer_id);
@@ -273,6 +282,7 @@ impl InstanceNode for FrameInstance {
             id: id.to_u32(),
             ..Default::default()
         }));
+        let last_canvas_clip = RefCell::new(None);
 
         let deps: Vec<_> = borrow!(expanded_node.properties_scope)
             .values()
@@ -283,6 +293,7 @@ impl InstanceNode for FrameInstance {
                 expanded_node.computed_opacity.untyped(),
                 expanded_node.parent_frame.untyped(),
                 expanded_node.occlusion.untyped(),
+                expanded_node.canvas_transform_and_bounds.untyped(),
             ])
             .collect();
 
@@ -373,7 +384,21 @@ impl InstanceNode for FrameInstance {
                         // Occlusion reconciliation updates retained canvas order
                         // separately. A native z-index patch must not turn that
                         // order-only change into re-recording the whole subtree.
-                        if content_changed {
+                        let canvas_clip = (
+                            expanded_node.canvas_transform_and_bounds.get(),
+                            clamped_radius,
+                            properties._clip_content.local().get(),
+                            expanded_node.computed_opacity.get(),
+                            expanded_node.occlusion.get().render_layer_id,
+                            expanded_node.parent_frame.get(),
+                        );
+                        let canvas_changed =
+                            last_canvas_clip.borrow().as_ref() != Some(&canvas_clip);
+                        *last_canvas_clip.borrow_mut() = Some(canvas_clip);
+                        if canvas_changed
+                            || (content_changed
+                                && !expanded_node.has_surface_local_canvas_placement())
+                        {
                             mark_canvas_descendants_dirty(&expanded_node, &cloned_context);
                         }
                     });

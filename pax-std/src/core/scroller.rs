@@ -613,13 +613,23 @@ impl InstanceNode for ScrollerHostInstance {
                                 patch.scroll_y = None;
                             }
                         }
+                        let retained_pose =
+                            has_scroller_island && !expanded_node.has_perspective_camera();
+                        #[cfg(feature = "3d")]
+                        let retained_pose = retained_pose
+                            && expanded_node
+                                .spatial_geometry()
+                                .get()
+                                .world_transform()
+                                .try_as_2d()
+                                .is_some();
                         let visual_update = patch.size_x.is_some()
                             || patch.size_y.is_some()
                             || patch.size_inner_pane_x.is_some()
                             || patch.size_inner_pane_y.is_some()
                             || patch.scroll_enabled_x.is_some()
                             || patch.scroll_enabled_y.is_some()
-                            || patch.transform.is_some()
+                            || (patch.transform.is_some() && !retained_pose)
                             || patch.opacity.is_some()
                             || patch.clip_content.is_some();
                         if updates.into_iter().any(|updated| updated) {
@@ -1005,6 +1015,9 @@ mod scroll_position_tests;
 
 #[cfg(test)]
 mod layout_measurement_tests;
+
+#[cfg(test)]
+mod canvas_isolation_tests;
 
 #[cfg(test)]
 mod tests {

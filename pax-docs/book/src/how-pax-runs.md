@@ -192,6 +192,19 @@ placement without waiting for a frame or traversing the ancestor chain again.
 Clip owners retain local paths separately from their placement, so moving a Frame
 or changing its opacity does not rebuild its local clip shape.
 
+Ordinary affine canvas content inside an allocated Scroller surface also keeps
+its paint placement in that surface's local coordinates. Moving or rotating the
+whole surface does not re-record unchanged Rectangle, Ellipse, Line, Path, or
+Image drawings or rebuild their local paint bounds. Frame clips inside the
+surface use the same boundary. Content edits, local movement, resizing, and
+clip changes still invalidate affected drawings. Flat lighting follows the
+surface's world transform without baking that transform into every drawing.
+Camera-controlled or spatial placement, detached captures, and presentation flights keep
+the conservative world-dependent path. Native controls and text still update
+their world placement; this is paint isolation, not subtree virtualization or
+a promise of constant total frame cost. The behavior is shared by debug and
+release builds and applies only where the runtime allocates a separate surface.
+
 Transfers between existing clipping and presentation domains repair the moved
 subtree's layer/container membership and both its former and current overlaps.
 Unrelated coverage remains retained. Overlay entry, return, and animation-flight

@@ -9,14 +9,26 @@
         ///#ignore
         <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=32px
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}>
-            <ScreenshotStudy width=100% height={(self.scope_height)px} content_height=bind:self.scope_height
-                image="assets/playground/oscilloscope.jpg" url="/oscilloscope/" kind="window"
+            <FramedStudy width=100% height={(self.scope_height)px} content_height=bind:self.scope_height
+                url="/oscilloscope/" kind="window"
                 label="TRY THE OSCILLOSCOPE  ↗" detail="Light, rhythm, and tactile controls."
-                scene_progress={self.scene_progress}/>
-            <ScreenshotStudy width=100% height={(self.game_height)px} content_height=bind:self.game_height
-                image="assets/playground/space-game.jpg" url="/space-game/" kind="tablet"
+                scene_progress={self.scene_progress}>
+                if self.compact {
+                    <Link width=100% height=100% url="/oscilloscope/" target=Target::Current>
+                        <NativeImage width=100% height=100% url="assets/playground/oscilloscope.jpg" fit=ImageFit::Paint/>
+                    </Link>
+                } else {
+                    <LedOscilloscope id=live_oscilloscope width=100% height=100% message="DREAM IT. BUILD IT."/>
+                }
+            </FramedStudy>
+            <FramedStudy width=100% height={(self.game_height)px} content_height=bind:self.game_height
+                url="/space-game/" kind="tablet"
                 label="PLAY SPACE GAME  ↗" detail="Hold to steer on touch · WASD + Space on keyboard."
-                mirrored=true scene_progress={Math::max(0, self.scene_progress - 5)}/>
+                mirrored=true scene_progress={Math::max(0, self.scene_progress - 5)}>
+                <Link width=100% height=100% url="/space-game/" target=Target::Current>
+                    <NativeImage width=100% height=100% url="assets/playground/space-game.jpg" fit=ImageFit::Paint/>
+                </Link>
+            </FramedStudy>
         </Stacker>
         <Text class="editorial_lead" width={self.compact ? 100% : 78%}>{"A useful interface can also be playful, tactile, expressive—even a little strange. Pax gives you the structure to build an application and the freedom to decide how it should feel."}</Text>
         <Text class="editorial_body" width={self.compact ? 100% : 78%}>{"Components, state, and routing share a scene with paths, gradients, masks, and motion. A custom interaction doesn't need to become a separate rendering project. You can keep building on the same foundation as your idea becomes more ambitious."}</Text>

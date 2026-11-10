@@ -1234,6 +1234,10 @@ fn assign_occlusion(
     layer: Layer,
     ctx: &RuntimeContext,
 ) -> bool {
+    node.canvas_owner.set_if_neq(
+        ctx.get_layer_scroller_owner(new.render_layer_id)
+            .map(|owner| owner.to_u32()),
+    );
     let old = node.occlusion.get();
     if new == old {
         return false;
@@ -1738,7 +1742,7 @@ fn cached_local_occlusion_path(node: &ExpandedNode) -> Option<Option<Rc<BezPath>
     let instance = borrow!(node.instance_node);
     (instance.local_occlusion_path_is_retained()
         && instance.local_occlusion_path_is_placement_independent())
-        .then(|| node.local_occlusion_geometry.get().0)
+    .then(|| node.local_occlusion_geometry.get().0)
 }
 
 fn resolve_record_path(node: &ExpandedNode) -> Option<BezPath> {

@@ -59,8 +59,10 @@ Depend on this package with `default-features = false`, import
 
 The component uses both dimensions supplied by its host. Use `height=100%` to
 fill a viewport, or choose a panel height for an embed. For a suggested height
-based on width, use `LedOscilloscope::height(available_width)` in Rust, as the
-website's `FrameworkSection` does. The host-provided `paused`
+based on width, use `LedOscilloscope::height(available_width)` in Rust. The
+website instead supplies a fixed 1000×600 logical viewport inside a scaled,
+tilted window frame on desktop, and a linked capture below its 900px breakpoint.
+The host-provided `paused`
 property can suspend updates while retaining the scene. Each instance owns its
 own display and controls. Motion starts when the panel enters the actual
 viewport and stops when it leaves, including when embedded initially offscreen.

@@ -1557,6 +1557,10 @@ impl RuntimeContext {
             let Some(node) = self.get_expanded_node_by_eid(ExpandedNodeIdentifier(id)) else {
                 return;
             };
+            if borrow!(node.instance_node).scrolls_content(&node) {
+                // Retained local drawings still move through world-space lights.
+                self.mark_scene_lighting_dirty();
+            }
             // Source records are cached for capture but absent from visible
             // compositing. Reconcile their owning mask, including nested sources,
             // so source animation does not look like a missing scene node.
@@ -1633,7 +1637,7 @@ impl RuntimeContext {
         let Some(node) = self.get_expanded_node_by_eid(id) else {
             return;
         };
-        borrow_mut!(self.scene_geometry).invalidate(id.to_u32());
+        borrow_mut!(self.scene_geometry).invalidate_content(id.to_u32());
         let owner = node
             .render_source_owner()
             .and_then(|id| self.get_expanded_node_by_eid(id));
@@ -2306,9 +2310,22 @@ impl RuntimeContext {
     }
 
     pub fn canvas_surface_transform_for_node(&self, node: &ExpandedNode) -> Affine {
-        let transform = Affine::from(node.presentation_transform_and_bounds.get().transform);
+        if node.canvas_owner.get().is_some()
+            && node.canvas_owner.get()
+                == self
+                    .get_layer_scroller_owner(node.occlusion.get().render_layer_id)
+                    .map(|id| id.to_u32())
+        {
+            Affine::from(node.canvas_transform_and_bounds.get().transform)
+        } else {
+            self.world_to_canvas_transform_for_node(node)
+                * Affine::from(node.presentation_transform_and_bounds.get().transform)
+        }
+    }
+
+    pub(crate) fn world_to_canvas_transform_for_node(&self, node: &ExpandedNode) -> Affine {
         if node.is_render_source() {
-            return transform;
+            return Affine::IDENTITY;
         }
         let own_layer = node.occlusion.get().render_layer_id;
         // Structural Frame/Mask ancestors can retain a different/default layer
@@ -2316,14 +2333,14 @@ impl RuntimeContext {
         // relative to clips and alpha masks in the actual Scroller surface.
         self.get_layer_scroller_owner(own_layer)
             .and_then(|owner| self.get_expanded_node_by_eid(owner))
-            .map_or(transform, |owner| {
+            .map_or(Affine::IDENTITY, |owner| {
                 Affine::from(
                     owner
                         .presentation_transform_and_bounds
                         .get()
                         .transform
                         .inverse(),
-                ) * transform
+                )
             })
     }
 
@@ -2399,21 +2416,51 @@ impl RuntimeContext {
         node: &ExpandedNode,
     ) -> Rc<crate::scene_geometry::PreparedCanvasGeometry> {
         let tab = node.presentation_transform_and_bounds.get();
-        let work_started = self.work_profile_active().then(web_time::Instant::now);
-        let local = borrow!(node.instance_node).prepare_canvas_geometry(node);
-        if let Some(started) = work_started {
-            self.record_node_work(
-                node.id.to_u32(),
-                "canvas local geometry",
-                started.elapsed().as_secs_f64() * 1000.,
-            );
-        }
-        let mut prepared = crate::scene_geometry::PreparedCanvasGeometry::new(
-            node.occlusion.get().render_layer_id,
-            tab.bounds,
-            self.canvas_surface_transform_for_node(node),
-            local,
-        );
+        let retained = borrow!(node.instance_node)
+            .canvas_geometry_is_local()
+            .then(|| borrow!(self.scene_geometry).retained_paint(node.id.to_u32()))
+            .flatten()
+            .filter(|old| old.bounds == tab.bounds);
+        let local = retained
+            .as_ref()
+            .map(|old| old.local.clone())
+            .unwrap_or_else(|| {
+                let work_started = self.work_profile_active().then(web_time::Instant::now);
+                let local = borrow!(node.instance_node).prepare_canvas_geometry(node);
+                borrow_mut!(self.scene_geometry).stats.local_preparations += 1;
+                if let Some(started) = work_started {
+                    self.record_node_work(
+                        node.id.to_u32(),
+                        "canvas local geometry",
+                        started.elapsed().as_secs_f64() * 1000.,
+                    );
+                }
+                local
+            });
+        let layer = node.occlusion.get().render_layer_id;
+        let surface_transform = self.canvas_surface_transform_for_node(node);
+        let reusable = retained.as_ref().filter(|old| {
+            let reusable = old.layer == layer
+                && old.surface_transform == surface_transform
+                && old.projection.is_none()
+                && !node.has_perspective_camera();
+            #[cfg(feature = "3d")]
+            let reusable = reusable && old.solid.is_none();
+            reusable
+        });
+        let mut prepared = if let Some(old) = reusable {
+            borrow_mut!(self.scene_geometry)
+                .stats
+                .surface_coverage_reuses += 1;
+            old.as_ref().clone()
+        } else {
+            crate::scene_geometry::PreparedCanvasGeometry::new(
+                layer,
+                tab.bounds,
+                surface_transform,
+                local,
+            )
+        };
         if node.has_perspective_camera() {
             prepared.projection = self.canvas_surface_projection_for_node(node);
             prepared.world_projection = self.presented_projection_for_node(node);

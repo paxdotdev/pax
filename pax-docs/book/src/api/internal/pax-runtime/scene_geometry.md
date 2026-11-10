@@ -159,7 +159,17 @@ Cumulative work counters for verifying geometry reuse and spatial-query scaling.
 ##### `preparations`
 Type: `u64`
 
-Primitive geometry preparations, excluding cache hits.
+Prepared record updates, excluding clean-record cache hits.
+
+##### `local_preparations`
+Type: `u64`
+
+Calls to a primitive's local paint-geometry preparation hook.
+
+##### `surface_coverage_reuses`
+Type: `u64`
+
+Placement updates reusing unchanged surface-local paint coverage.
 
 ##### `index_updates`
 Type: `u64`

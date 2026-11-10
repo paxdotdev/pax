@@ -457,14 +457,6 @@ pub trait InstanceNode {
         //no-op default implementation
     }
 
-    /// Prepare primitive-local paint geometry independently of drawing or surface readiness.
-    ///
-    /// The default is conservatively unbounded. Bounded primitives should return their
-    /// actual local coverage; the runtime shares its transformed result with replay selection.
-    /// This must be a side-effect-free read of settled properties. Results are retained
-    /// until `RuntimeContext::mark_canvas_node_dirty` invalidates the node, so a primitive's
-    /// reactive drawing dependencies must include every input used here. Surface replay
-    /// reuses the prepared record without invoking this method again.
     /// A closed opaque convex volume in unscrolled world coordinates, if present.
     #[cfg(feature = "3d")]
     fn resolve_convex_mesh(
@@ -480,6 +472,24 @@ pub trait InstanceNode {
         true
     }
 
+    /// Whether paint geometry can be retained across world-placement changes.
+    ///
+    /// Opting in promises that `prepare_canvas_geometry` depends only on local
+    /// dimensions and primitive content, and that every content change calls
+    /// `RuntimeContext::mark_canvas_node_dirty`. Custom world-dependent hooks
+    /// retain the conservative default. This does not opt out of clipping,
+    /// projection, lighting, or native-presentation updates.
+    fn canvas_geometry_is_local(&self) -> bool {
+        false
+    }
+
+    /// Prepare primitive-local paint geometry independently of surface readiness.
+    ///
+    /// The default is conservatively unbounded. Bounded primitives return their
+    /// actual local coverage for drawing and replay selection. This must be a
+    /// side-effect-free read of settled properties. Surface replay reuses it;
+    /// `canvas_geometry_is_local` additionally permits reuse across world motion.
+    /// Content changes must invalidate it with `RuntimeContext::mark_canvas_node_dirty`.
     fn prepare_canvas_geometry(
         &self,
         _node: &ExpandedNode,

@@ -52,7 +52,7 @@ pub mod route_pages;
 #[cfg(feature = "app")]
 pub mod runtime_section;
 #[cfg(feature = "app")]
-pub mod screenshot_study;
+pub mod framed_study;
 #[cfg(feature = "app")]
 mod section_layout;
 #[cfg(feature = "app")]
@@ -106,7 +106,7 @@ pub use route_pages::{CalculatorPage, NotFoundPage, PaxflixPage, PlaygroundPage}
 #[cfg(feature = "app")]
 pub use runtime_section::RuntimeSection;
 #[cfg(feature = "app")]
-pub use screenshot_study::ScreenshotStudy;
+pub use framed_study::FramedStudy;
 #[cfg(feature = "app")]
 pub use shared_definition_demo::{RelationshipPreview, SharedDefinitionDemo};
 #[cfg(feature = "app")]

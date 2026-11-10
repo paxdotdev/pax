@@ -158,7 +158,15 @@ pub fn begin_bounded_canvas_node(
         rc.set_node_lighting_surface(
             layer_id,
             node_id,
-            expanded_node.spatial_geometry().get().lighting_surface(),
+            if rc.alpha_source_layer().is_none()
+                && expanded_node.has_surface_local_canvas_placement()
+            {
+                // Flat retained paint uses the layer's surface-to-world uniform;
+                // baking the owner's pose into each leaf defeats that boundary.
+                None
+            } else {
+                expanded_node.spatial_geometry().get().lighting_surface()
+            },
         );
         rc.set_node_depth_plane(
             layer_id,

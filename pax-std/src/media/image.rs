@@ -210,7 +210,7 @@ impl InstanceNode for ImageInstance {
         let source =
             expanded_node.with_properties_unwrapped(|props: &mut Image| props.source.clone());
 
-        let tab = expanded_node.presentation_transform_and_bounds.clone();
+        let tab = expanded_node.canvas_transform_and_bounds.clone();
         let deps = [
             tab.untyped(),
             expanded_node.computed_opacity.untyped(),
@@ -291,6 +291,10 @@ impl InstanceNode for ImageInstance {
         let tab = expanded_node.presentation_transform_and_bounds.get();
         let rect = Rect::new(0.0, 0.0, tab.bounds.0, tab.bounds.1);
         Some(rect.into_path(0.01))
+    }
+
+    fn canvas_geometry_is_local(&self) -> bool {
+        true
     }
 
     fn prepare_canvas_geometry(

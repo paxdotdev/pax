@@ -17,43 +17,39 @@
         }/>
     </Link>
     if self.layout_ready {
-        if self.compact {
-            <Group x={(self.stage_x)px} anchor=0% width=390px height=844px scale={(self.stage_scale)%} layout_role=LayoutRole::Breakout>
+        <Group x=0px anchor=0% width=1280px height=780px scale={(self.stage_scale)%} layout_role=LayoutRole::Breakout>
+            <Group id=front_tablet x=640px y=406px anchor=50% width=1048px height=812px scale=76%>
+                if self.compact {
+                    <Link width=100% height=100% url="/paxflix/" target=Target::Current>
+                        <DeviceFrame width=100% height=100% kind="tablet">
+                            <NativeImage width=100% height=100% url="assets/paxflix/tablet.jpg" fit=ImageFit::Paint/>
+                        </DeviceFrame>
+                    </Link>
+                } else {
+                    <DeviceFrame width=100% height=100% kind="tablet">
+                        <Paxflix id=live_paxflix width=100% height=100% embedded=true disable_keyboard=true disable_card_entrances=true/>
+                    </DeviceFrame>
+                }
+            </Group>
+            <Group id=phone_wing x=1118px y=346px anchor=50% width=390px height=844px scale=62% rotate=8deg>
                 <Link width=100% height=100% url="/paxflix/" target=Target::Current>
                     <DeviceFrame width=100% height=100% kind="phone" edge_to_edge=true>
                         <NativeImage width=100% height=100% url="assets/paxflix/ios.jpg" fit=ImageFit::Paint/>
                     </DeviceFrame>
                 </Link>
             </Group>
-        } else {
-            <Group x={(self.stage_x)px} anchor=0% width=1280px height=780px scale={(self.stage_scale)%} layout_role=LayoutRole::Breakout>
-                <Group id=front_tablet x=640px y=406px anchor=50% width=1048px height=812px scale=76%>
-                    <Link width=100% height=100% url="/paxflix/" target=Target::Current>
-                        <DeviceFrame width=100% height=100% kind="tablet">
-                            <NativeImage width=100% height=100% url="assets/paxflix/tablet.jpg" fit=ImageFit::Paint/>
-                        </DeviceFrame>
-                    </Link>
-                </Group>
-                <Group id=phone_wing x=1108px y=346px anchor=50% width=390px height=844px scale=62% rotate=8deg>
-                    <Link width=100% height=100% url="/paxflix/" target=Target::Current>
-                        <DeviceFrame width=100% height=100% kind="phone" edge_to_edge=true>
-                            <NativeImage width=100% height=100% url="assets/paxflix/ios.jpg" fit=ImageFit::Paint/>
-                        </DeviceFrame>
-                    </Link>
-                </Group>
-                <Group id=desktop_wing x=388px y=312px anchor=50% width=1280px height=844px scale=56% rotate=-7deg>
-                    <Link width=100% height=100% url="/paxflix/" target=Target::Current>
-                        <DeviceFrame width=100% height=100% kind="desktop">
-                            <NativeImage width=100% height=100% url="assets/paxflix/macos.jpg" fit=ImageFit::Paint/>
-                        </DeviceFrame>
-                    </Link>
-                </Group>
+            <Group id=desktop_wing x=385px y=312px anchor=50% width=1280px height=844px scale=56% rotate=-7deg>
+                <Link width=100% height=100% url="/paxflix/" target=Target::Current>
+                    <DeviceFrame width=100% height=100% kind="desktop">
+                        <NativeImage width=100% height=100% url="assets/paxflix/macos.jpg" fit=ImageFit::Paint/>
+                    </DeviceFrame>
+                </Link>
             </Group>
-        }
+        </Group>
     }
 </Group>
-// Every screen is a capture. Frame transforms never resize a running app or
-// feed back into the measured stage; the real app only mounts on its route.
+// One desktop app stays mounted through scrolling. The two wings and all mobile
+// screens are captures; moving the fixed-size stage never relayouts the app.
 
 @settings {
     @mount: mount
@@ -65,7 +61,7 @@
     loop: false,
     #front_tablet {
         y: {
-            0%: 450px, OutQuad,
+            0%: 420px, OutQuad,
             42%: 406px, Linear,
             78%: 406px, InQuad,
             100%: 370px,
@@ -79,10 +75,10 @@
     }
     #desktop_wing {
         x: {
-            0%: 250px, OutQuad,
-            38%: 388px, Linear,
-            78%: 388px, InQuad,
-            100%: 300px,
+            0%: 440px, OutQuad,
+            38%: 385px, Linear,
+            78%: 385px, InQuad,
+            100%: 410px,
         }
         y: {
             0%: 370px, OutQuad,
@@ -91,7 +87,7 @@
             100%: 280px,
         }
         rotate: {
-            0%: -14deg, OutQuad,
+            0%: -3deg, OutQuad,
             38%: -7deg, Linear,
             78%: -7deg, InQuad,
             100%: -10deg,
@@ -99,10 +95,10 @@
     }
     #phone_wing {
         x: {
-            0%: 1190px, OutQuad,
-            44%: 1108px, Linear,
-            78%: 1108px, InQuad,
-            100%: 1180px,
+            0%: 1040px, OutQuad,
+            44%: 1118px, Linear,
+            78%: 1118px, InQuad,
+            100%: 1090px,
         }
         y: {
             0%: 410px, OutQuad,
@@ -111,7 +107,7 @@
             100%: 320px,
         }
         rotate: {
-            0%: 16deg, OutQuad,
+            0%: 2deg, OutQuad,
             44%: 8deg, Linear,
             78%: 8deg, InQuad,
             100%: 12deg,

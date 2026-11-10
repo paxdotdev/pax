@@ -383,6 +383,14 @@ pub struct ExpandedNode {
         LocalProperty<crate::scene_geometry::presentation::ClipGeometry>,
     /// Camera-projected geometry used by paint, native presentation and input.
     pub presentation_transform_and_bounds: LocalProperty<TransformAndBounds<NodeLocal, Window>>,
+    /// Paint placement in the owning canvas. Affine scroller descendants compose
+    /// local placement without observing their owner's world pose. Projection,
+    /// detached sources, and presentation flights retain world dependencies.
+    pub canvas_transform_and_bounds: LocalProperty<TransformAndBounds<NodeLocal, Window>>,
+    pub(crate) canvas_owner: LocalProperty<Option<u32>>,
+    pub(crate) affine_canvas_domain: LocalProperty<bool>,
+    pub(crate) canvas_local_placement:
+        LocalProperty<crate::scene_geometry::canvas_placement::CanvasLocalPlacement>,
     #[cfg(feature = "3d")]
     pub(crate) presentation_geometry: LocalProperty<crate::SpatialGeometry>,
     #[cfg(feature = "3d")]
@@ -1322,6 +1330,10 @@ impl ExpandedNode {
             local_occlusion_geometry: LocalProperty::default(),
             world_clip_geometry: LocalProperty::default(),
             presentation_transform_and_bounds,
+            canvas_transform_and_bounds: LocalProperty::default(),
+            canvas_owner: LocalProperty::default(),
+            affine_canvas_domain: LocalProperty::new(true),
+            canvas_local_placement: LocalProperty::default(),
             #[cfg(feature = "3d")]
             presentation_geometry,
             #[cfg(feature = "3d")]
@@ -2887,6 +2899,7 @@ impl ExpandedNode {
                 ));
         }
 
+        self.bind_canvas_placement(ctx);
         self.bind_presentation_inputs(ctx);
 
         let presentation_parent = self.presentation_parent_node();

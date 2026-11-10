@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 
-use crate::{ScreenshotStudy, SiteTheme};
+use crate::{FramedStudy, SiteTheme};
+use led_oscilloscope::LedOscilloscope;
 use pax_kit::*;
 
 #[pax]

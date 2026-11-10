@@ -1,18 +1,19 @@
 <Group width=100% height=100% layout_role=LayoutRole::Breakout>
     if self.kind == "window" {
-        <Ellipse x=24px y=22px anchor=50% width=18px height=18px fill={
+        <Ellipse x=24px y=22px anchor=50% width=18px height=18px _raycastable=false fill={
             paint: rgb(255, 95, 87)
             material: {Material::unlit()}
         }/>
-        <Ellipse x=50px y=22px anchor=50% width=18px height=18px fill={
+        <Ellipse x=50px y=22px anchor=50% width=18px height=18px _raycastable=false fill={
             paint: rgb(254, 188, 46)
             material: {Material::unlit()}
         }/>
-        <Ellipse x=76px y=22px anchor=50% width=18px height=18px fill={
+        <Ellipse x=76px y=22px anchor=50% width=18px height=18px _raycastable=false fill={
             paint: rgb(40, 200, 64)
             material: {Material::unlit()}
         }/>
-        <Rectangle width=100% height=100% corner_radius=16 fill=TRANSPARENT stroke={
+        // Decorative chrome must not intercept the projected app's controls.
+        <Rectangle width=100% height=100% corner_radius=16 fill=TRANSPARENT _raycastable=false stroke={
             paint: rgb(112, 112, 112)
             width: 1px
             material: {Material::unlit()}
