@@ -4422,6 +4422,7 @@ impl Fill {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// Light-reactive material coefficients for a tessellated vector path.
+/// Defaults to unlit; use an explicit material to opt into scene lighting.
 pub struct Material {
     pub coefficients: [f32; 4],
     pub emissive: [f32; 4],
@@ -4430,7 +4431,11 @@ pub struct Material {
 
 impl Material {
     pub fn matte() -> Self {
-        Self::default()
+        Self {
+            coefficients: [1.0, 0.82, 0.08, 0.78],
+            emissive: [0.0; 4],
+            unlit: false,
+        }
     }
 
     pub fn custom(
@@ -4469,11 +4474,7 @@ impl Material {
 
 impl Default for Material {
     fn default() -> Self {
-        Self {
-            coefficients: [1.0, 0.82, 0.08, 0.78],
-            emissive: [0.0; 4],
-            unlit: false,
-        }
+        Self::unlit()
     }
 }
 

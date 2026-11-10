@@ -89,6 +89,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
         component_type_id.clone(),
         ComponentDefinition {
             document: None,
+            camera: None,
             type_id: component_type_id.clone(),
             is_main_component: false,
             is_primitive: false,

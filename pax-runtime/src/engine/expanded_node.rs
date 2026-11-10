@@ -3300,7 +3300,10 @@ impl ExpandedNode {
             &own_hull_name,
         );
 
-        if !has_children {
+        // A viewport exports its own layout size, not its scrollable content.
+        // Keep internal content measurement separate from the ancestor hull;
+        // consulting render clips here would couple layout to presentation.
+        if !has_children || borrow!(self.instance_node).is_layout_measurement_boundary() {
             self.subtree_layout_hull.replace_with(own_hull);
             return;
         }

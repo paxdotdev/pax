@@ -41,7 +41,7 @@ pub struct Ellipsoid {
     pub depth: Property<Depth>,
     /// Opaque surface color. Defaults to white.
     pub color: Property<Color>,
-    /// Surface response to ordinary Pax scene lights.
+    /// Surface response, unlit by default. Specify a lit material to respond to scene lights.
     pub material: Property<Material>,
 }
 impl Default for Ellipsoid {
@@ -268,6 +268,14 @@ mod tests {
     use pax_runtime::{
         CommonPropertiesInit, ComponentInstance, PropertiesInit, PropertiesScopeInit,
     };
+
+    #[test]
+    fn ellipsoid_requires_explicit_lighting_opt_in() {
+        let surface = Ellipsoid::default();
+        assert_eq!(surface.material.get(), Material::Unlit);
+        surface.material.set(Material::matte());
+        assert!(matches!(surface.material.get(), Material::Lit(_)));
+    }
 
     fn args() -> InstantiationArgs {
         InstantiationArgs {

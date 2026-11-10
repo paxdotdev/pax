@@ -18,12 +18,12 @@ struct Primitive {
 };
 
 struct Primitives {
-    primitives: array<Primitive, 256>,
+    primitives: array<Primitive, VECTOR_PRIMITIVES_PER_BANK>,
 };
 
 
 struct Colors {
-    colors: array<vec4<f32>, 512>,
+    colors: array<vec4<f32>, VECTOR_TABLE_CAPACITY>,
 }
 
 struct Gradient {
@@ -46,7 +46,7 @@ struct Gradients {
 }
 
 struct Materials {
-    materials: array<Material, 512>,
+    materials: array<Material, VECTOR_TABLE_CAPACITY>,
 }
 
 @group(0) @binding(0) var<uniform> globals: Globals;
@@ -106,10 +106,10 @@ fn vs_main(
 }
 
 fn scene_primitive(id: u32) -> Primitive {
-    if id < 256u {
+    if id < VECTOR_PRIMITIVES_PER_BANK {
         return u_primitives.primitives[id];
     }
-    return u_primitives_upper.primitives[id - 256u];
+    return u_primitives_upper.primitives[id - VECTOR_PRIMITIVES_PER_BANK];
 }
 
 // Identity is shared by every page and never aliases an allocated scene transform.

@@ -145,6 +145,14 @@ The stack measures five 80-pixel children and four 12-pixel gutters. Scroller
 uses that 448-pixel content height while its viewport remains 240 pixels tall.
 Changing the children or their measured sizes updates the scrollable extent.
 
+A Scroller contributes its **viewport**, not its full scrollable content, to
+ancestor autosizing. For example, the 240-pixel viewport above occupies 240
+pixels in an autosized vertical Stacker even though its content is 448 pixels
+tall. Later text measurements or switching to a longer document change the
+inner scroll range without adding empty space to the surrounding layout.
+This measurement boundary is shared by all targets and does not depend on
+whether a native or canvas clipping path is currently active.
+
 `autosize=true` on Scroller manages the **vertical content extent** by default.
 Horizontal size continues to use `scroll_width`; `autosize_x=true` opts into
 horizontal measurement. `autosize_y=false` turns off vertical measurement even
@@ -1394,6 +1402,13 @@ The image index holds weak references: after the last tile drops its binding,
 Pax retains no unused image texture for future scrolling (in-flight GPU work may
 still reference it). Returning later can require another upload. This does not
 change decoded-image ownership or defer application initialization.
+
+Small retained vector draws use compact primitive, color, and material buffers
+instead of allocating full-batch tables for every draw. Larger draws keep the
+full-capacity path; this does not lower scene complexity limits or change paint,
+clipping, or update behavior. The optimization reduces allocation and upload
+bytes, not the number of buffers. It adds no buffer pool and does not increase
+cache or tile budgets.
 
 Removed surfaces are released. Native logical-layer contexts are released when
 their last tile and pending creation release them; the browser retains its shared

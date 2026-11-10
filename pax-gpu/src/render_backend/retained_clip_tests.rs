@@ -15,6 +15,127 @@ struct MetalLayer(*mut AnyObject);
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+fn retained_vector_uniform_tiers_preserve_pixels_and_updates() {
+    let render = |full: bool, mirror: bool| {
+        let layer = MetalLayer::new();
+        let mut config = RenderConfig::new(true, 128, 128, [1., 1.]);
+        config.force_full_vector_uniforms = full;
+        config.required_limits = Some(wgpu::Limits {
+            max_storage_buffers_per_shader_stage: 1,
+            max_storage_buffer_binding_size: 128 * 1024 * 1024,
+            ..wgpu::Limits::downlevel_webgl2_defaults()
+        });
+        let mut backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(layer.0.cast(), config)
+        })
+        .unwrap();
+        backend.staging_belt = OrderedUploads::queued(
+            backend.device.clone(),
+            backend.queue.clone(),
+            STAGING_BELT_CHUNK_SIZE,
+        );
+        if mirror {
+            backend.surface_config.usage.remove(TextureUsages::COPY_SRC);
+        }
+        let context = Rc::clone(&backend.context);
+        let device = backend.device.clone();
+        let errors = device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let mut renderer = WgpuRenderer::new(backend);
+        let mut frames = Vec::new();
+        let mut allocated = Vec::new();
+        // Cross both bank boundaries and the capacity boundary, then mutate
+        // fill data without growing. The final shrink reuses a full resource.
+        for (step, count) in [1, 16, 17, 32, 33, 257, 512, 32].into_iter().enumerate() {
+            let mut commands = CommandBatch::default();
+            for update in 0..2 {
+                let frame = (step * 2 + update) as u32;
+                renderer.begin_node(1, 0, 0);
+                renderer.save();
+                renderer.transform(Transform2D::translation(0.25, 0.5));
+                renderer.clip(rect(1.5, 1.5, 120., 120.));
+                for i in 0..count {
+                    renderer.fill_path_with_opacity(
+                        rect((i % 32) as f32 * 3.5, (i / 32) as f32 * 6., 3., 5.),
+                        Fill::Solid(Color::rgba(
+                            i as f32 / 512.,
+                            0.4 + update as f32 * 0.3,
+                            0.8,
+                            1.,
+                        )),
+                        0.7,
+                    );
+                }
+                renderer.restore();
+                renderer.end_node(1);
+                // Mix both tiers in the same retained pass. An image also
+                // prevents the all-vector immediate-batch shortcut.
+                for (id, n, y) in [(2, 33, 105.), (3, 1, 112.)] {
+                    renderer.begin_node(id, id as i32, 0);
+                    for i in 0..n {
+                        renderer.fill_path(
+                            rect(i as f32 * 3., y, 2., 4.),
+                            Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+                        );
+                    }
+                    renderer.end_node(id);
+                }
+                renderer.begin_node(4, 4, 0);
+                renderer.draw_image(
+                    "tier-pixel",
+                    0,
+                    &Image {
+                        rgba: vec![0, 0, 255, 255],
+                        pixel_width: 1,
+                        pixel_height: 1,
+                    },
+                    Box2D::new(point(120., 120.), point(128., 128.)),
+                );
+                renderer.end_node(4);
+                renderer.request_screenshot_capture(frame);
+                renderer.flush_deferred();
+                commands.append(&mut renderer.take_pending_command_buffers());
+                let stats = renderer.take_resource_churn_stats();
+                if update == 1 {
+                    assert_eq!(stats.vector_resource_creates, 0);
+                    assert!(stats.vector_resource_update_bytes > 0);
+                }
+                allocated.push(stats.vector_resource_create_bytes);
+            }
+            // Uploads for the second version must not alter the first capture.
+            renderer.submit_command_buffers(commands);
+            renderer.complete_submitted_work();
+            renderer.present_deferred_frame();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            for frame in (step * 2)..(step * 2 + 2) {
+                let pixels = renderer.take_screenshot_capture(frame as u32).unwrap();
+                assert_pixel(&pixels, 124, 124, [0, 0, 255, 255]);
+                assert!(pixels.rgba.iter().filter(|&&b| b != 0).count() > 300);
+                frames.push(pixels.rgba);
+            }
+        }
+        assert!(pollster::block_on(errors.pop()).is_none());
+        assert_eq!(
+            context.vector_pipelines.borrow().len(),
+            if full { 1 } else { 2 }
+        );
+        (frames, allocated)
+    };
+    for mirror in [false, true] {
+        let full = render(true, mirror);
+        let compact = render(false, mirror);
+        assert_eq!(full.0, compact.0, "mirror={mirror}");
+        // First frame contains two small draws and one full-capacity draw.
+        assert_eq!(full.1[0] - compact.1[0], 2 * (512 - 32) * (48 + 16 + 32));
+        assert_eq!(
+            full.1[8..],
+            compact.1[8..],
+            "large draws retain full capacity"
+        );
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
 fn opaque_scope_batching_matches_split_pass_pixels() {
     use pax_runtime_api::OpacityScope;
 
@@ -2875,56 +2996,117 @@ fn captured_empty_and_oversized_sources_fail_closed_independently() {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
-fn unchanged_lighting_does_not_redraw_retained_scene() {
-    for grouped in [false, true] {
-        let layer = MetalLayer::new();
-        let backend = pollster::block_on(unsafe {
-            RenderBackend::to_core_animation_layer(
-                layer.0.cast(),
-                RenderConfig::new(true, 32, 32, [1.0, 1.0]),
-            )
-        })
-        .expect("Metal backend");
-        let mut renderer = WgpuRenderer::new(backend);
-        renderer.begin_node(0, 0, 0);
-        if grouped {
-            renderer.set_node_opacity_scopes(
-                0,
-                &[pax_runtime_api::OpacityScope {
-                    node_id: 100,
-                    opacity: 0.5,
-                }],
+fn only_explicitly_lit_retained_scenes_redraw_when_lighting_changes() {
+    for lit in [false, true] {
+        for grouped in [false, true] {
+            let layer = MetalLayer::new();
+            let backend = pollster::block_on(unsafe {
+                RenderBackend::to_core_animation_layer(
+                    layer.0.cast(),
+                    RenderConfig::new(true, 32, 32, [1.0, 1.0]),
+                )
+            })
+            .expect("Metal backend");
+            let mut renderer = WgpuRenderer::new(backend);
+            renderer.begin_node(0, 0, 0);
+            if grouped {
+                renderer.set_node_opacity_scopes(
+                    0,
+                    &[pax_runtime_api::OpacityScope {
+                        node_id: 100,
+                        opacity: 0.5,
+                    }],
+                );
+            }
+            renderer.fill_path_with_material_and_opacity(
+                rect(0.0, 0.0, 32.0, 32.0),
+                Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+                if lit {
+                    crate::Material::matte()
+                } else {
+                    crate::Material::default()
+                },
+                1.0,
             );
-        }
-        renderer.fill_path(
-            rect(0.0, 0.0, 32.0, 32.0),
-            Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
-        );
-        renderer.end_node(0);
-        let mut lighting = crate::SceneLighting::default();
-        renderer.set_scene_lighting(lighting.clone());
-        renderer.flush();
-        let stats = renderer.take_resource_churn_stats();
-        assert_eq!(stats.retained_nodes_considered, 1);
-        assert_eq!(stats.opacity_group_renders, u64::from(grouped));
-
-        for _ in 0..10 {
+            renderer.end_node(0);
+            let mut lighting = crate::SceneLighting::default();
             renderer.set_scene_lighting(lighting.clone());
-            renderer.flush_deferred();
-            assert!(renderer.take_pending_command_buffers().is_empty());
-        }
-        let stats = renderer.take_resource_churn_stats();
-        assert_eq!(stats.retained_nodes_considered, 0);
-        assert_eq!(stats.opacity_group_renders, 0);
+            renderer.flush();
+            let stats = renderer.take_resource_churn_stats();
+            assert_eq!(stats.retained_nodes_considered, 1);
+            assert_eq!(stats.opacity_group_renders, u64::from(grouped));
 
-        lighting.active = true;
-        lighting.ambient_is_authored = true;
-        lighting.ambient_intensity = 0.5;
-        renderer.set_scene_lighting(lighting);
-        renderer.flush();
-        let stats = renderer.take_resource_churn_stats();
-        assert_eq!(stats.retained_nodes_considered, 1);
-        assert_eq!(stats.opacity_group_renders, u64::from(grouped));
+            for _ in 0..10 {
+                renderer.set_scene_lighting(lighting.clone());
+                renderer.flush_deferred();
+                assert!(renderer.take_pending_command_buffers().is_empty());
+            }
+            let stats = renderer.take_resource_churn_stats();
+            assert_eq!(stats.retained_nodes_considered, 0);
+            assert_eq!(stats.opacity_group_renders, 0);
+
+            lighting.active = true;
+            lighting.ambient_is_authored = true;
+            lighting.ambient_intensity = 0.5;
+            renderer.set_scene_lighting(lighting);
+            renderer.flush();
+            let stats = renderer.take_resource_churn_stats();
+            assert_eq!(stats.retained_nodes_considered, u64::from(lit));
+            assert_eq!(stats.opacity_group_renders, u64::from(grouped && lit));
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn default_paint_pixels_ignore_lights_while_explicit_matte_responds() {
+    use crate::{LightShape, Material, SceneLight, SceneLighting};
+    for queued in [false, true] {
+        let (_layer, mut renderer, device) = retained_update_renderer(queued);
+        renderer.begin_node(1, 0, 1);
+        renderer.fill_path(
+            rect(0., 0., 16., 32.),
+            Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+        );
+        renderer.end_node(1);
+        renderer.begin_node(2, 1, 1);
+        renderer.fill_path_with_material_and_opacity(
+            rect(16., 0., 16., 32.),
+            Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+            Material::matte(),
+            1.,
+        );
+        renderer.end_node(2);
+        for (frame, color) in [Color::rgba(1., 0., 0., 1.), Color::rgba(0., 0., 1., 1.)]
+            .into_iter()
+            .enumerate()
+        {
+            renderer.set_scene_lighting(SceneLighting {
+                active: true,
+                ambient_intensity: 0.,
+                lights: vec![SceneLight {
+                    shape: LightShape::Directional,
+                    half_extent: [0.; 3],
+                    position: [0., 0., 10.],
+                    direction: [0., 0., -1.],
+                    color,
+                    intensity: 1.,
+                    radius: 100.,
+                }],
+                ..Default::default()
+            });
+            renderer.request_screenshot_capture(frame as u32);
+            renderer.flush();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            let pixels = renderer.take_screenshot_capture(frame as u32).unwrap();
+            assert_pixel(&pixels, 8, 16, [255; 4]);
+            let offset = (16 * 32 + 24) * 4;
+            let lit = &pixels.rgba[offset..offset + 4];
+            assert!(lit[if frame == 0 { 0 } else { 2 }] > 190, "{lit:?}");
+            assert_eq!(lit[1], 0);
+            assert_eq!(lit[if frame == 0 { 2 } else { 0 }], 0);
+            assert_eq!(lit[3], 255);
+        }
     }
 }
 
@@ -4181,7 +4363,7 @@ fn lighting_changes_preserve_unrelated_captures_and_geometry() {
             1,
             Material::custom(0.0, 1.0, 0.0, 0.5, Color::rgba(0.0, 0.0, 0.0, 1.0), 0.0),
         ),
-        (2, 0, Material::default()),
+        (2, 0, Material::matte()),
         (3, 1, Material::unlit()),
     ] {
         renderer.begin_node(id, id as i32, mask);
@@ -4261,9 +4443,11 @@ fn lighting_changes_preserve_unrelated_captures_and_geometry() {
 
     // A detached source is a dependency even when the visible consumer is unlit.
     renderer.begin_node(11, 0, 1);
-    renderer.fill_path(
+    renderer.fill_path_with_material_and_opacity(
         rect(48.0, 0.0, 16.0, 32.0),
         Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+        Material::matte(),
+        1.0,
     );
     renderer.end_node(11);
     renderer.flush();

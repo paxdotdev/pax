@@ -233,6 +233,12 @@ A child beginning at `x=200px` with width 20 contributes an extent of 220
 pixels from the origin. Content wholly before the origin does not add a
 positive width. Padding contributes to the measured outer size as well.
 
+Scroller is a measurement boundary: ancestors measure its viewport, not the
+overflowing content inside it. Its own `autosize` setting still measures that
+content to establish the scroll range. See [autosized scroll content](scrolling-viewports.md#autosized-scrollers).
+Ordinary Group overflow continues to contribute to ancestor measurement;
+an explicit Group size is not an overflow-containment boundary.
+
 ### Axis controls
 
 With `autosize=true`, these are the defaults:
@@ -583,7 +589,8 @@ through the opening wherever the surviving surface is behind them. Scroller-owne
 canvases preserve those camera clip planes when rebasing into their content space.
 
 This first mesh primitive accepts one opaque `color` and a normal Pax
-`material`. It does not wrap live children onto a curved surface. Zero, negative,
+`material`, unlit by default. Set `material={Material::matte()}` or another lit
+material to opt into scene lighting. It does not wrap live children onto a curved surface. Zero, negative,
 or non-finite extents and singular poses have no coverage. Node/group opacity
 uses the spatial fade contract below. An ellipsoid can supply a detached
 [painted alpha-mask source](compositing-effects.md#painted-alpha-masks), including
@@ -707,7 +714,7 @@ elements keep their existing behavior; only Cuboid introduces these six
 surfaces. The spatial backend restrictions above still apply, including CPU
 paint ordering, separate native/scroller layers, and group opacity. Face
 orientation also supplies its material's lighting normal; all faces can share
-the same paint while responding differently to a light. See
+the same paint and an explicit lit material while responding differently to a light. See
 [Spatial lighting](drawing-styling.md#spatial-lighting) for lights inside
 transformed groups and the distinction between vector materials and native UI.
 

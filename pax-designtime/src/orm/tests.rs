@@ -79,6 +79,7 @@ mod tests {
                 .clone()
                 .unwrap(),
             vec![],
+            None,
         );
         assert_eq!(result.is_ok(), pax_manifest::pax_runtime_api::SUPPORTS_3D);
         if !pax_manifest::pax_runtime_api::SUPPORTS_3D {

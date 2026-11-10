@@ -52,6 +52,7 @@ fn main() {
         });
         let component = ComponentDefinition {
             document: None,
+            camera: None,
             type_id: root.clone(),
             is_main_component: true,
             is_primitive: false,

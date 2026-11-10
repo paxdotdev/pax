@@ -1,14 +1,11 @@
 //! Focused geometry-service measurements; this is not a frame-rate benchmark.
-//! Run with `cargo run -p pax-runtime --example scene_geometry_bench --release`.
+//! Run alone in the library test process so allocation counters exclude other tests:
+//! `cargo test -p pax-runtime --lib --release scene_geometry::bench::scene_geometry_bench -- --ignored --exact --nocapture --test-threads=1`.
 
-#[path = "../src/scene_geometry.rs"]
-#[allow(dead_code)]
-mod scene_geometry;
-
+use super::{CanvasGeometry, PreparedCanvasGeometry, SceneGeometry};
 use kurbo::{Affine, Rect};
-use pax_runtime::{SpatialGeometry, TransformAndBounds};
-use scene_geometry::{CanvasGeometry, PreparedCanvasGeometry, SceneGeometry};
-#[path = "../tests/support/counting_allocator.rs"]
+// This allocator is linked only into the library test executable, never the runtime library.
+#[path = "../../tests/support/counting_allocator.rs"]
 mod counting_allocator;
 use counting_allocator::{ALLOCATIONS, LIVE_BYTES};
 use std::sync::atomic::Ordering::Relaxed;
@@ -43,7 +40,9 @@ fn queries(scene: &mut SceneGeometry, name: &str, positions: impl Iterator<Item 
         (scene.stats.candidate_tests - stats.candidate_tests) as f64 / count as f64);
 }
 
-fn main() {
+#[test]
+#[ignore = "manual timing/allocation measurement; run alone with --exact --test-threads=1"]
+fn scene_geometry_bench() {
     println!("Geometry service only; allocator requested bytes exclude allocator overhead/RSS.");
     for count in [1_000, 10_000] {
         let baseline = LIVE_BYTES.load(Relaxed);

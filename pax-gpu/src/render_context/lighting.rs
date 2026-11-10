@@ -209,7 +209,7 @@ mod tests {
             let mut op = PendingVectorOp {
                 path: Path::builder().build(),
                 fill,
-                material: Material::default(),
+                material: Material::matte(),
                 light_mask: 1,
                 #[cfg(feature = "3d")]
                 lighting_surface: None,
@@ -225,6 +225,17 @@ mod tests {
                 LightingDependencies::from_ops(std::slice::from_ref(&op)).lit,
                 expected
             );
+            // The same visible paint must not subscribe to light changes unless
+            // the caller opts in. Exercise both default and explicit unlit paths.
+            for material in [Material::default(), Material::unlit()] {
+                assert!(to_gpu_material(material).coefficients[0] < 0.);
+                op.material = material;
+                let deps = LightingDependencies::from_ops(std::slice::from_ref(&op));
+                assert!(!deps.lit);
+                assert_eq!(deps.direct, 0);
+            }
+            op.material = Material::matte();
+            assert!(to_gpu_material(op.material).coefficients[0] >= 0.);
             op.opacity = 0.;
             assert!(!LightingDependencies::from_ops(std::slice::from_ref(&op)).lit);
         }

@@ -579,6 +579,26 @@ and `cargo test -p pax-chassis-web --lib --features designtime` to cover both
 feature configurations. Workspace feature unification alone cannot exercise
 both configurations in one invocation.
 
+### Measure the scene-geometry service
+
+The geometry microbenchmark is an internal, ignored library test. It compiles
+against the real runtime module during ordinary tests without running the
+manual measurement or exposing private runtime APIs. Run it alone in a fresh
+process for meaningful allocation counts:
+
+```sh
+cargo test -p pax-runtime --lib --release \
+  scene_geometry::bench::scene_geometry_bench -- \
+  --ignored --exact --nocapture --test-threads=1
+```
+
+This replaces `cargo run -p pax-runtime --example scene_geometry_bench --release`.
+It measures preparation, region queries, relayout, and idle work for 1,000 and
+10,000 records. Allocation counters are process-wide and report requested bytes,
+not allocator overhead or RSS; the counting allocator is test-only. These are
+CPU geometry-service measurements, not GPU, scrolling, or frame-rate benchmarks.
+Omit `--release` for a functional smoke test, not a performance comparison.
+
 ## Read more
 
 - [Getting Started](getting-started.md) — installation and the first run.

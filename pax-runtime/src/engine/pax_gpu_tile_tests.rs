@@ -382,10 +382,11 @@ fn lighting_invalidates_only_recipient_tiles_across_layers() {
     for (layer, id, x, mask) in [(0, 1, 0.0, 1), (0, 2, 32.0, 0), (1, 3, 0.0, 0)] {
         let bounds = Rect::new(x + 1.0, 1.0, x + 31.0, 31.0);
         assert!(renderer.begin_node_with_bounds(layer, id, 0, bounds, mask));
-        renderer.fill_with_opacity(
+        renderer.fill_with_material_and_opacity(
             layer,
             bounds.to_path(0.1),
             &pax_runtime_api::Paint::Solid(pax_runtime_api::Color::WHITE),
+            &pax_runtime_api::Material::matte().snapshot(),
             1.0,
         );
         renderer.end_node(layer, id);
@@ -414,10 +415,11 @@ fn lighting_invalidates_only_recipient_tiles_across_layers() {
     // dependency summary. Lighting still arrives before subsequent node recording.
     let bounds = Rect::new(33.0, 1.0, 63.0, 31.0);
     assert!(renderer.begin_node_with_bounds(0, 1, 0, bounds, 1));
-    renderer.fill_with_opacity(
+    renderer.fill_with_material_and_opacity(
         0,
         bounds.to_path(0.1),
         &pax_runtime_api::Paint::Solid(pax_runtime_api::Color::WHITE),
+        &pax_runtime_api::Material::matte().snapshot(),
         1.0,
     );
     renderer.end_node(0, 1);

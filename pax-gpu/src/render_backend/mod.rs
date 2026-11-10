@@ -10,8 +10,14 @@ pub(crate) mod solid;
 const TRANSFORM_SHADER: &str = include_str!("transform_3d.wgsl");
 #[cfg(not(feature = "3d"))]
 const TRANSFORM_SHADER: &str = include_str!("transform_2d.wgsl");
-fn geometry_shader_source() -> String {
+fn geometry_shader_source(capacity: VectorUniformCapacity) -> String {
+    let constants = format!(
+        "const VECTOR_TABLE_CAPACITY: u32 = {}u;\nconst VECTOR_PRIMITIVES_PER_BANK: u32 = {}u;",
+        capacity.entries(),
+        capacity.entries() / 2,
+    );
     [
+        constants.as_str(),
         TRANSFORM_SHADER,
         include_str!("lighting.wgsl"),
         include_str!("radial_gradient.wgsl"),
@@ -160,7 +166,7 @@ pub struct GpuContext {
     alpha_mask_layout: BindGroupLayout,
     mesh_paint_layout: BindGroupLayout,
     transform_layout: BindGroupLayout,
-    vector_pipelines: RefCell<HashMap<VectorPipelineKey, Rc<RenderPipeline>>>,
+    vector_pipelines: RefCell<HashMap<(VectorPipelineKey, VectorUniformCapacity), Rc<RenderPipeline>>>,
     texture_pipelines: RefCell<HashMap<VectorPipelineKey, TexturePipelineResources>>,
     image_textures: RefCell<ImageTextureCache>,
     stencil_pipelines: RefCell<HashMap<VectorPipelineKey, StencilPipelineResources>>,
@@ -264,10 +270,22 @@ impl GpuContext {
     }
 
     fn vector_pipeline(&self, format: TextureFormat, sample_count: u32) -> Rc<RenderPipeline> {
-        let key = VectorPipelineKey {
-            format,
-            sample_count,
-        };
+        self.vector_pipeline_for(format, sample_count, VectorUniformCapacity::Full)
+    }
+
+    fn vector_pipeline_for(
+        &self,
+        format: TextureFormat,
+        sample_count: u32,
+        capacity: VectorUniformCapacity,
+    ) -> Rc<RenderPipeline> {
+        let key = (
+            VectorPipelineKey {
+                format,
+                sample_count,
+            },
+            capacity,
+        );
         if let Some(pipeline) = self.vector_pipelines.borrow().get(&key) {
             return Rc::clone(pipeline);
         }
@@ -280,6 +298,7 @@ impl GpuContext {
             &self.alpha_mask_layout,
             &self.mesh_paint_layout,
             &self.transform_layout,
+            capacity,
         ));
         self.vector_pipelines
             .borrow_mut()
@@ -385,6 +404,8 @@ fn default_power_preference() -> wgpu::PowerPreference {
 pub struct RenderConfig {
     #[cfg(test)]
     required_limits: Option<wgpu::Limits>,
+    #[cfg(test)]
+    force_full_vector_uniforms: bool,
     pub debug: bool,
     index_buffer_size: u64,
     vertex_buffer_size: u64,
@@ -406,12 +427,44 @@ pub(crate) const MAX_BATCH_GRADIENTS: usize = 64;
 pub(crate) const MAX_BATCH_MATERIALS: usize = 512;
 pub(crate) const MAX_BATCH_TRANSFORMS: usize = TRANSFORMS_PER_PAGE;
 
+// Small retained draws should not allocate three 512-entry tables. Two shader
+// variants bound pipeline proliferation while preserving the existing batch and
+// GPU limits. Both primitive banks remain aligned to 256-byte uniform offsets.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum VectorUniformCapacity {
+    Compact,
+    Full,
+}
+
+impl VectorUniformCapacity {
+    fn for_counts(primitives: usize, colors: usize, materials: usize) -> Self {
+        if primitives.max(colors).max(materials) <= Self::Compact.entries() {
+            Self::Compact
+        } else {
+            Self::Full
+        }
+    }
+
+    fn entries(self) -> usize {
+        match self {
+            Self::Compact => 32,
+            Self::Full => MAX_BATCH_PRIMITIVES,
+        }
+    }
+
+    fn primitive_bank_bytes(self) -> u64 {
+        (self.entries() / 2 * std::mem::size_of::<GpuPrimitive>()) as u64
+    }
+}
+
 impl RenderConfig {
     /// Construct default buffer capacities for an initial surface size.
     pub fn new(_debug: bool, width: u32, height: u32, dpr: [f32; 2]) -> Self {
         Self {
             #[cfg(test)]
             required_limits: None,
+            #[cfg(test)]
+            force_full_vector_uniforms: false,
             debug: false,
             index_buffer_size: 2 << 12,
             vertex_buffer_size: 2 << 12,
@@ -607,6 +660,7 @@ pub struct CapturedFrame {
 }
 
 pub(crate) struct SharedRetainedVectorResource {
+    uniform_capacity: VectorUniformCapacity,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     index_count: u32,
@@ -624,6 +678,7 @@ pub(crate) struct SharedRetainedVectorResource {
 }
 
 pub(crate) struct RetainedVectorResource {
+    pipeline: Rc<RenderPipeline>,
     bind_group: BindGroup,
     pub(crate) mesh_bind_group: Option<BindGroup>,
     shared: Rc<SharedRetainedVectorResource>,
@@ -713,9 +768,16 @@ struct PrimitiveBatchRenderPlan {
 
 // Two 12 KiB views preserve the 512-primitive batch without requiring a >16 KiB
 // uniform binding. They share one allocation and add no padding or upload work.
-const PRIMITIVES_PER_BINDING: usize = MAX_BATCH_PRIMITIVES / 2;
 fn primitive_binding(buffer: &wgpu::Buffer, bank: u64) -> wgpu::BindingResource<'_> {
-    let size = (PRIMITIVES_PER_BINDING * std::mem::size_of::<GpuPrimitive>()) as u64;
+    primitive_binding_for(buffer, bank, VectorUniformCapacity::Full)
+}
+
+fn primitive_binding_for(
+    buffer: &wgpu::Buffer,
+    bank: u64,
+    capacity: VectorUniformCapacity,
+) -> wgpu::BindingResource<'_> {
+    let size = capacity.primitive_bank_bytes();
     wgpu::BindingResource::Buffer(wgpu::BufferBinding {
         buffer,
         offset: bank * size,
@@ -1386,10 +1448,11 @@ impl<'w> RenderBackend<'w> {
         alpha_mask_layout: &BindGroupLayout,
         mesh_paint_layout: &BindGroupLayout,
         transform_layout: &BindGroupLayout,
+        capacity: VectorUniformCapacity,
     ) -> RenderPipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(geometry_shader_source().into()),
+            source: wgpu::ShaderSource::Wgsl(geometry_shader_source(capacity).into()),
         });
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -1683,6 +1746,7 @@ impl<'w> RenderBackend<'w> {
         colors_buffer: &wgpu::Buffer,
         gradients_buffer: &wgpu::Buffer,
         materials_buffer: &wgpu::Buffer,
+        capacity: VectorUniformCapacity,
     ) -> BindGroup {
         self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &self.context.primitive_bind_group_layout,
@@ -1693,11 +1757,11 @@ impl<'w> RenderBackend<'w> {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: primitive_binding(&primitive_buffer, 0),
+                    resource: primitive_binding_for(primitive_buffer, 0, capacity),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: primitive_binding(&primitive_buffer, 1),
+                    resource: primitive_binding_for(primitive_buffer, 1, capacity),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
@@ -1725,12 +1789,18 @@ impl<'w> RenderBackend<'w> {
         shared: Rc<SharedRetainedVectorResource>,
     ) -> RetainedVectorResource {
         RetainedVectorResource {
+            pipeline: self.context.vector_pipeline_for(
+                self.surface_config.format,
+                self.sample_count,
+                shared.uniform_capacity,
+            ),
             mesh_bind_group: None,
             bind_group: self.create_retained_bind_group(
                 &shared._primitive_buffer,
                 &shared._colors_buffer,
                 &shared._gradients_buffer,
                 &shared._materials_buffer,
+                shared.uniform_capacity,
             ),
             shared,
         }
@@ -1749,16 +1819,21 @@ impl<'w> RenderBackend<'w> {
         let color_capacity = colors.len();
         let gradient_capacity = gradients.len();
         let material_capacity = materials.len();
+        let uniform_capacity = VectorUniformCapacity::for_counts(
+            primitive_capacity,
+            color_capacity,
+            material_capacity,
+        );
+        #[cfg(test)]
+        let uniform_capacity = if self.config.force_full_vector_uniforms {
+            VectorUniformCapacity::Full
+        } else {
+            uniform_capacity
+        };
         let mut primitives = retained_primitives.to_vec();
-        primitives.resize(
-            self.config.primitive_buffer_size as usize,
-            GpuPrimitive::default(),
-        );
-        colors.resize(self.config.colors_buffer_size as usize, GpuColor::default());
-        materials.resize(
-            self.config.materials_buffer_size as usize,
-            GpuMaterial::default(),
-        );
+        primitives.resize(uniform_capacity.entries(), GpuPrimitive::default());
+        colors.resize(uniform_capacity.entries(), GpuColor::default());
+        materials.resize(uniform_capacity.entries(), GpuMaterial::default());
         let upload_bytes = (std::mem::size_of_val(vertices.as_slice())
             + std::mem::size_of_val(indices.as_slice())
             + std::mem::size_of_val(primitives.as_slice())
@@ -1809,6 +1884,7 @@ impl<'w> RenderBackend<'w> {
             });
         (
             Rc::new(SharedRetainedVectorResource {
+                uniform_capacity,
                 vertex_buffer,
                 index_buffer,
                 index_count: buffers.geometry.indices.len() as u32,
@@ -1984,7 +2060,7 @@ impl<'w> RenderBackend<'w> {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            render_pass.set_pipeline(self.pipeline.as_ref());
+            render_pass.set_pipeline(resource.pipeline.as_ref());
             render_pass.set_bind_group(0, &resource.bind_group, &[]);
             render_pass.set_bind_group(
                 2,
@@ -2031,7 +2107,7 @@ impl<'w> RenderBackend<'w> {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            render_pass.set_pipeline(self.pipeline.as_ref());
+            render_pass.set_pipeline(resource.pipeline.as_ref());
             render_pass.set_bind_group(0, &resource.bind_group, &[]);
             render_pass.set_bind_group(
                 2,
@@ -2426,7 +2502,7 @@ impl<'w> RenderBackend<'w> {
                             if !resource.is_drawable() {
                                 continue;
                             }
-                            render_pass.set_pipeline(self.pipeline.as_ref());
+                            render_pass.set_pipeline(resource.pipeline.as_ref());
                             render_pass.set_bind_group(0, &resource.bind_group, &[]);
                             render_pass.set_bind_group(
                                 2,
@@ -2517,7 +2593,7 @@ impl<'w> RenderBackend<'w> {
                             if !resource.is_drawable() {
                                 continue;
                             }
-                            render_pass.set_pipeline(self.pipeline.as_ref());
+                            render_pass.set_pipeline(resource.pipeline.as_ref());
                             render_pass.set_bind_group(0, &resource.bind_group, &[]);
                             render_pass.set_bind_group(
                                 2,
@@ -3756,7 +3832,8 @@ mod shader_tests {
         let page_size = size * super::transform_pages::TRANSFORMS_PER_PAGE;
         assert!(page_size <= 15 * 1024);
         for source in [
-            super::geometry_shader_source(),
+            super::geometry_shader_source(super::VectorUniformCapacity::Full),
+            super::geometry_shader_source(super::VectorUniformCapacity::Compact),
             super::stencil_shader_source(),
         ] {
             let module = naga::front::wgsl::parse_str(&source).unwrap();
@@ -3782,15 +3859,64 @@ mod shader_tests {
     }
 
     #[test]
-    fn geometry_shader_parses_and_validates() {
-        let module = naga::front::wgsl::parse_str(&super::geometry_shader_source())
-            .expect("geometry shader should parse");
-        naga::valid::Validator::new(
-            naga::valid::ValidationFlags::all(),
-            naga::valid::Capabilities::all(),
-        )
-        .validate(&module)
-        .expect("geometry shader should validate");
+    fn vector_uniform_capacity_covers_all_tables() {
+        use super::VectorUniformCapacity::{Compact, Full};
+        assert_eq!(super::MAX_BATCH_PRIMITIVES, super::MAX_BATCH_COLORS);
+        assert_eq!(super::MAX_BATCH_PRIMITIVES, super::MAX_BATCH_MATERIALS);
+        for counts in [(0, 0, 0), (1, 1, 1), (32, 32, 32)] {
+            assert_eq!(
+                super::VectorUniformCapacity::for_counts(counts.0, counts.1, counts.2),
+                Compact
+            );
+        }
+        for counts in [(33, 1, 1), (1, 33, 1), (1, 1, 33), (512, 512, 512)] {
+            assert_eq!(
+                super::VectorUniformCapacity::for_counts(counts.0, counts.1, counts.2),
+                Full
+            );
+        }
+    }
+
+    #[test]
+    fn geometry_uniform_tiers_match_shader_abi_and_downlevel_limits() {
+        use super::{data::*, VectorUniformCapacity};
+        for capacity in [VectorUniformCapacity::Compact, VectorUniformCapacity::Full] {
+            let module = naga::front::wgsl::parse_str(&super::geometry_shader_source(capacity))
+                .expect("geometry shader should parse");
+            naga::valid::Validator::new(
+                naga::valid::ValidationFlags::all(),
+                naga::valid::Capabilities::all(),
+            )
+            .validate(&module)
+            .expect("geometry shader should validate");
+            assert_eq!(capacity.primitive_bank_bytes() % 256, 0);
+            for (name, expected) in [
+                (
+                    "Primitives",
+                    capacity.entries() / 2 * std::mem::size_of::<GpuPrimitive>(),
+                ),
+                (
+                    "Colors",
+                    capacity.entries() * std::mem::size_of::<GpuColor>(),
+                ),
+                (
+                    "Materials",
+                    capacity.entries() * std::mem::size_of::<GpuMaterial>(),
+                ),
+            ] {
+                let ty = module
+                    .types
+                    .iter()
+                    .find(|(_, ty)| ty.name.as_deref() == Some(name))
+                    .unwrap()
+                    .1;
+                let naga::TypeInner::Struct { span, .. } = ty.inner else {
+                    panic!("expected a struct")
+                };
+                assert_eq!(span as usize, expected, "{capacity:?} {name}");
+                assert!(expected <= 16 * 1024);
+            }
+        }
     }
 }
 

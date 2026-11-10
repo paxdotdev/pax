@@ -7,6 +7,9 @@ use kurbo::{Affine, BezPath, Rect, Shape};
 
 pub(crate) mod input;
 pub(crate) mod presentation;
+#[cfg(test)]
+mod bench;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, pax_message::serde::Serialize)]
 #[serde(crate = "pax_message::serde")]
 /// Cumulative input-query work; exact predicates remain distinct from broad-phase selection.

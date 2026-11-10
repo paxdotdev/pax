@@ -111,7 +111,7 @@ Use `[]` for no layers; nested lists, `None`, and mixing Fill with Stroke object
 are errors. Bindings and settings use the same conversions; see
 [appearance values](data-binding-expressions.md#appearance-values).
 
-Each layer defaults to SLATE paint, matte material, and opacity 1. Stroke also
+Each layer defaults to SLATE paint, unlit material, and opacity 1. Stroke also
 defaults to width 1px, butt caps, and miter joins. Handwriter's omitted stroke
 remains one black 3px round stroke; an explicit stroke replaces that default.
 Nonpositive widths draw nothing; nonfinite widths or opacity draw nothing and
@@ -730,12 +730,24 @@ not emitter thickness. A zero-length strip behaves as a point light. The same
 behavior is available through `LightSource shape=LightShape::Strip`; use
 `LightSource` when switching shapes dynamically.
 
-Each fill and stroke layer has its own material; the default is matte. `Material::glossy(...)` and
-`Material::metallic(...)` adjust the response; `Material::unlit()` preserves
-the authored paint independently of lights. `Material::emissive(...)` adds
+Each fill and stroke layer has its own material; the default is **unlit**.
+Color and gradient shorthand, such as `fill=BLUE`, preserves its authored paint
+independently of lights. Opt in per layer with `material: {Material::matte()}`,
+`Material::glossy(...)`, `Material::metallic(...)`, or `Material::custom(...)`.
+For example, `fill={paint: BLUE, material: {Material::matte()}}` responds to lights;
+an omitted material or explicit `Material::unlit()` does not. `LightFrame` scopes
+lights but does not opt its descendants into lighting. `Material::emissive(...)` adds
 color to its own surface; it does not turn the shape into a light source
 for its neighbors. The [material reference](api/pax-runtime-api/drawing.md)
 describes explicit response coefficients.
+
+**Migration:** earlier versions defaulted omitted materials to matte. Add an
+explicit `Material::matte()` to fills, strokes, or solid materials whose light
+response you want to preserve. This applies to Rust defaults and low-level GPU
+drawing calls as well as Pax templates, in debug and release builds. No light
+declarations need changing. Unlit paints skip light evaluation and do not add
+light-driven redraw dependencies; a tile sharing other lit content can still
+need repainting.
 
 LightFrame containment is one-way: outside lights can enter, while lights
 inside cannot affect parents or sibling frames. Canvas-layer reachability
@@ -810,7 +822,7 @@ Enable [`pax-kit/3d`](targets-build-deploy.md#optional-runtime-capabilities) for
 lighting on spatially transformed surfaces. Planar lighting remains available
 without the feature.
 
-Materials on tilted surfaces use their actual world position and oriented
+Explicitly lit materials on tilted surfaces use their actual world position and oriented
 normal. A rotating Cuboid can use one paint on all six faces; the light creates
 the differences between them. [Ellipsoid](layout-responsiveness.md#opaque-curved-solids)
 uses smoothly interpolated normals across its retained curved mesh and the same

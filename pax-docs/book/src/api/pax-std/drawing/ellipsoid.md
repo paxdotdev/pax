@@ -36,4 +36,4 @@ Opaque surface color. Defaults to white.
 ##### `material`
 Type: `Property`<[`Material`](../../../api/pax-runtime-api/drawing.md#material)>
 
-Surface response to ordinary Pax scene lights.
+Surface response, unlit by default. Specify a lit material to respond to scene lights.

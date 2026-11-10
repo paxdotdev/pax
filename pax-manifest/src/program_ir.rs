@@ -1071,4 +1071,77 @@ mod tests {
         }
         Ok(())
     }
+
+    #[test]
+    fn omitted_and_explicit_materials_survive_rich_and_baked_programs() -> BinaryResult<()> {
+        use pax_runtime_api::{CoercionRules, Color, Fill, Material, Stroke, ToPaxValue};
+
+        for (value, expected) in [
+            (Color::BLUE.to_pax_value(), Material::Unlit),
+            (
+                PaxValue::Object(vec![("paint".into(), Color::BLUE.to_pax_value())]),
+                Material::Unlit,
+            ),
+            (
+                PaxValue::Object(vec![
+                    ("paint".into(), Color::BLUE.to_pax_value()),
+                    ("material".into(), Material::matte().to_pax_value()),
+                ]),
+                Material::matte(),
+            ),
+            (Fill::from(Color::BLUE).to_pax_value(), Material::Unlit),
+        ] {
+            let mut manifest = build_manifest();
+            manifest
+                .components
+                .get_mut(&manifest.main_component_type_id)
+                .unwrap()
+                .settings = Some(vec![SettingsBlockElement::SelectorBlock(
+                Token::new("#surface".into(), test_location()),
+                LiteralBlockDefinition {
+                    explicit_type_pascal_identifier: None,
+                    elements: vec![crate::SettingElement::Setting(
+                        Token::new("fill".into(), test_location()),
+                        ValueDefinition::LiteralValue(value.clone()),
+                    )],
+                },
+            )]);
+            let rich = crate::binary::from_slice(&crate::binary::to_vec(&manifest)?)?;
+            let baked = super::binary::from_slice(&super::binary::to_vec(
+                &ProgramIR::from_manifest(&rich),
+            )?)?;
+            let SettingsBlockElement::SelectorBlock(_, block) = &baked.components
+                [&baked.main_component_type_id]
+                .settings
+                .as_ref()
+                .unwrap()[0]
+            else {
+                panic!("missing surface settings")
+            };
+            let crate::SettingElement::Setting(_, ValueDefinition::LiteralValue(decoded)) =
+                &block.elements[0]
+            else {
+                panic!("missing paint")
+            };
+            assert_eq!(decoded, &value);
+            assert_eq!(
+                Fill::try_coerce(decoded.clone()).unwrap().material.get(),
+                expected
+            );
+            // Structured Fill values are not Stroke shorthand; colors and literal
+            // objects share the same per-layer default on both paths.
+            if !matches!(decoded, PaxValue::Enum(_)) {
+                assert_eq!(
+                    Stroke::try_coerce(decoded.clone()).unwrap().material.get(),
+                    expected
+                );
+            }
+            #[cfg(feature = "compiler")]
+            assert_eq!(
+                crate::rust_manifest::to_rust_expression(&rich),
+                crate::rust_manifest::to_rust_expression(&manifest)
+            );
+        }
+        Ok(())
+    }
 }

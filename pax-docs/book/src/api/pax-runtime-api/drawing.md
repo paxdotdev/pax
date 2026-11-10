@@ -41,7 +41,7 @@ Color or gradient sampled over the complete local geometry.
 ##### `material`
 Type: `Property`<[`Material`](../../api/pax-runtime-api/drawing.md#material)>
 
-Light-reactive surface response, matte by default.
+Surface response, unlit by default. Specify a lit material to respond to scene lights.
 
 ##### `opacity`
 Type: `Property`<[`Opacity`](../../api/pax-runtime-api/color.md#opacity)>
@@ -423,7 +423,7 @@ Color or gradient sampled over the complete, untrimmed geometry.
 ##### `material`
 Type: `Property`<[`Material`](../../api/pax-runtime-api/drawing.md#material)>
 
-Light-reactive surface response, matte by default.
+Surface response, unlit by default. Specify a lit material to respond to scene lights.
 
 ##### `opacity`
 Type: `Property`<[`Opacity`](../../api/pax-runtime-api/color.md#opacity)>
@@ -508,6 +508,10 @@ A finite line emitter centered at its position, spanning its half extent.
 ### `Material`
 Light-reactive surface response for vector primitives.
 
+Defaults to `Unlit`: authored lights affect a surface only when its material
+explicitly opts in, for example with `Material::matte()` or `Material::glossy(...)`.
+Each fill and stroke layer selects its own response.
+
 This is intentionally named `Material`; `texture` is reserved for future
 bitmap-backed texture maps and pattern data.
 
@@ -516,7 +520,7 @@ bitmap-backed texture maps and pattern data.
 Responds to scene lighting using parameterized material coefficients.
 
 ##### `Unlit`
-Ignores scene lighting and preserves legacy unlit rendering behavior.
+Default response: ignores scene lighting and preserves the authored paint.
 
 #### Implementations
 ##### `resolve_in_graph`
@@ -547,7 +551,7 @@ A higher-specular material with lower roughness.
 ##### `matte`
 <pre><code class="api-signature language-rust ignore">pub fn matte() -&gt; Self</code></pre>
 
-A soft, low-specular material suitable as the default lit response.
+Opts into scene lighting with a soft, low-specular response.
 
 ##### `metallic`
 <pre><code class="api-signature language-rust ignore">pub fn metallic(metallic: f64) -&gt; Self</code></pre>

@@ -627,6 +627,17 @@ pub trait InstanceNode {
         None
     }
 
+    /// Whether ancestor layout measurement stops at this node's own bounds.
+    ///
+    /// Scroll viewports contain independently measured content: their descendants
+    /// determine the internal scroll range, not the space reserved by an ancestor.
+    /// This is a stable instance capability, independent of render clipping or
+    /// scroll position. Parent-dependent axes retain the normal measurement-cycle
+    /// safeguards. Containers can still measure their received children directly.
+    fn is_layout_measurement_boundary(&self) -> bool {
+        false
+    }
+
     /// Selects which engine child family should be normalized into
     /// `received_children` for semantic container-style consumers.
     ///

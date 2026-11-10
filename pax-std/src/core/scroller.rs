@@ -313,6 +313,10 @@ fn effective_presentation_scroll(
 }
 
 impl InstanceNode for ScrollerHostInstance {
+    fn is_layout_measurement_boundary(&self) -> bool {
+        true
+    }
+
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
@@ -998,6 +1002,9 @@ fn sync_scroller_autosize(
 
 #[cfg(test)]
 mod scroll_position_tests;
+
+#[cfg(test)]
+mod layout_measurement_tests;
 
 #[cfg(test)]
 mod tests {

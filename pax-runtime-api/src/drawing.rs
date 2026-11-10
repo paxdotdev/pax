@@ -110,7 +110,7 @@ impl Interpolatable for StrokeJoin {
 pub struct Fill {
     /// Color or gradient sampled over the complete local geometry.
     pub paint: Property<Paint>,
-    /// Light-reactive surface response, matte by default.
+    /// Surface response, unlit by default. Specify a lit material to respond to scene lights.
     pub material: Property<Material>,
     /// Opacity of this layer before element opacity is applied.
     pub opacity: Property<Opacity>,
@@ -124,7 +124,7 @@ pub struct Fill {
 pub struct Stroke {
     /// Color or gradient sampled over the complete, untrimmed geometry.
     pub paint: Property<Paint>,
-    /// Light-reactive surface response, matte by default.
+    /// Surface response, unlit by default. Specify a lit material to respond to scene lights.
     pub material: Property<Material>,
     /// Opacity of this layer before element opacity is applied.
     pub opacity: Property<Opacity>,
@@ -544,6 +544,10 @@ impl HelperFunctions for MaterialParams {}
 
 /// Light-reactive surface response for vector primitives.
 ///
+/// Defaults to `Unlit`: authored lights affect a surface only when its material
+/// explicitly opts in, for example with `Material::matte()` or `Material::glossy(...)`.
+/// Each fill and stroke layer selects its own response.
+///
 /// This is intentionally named `Material`; `texture` is reserved for future
 /// bitmap-backed texture maps and pattern data.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -551,7 +555,7 @@ impl HelperFunctions for MaterialParams {}
 pub enum Material {
     /// Responds to scene lighting using parameterized material coefficients.
     Lit(MaterialParams),
-    /// Ignores scene lighting and preserves legacy unlit rendering behavior.
+    /// Default response: ignores scene lighting and preserves the authored paint.
     Unlit,
 }
 
@@ -610,12 +614,12 @@ impl Material {
 
 impl Default for Material {
     fn default() -> Self {
-        Self::matte()
+        Self::Unlit
     }
 }
 
 impl Material {
-    /// A soft, low-specular material suitable as the default lit response.
+    /// Opts into scene lighting with a soft, low-specular response.
     pub fn matte() -> Self {
         Self::Lit(MaterialParams::default())
     }
@@ -1561,7 +1565,11 @@ mod appearance_tests {
         let strokes = Vec::<Stroke>::try_coerce(red).unwrap();
         assert_eq!(fills[0].paint.get(), Paint::Solid(Color::RED));
         assert_eq!(strokes[0].width_pixels(), 1.0);
-        assert_eq!(fills[0].material.get(), Material::default());
+        assert_eq!(Material::default(), Material::Unlit);
+        assert_eq!(Fill::default().material.get(), Material::Unlit);
+        assert_eq!(Stroke::default().material.get(), Material::Unlit);
+        assert_eq!(fills[0].material.get(), Material::Unlit);
+        assert_eq!(strokes[0].material.get(), Material::Unlit);
         assert_eq!(fills[0].opacity.get().to_float_0_1(), 1.0);
         assert!(Vec::<Fill>::try_coerce(PaxValue::Vec(vec![]))
             .unwrap()
@@ -1583,6 +1591,51 @@ mod appearance_tests {
             Size::Percent(10.into()).to_pax_value()
         )]))
         .is_err());
+    }
+
+    #[test]
+    fn paint_layers_require_explicit_lighting_opt_in() {
+        for paint in [
+            Color::RED.to_pax_value(),
+            Paint::linearGradient(
+                (Size::Percent(0.into()), Size::Percent(0.into())),
+                (Size::Percent(100.into()), Size::Percent(0.into())),
+                vec![GradientStop::get(Color::RED, Size::Percent(0.into()))],
+            )
+            .to_pax_value(),
+        ] {
+            for value in [
+                paint.clone(),
+                PaxValue::Object(vec![("paint".into(), paint.clone())]),
+            ] {
+                assert_eq!(
+                    Fill::try_coerce(value.clone()).unwrap().material.get(),
+                    Material::Unlit
+                );
+                assert_eq!(
+                    Stroke::try_coerce(value).unwrap().material.get(),
+                    Material::Unlit
+                );
+            }
+            for material in [
+                Material::matte(),
+                Material::glossy(0.6),
+                Material::metallic(0.5),
+                Material::custom(MaterialParams::default()),
+                Material::emissive(Color::RED, 0.2),
+            ] {
+                assert!(matches!(material, Material::Lit(_)));
+                let value = PaxValue::Object(vec![
+                    ("paint".into(), paint.clone()),
+                    ("material".into(), material.clone().to_pax_value()),
+                ]);
+                assert_eq!(
+                    Fill::try_coerce(value.clone()).unwrap().material.get(),
+                    material
+                );
+                assert_eq!(Stroke::try_coerce(value).unwrap().material.get(), material);
+            }
+        }
     }
 
     #[test]

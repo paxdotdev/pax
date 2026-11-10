@@ -74,6 +74,7 @@ Type: `f32`
 
 ### `Material`
 Light-reactive material coefficients for a tessellated vector path.
+Defaults to unlit; use an explicit material to opt into scene lighting.
 
 #### Properties
 ##### `coefficients`
