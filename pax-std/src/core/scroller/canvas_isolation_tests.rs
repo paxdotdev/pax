@@ -91,6 +91,9 @@ impl Fixture {
             self.engine.tick();
         }
     }
+    fn settle_messages(&mut self) -> Vec<pax_message::NativeMessage> {
+        (0..3).flat_map(|_| self.engine.tick()).collect()
+    }
     fn clear(&self) {
         let ctx = &self.engine.runtime_context;
         for id in ctx.dirty_canvas_node_ids() {
@@ -146,13 +149,31 @@ fn moving_nested_scroller_retains_card_paint_and_surface_coverage() {
             .map(|n| f.engine.runtime_context.canvas_geometry_for_node(n))
             .collect();
         for (x, angle) in [(20., 3.), (-12., -7.), (0., 0.)] {
+            let geometry_before = f.engine.runtime_context.scene_geometry_stats();
+            let occlusion_before = f.engine.runtime_context.occlusion_stats();
             let props = f.outer.get_common_properties();
             props.borrow().x.set(Some(Size::Pixels(x.into())));
             props
                 .borrow()
                 .rotate
                 .set(Some(Rotation::Degrees(angle.into())));
-            f.settle();
+            let messages = f.settle_messages();
+            assert!(!messages.iter().any(|m| matches!(m,
+                pax_message::NativeMessage::FrameUpdate(p)
+                    if p.id == f.inner.id.to_u32() && (p.transform.is_some() || p.clip_path.is_some())
+            )), "host movement must not patch a retained Frame");
+            let geometry_after = f.engine.runtime_context.scene_geometry_stats();
+            let occlusion_after = f.engine.runtime_context.occlusion_stats();
+            assert!(
+                geometry_after.preparations - geometry_before.preparations <= 8,
+                "host-only geometry work grew with {count} cards: {}",
+                geometry_after.preparations - geometry_before.preparations
+            );
+            assert!(
+                occlusion_after.records_updated - occlusion_before.records_updated <= 8,
+                "host-only coverage work grew with {count} cards: {}",
+                occlusion_after.records_updated - occlusion_before.records_updated
+            );
             assert!(
                 !f.any_dirty(),
                 "moving {count} cards must not re-record their paint"
@@ -162,15 +183,12 @@ fn moving_nested_scroller_retains_card_paint_and_surface_coverage() {
                 let next = f.engine.runtime_context.canvas_geometry_for_node(node);
                 assert_eq!(next.surface_transform, old.surface_transform);
                 assert_eq!(next.coverage_bounds, old.coverage_bounds);
+                assert_eq!(
+                    next.world_transform,
+                    kurbo::Affine::from(node.presentation_transform_and_bounds.get().transform)
+                );
             }
         }
-        assert!(
-            f.engine
-                .runtime_context
-                .scene_geometry_stats()
-                .surface_coverage_reuses
-                >= count as u64
-        );
     }
 }
 
@@ -215,6 +233,52 @@ fn inner_placement_dimensions_and_paint_still_invalidate_cards() {
         .engine
         .runtime_context
         .is_canvas_node_dirty(&f.cards[0].id));
+}
+
+#[test]
+fn moving_host_retains_input_bounds_but_uses_current_world_coordinates() {
+    use pax_runtime::api::math::Point2;
+    for count in [1, 128] {
+        let mut f = Fixture::new(count, true);
+        for card in &f.cards {
+            let props = card.get_common_properties();
+            props.borrow().width.set(Some(Size::Pixels(30.into())));
+            props.borrow().height.set(Some(Size::Pixels(20.into())));
+        }
+        f.settle();
+        let query = |f: &Fixture, x, y| {
+            f.engine
+                .runtime_context
+                .get_elements_beneath_ray(None, Point2::new(x, y), false, vec![], false)
+                .iter()
+                .filter(|n| f.cards.iter().any(|c| c.id == n.id))
+                .count()
+        };
+        assert_eq!(query(&f, 15., 10.), count);
+        let before = f.engine.runtime_context.input_query_stats();
+        f.outer
+            .get_common_properties()
+            .borrow()
+            .x
+            .set(Some(Size::Pixels(70.into())));
+        f.settle();
+        assert_eq!(query(&f, 85., 10.), count);
+        assert_eq!(query(&f, 15., 10.), 0);
+        let after = f.engine.runtime_context.input_query_stats();
+        assert!(
+            after.bounds_prepared - before.bounds_prepared <= 4,
+            "host movement prepared {} hit bounds for {count} children",
+            after.bounds_prepared - before.bounds_prepared
+        );
+        f.cards[0]
+            .get_common_properties()
+            .borrow()
+            .x
+            .set(Some(Size::Pixels(50.into())));
+        f.settle();
+        assert_eq!(query(&f, 85., 10.), count - 1);
+        assert_eq!(query(&f, 135., 10.), 1);
+    }
 }
 
 #[test]

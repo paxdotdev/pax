@@ -279,12 +279,13 @@ public extension NativeMessageHandling {
     func handleTextUpdate(patch: TextUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
         dirty.elementIds.insert(patch.id)
         if let textElement = textElements.elements[patch.id] {
+            let previousTransformScroller = textElement.transformScroller
             let previousTransform = textElement.transform
             let previousSizeX = textElement.size_x
             let previousSizeY = textElement.size_y
             textElement.applyPatch(patch: patch)
             textElement.applyResolvedPlacement(patch)
-            if textGeometryChanged(
+            if previousTransformScroller != textElement.transformScroller || textGeometryChanged(
                 textElement,
                 previousTransform: previousTransform,
                 previousSizeX: previousSizeX,

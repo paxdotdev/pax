@@ -309,6 +309,7 @@ struct OcclusionRecord {
     // Exact coverage and clips remain in unscrolled world coordinates. Geometry
     // preparation and the shared spatial index supply stable layer coordinates.
     clip: Option<Rc<BezPath>>,
+    clip_transform: Affine,
     clips: Vec<u32>,
     path: Option<Rc<BezPath>>,
     #[cfg(feature = "3d")]
@@ -600,14 +601,22 @@ pub(crate) fn update_node_occlusion_observed(
         .collect();
     let mut containers = HashSet::new();
     for id in clips {
-        dirty.extend(
-            state
-                .clip_dependents
-                .get(&id)
-                .into_iter()
-                .flatten()
-                .copied(),
-        );
+        for &child in state.clip_dependents.get(&id).into_iter().flatten() {
+            let retained = ctx
+                .get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(child))
+                .filter(|node| node.local_compositing.get())
+                .and_then(|node| node.retained_native_placement())
+                .is_some_and(|(owner, _)| owner == id || state.records[&owner].clips.contains(&id));
+            // An external clip is enforced at the native host boundary. It
+            // cannot alter content-local coverage or cutouts inside that host.
+            // Edits to clips *within* the chart still repair their dependents.
+            if !retained {
+                dirty.insert(child);
+            }
+            if state.records[&child].scrolls || state.records[&child].clip.is_some() {
+                containers.insert(child);
+            }
+        }
     }
     for &id in &dirty {
         let record = state.records.get_mut(&id).unwrap();
@@ -616,6 +625,8 @@ pub(crate) fn update_node_occlusion_observed(
                 .get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id))
                 .unwrap();
             record.clip = node.world_clip_geometry.get().0;
+            record.clip_transform =
+                Affine::from(node.presentation_transform_and_bounds.get().transform);
         }
         if record.clip.is_some() || record.scrolls {
             containers.insert(id);
@@ -765,6 +776,24 @@ fn refresh_container_membership(ctx: &RuntimeContext, state: &mut OcclusionState
             state.isolated_scrollers.insert(id, layer);
             if !container_layers.contains(&layer) {
                 state.leaf_scroll_regions.insert(id);
+            }
+        }
+    }
+    // Classification belongs to topology, not a per-frame subtree scan.
+    let owners: HashMap<_, _> = state
+        .isolated_scrollers
+        .iter()
+        .map(|(&id, &layer)| (layer, id))
+        .collect();
+    for (&id, record) in &state.records {
+        if let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) {
+            let eligible = owners.get(&record.render_layer_id).is_some_and(|&owner| {
+                node.retained_native_placement()
+                    .is_some_and(|(id, _)| id == owner)
+                    && borrow!(node.instance_node).geometry_is_scroller_local()
+            });
+            if node.local_compositing.get() != eligible {
+                node.local_compositing.set(eligible);
             }
         }
     }
@@ -965,6 +994,7 @@ fn try_reconcile_structure(
                     before_children: false,
                     unclippable: false,
                     clip: None,
+                    clip_transform: Affine::IDENTITY,
                     clips: clips.to_vec(),
                     path: None,
                     #[cfg(feature = "3d")]
@@ -1378,10 +1408,13 @@ fn presented_container_geometry(
                 .as_ref()
                 .and_then(OcclusionBox::new_from_path)
         } else {
-            record
-                .clip
-                .as_ref()
-                .and_then(|path| OcclusionBox::new_from_path(&(transform * path.as_ref().clone())))
+            record.clip.as_ref().and_then(|path| {
+                OcclusionBox::new_from_path(
+                    &(transform
+                        * retained_pose_delta(&node, record.clip_transform)
+                        * path.as_ref().clone()),
+                )
+            })
         },
     );
     presented.insert(id, geometry);
@@ -1567,6 +1600,19 @@ fn native_mask_inverse(world: Affine, presentation: Affine) -> Option<Affine> {
     .then_some(inverse)
 }
 
+// Retained paths keep the pose at which they were prepared. An external or
+// changed-neighbor query composes their current placement only when needed;
+// host motion alone does not remap every path in the island.
+fn retained_pose_delta(node: &ExpandedNode, prepared: Affine) -> Affine {
+    if node.local_compositing.get() && node.retained_native_placement().is_some() {
+        let current = Affine::from(node.presentation_transform_and_bounds.get().transform);
+        if current != prepared {
+            return current * prepared.inverse();
+        }
+    }
+    Affine::IDENTITY
+}
+
 fn update_indexed_mask(id: u32, ctx: &RuntimeContext, state: &mut OcclusionState) {
     let Some(record) = state.records.get(&id) else {
         return;
@@ -1709,17 +1755,16 @@ fn update_indexed_mask(id: u32, ctx: &RuntimeContext, state: &mut OcclusionState
             owner: (candidate, occluder.mount_epoch.get()),
             path: PathInput {
                 path,
-                mapping: Mapping::Affine(transform),
+                mapping: Mapping::Affine(
+                    transform
+                        * coverage.geometry.as_ref().map_or(Affine::IDENTITY, |g| {
+                            retained_pose_delta(&occluder, g.world_transform)
+                        }),
+                ),
             },
-            clips: mask_clip_inputs(&coverage.clips, false, ctx, state)
+            clips: mask_clip_inputs(&coverage.clips, false, mixed, ctx, state)
                 .into_iter()
                 .filter(|((id, _), _)| !record.clips.contains(id))
-                .map(|(owner, mut input)| {
-                    if !mixed {
-                        input.mapping = Mapping::Affine(Affine::IDENTITY);
-                    }
-                    (owner, input)
-                })
                 .collect(),
             depth,
             opacity,
@@ -1788,6 +1833,7 @@ fn retain_local_path(record: &mut OcclusionRecord, node: &ExpandedNode) {
 fn mask_clip_inputs(
     ids: &[u32],
     projected: bool,
+    include_scroll: bool,
     ctx: &RuntimeContext,
     state: &OcclusionState,
 ) -> Vec<((u32, u64), PathInput)> {
@@ -1815,7 +1861,13 @@ fn mask_clip_inputs(
             } else {
                 PathInput {
                     path: state.records.get(id)?.clip.clone()?,
-                    mapping: Mapping::Affine(ctx.presentation_scroll_transform_for_node(&owner)),
+                    mapping: Mapping::Affine(
+                        (if include_scroll {
+                            ctx.presentation_scroll_transform_for_node(&owner)
+                        } else {
+                            Affine::IDENTITY
+                        }) * retained_pose_delta(&owner, state.records.get(id)?.clip_transform),
+                    ),
                 }
             };
             Some(((*id, owner.mount_epoch.get()), path))
@@ -1958,7 +2010,7 @@ fn update_projected_mask(node: &ExpandedNode, ctx: &RuntimeContext, state: &mut 
         contributions.push(Contribution {
             owner: (id, front_node.mount_epoch.get()),
             path,
-            clips: mask_clip_inputs(&record.clips, true, ctx, state),
+            clips: mask_clip_inputs(&record.clips, true, true, ctx, state),
             depth,
             opacity: conditional_native_coverage_opacity(
                 record.opacity,
@@ -2208,6 +2260,7 @@ fn update_node_occlusion_recursive(
                 .get()
                 .unwrap_or(false),
             clip: world_clip,
+            clip_transform: Affine::from(node.presentation_transform_and_bounds.get().transform),
             clips: active_clip_ids.to_vec(),
             path: None,
             #[cfg(feature = "3d")]

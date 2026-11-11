@@ -200,10 +200,27 @@ surface use the same boundary. Content edits, local movement, resizing, and
 clip changes still invalidate affected drawings. Flat lighting follows the
 surface's world transform without baking that transform into every drawing.
 Camera-controlled or spatial placement, detached captures, and presentation flights keep
-the conservative world-dependent path. Native controls and text still update
-their world placement; this is paint isolation, not subtree virtualization or
-a promise of constant total frame cost. The behavior is shared by debug and
-release builds and applies only where the runtime allocates a separate surface.
+the conservative world-dependent path. This paint isolation applies only where
+the runtime allocates a separate surface.
+
+Ordinary affine native Text and Frame clips also retain placement in their nearest Scroller's
+content coordinates, independently of canvas surface allocation. Moving that
+host does not send a new transform or clip path for every unchanged descendant. Content,
+style, and measurement preparation are separate from placement: local movement
+still updates the transform, while width, content, and font changes still update
+layout. The web and Apple chassis resolve these placements within their existing
+native hierarchy, preserving mixed text/control ordering and Frame clips.
+Spatial, camera-controlled, detached, and flight placements retain world updates.
+Other native controls still receive world placement. Inside an isolated, clipped
+Scroller surface, standard local geometry also retains hit bounds and native
+occlusion coverage across host-only movement. Pointer queries enter the current
+host chart; world-space geometry consumers resolve the current pose on demand.
+Internal clip edits, content edits, and resizing still repair affected records.
+External clipping is enforced at the native host boundary; escaping content,
+shared layers, and world-dependent custom primitives remain conservative.
+Container presentation and external overlaps can still require work. These optimizations are shared by
+debug and release builds; they are not subtree virtualization or a promise of
+constant total frame cost.
 
 Transfers between existing clipping and presentation domains repair the moved
 subtree's layer/container membership and both its former and current overlaps.
@@ -232,9 +249,10 @@ reactive work, the facade prepares shapes on demand through an uncached traversa
 it does not drain effects or advance a frame. See
 [primitive input geometry](primitives.md#input-geometry) for the author contract.
 
-Affine input bounds are indexed in unscrolled coordinates, grouped by their
+Affine input bounds are indexed in retained coordinates, grouped by their
 enclosing scroller. Scrolling transforms the pointer query into each group's
-coordinates rather than rebuilding every descendant's bounds. Nested scrollers
+coordinates rather than rebuilding every descendant's bounds. Standard local
+primitives also retain those bounds when the host moves or rotates. Nested scrollers
 compose their transforms; exact clipping and hit tests retain their normal
 semantics. Layout, shape changes, and reparenting still invalidate the affected
 geometry or membership. Perspective input remains projection-aware: scrolling

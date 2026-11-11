@@ -80,7 +80,7 @@ impl RuntimeContext {
                 }
                 node.compute_flattened_projected_children();
                 let rank = self.scene_geometry.borrow().input.order.len();
-                let (coverage, hit) = self.prepare_node_hit(&node, Affine::IDENTITY);
+                let (local_owner, coverage, hit) = self.prepare_retained_node_hit(&node);
                 let scrolls = borrow!(node.instance_node).scrolls_content(&node);
                 {
                     let mut scene = self.scene_geometry.borrow_mut();
@@ -96,6 +96,7 @@ impl RuntimeContext {
                             rank,
                             end: rank + 1,
                             scroll_parent,
+                            local_owner,
                             scrolls,
                             window_space: node.has_perspective_camera(),
                             coverage,
@@ -132,11 +133,12 @@ impl RuntimeContext {
                     self.scene_geometry.borrow_mut().input.topology_dirty = true;
                     return None;
                 }
-                let (coverage, hit) = self.prepare_node_hit(&node, Affine::IDENTITY);
+                let (local_owner, coverage, hit) = self.prepare_retained_node_hit(&node);
                 let mut scene = self.scene_geometry.borrow_mut();
                 scene.input.publish(
                     id,
                     InputPlacement {
+                        local_owner,
                         window_space: node.has_perspective_camera(),
                         coverage,
                         hit,
@@ -150,6 +152,17 @@ impl RuntimeContext {
         // The topology order guarantees that an enclosing chart is available first.
         let scrollers = self.scene_geometry.borrow().input.scrollers.clone();
         let mut scrolls = HashMap::new();
+        let mut hosts = HashMap::new();
+        // A scoped query can begin inside a chart whose owner is outside the
+        // queried subtree. Preserve the existing scoped-query convention:
+        // world placement is included, but ancestor scroll offsets are not.
+        if let Some((owner, _)) = root.retained_native_placement() {
+            let owner_node = self.get_expanded_node_by_eid(ExpandedNodeIdentifier(owner))?;
+            hosts.insert(
+                owner,
+                Affine::from(owner_node.presentation_transform_and_bounds.get().transform),
+            );
+        }
         for id in scrollers {
             let parent = self.scene_geometry.borrow().input.records[&id].scroll_parent;
             let inherited = parent.map_or(Affine::IDENTITY, |id| scrolls[&id]);
@@ -157,6 +170,10 @@ impl RuntimeContext {
             scrolls.insert(
                 id,
                 inherited * self.scroller_content_presentation_transform(&node),
+            );
+            hosts.insert(
+                id,
+                scrolls[&id] * Affine::from(node.presentation_transform_and_bounds.get().transform),
             );
         }
         // Reading lazily computed slot/layout properties can enqueue work. Keep
@@ -168,7 +185,7 @@ impl RuntimeContext {
         let (candidates, unknown, children) = {
             let mut scene = self.scene_geometry.borrow_mut();
             let input = &mut scene.input;
-            let candidates = input.candidates(point, &scrolls);
+            let candidates = input.candidates(point, &scrolls, &hosts);
             let unknown: HashSet<_> = candidates
                 .iter()
                 .copied()
@@ -216,10 +233,35 @@ impl RuntimeContext {
         })
     }
 
+    fn prepare_retained_node_hit(
+        &self,
+        node: &ExpandedNode,
+    ) -> (Option<u32>, CoverageBounds, PreparedHit) {
+        let local = borrow!(node.instance_node)
+            .geometry_is_scroller_local()
+            .then(|| node.retained_native_placement())
+            .flatten();
+        let (bounds, hit) = self.prepare_node_hit_in_chart(
+            node,
+            Affine::IDENTITY,
+            local.map(|(_, tab)| Affine::from(tab.transform)),
+        );
+        (local.map(|(id, _)| id), bounds, hit)
+    }
+
     pub(super) fn prepare_node_hit(
         &self,
         node: &ExpandedNode,
         inherited_scroll: Affine,
+    ) -> (CoverageBounds, PreparedHit) {
+        self.prepare_node_hit_in_chart(node, inherited_scroll, None)
+    }
+
+    fn prepare_node_hit_in_chart(
+        &self,
+        node: &ExpandedNode,
+        inherited_scroll: Affine,
+        local_transform: Option<Affine>,
     ) -> (CoverageBounds, PreparedHit) {
         let shape = borrow!(node.instance_node).prepare_hit_shape(node);
         #[cfg(feature = "3d")]
@@ -296,8 +338,10 @@ impl RuntimeContext {
             );
         }
         {
-            let world = inherited_scroll
-                * Affine::from(node.presentation_transform_and_bounds.get().transform);
+            let world = local_transform.unwrap_or_else(|| {
+                inherited_scroll
+                    * Affine::from(node.presentation_transform_and_bounds.get().transform)
+            });
             let coverage = if [local.x0, local.y0, local.x1, local.y1]
                 .iter()
                 .all(|v| v.is_finite())

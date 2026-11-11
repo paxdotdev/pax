@@ -5,11 +5,12 @@ use std::rc::Rc;
 
 use kurbo::{Affine, BezPath, Rect, Shape};
 
-pub(crate) mod canvas_placement;
-pub(crate) mod input;
-pub(crate) mod presentation;
 #[cfg(test)]
 mod bench;
+pub(crate) mod canvas_placement;
+pub(crate) mod input;
+pub(crate) mod native_placement;
+pub(crate) mod presentation;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, pax_message::serde::Serialize)]
 #[serde(crate = "pax_message::serde")]
@@ -266,6 +267,17 @@ impl SceneGeometry {
         (!self.dirty.contains(&id))
             .then(|| self.records.get(&id).cloned())
             .flatten()
+    }
+
+    pub(crate) fn refresh_world_placement(
+        &mut self,
+        id: u32,
+        geometry: PreparedCanvasGeometry,
+    ) -> Rc<PreparedCanvasGeometry> {
+        // The content-space footprints and index memberships are unchanged.
+        let geometry = Rc::new(geometry);
+        self.records.insert(id, geometry.clone());
+        geometry
     }
 
     pub fn insert(

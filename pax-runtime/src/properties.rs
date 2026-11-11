@@ -2533,6 +2533,21 @@ impl RuntimeContext {
         node: &ExpandedNode,
     ) -> Rc<crate::scene_geometry::PreparedCanvasGeometry> {
         let cached = borrow!(self.scene_geometry).get(node.id.to_u32());
+        if let Some(old) = &cached {
+            if node.local_compositing.get() && node.retained_native_placement().is_some() {
+                let world = Affine::from(node.presentation_transform_and_bounds.get().transform);
+                if old.world_transform != world {
+                    let mut geometry = old.as_ref().clone();
+                    geometry.world_transform = world;
+                    #[cfg(feature = "3d")]
+                    {
+                        geometry.spatial_geometry = node.presentation_geometry.get();
+                    }
+                    return borrow_mut!(self.scene_geometry)
+                        .refresh_world_placement(node.id.to_u32(), geometry);
+                }
+            }
+        }
         cached.unwrap_or_else(|| self.prepare_canvas_geometry(node))
     }
 
@@ -2801,8 +2816,18 @@ impl RuntimeContext {
             let (geometry_hit, solid_depth) = if candidate {
                 let point = kurbo::Point::new(ray.x, ray.y);
                 if input.is_some() {
-                    self.scene_geometry.borrow().input.records[&node.id.to_u32()]
-                        .test(point, active_scroll_transform)
+                    let record =
+                        self.scene_geometry.borrow().input.records[&node.id.to_u32()].clone();
+                    let chart = record
+                        .local_owner
+                        .and_then(|id| self.get_expanded_node_by_eid(ExpandedNodeIdentifier(id)))
+                        .map_or(active_scroll_transform, |owner| {
+                            active_scroll_transform
+                                * Affine::from(
+                                    owner.presentation_transform_and_bounds.get().transform,
+                                )
+                        });
+                    record.test(point, chart)
                 } else {
                     self.prepare_node_hit(&node, active_scroll_transform)
                         .1

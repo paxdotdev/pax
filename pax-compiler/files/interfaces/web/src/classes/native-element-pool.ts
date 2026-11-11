@@ -1,4 +1,5 @@
 import {InitialTextPresentation} from "./initial-text-presentation";
+import {nativeWorldTransform, setNativeSurface} from './native-placement';
 import {WheelRegions, WheelRegionsPatch} from './wheel-regions';
 import {BUTTON_CLASS, BUTTON_TEXT_CONTAINER_CLASS,
     NATIVE_LEAF_CLASS, CHECKBOX_CLASS, RADIO_LIST_CLASS, SCROLLER_CONTAINER,
@@ -27,7 +28,6 @@ import {
 import {
     affineMultiply,
     HIDDEN_TAB_FRAME_FALLBACK_MS,
-    invertAffineCoeffs,
     packAffineCoeffsIntoMatrix3DString,
     readImageToByteBuffer,
     waitForDocumentFrame,
@@ -1421,9 +1421,15 @@ export class NativeElementPool {
             this.resizeObserver.unobserve(leaf);
         }
 
-        // Handle transform
+        // The owner and transform are co-published on coordinate-space changes.
+        if (patch.transform_scroller !== undefined) {
+            if (patch.transform_scroller == null) delete leaf.dataset.textTransformScroller;
+            else leaf.dataset.textTransformScroller = String(patch.transform_scroller);
+        }
         if (patch.transform != null) {
-            leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+            leaf.style.transform = leaf.dataset.textTransformScroller != null
+                ? packAffineCoeffsIntoMatrix3DString(patch.transform)
+                : nativeWorldTransform(patch.transform);
         }
 
         if (patch.opacity != null) {
@@ -1527,6 +1533,8 @@ export class NativeElementPool {
             }
         }
 
+        // Placement-only patches must not traverse content or revisit font gates.
+        if (patch.content == null && patch.style == null && patch.style_link == null) return;
         const linkText = Array.from(textChild.querySelectorAll("a"), link => link.textContent ?? "").join("");
         state.waitForTextFonts(textChild.textContent ?? "", linkText, () => {
             if (this.textStates.get(id) !== state) return;
@@ -1578,6 +1586,7 @@ export class NativeElementPool {
          if (patch.transform != null) {
             styles.transform = patch.transform;
          }
+         if (patch.transformScroller !== undefined) styles.transformScroller = patch.transformScroller;
          if (patch.clipContent != null) {
              styles.clipContent = patch.clipContent;
          }
@@ -3189,13 +3198,8 @@ export class NativeElementPool {
             if (state != null) {
                 state.transform = [...patch.transform];
             }
-            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
-            const inverseTransform = invertAffineCoeffs(patch.transform);
-            if (inverseTransform != null) {
-                contentHost.style.transform = packAffineCoeffsIntoMatrix3DString(inverseTransform);
-            } else {
-                contentHost.style.transform = "";
-            }
+            leaf.style.transform = nativeWorldTransform(patch.transform);
+            setNativeSurface(contentHost, patch.transform);
             this.activateScrollerMeasurement(patch.id!);
         }
         if (patch.opacity != null) {
@@ -3281,7 +3285,7 @@ export class NativeElementPool {
         }
         // Handle transform
         if (patch.transform != null) {
-            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+            leaf.style.transform = nativeWorldTransform(patch.transform);
         }
         if (patch.opacity != null) {
             setLeafLocalOpacity(leaf, patch.opacity);
@@ -4992,7 +4996,7 @@ function updateCommonProps(leaf: HTMLElement, patch: any) {
     }
     // Handle transform
     if (patch.transform != null) {
-        leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+        leaf!.style.transform = nativeWorldTransform(patch.transform);
     }
     if (patch.opacity != null) {
         setLeafLocalOpacity(leaf, patch.opacity);

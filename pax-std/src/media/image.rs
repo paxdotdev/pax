@@ -297,6 +297,10 @@ impl InstanceNode for ImageInstance {
         true
     }
 
+    fn geometry_is_scroller_local(&self) -> bool {
+        true
+    }
+
     fn prepare_canvas_geometry(
         &self,
         node: &ExpandedNode,

@@ -22,6 +22,7 @@ enum Kind {
 struct Probe {
     base: BaseInstance,
     kind: Kind,
+    retained: bool,
 }
 
 fn args(children: Vec<Rc<dyn InstanceNode>>) -> InstantiationArgs {
@@ -46,8 +47,21 @@ fn args(children: Vec<Rc<dyn InstanceNode>>) -> InstantiationArgs {
 }
 
 fn probe(kind: Kind, children: Vec<Rc<dyn InstanceNode>>) -> Rc<dyn InstanceNode> {
+    make_probe(kind, children, false)
+}
+
+fn retained_probe(kind: Kind, children: Vec<Rc<dyn InstanceNode>>) -> Rc<dyn InstanceNode> {
+    make_probe(kind, children, true)
+}
+
+fn make_probe(
+    kind: Kind,
+    children: Vec<Rc<dyn InstanceNode>>,
+    retained: bool,
+) -> Rc<dyn InstanceNode> {
     Rc::new(Probe {
         kind,
+        retained,
         base: BaseInstance::new(
             args(children),
             InstanceFlags {
@@ -71,6 +85,29 @@ impl InstanceNode for Probe {
     }
     fn base(&self) -> &BaseInstance {
         &self.base
+    }
+    fn geometry_is_scroller_local(&self) -> bool {
+        self.retained
+    }
+    fn canvas_geometry_is_local(&self) -> bool {
+        self.retained
+    }
+    fn resolve_scroll_offset(&self, _: &ExpandedNode) -> Option<(f64, f64)> {
+        (self.retained && matches!(self.kind, Kind::Scroller)).then_some((0., 0.))
+    }
+    fn resolve_local_occlusion_path(&self, _: &ExpandedNode) -> Option<BezPath> {
+        (self.retained && matches!(self.kind, Kind::Canvas))
+            .then(|| Rect::new(0., 0., 40., 40.).to_path(0.1))
+    }
+    fn resolve_local_clip_path(&self, node: &ExpandedNode) -> Option<BezPath> {
+        (self.retained && matches!(self.kind, Kind::Clip | Kind::Scroller)).then(|| {
+            let (w, h) = if matches!(self.kind, Kind::Scroller) {
+                node.layout_bounds.get()
+            } else {
+                (60., 60.)
+            };
+            kurbo::RoundedRect::new(0., 0., w, h, 8.).to_path(0.1)
+        })
     }
     fn resolve_debug(
         &self,
@@ -159,6 +196,57 @@ fn clear(ctx: &RuntimeContext) {
     }
     ctx.take_canvas_node_orders();
     ctx.take_native_messages();
+}
+
+#[test]
+fn retained_host_motion_and_subsequent_clip_edits_match_full_rebuild() {
+    let (ctx, root) = mount(vec![retained_probe(
+        Kind::Clip,
+        vec![retained_probe(
+            Kind::Scroller,
+            vec![
+                retained_probe(Kind::Clip, vec![retained_probe(Kind::Canvas, vec![])]),
+                retained_probe(Kind::Native, vec![]),
+            ],
+        )],
+    )]);
+    let outer = root.children.get()[0].children.get()[0].clone();
+    let host = outer.children.get()[0].clone();
+    let clip = host.children.get()[0].clone();
+    let canvas = clip.children.get()[0].clone();
+    let native = host.children.get()[1].clone();
+    for _ in 0..3 {
+        settle(&root, &ctx);
+    }
+    assert!(canvas.local_compositing.get());
+    assert!(native.local_compositing.get());
+    let before = ctx.occlusion_stats();
+    outer
+        .get_common_properties()
+        .borrow()
+        .x
+        .set(Some(Size::Pixels(25.into())));
+    for _ in 0..3 {
+        settle(&root, &ctx);
+    }
+    assert!(ctx.occlusion_stats().records_updated - before.records_updated <= 3);
+    // Do not rebuild before these edits: they must query retained paths at their
+    // current world pose, not at the pose where each path was first prepared.
+    native
+        .get_common_properties()
+        .borrow()
+        .x
+        .set(Some(Size::Pixels(12.into())));
+    settle(&root, &ctx);
+    assert_full_rebuild_matches(&root, &ctx);
+    for node in [&outer, &clip, &canvas] {
+        node.get_common_properties()
+            .borrow()
+            .x
+            .set(Some(Size::Pixels(33.into())));
+        settle(&root, &ctx);
+        assert_full_rebuild_matches(&root, &ctx);
+    }
 }
 
 #[test]
@@ -966,6 +1054,7 @@ fn retained_exit_ticks_preserve_topology_until_children_are_removed() {
     clip_args.transition_config.exit_frame_count = 4;
     clip_args.transition_config.timeout_ms = 5_000;
     let clip: Rc<dyn InstanceNode> = Rc::new(Probe {
+        retained: false,
         kind: Kind::Clip,
         base: BaseInstance::new(
             clip_args,

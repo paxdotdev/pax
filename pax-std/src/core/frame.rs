@@ -98,6 +98,10 @@ fn frame_clip_path(bounds: (f64, f64), corner_radius: f64, transform: Affine) ->
 }
 
 impl InstanceNode for FrameInstance {
+    fn geometry_is_scroller_local(&self) -> bool {
+        true
+    }
+
     fn property_requires_clip_recompute(&self, name: &str) -> bool {
         matches!(name, "_clip_content" | "corner_radius")
     }
@@ -284,18 +288,26 @@ impl InstanceNode for FrameInstance {
         }));
         let last_canvas_clip = RefCell::new(None);
 
-        let deps: Vec<_> = borrow!(expanded_node.properties_scope)
-            .values()
-            .cloned()
-            .map(|v| v.get_untyped_property().clone())
-            .chain([
-                crate::common::native_geometry_dependency(expanded_node),
-                expanded_node.computed_opacity.untyped(),
-                expanded_node.parent_frame.untyped(),
-                expanded_node.occlusion.untyped(),
-                expanded_node.canvas_transform_and_bounds.untyped(),
-            ])
-            .collect();
+        let placement = expanded_node.native_placement(context);
+        let tab = expanded_node.presentation_transform_and_bounds.clone();
+        let bounds = LocalProperty::computed_with_cutoff(
+            move || tab.get().bounds,
+            &[expanded_node.presentation_transform_and_bounds.untyped()],
+            PartialEq::eq,
+        );
+        let (clip_content, radius) = expanded_node.with_properties_unwrapped(|p: &mut Frame| {
+            (p._clip_content.local(), p.corner_radius.local())
+        });
+        let deps = [
+            placement.untyped(),
+            bounds.untyped(),
+            clip_content.untyped(),
+            radius.untyped(),
+            expanded_node.computed_opacity.untyped(),
+            expanded_node.parent_frame.untyped(),
+            expanded_node.occlusion.untyped(),
+            expanded_node.canvas_transform_and_bounds.untyped(),
+        ];
 
         expanded_node
             .changed_listener
@@ -312,24 +324,43 @@ impl InstanceNode for FrameInstance {
                         ..Default::default()
                     };
                     expanded_node.with_properties_unwrapped(|properties: &mut Frame| {
-                        let computed_tab = expanded_node.presentation_transform_and_bounds.get();
-                        let (width, height) = computed_tab.bounds;
+                        let (owner, transform) = placement.get();
+                        let (width, height) = bounds.get();
                         let corner_radius = properties.corner_radius.local().get();
                         let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
                         let clamped_radius = corner_radius.clamp(0.0, max_radius);
-                        let clip_path = if properties._clip_content.local().get()
+                        let geometry_changed = old_state.transform_scroller != Some(owner)
+                            || old_state.transform.as_ref() != Some(&transform)
+                            || old_state.size_x != Some(width)
+                            || old_state.size_y != Some(height)
+                            || old_state.corner_radius != Some(corner_radius)
+                            || old_state.clip_content != Some(clip_content.get());
+                        // Order/opacity-only updates do not project or serialize paths.
+                        let clip_path = if !geometry_changed {
+                            old_state.clip_path.clone().unwrap_or_default()
+                        } else if properties._clip_content.local().get()
                             && clamped_radius > f64::EPSILON
                         {
                             let rect = RoundedRect::new(0.0, 0.0, width, height, clamped_radius);
-                            let bez_path = cloned_context
-                                .native_presentation_projection_for_node(&expanded_node)
-                                .map(|plane| plane.project_path(&rect.to_path(0.1), None))
-                                .unwrap_or_default();
+                            let bez_path = if owner.is_some() {
+                                Affine::new(transform.clone().try_into().unwrap())
+                                    * rect.to_path(0.1)
+                            } else {
+                                cloned_context
+                                    .native_presentation_projection_for_node(&expanded_node)
+                                    .map(|plane| plane.project_path(&rect.to_path(0.1), None))
+                                    .unwrap_or_default()
+                            };
                             bez_path_to_svg_path_data(&bez_path)
                         } else {
                             String::new()
                         };
 
+                        let owner_changed = patch_if_needed(
+                            &mut old_state.transform_scroller,
+                            &mut patch.transform_scroller,
+                            owner,
+                        );
                         let updates = [
                             patch_if_needed(
                                 &mut old_state.clip_is_rect,
@@ -351,7 +382,7 @@ impl InstanceNode for FrameInstance {
                             patch_if_needed(
                                 &mut old_state.transform,
                                 &mut patch.transform,
-                                cloned_context.native_presentation_matrix_for_node(&expanded_node),
+                                transform.clone(),
                             ),
                             patch_if_needed(
                                 &mut old_state.clip_path,
@@ -370,7 +401,11 @@ impl InstanceNode for FrameInstance {
                             ),
                         ];
 
-                        let content_changed = updates.into_iter().any(|v| v);
+                        if owner_changed {
+                            patch.transform = Some(transform);
+                            patch.clip_path = old_state.clip_path.clone();
+                        }
+                        let content_changed = owner_changed || updates.into_iter().any(|v| v);
                         let order_changed = patch_if_needed(
                             &mut old_state.z_index,
                             &mut patch.z_index,

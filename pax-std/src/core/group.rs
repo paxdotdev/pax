@@ -48,6 +48,10 @@ pub struct GroupInstance {
 }
 
 impl InstanceNode for GroupInstance {
+    fn geometry_is_scroller_local(&self) -> bool {
+        true
+    }
+
     fn accepts_transferred_children(&self) -> bool {
         true
     }

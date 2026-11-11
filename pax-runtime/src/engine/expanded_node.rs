@@ -389,6 +389,9 @@ pub struct ExpandedNode {
     pub canvas_transform_and_bounds: LocalProperty<TransformAndBounds<NodeLocal, Window>>,
     pub(crate) canvas_owner: LocalProperty<Option<u32>>,
     pub(crate) affine_canvas_domain: LocalProperty<bool>,
+    pub(crate) native_local_placement:
+        LocalProperty<crate::scene_geometry::native_placement::NativeLocalPlacement>,
+    pub(crate) local_compositing: LocalProperty<bool>,
     pub(crate) canvas_local_placement:
         LocalProperty<crate::scene_geometry::canvas_placement::CanvasLocalPlacement>,
     #[cfg(feature = "3d")]
@@ -1333,6 +1336,8 @@ impl ExpandedNode {
             canvas_transform_and_bounds: LocalProperty::default(),
             canvas_owner: LocalProperty::default(),
             affine_canvas_domain: LocalProperty::new(true),
+            native_local_placement: Default::default(),
+            local_compositing: Default::default(),
             canvas_local_placement: LocalProperty::default(),
             #[cfg(feature = "3d")]
             presentation_geometry,
@@ -2900,6 +2905,7 @@ impl ExpandedNode {
         }
 
         self.bind_canvas_placement(ctx);
+        self.bind_native_placement();
         self.bind_presentation_inputs(ctx);
 
         let presentation_parent = self.presentation_parent_node();
@@ -3015,15 +3021,40 @@ impl ExpandedNode {
 
         // Structural child changes are handled by children_listener after
         // reconciliation; data-only repeat invalidation is not an occlusion change.
+        let placement = self.retained_placement_dependency(self.local_compositing.clone());
+        let eligible = self.local_compositing.clone();
+        let local_placement = self.native_local_placement.clone();
+        let local_clip = self.local_clip_geometry.clone();
+        let world_clip = self.world_clip_geometry.clone();
+        let clip_deps = [
+            eligible.untyped(),
+            local_placement.untyped(),
+            local_clip.untyped(),
+            world_clip.untyped(),
+        ];
+        let node = Rc::downgrade(self);
+        let clip = LocalProperty::computed_with_cutoff(
+            move || {
+                if eligible.get()
+                    && node
+                        .upgrade()
+                        .is_some_and(|n| n.retained_native_placement().is_some())
+                {
+                    local_clip.get()
+                } else {
+                    world_clip.get()
+                }
+            },
+            &clip_deps,
+            |a, b| a.0 == b.0,
+        );
         deps.extend([
             self.presentation_layer.untyped(),
-            self.presentation_transform_and_bounds.untyped(),
+            placement.untyped(),
             // Clip-only nodes need not consume the general projected paint
             // geometry. Their retained clip is the dependency reconciliation
             // actually reads, including custom clips during overlay flights.
-            self.world_clip_geometry.untyped(),
-            #[cfg(feature = "3d")]
-            self.presentation_geometry.untyped(),
+            clip.untyped(),
             self.computed_opacity.untyped(),
             self.liquid_glass_scope.untyped(),
             self.get_common_properties().borrow().unclippable.untyped(),
@@ -3035,6 +3066,8 @@ impl ExpandedNode {
         self.occlusion_listener
             .replace_with(LocalProperty::computed_with_name(
                 move || {
+                    placement.get();
+                    clip.get();
                     context.set_wheel_scope(id, wheel_events.get());
                     // Typed inputs already invalidate the local coverage property.
                     // Placement/opacity still repair coverage without rebuilding its shape.
@@ -3052,23 +3085,21 @@ impl ExpandedNode {
 
     fn bind_input_listener(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
         let instance = borrow!(self.instance_node);
+        let placement = self.retained_placement_dependency(LocalProperty::new(
+            instance.geometry_is_scroller_local(),
+        ));
         let mut deps: Vec<_> = borrow!(self.properties_scope)
             .iter()
             .filter(|(name, _)| instance.property_requires_input_recompute(name))
             .map(|(_, value)| value.get_untyped_property().clone())
             .collect();
-        deps.extend([
-            self.presentation_transform_and_bounds.untyped(),
-            #[cfg(feature = "3d")]
-            self.presentation_geometry.untyped(),
-            #[cfg(feature = "3d")]
-            self.presentation_view.untyped(),
-        ]);
+        deps.push(placement.untyped());
         let context = ctx.clone();
         let id = self.id.to_u32();
         self.input_listener
             .replace_with(LocalProperty::computed_with_name(
                 move || {
+                    placement.get();
                     context.mark_node_input_dirty(id);
                 },
                 &deps,

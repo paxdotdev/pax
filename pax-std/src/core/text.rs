@@ -167,6 +167,10 @@ impl TextInstance {
 }
 
 impl InstanceNode for TextInstance {
+    fn geometry_is_scroller_local(&self) -> bool {
+        true
+    }
+
     fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
         false
     }
@@ -230,145 +234,198 @@ impl InstanceNode for TextInstance {
         // send update message when relevant properties change
         let weak_self_ref = Rc::downgrade(&expanded_node);
         let instance = Rc::clone(&self);
-        let context = Rc::clone(context);
         let last_patch = Rc::new(RefCell::new(TextPatch {
             id,
             ..Default::default()
         }));
 
-        let deps: Vec<_> = borrow!(expanded_node.properties_scope)
-            .values()
-            .cloned()
-            .map(|v| v.get_untyped_property().clone())
-            .chain([
-                crate::common::native_geometry_dependency(expanded_node),
-                expanded_node.computed_opacity.untyped(),
-                expanded_node.occlusion.untyped(),
-            ])
-            .collect();
+        // A world-pose change must not clone strings/styles or reconstruct a
+        // measurement key. Width/height constraints cut off before that work.
+        let tab = expanded_node.presentation_transform_and_bounds.clone();
+        let cp = expanded_node.get_common_properties();
+        let cp = borrow!(cp);
+        let width = cp.width.clone();
+        let height = cp.height.clone();
+        let deps = [tab.untyped(), width.untyped(), height.untyped()];
+        let constraints = LocalProperty::computed_with_cutoff(
+            move || {
+                let (w, h) = tab.get().bounds;
+                (
+                    if width.get().is_some() { w } else { -1. },
+                    if height.get().is_some() { h } else { -1. },
+                )
+            },
+            &deps,
+            PartialEq::eq,
+        );
+        let mut deps = vec![constraints.untyped()];
+        expanded_node.with_properties_unwrapped(|p: &mut Text| {
+            deps.extend([
+                p.text.untyped(),
+                p.markdown.untyped(),
+                p.wrap.untyped(),
+                p.style.untyped(),
+                p._style_link.untyped(),
+                p.editable.untyped(),
+                p.selectable.untyped(),
+                p.clip.untyped(),
+            ]);
+        });
+        let content_context = Rc::clone(context);
+        let content_state = last_patch.clone();
+        let content = LocalProperty::computed(
+            move || {
+                let Some(expanded_node) = weak_self_ref.upgrade() else {
+                    return;
+                };
+                let _work = content_context.profile_node_work(id, "text content and measurement");
+                let mut old_state = borrow_mut!(content_state);
 
+                let mut patch = TextPatch {
+                    id,
+                    ..Default::default()
+                };
+                expanded_node.with_properties_unwrapped(|properties: &mut Text| {
+                    // send width/height only if common props exist, otherwise we are in "listening mode"
+                    // trying to infer width and height from the engine. To signal this we
+                    // send width/height = -1.0, telling chassis that "you tell me!".
+                    let (width, height) = constraints.get();
+                    let content = properties.text.local().get();
+                    let markdown = properties.markdown.local().get();
+                    let wrap = properties.wrap.local().get();
+                    let style: TextStyleMessage = properties.style.local().get().message(true);
+                    let style_link: TextStyleMessage =
+                        properties._style_link.local().get().message(true);
+                    let editable = properties.editable.local().get();
+                    let selectable = properties.selectable.local().get();
+                    let clip = properties.clip.local().get();
+
+                    let updates = [
+                        // Content
+                        patch_if_needed(
+                            &mut old_state.content,
+                            &mut patch.content,
+                            content.clone(),
+                        ),
+                        patch_if_needed(&mut old_state.markdown, &mut patch.markdown, markdown),
+                        patch_if_needed(&mut old_state.wrap, &mut patch.wrap, wrap),
+                        // Styles
+                        patch_if_needed(&mut old_state.style, &mut patch.style, style.clone()),
+                        patch_if_needed(
+                            &mut old_state.style_link,
+                            &mut patch.style_link,
+                            style_link.clone(),
+                        ),
+                        patch_if_needed(&mut old_state.editable, &mut patch.editable, editable),
+                        patch_if_needed(
+                            &mut old_state.selectable,
+                            &mut patch.selectable,
+                            selectable,
+                        ),
+                        patch_if_needed(&mut old_state.clip, &mut patch.clip, clip),
+                        // Transform and bounds
+                        patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
+                        patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
+                    ];
+                    let measurement_key = text_measurement_key(
+                        content.clone(),
+                        markdown,
+                        wrap,
+                        clip,
+                        editable,
+                        selectable,
+                        style,
+                        style_link,
+                        width,
+                        height,
+                    );
+                    if let Some(measurement_key) = measurement_key {
+                        patch.measure_generation = instance.measurement_state.borrow_mut().request(
+                            id,
+                            measurement_key,
+                            expanded_node.measured_size.get().is_some(),
+                        );
+                    } else {
+                        instance.clear_measurement_request(&expanded_node);
+                    }
+
+                    if updates.into_iter().any(|v| v == true) || patch.measure_generation.is_some()
+                    {
+                        // HACK: markdown flag and content is needed at the same time, so if we have one,
+                        // include the other:
+                        if patch.markdown.is_some() && patch.content.is_none() {
+                            patch.content = Some(content);
+                        }
+                        if patch.content.is_some() && patch.markdown.is_none() {
+                            patch.markdown = Some(markdown);
+                        }
+                        content_context
+                            .enqueue_native_message(pax_message::NativeMessage::TextUpdate(patch));
+                    }
+                });
+                ()
+            },
+            &deps,
+        );
+        let placement = expanded_node.native_placement(context);
+        let weak_node = Rc::downgrade(expanded_node);
+        let context = Rc::clone(context);
+        let deps = [
+            content.untyped(),
+            placement.untyped(),
+            expanded_node.parent_frame.untyped(),
+            expanded_node.occlusion.untyped(),
+            expanded_node.computed_opacity.untyped(),
+        ];
         expanded_node
             .changed_listener
             .replace_with(LocalProperty::computed(
                 move || {
-                    let Some(expanded_node) = weak_self_ref.upgrade() else {
+                    content.get();
+                    let Some(node) = weak_node.upgrade() else {
                         return;
                     };
-                    let mut old_state = borrow_mut!(last_patch);
-
+                    let (scroller, transform) = placement.get();
+                    let mut old = borrow_mut!(last_patch);
                     let mut patch = TextPatch {
                         id,
                         ..Default::default()
                     };
-                    expanded_node.with_properties_unwrapped(|properties: &mut Text| {
-                        let computed_tab = expanded_node.presentation_transform_and_bounds.get();
-                        let (width, height) = computed_tab.bounds;
-                        let cp = expanded_node.get_common_properties();
-                        let cp = borrow!(cp);
-                        // send width/height only if common props exist, otherwise we are in "listening mode"
-                        // trying to infer width and height from the engine. To signal this we
-                        // send width/height = -1.0, telling chassis that "you tell me!".
-                        let (width, height) = (
-                            cp.width.get().is_some().then_some(width).unwrap_or(-1.0),
-                            cp.height.get().is_some().then_some(height).unwrap_or(-1.0),
-                        );
-                        let content = properties.text.local().get();
-                        let markdown = properties.markdown.local().get();
-                        let wrap = properties.wrap.local().get();
-                        let style: TextStyleMessage = properties.style.local().get().message(true);
-                        let style_link: TextStyleMessage =
-                            properties._style_link.local().get().message(true);
-                        let editable = properties.editable.local().get();
-                        let selectable = properties.selectable.local().get();
-                        let clip = properties.clip.local().get();
-
-                        let updates = [
-                            // Content
-                            patch_if_needed(
-                                &mut old_state.content,
-                                &mut patch.content,
-                                content.clone(),
-                            ),
-                            patch_if_needed(&mut old_state.markdown, &mut patch.markdown, markdown),
-                            patch_if_needed(&mut old_state.wrap, &mut patch.wrap, wrap),
-                            // Styles
-                            patch_if_needed(&mut old_state.style, &mut patch.style, style.clone()),
-                            patch_if_needed(
-                                &mut old_state.style_link,
-                                &mut patch.style_link,
-                                style_link.clone(),
-                            ),
-                            patch_if_needed(&mut old_state.editable, &mut patch.editable, editable),
-                            patch_if_needed(
-                                &mut old_state.selectable,
-                                &mut patch.selectable,
-                                selectable,
-                            ),
-                            patch_if_needed(&mut old_state.clip, &mut patch.clip, clip),
-                            // Transform and bounds
-                            patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
-                            patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
-                            patch_if_needed(
-                                &mut old_state.parent_frame,
-                                &mut patch.parent_frame,
-                                expanded_node.parent_frame.get().map(|v| v.to_u32()),
-                            ),
-                            patch_if_needed(
-                                &mut old_state.z_index,
-                                &mut patch.z_index,
-                                expanded_node.occlusion.get().z_index,
-                            ),
-                            patch_if_needed(
-                                &mut old_state.transform,
-                                &mut patch.transform,
-                                context.native_presentation_matrix_for_node(&expanded_node),
-                            ),
-                            patch_if_needed(
-                                &mut old_state.opacity,
-                                &mut patch.opacity,
-                                native_surface_opacity(&expanded_node, &context),
-                            ),
-                        ];
-                        let measurement_key = text_measurement_key(
-                            content.clone(),
-                            markdown,
-                            wrap,
-                            clip,
-                            editable,
-                            selectable,
-                            style,
-                            style_link,
-                            width,
-                            height,
-                        );
-                        if let Some(measurement_key) = measurement_key {
-                            patch.measure_generation =
-                                instance.measurement_state.borrow_mut().request(
-                                    id,
-                                    measurement_key,
-                                    expanded_node.measured_size.get().is_some(),
-                                );
-                        } else {
-                            instance.clear_measurement_request(&expanded_node);
-                        }
-
-                        if updates.into_iter().any(|v| v == true)
-                            || patch.measure_generation.is_some()
-                        {
-                            // HACK: markdown flag and content is needed at the same time, so if we have one,
-                            // include the other:
-                            if patch.markdown.is_some() && patch.content.is_none() {
-                                patch.content = Some(content);
-                            }
-                            if patch.content.is_some() && patch.markdown.is_none() {
-                                patch.markdown = Some(markdown);
-                            }
-                            context.enqueue_native_message(pax_message::NativeMessage::TextUpdate(
-                                patch,
-                            ));
-                        }
-                    });
-                    ()
+                    let owner_changed = patch_if_needed(
+                        &mut old.transform_scroller,
+                        &mut patch.transform_scroller,
+                        scroller,
+                    );
+                    let changed = [
+                        patch_if_needed(
+                            &mut old.parent_frame,
+                            &mut patch.parent_frame,
+                            node.parent_frame.get().map(|v| v.to_u32()),
+                        ),
+                        patch_if_needed(
+                            &mut old.z_index,
+                            &mut patch.z_index,
+                            node.occlusion.get().z_index,
+                        ),
+                        patch_if_needed(
+                            &mut old.transform,
+                            &mut patch.transform,
+                            transform.clone(),
+                        ),
+                        patch_if_needed(
+                            &mut old.opacity,
+                            &mut patch.opacity,
+                            native_surface_opacity(&node, &context),
+                        ),
+                    ];
+                    // A coordinate-space switch is atomic even if the coefficients match.
+                    if owner_changed {
+                        patch.transform = Some(transform);
+                    }
+                    if owner_changed || changed.into_iter().any(|c| c) {
+                        context
+                            .enqueue_native_message(pax_message::NativeMessage::TextUpdate(patch));
+                    }
                 },
                 &deps,
             ));
@@ -1231,6 +1288,9 @@ impl FontWeight {
         }
     }
 }
+
+#[cfg(test)]
+mod isolation_tests;
 
 #[cfg(test)]
 mod measurement_tests {

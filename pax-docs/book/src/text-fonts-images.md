@@ -91,6 +91,13 @@ spaces and newlines even when wrapping is enabled, including intentional
 indentation in a raw string or extra indentation in a framed body. Markdown
 retains the target renderer's own whitespace rules.
 
+On web and Apple targets, ordinary affine Text inside a Scroller retains its
+placement relative to that scroller. Moving the whole host does not republish
+each unchanged text transform or prepare its content and measurement again.
+Local text movement, width and content edits still update normally; spatial,
+camera-controlled, detached, and flight placement uses the conservative
+world-coordinate path. This is automatic and requires no template setting.
+
 Measurements can change when the string, width, style, or loaded font changes.
 Allow the layout to settle before relying on a measured size. A following
 element at a fixed `y` will not move just because the paragraph grew. Use an

@@ -5,6 +5,7 @@ export class FrameUpdatePatch {
     public sizeX?: number;
     public sizeY?: number;
     public transform?: number[];
+    public transformScroller?: number | null;
     public clipContent?: boolean;
     public borderRadius?: number;
     public clipPath?: string;
@@ -21,6 +22,7 @@ export class FrameUpdatePatch {
             this.sizeX = jsonMessage["size_x"];
             this.sizeY = jsonMessage["size_y"];
             this.transform = jsonMessage["transform"];
+            this.transformScroller = jsonMessage["transform_scroller"];
             this.clipContent = jsonMessage["clip_content"];
             this.borderRadius = jsonMessage["corner_radius"];
             this.clipPath = jsonMessage["clip_path"];
@@ -38,6 +40,7 @@ export class FrameUpdatePatch {
         this.sizeX = 0;
         this.sizeY = 0;
         this.transform = [];
+        this.transformScroller = undefined;
         this.clipContent = undefined;
         this.borderRadius = undefined;
         this.clipPath = undefined;

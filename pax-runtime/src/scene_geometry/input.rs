@@ -54,6 +54,7 @@ pub(crate) struct InputPlacement {
     pub rank: usize,
     pub end: usize,
     pub scroll_parent: Option<u32>,
+    pub local_owner: Option<u32>,
     pub scrolls: bool,
     // Perspective projection already incorporates scrolling before projection.
     // Affine shapes instead stay in unscrolled coordinates within their chart.
@@ -64,11 +65,14 @@ pub(crate) struct InputPlacement {
 }
 
 impl InputPlacement {
-    fn chart(&self) -> Option<u32> {
+    fn chart(&self) -> (Option<u32>, bool) {
+        if let Some(owner) = self.local_owner {
+            return (Some(owner), true);
+        }
         if self.window_space {
-            None
+            (None, false)
         } else {
-            self.scroll_parent
+            (self.scroll_parent, false)
         }
     }
 
@@ -91,7 +95,7 @@ pub(crate) struct InputScene {
     pub dirty: HashSet<u32>,
     pub scrollers: Vec<u32>,
     projected: HashSet<u32>,
-    indexes: HashMap<Option<u32>, SpatialIndex>,
+    indexes: HashMap<(Option<u32>, bool), SpatialIndex>,
     pub stats: InputQueryStats,
 }
 
@@ -154,11 +158,24 @@ impl InputScene {
         self.records.insert(id, record);
     }
 
-    pub fn candidates(&mut self, point: Point, scrolls: &HashMap<u32, Affine>) -> HashSet<u32> {
+    pub fn candidates(
+        &mut self,
+        point: Point,
+        scrolls: &HashMap<u32, Affine>,
+        hosts: &HashMap<u32, Affine>,
+    ) -> HashSet<u32> {
         let mut ids = HashSet::new();
         let mut local = HashSet::new();
-        for (chart, index) in &self.indexes {
-            let point = chart.map_or(point, |id| scrolls[&id].inverse() * point);
+        for ((chart, local_chart), index) in &self.indexes {
+            let point = chart.map_or(point, |id| {
+                (if *local_chart {
+                    hosts[&id]
+                } else {
+                    scrolls[&id]
+                })
+                .inverse()
+                    * point
+            });
             let rect = Rect::new(point.x, point.y, point.x, point.y);
             local.clear();
             index.candidates(rect, &mut local);

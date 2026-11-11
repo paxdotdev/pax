@@ -82,6 +82,9 @@ impl InstanceNode for HitNode {
     fn base(&self) -> &BaseInstance {
         &self.base
     }
+    fn geometry_is_scroller_local(&self) -> bool {
+        true
+    }
     fn resolve_debug(
         &self,
         f: &mut std::fmt::Formatter,
@@ -282,6 +285,33 @@ fn nested_rotated_scroll_charts_preserve_clip_escape_and_current_geometry() {
             }
         }
         assert_eq!(ctx.input_query_stats().bounds_prepared, before);
+    }
+    // Host motion uses the same local chart as scrolling, including rotated
+    // ancestors. Compare exact results to uncached world-space preparation.
+    for (x, angle) in [(60., -12.), (140., 30.)] {
+        outer
+            .get_common_properties()
+            .borrow()
+            .x
+            .set(Some(Size::Pixels(x.into())));
+        outer
+            .get_common_properties()
+            .borrow()
+            .rotate
+            .set(Some(pax_runtime_api::Rotation::Degrees(angle.into())));
+        engine.tick();
+        let ctx = &engine.runtime_context;
+        let before_move = ctx.input_query_stats().bounds_prepared;
+        for x in (0..800).step_by(31) {
+            for y in (0..600).step_by(37) {
+                let point = (x as f64, y as f64);
+                assert_eq!(
+                    query(ctx, None, point, false),
+                    oracle(ctx, None, point, false)
+                );
+            }
+        }
+        assert!(ctx.input_query_stats().bounds_prepared - before_move <= 1);
     }
     leaf.get_common_properties()
         .borrow()

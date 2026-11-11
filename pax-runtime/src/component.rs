@@ -32,6 +32,10 @@ pub struct ComponentInstance {
 // }
 
 impl InstanceNode for ComponentInstance {
+    fn geometry_is_scroller_local(&self) -> bool {
+        true
+    }
+
     fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
         false
     }

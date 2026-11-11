@@ -636,6 +636,11 @@ pub struct FramePatch {
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
+    /// Coordinate owner for both `transform` and `clip_path`: a native
+    /// Scroller's content chart, or explicit null for world placement.
+    /// Omitted means unchanged. Ownership changes co-publish geometry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transform_scroller: Option<Option<u32>>,
     pub clip_path: Option<String>,
     /// The clip is the transformed local box, rounded by `corner_radius`.
     /// False/absent keeps the arbitrary-path fallback; hosts must not infer shape
@@ -995,6 +1000,10 @@ pub struct TextPatch {
     pub markdown: Option<bool>,
     pub wrap: Option<bool>,
     pub transform: Option<Vec<f64>>,
+    /// Coordinate owner for `transform`: a native Scroller's content chart, or
+    /// explicit null for world/projected placement. Omitted means unchanged.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transform_scroller: Option<Option<u32>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub opacity: Option<f64>,
@@ -1251,4 +1260,41 @@ pub struct LayerSurfaceScreenshotData {
     pub origin_y: f32,
     pub logical_width: f32,
     pub logical_height: f32,
+}
+
+#[cfg(test)]
+mod native_placement_tests {
+    use super::*;
+
+    #[test]
+    fn text_owner_distinguishes_unchanged_world_and_scroller() {
+        let mut patch = TextPatch::default();
+        assert!(serde_json::to_value(&patch)
+            .unwrap()
+            .get("transform_scroller")
+            .is_none());
+        patch.transform_scroller = Some(None);
+        assert!(serde_json::to_value(&patch).unwrap()["transform_scroller"].is_null());
+        patch.transform_scroller = Some(Some(42));
+        assert_eq!(
+            serde_json::to_value(&patch).unwrap()["transform_scroller"],
+            42
+        );
+    }
+
+    #[test]
+    fn frame_owner_distinguishes_unchanged_world_and_scroller() {
+        let mut patch = FramePatch::default();
+        assert!(serde_json::to_value(&patch)
+            .unwrap()
+            .get("transform_scroller")
+            .is_none());
+        patch.transform_scroller = Some(None);
+        assert!(serde_json::to_value(&patch).unwrap()["transform_scroller"].is_null());
+        patch.transform_scroller = Some(Some(42));
+        assert_eq!(
+            serde_json::to_value(&patch).unwrap()["transform_scroller"],
+            42
+        );
+    }
 }

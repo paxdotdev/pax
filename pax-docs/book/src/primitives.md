@@ -247,8 +247,28 @@ Standard affine canvas primitives observe
 `ExpandedNode::canvas_transform_and_bounds` for paint invalidation rather than
 world placement. This value composes placement inside an allocated scroll surface
 and retains world-dependent invalidation for unsupported projection/flight cases.
-Use the normal world geometry for native placement, input, or world-dependent
-effects; do not substitute paint coordinates for those contracts.
+Do not substitute paint coordinates for native placement, input, or world-dependent
+effects. Native primitives that support both coordinate modes can use
+`ExpandedNode::native_placement`: it returns an optional Scroller owner plus a
+matrix in that owner's content coordinates, or an ownerless world/projected
+matrix. The chassis must honor that owner and publish coordinate-mode changes
+atomically with the transform and any clip path. Standard Text and Frame do this
+on web and Apple targets.
+
+Geometry can separately opt into retained affine Scroller charts:
+
+```rust
+fn geometry_is_scroller_local(&self) -> bool { true }
+```
+
+This promises that hit shapes, local clips, and occlusion coverage depend only on
+local dimensions and content, not the host's world pose. Declare their property
+dependencies and invalidate non-reactive edits as usual. Input can then retain
+bounds across host movement; compositing does so only inside a proven isolated,
+clipped surface. World-dependent callbacks and posed meshes must keep the default
+`false`. Perspective, detached content, and presentation flights retain conservative
+updates. This opt-in does not eliminate container presentation updates or work
+caused by changing geometry inside the surface.
 
 ### Input geometry
 

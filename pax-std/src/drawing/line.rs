@@ -41,6 +41,10 @@ pub struct LineInstance {
 }
 
 impl InstanceNode for LineInstance {
+    fn geometry_is_scroller_local(&self) -> bool {
+        true
+    }
+
     fn supports_alpha_source_render(&self) -> bool {
         true
     }

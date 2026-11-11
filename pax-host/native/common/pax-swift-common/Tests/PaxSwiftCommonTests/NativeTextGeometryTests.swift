@@ -8,6 +8,87 @@ import FlexBuffers
 
 @MainActor
 final class NativeTextGeometryTests: XCTestCase {
+    func testScrollerLocalTextFollowsHostWithoutTextPatch() throws {
+        _ = NSApplication.shared
+        PaxNativeHostState.reset()
+        defer { PaxNativeHostState.reset() }
+        let scroller = ScrollerElement.makeDefault(id: 900, parentFrame: nil, renderLayerId: 0)
+        scroller.size_x = 300; scroller.size_y = 200
+        scroller.sizeInnerPaneX = 300; scroller.sizeInnerPaneY = 400
+        scroller.transform = [1, 0, 0, 1, 70, 80]
+        let frame = FrameElement.makeDefault(id: 901, parentFrame: 900)
+        frame.size_x = 250; frame.size_y = 100
+        frame.transformScroller = 900
+        frame.transform = [1, 0, 0, 1, 10, 20]
+        let text = TextElement.makeDefault(id: 902, parentFrame: 901, renderLayerId: 0)
+        text.content = "Retained local text"
+        text.selectable = true
+        text.size_x = 180; text.size_y = 30
+        text.transformScroller = 900
+        text.transform = [1, 0, 0, 1, 15, 25]
+        ScrollerElements.singleton.add(element: scroller)
+        FrameElements.singleton.add(element: frame)
+        TextElements.singleton.add(element: text)
+        NativeSceneInvalidation.singleton.invalidate()
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 600, height: 600),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        let host = NSHostingView(rootView: NativeRenderingLayer())
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        let field = try XCTUnwrap(descendant(NSTextField.self, in: host))
+        let leafHost = try XCTUnwrap(field.superview?.superview)
+        let initial = leafHost.convert(CGPoint.zero, to: host)
+        // Both the Frame and Text retain their scroller-local patches.
+        scroller.transform[4] += 40
+        NativeSceneInvalidation.singleton.invalidate(ids: [900], rebuild: false)
+        let moved = leafHost.convert(CGPoint.zero, to: host)
+        XCTAssertEqual(moved.x - initial.x, 40, accuracy: 0.01)
+        XCTAssertEqual(moved.y, initial.y, accuracy: 0.01)
+        XCTAssertEqual(leafHost.frame.origin.x, 5, accuracy: 0.01)
+        XCTAssertEqual(leafHost.frame.origin.y, 5, accuracy: 0.01)
+        XCTAssertEqual(text.transform, [1, 0, 0, 1, 15, 25])
+        XCTAssertEqual(frame.transform, [1, 0, 0, 1, 10, 20])
+    }
+
+    func testTextOwnerPatchDistinguishesOmissionAndNull() throws {
+        let text = TextElement.makeDefault(id: 903, parentFrame: nil, renderLayerId: 0)
+        // Rust encodes node IDs as unsigned FlexBuffer values.
+        let initial = try FlexBufferBuilder.encodeMap { patch in
+            patch.add("id", UInt(903))
+            patch.add("transform_scroller", UInt(42))
+        }
+        text.applyPatch(patch: TextUpdatePatch(fb: try XCTUnwrap(initial.root)))
+        XCTAssertEqual(text.transformScroller, 42)
+        for (json, expected) in [
+            (#"{"id":903,"opacity":0.5}"#, PaxNodeId(42)),
+            (#"{"id":903,"transform_scroller":null}"#, nil)
+        ] {
+            let payload = try FlexBufferBuilder.fromJSON(json)
+            text.applyPatch(patch: TextUpdatePatch(fb: try XCTUnwrap(payload.root)))
+            XCTAssertEqual(text.transformScroller, expected)
+        }
+    }
+
+    func testFrameOwnerPatchDistinguishesOmissionAndNull() throws {
+        let frame = FrameElement.makeDefault(id: 904, parentFrame: nil)
+        let initial = try FlexBufferBuilder.encodeMap { patch in
+            patch.add("id", UInt(904))
+            patch.add("transform_scroller", UInt(42))
+        }
+        frame.applyPatch(patch: FrameUpdatePatch(fb: try XCTUnwrap(initial.root)))
+        XCTAssertEqual(frame.transformScroller, 42)
+        for (json, expected) in [
+            (#"{"id":904,"opacity":0.5}"#, PaxNodeId(42)),
+            (#"{"id":904,"transform_scroller":null}"#, nil)
+        ] {
+            let payload = try FlexBufferBuilder.fromJSON(json)
+            frame.applyPatch(patch: FrameUpdatePatch(fb: try XCTUnwrap(payload.root)))
+            XCTAssertEqual(frame.transformScroller, expected)
+        }
+    }
+
     func testNativeSceneAppliesGeometryBeforeInvalidationReturns() throws {
         _ = NSApplication.shared
         let element = TextElement.makeDefault(id: 999_999, parentFrame: nil, renderLayerId: 0)

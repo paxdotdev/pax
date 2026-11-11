@@ -313,6 +313,10 @@ fn effective_presentation_scroll(
 }
 
 impl InstanceNode for ScrollerHostInstance {
+    fn geometry_is_scroller_local(&self) -> bool {
+        true
+    }
+
     fn is_layout_measurement_boundary(&self) -> bool {
         true
     }

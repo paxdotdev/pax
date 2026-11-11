@@ -5,6 +5,7 @@ import {ARRAY, DIV, LAYER} from "../pools/supported-objects";
 
 import { CLIPPING_CONTAINER, NATIVE_LEAF_CLASS } from "../utils/constants";
 import { affineMultiply, invertAffineCoeffs } from "../utils/helpers";
+import {NATIVE_SURFACE, NATIVE_SURFACE_INVERSE} from './native-placement';
 import type { NativeMaskEntry } from "./messages/native-mask-update-patch";
 import type { LayerCanvasPlan } from "./surface-host-policy";
 import { PreparedMaskImage } from "./prepared-mask-image";
@@ -207,19 +208,17 @@ export class RenderLayerManager {
         let new_container: HTMLDivElement = this.objectManager.getFromPool(DIV);
         new_container.dataset.containerId = id.toString();
         new_container.setAttribute("class", CLIPPING_CONTAINER);
-        // Do not enlarge the default SVG DOM tree for an opt-in experiment.
-        let content = new_container;
-        if (nativeFrameBoxEnabled()) {
-            content = document.createElement('div');
-            content.dataset.paxClipContent = 'true';
-            content.style.position = 'absolute';
-            content.style.left = '0';
-            content.style.top = '0';
-            content.style.width = '0';
-            content.style.height = '0';
-            content.style.transformOrigin = '0 0';
-            new_container.appendChild(content);
-        }
+        // A clip's world-space aperture and its scroller-local children have
+        // distinct charts. This wrapper serves both box and SVG clip paths.
+        const content = document.createElement('div');
+        content.dataset.paxClipContent = 'true';
+        content.style.position = 'absolute';
+        content.style.left = '0';
+        content.style.top = '0';
+        content.style.width = '0';
+        content.style.height = '0';
+        content.style.transformOrigin = '0 0';
+        new_container.appendChild(content);
         applyContainerStyles(
             new_container,
             container.clipPathValue(),
@@ -392,12 +391,14 @@ export class RenderLayerManager {
         const opacityChanged = styles.opacity != null && styles.opacity !== container.styles.opacity;
         const shapeChanged = (styles.clipIsRect != null && styles.clipIsRect !== container.styles.clipIsRect)
             || (styles.borderRadius != null && styles.borderRadius !== container.styles.borderRadius);
+        const chartChanged = styles.transformScroller !== undefined
+            && styles.transformScroller !== container.styles.transformScroller;
         container.update(styles);
         const clip = container.clipPathData();
         // World-space frame movement does not change native leaf opacity.
         // Unclipped frames need no DOM work at all for a transform-only patch.
         if (clip === previousClip && previousClipValue === container.clipPathValue()
-            && !opacityChanged && !shapeChanged && !(clip && sizeChanged)) return;
+            && !opacityChanged && !shapeChanged && !chartChanged && !(clip && sizeChanged)) return;
         if (clip !== previousClip) this.effects.updateClipPath(container.clipPathId(), clip);
         this.applyContainerClipPath(id, opacityChanged);
     }
@@ -916,21 +917,29 @@ function applyContainerStyles(
     else delete element.dataset.clipBounds;
     const inverse = nativeFrameBoxInverse(styles);
     if (inverse && nativeFrameBoxEnabled()) {
-        // Native leaves already carry world-space transforms. Cancel the box's
-        // transform below its clip so layout, hit testing and nested Frames keep
-        // their original coordinate system without rewriting every descendant.
+        // The aperture and children share the owning Scroller's chart. Legacy
+        // world apertures compensate at this boundary without adding a layer.
         clearContainerClipStyles(element);
         delete element.dataset.clipBounds; // the sized DOM box supplies its bounds
         element.style.width = `${width}px`;
         element.style.height = `${height}px`;
         element.style.transformOrigin = '0 0';
-        element.style.transform = `matrix(${styles.transform.join(',')})`;
+        const local = styles.transformScroller != null;
+        element.style.transform = `${local ? '' : NATIVE_SURFACE_INVERSE + ' '}matrix(${styles.transform.join(',')})`;
         element.style.overflow = 'clip'; // not a new scroll container
         element.style.borderRadius = `${Math.max(0, Math.min(styles.borderRadius, width / 2, height / 2))}px`;
-        containerContent(element).style.transform = `matrix(${inverse.join(',')})`;
+        containerContent(element).style.transform = `matrix(${inverse.join(',')})${local ? '' : ' ' + NATIVE_SURFACE}`;
         element.dataset.paxClipMode = 'box';
     } else {
         applyContainerClipPath(element, clipPath, pathData, width, height);
+        if (pathData && styles.transformScroller == null) {
+            // SVG/mask apertures are also authored in world coordinates. Only
+            // clipped frames need compensation; an unclipped frame stays a
+            // non-stacking wrapper, preserving interleaved native z-order.
+            element.style.transformOrigin = '0 0';
+            element.style.transform = NATIVE_SURFACE_INVERSE;
+            containerContent(element).style.transform = NATIVE_SURFACE;
+        }
         element.dataset.paxClipMode = 'svg';
     }
     element.dataset.paxContainerOpacity = `${opacity}`;
@@ -1121,6 +1130,7 @@ function getRectClipPathData(width: number, height: number, transform: number[])
 export class ContainerStyle {
     clipContent: boolean;
     transform: number[];
+    transformScroller?: number | null;
     width: number;
     height: number;
     opacity: number;

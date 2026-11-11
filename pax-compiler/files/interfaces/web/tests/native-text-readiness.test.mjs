@@ -9,6 +9,8 @@ function load(name, context) {
     return module.exports;
 }
 const {InitialTextPresentation} = load('initial-text-presentation', {});
+const helpers = load('../utils/helpers', {require: () => ({})});
+const placement = load('native-placement', {require: () => helpers});
 const font = ready => {const load = () => ready; return {getTextLoader: () => load, applyFontToDiv() {}};};
 const drain = async () => { for (let i = 0; i < 6; ++i) await Promise.resolve(); };
 function harness() {
@@ -25,7 +27,9 @@ function harness() {
     });
     const layers = {removeElementMask() {}, addElement(leaf) {leaves.push(leaf);}};
     const {NativeElementPool} = load('native-element-pool', {
-        require: name => name.endsWith('initial-text-presentation') ? {InitialTextPresentation} : name.endsWith('supported-objects') ? {DIV: 'div', RENDER_LAYER_MANAGER: 'layers'} : {},
+        require: name => name.endsWith('initial-text-presentation') ? {InitialTextPresentation}
+            : name.endsWith('native-placement') ? placement : name.endsWith('utils/helpers') ? helpers
+            : name.endsWith('supported-objects') ? {DIV: 'div', RENDER_LAYER_MANAGER: 'layers'} : {},
         console, setTimeout, queueMicrotask,
         window: {getSelection: () => ({removeAllRanges() {}, addRange() {}})},
         document: {createRange: () => ({selectNodeContents() {}})},
@@ -40,6 +44,33 @@ function harness() {
         measure: (width=100,height=20) => callback([{target: leaves[0], contentRect: {width,height}}]),
         flushes: () => flushes};
 }
+
+test('placement-only patches retain local text without traversing content or loading fonts', () => {
+    const h = harness();
+    h.leaf.firstChild.querySelectorAll = () => { throw new Error('placement traversed text'); };
+    const transform = [1, 0, 0, 1, 20, 30];
+    const packed = helpers.packAffineCoeffsIntoMatrix3DString(transform);
+    h.pool.textUpdate({id: 1, transform_scroller: 42, transform});
+    assert.equal(h.leaf.dataset.textTransformScroller, '42');
+    assert.equal(h.leaf.style.transform, packed);
+    h.pool.textUpdate({id: 1, transform});
+    assert.equal(h.leaf.style.transform, packed, 'an omitted owner retains its chart');
+    h.pool.textUpdate({id: 1, transform_scroller: null, transform});
+    assert.equal(h.leaf.dataset.textTransformScroller, undefined);
+    assert.equal(h.leaf.style.transform, placement.nativeWorldTransform(transform));
+});
+
+test('pooled text patches distinguish unchanged, local and world placement', () => {
+    const {TextUpdatePatch} = load('messages/text-update-patch', {require: () => ({})});
+    const patch = new TextUpdatePatch({returnToPool() {}});
+    patch.fromPatch({id: 1, transform_scroller: 42}, new Set());
+    assert.equal(patch.transform_scroller, 42);
+    patch.cleanUp();
+    patch.fromPatch({id: 2}, new Set());
+    assert.equal(patch.transform_scroller, undefined);
+    patch.fromPatch({id: 2, transform_scroller: null}, new Set());
+    assert.equal(patch.transform_scroller, null);
+});
 
 test('fallback metrics settle hidden layout; loaded metrics govern first presentation', async () => {
     const h=harness(); let resolve;
@@ -154,7 +185,7 @@ test('content changes load the new unicode subset and ignore stale readiness', a
     h.leaf.firstChild.textContent = 'Latin';
     h.pool.textUpdate({id: 1, size_x: 100, size_y: 20, style});
     h.leaf.firstChild.textContent = 'Ж';
-    h.pool.textUpdate({id: 1});
+    h.pool.textUpdate({id: 1, content: 'Ж'});
     completions[0](); await drain();
     assert.equal(h.pool.startupTextReady(), false);
     completions[1](); await drain();

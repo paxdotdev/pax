@@ -12,10 +12,11 @@ function load(path, require = () => ({})) {
     return module.exports;
 }
 const helpers = load('../src/utils/helpers.ts');
+const placement = load('../src/classes/native-placement.ts', () => helpers);
 const {NativeElementPool} = load('../src/classes/native-element-pool.ts', path =>
-    path === '../utils/helpers' ? helpers : {isIOSWebKitBrowser: () => false});
+    path === '../utils/helpers' ? helpers : path === './native-placement' ? placement : {isIOSWebKitBrowser: () => false});
 const {NativeElementPool: IOSNativeElementPool} = load('../src/classes/native-element-pool.ts', path =>
-    path === '../utils/helpers' ? helpers : {isIOSWebKitBrowser: () => true});
+    path === '../utils/helpers' ? helpers : path === './native-placement' ? placement : {isIOSWebKitBrowser: () => true});
 
 test('compositing diagnostics report work deltas without attributing old rebuild causes to a new pass', () => {
     const pool = Object.create(NativeElementPool.prototype);
@@ -70,7 +71,7 @@ test('planning measures a shared clip once per pass, never reuses it across pass
 });
 
 function harness(delegated = false, Pool = NativeElementPool) {
-    const element = () => ({style: {}, dataset: {}, scrollLeft: 0, scrollTop: 0});
+    const element = () => ({style: {setProperty(k,v) {this[k]=v;}}, dataset: {}, scrollLeft: 0, scrollTop: 0});
     const leaf = element(), pane = element(), canvas = element(), content = element();
     const state = {};
     const pool = Object.create(Pool.prototype);
@@ -96,7 +97,8 @@ test('pane recenter preserves content-space scroll and canvas/native alignment',
     const transform = [0.5, 0, 0, 0.75, 20, 90];
     h.update({sizeX:1800, sizeY:534, sizeInnerPaneX:50046, sizeInnerPaneY:534,
         transform, scrollX:42000.25, contentOriginX:0});
-    const inverse = h.content.style.transform;
+    assert.equal(h.content.style.transform, '', 'native contents stay scroller-local');
+    const inverse = h.content.style['--pax-native-surface-inverse'];
     const measure = () => h.pool.measureScrollerPosition(h.leaf, h.state);
     const before = measure();
     for (const origin of [16082, 0, -16082, 32164]) {
@@ -104,7 +106,7 @@ test('pane recenter preserves content-space scroll and canvas/native alignment',
         assert.equal(measure().presentationScrollX, before.presentationScrollX);
         assert.equal(h.canvas.style.translate, origin === 0 ? '' : `${-origin}px 0px`);
         assert.equal(h.content.style.translate, h.canvas.style.translate);
-        assert.equal(h.content.style.transform, inverse, 'origin does not replace inverse world transform');
+        assert.equal(h.content.style['--pax-native-surface-inverse'], inverse, 'origin does not replace the world adapter');
         assert.equal(h.canvas.dataset.approvedScrollX, '42000.25');
         assert.equal(h.pane.style.width, '50046px', 'finite native scroll extent stays fixed');
     }
@@ -154,7 +156,8 @@ for (const transform of [[0.5, 0, 0, 0.5, 65, 1200], [2, 0, 0, 2, 40, 80],
         assert.equal(h.pane.style.width, '3160px');
         assert.equal(h.leaf.style.width, '1024px');
         assert.equal(h.canvas.dataset.viewportWidth, '1024');
-        assert.equal(h.content.style.transform,
+        assert.equal(h.content.style.transform, '');
+        assert.equal(h.content.style['--pax-native-surface-inverse'],
             helpers.packAffineCoeffsIntoMatrix3DString(helpers.invertAffineCoeffs(transform)));
         h.update({sizeInnerPaneY: 7772});
         assert.equal(h.pane.style.height, '7772px');

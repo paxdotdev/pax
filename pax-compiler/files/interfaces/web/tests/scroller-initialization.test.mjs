@@ -12,11 +12,13 @@ function load(path, require = () => ({})) {
     return module.exports;
 }
 const helpers = load('../src/utils/helpers.ts');
+const placement = load('../src/classes/native-placement.ts', () => helpers);
 const {StartupWork} = load('../src/utils/startup-scheduler.ts');
 
 function harness(ios = false, delegated = false) {
     const {NativeElementPool} = load('../src/classes/native-element-pool.ts', name => {
         if (name === '../utils/helpers') return helpers;
+        if (name === './native-placement') return placement;
         if (name === './surface-host-policy') return {isIOSWebKitBrowser: () => ios};
         if (name === './render-layer-context') return {setLeafLocalOpacity() {}};
         return {};
@@ -25,7 +27,7 @@ function harness(ios = false, delegated = false) {
         let x = 0, y = 0;
         const range = axis => Math.max(0, (parseFloat(node.children[0]?.style[axis]) || 0)
             - (parseFloat(node.style[axis]) || 0));
-        const node = {style: {}, dataset: {}, attrs: {}, children: [],
+        const node = {style: {setProperty(k,v) {this[k]=v;}}, dataset: {}, attrs: {}, children: [],
             setAttribute(k, v) {this.attrs[k] = v;}, getAttribute(k) {return this.attrs[k];},
             addEventListener() {},
             appendChild(child) {this.children.push(child); child.parentElement = this;},

@@ -3736,13 +3736,23 @@ public struct NativeRenderingLayer: View {
     }
 
     private func renderTextItem(_ element: TextElement, width: CGFloat, height: CGFloat) -> NativeRenderItem {
+        // Text can retain its affine Scroller-local pose while the host moves.
+        // Native scene items use the immediate Frame's chart instead.
+        let transform: [Float]
+        if let owner = element.transformScroller {
+            let world = affineTransform(from: element.transform)
+                .concatenating(parentFrameTransform(owner))
+            transform = [world.a, world.b, world.c, world.d, world.tx, world.ty].map(Float.init)
+        } else {
+            transform = element.transform
+        }
         return NativeRenderItem(
             id: element.id,
             zIndex: element.zIndex,
             parentFrame: element.parentFrame,
-            localTransform: affineTransform(from: element.transform)
+            localTransform: affineTransform(from: transform)
                 .concatenating(safeInverse(parentFrameTransform(element.parentFrame))),
-            localProjection: localProjection(element.transform, parent: element.parentFrame),
+            localProjection: localProjection(transform, parent: element.parentFrame),
             size: CGSize(width: width, height: height),
             opacity: clampOpacity(element.opacity),
             kind: .text(element),
@@ -3755,7 +3765,7 @@ public struct NativeRenderingLayer: View {
             return .identity
         }
         if let frame = frameElements.elements[parentFrame] {
-            return affineTransform(from: frame.transform)
+            return affineTransform(from: frameWorldCoefficients(frame))
         }
         if let scroller = scrollerElements.elements[parentFrame] {
             return affineTransform(from: scroller.transform)
@@ -3763,8 +3773,14 @@ public struct NativeRenderingLayer: View {
         return .identity
     }
 
+    private func frameWorldCoefficients(_ frame: FrameElement) -> [Float] {
+        guard let owner = frame.transformScroller else { return frame.transform }
+        let world = affineTransform(from: frame.transform).concatenating(parentFrameTransform(owner))
+        return [world.a, world.b, world.c, world.d, world.tx, world.ty].map(Float.init)
+    }
+
     private func localProjection(_ coefficients: [Float], parent: PaxNodeId?) -> PaxNativeProjection? {
-        let parentCoefficients = parent.flatMap { frameElements.elements[$0]?.transform
+        let parentCoefficients = parent.flatMap { frameElements.elements[$0].map(frameWorldCoefficients)
             ?? scrollerElements.elements[$0]?.transform } ?? [1, 0, 0, 1, 0, 0]
         guard coefficients.count == 16 || parentCoefficients.count == 16 else { return nil }
         guard let world = PaxNativeProjection(coefficients),
@@ -3782,7 +3798,7 @@ public struct NativeRenderingLayer: View {
 
     private func frameTransformInParentFrame(_ frame: FrameElement) -> CGAffineTransform {
         let parentInverse = safeInverse(parentFrameTransform(frame.parentFrame))
-        return affineTransform(from: frame.transform).concatenating(parentInverse)
+        return affineTransform(from: frameWorldCoefficients(frame)).concatenating(parentInverse)
     }
 
     private func frameSize(_ frame: FrameElement) -> CGSize {
@@ -3888,7 +3904,7 @@ public struct NativeRenderingLayer: View {
                 zIndex: frame.zIndex,
                 parentFrame: frame.parentFrame,
                 localTransform: frameTransformInParentFrame(frame),
-                localProjection: localProjection(frame.transform, parent: frame.parentFrame),
+                localProjection: localProjection(frameWorldCoefficients(frame), parent: frame.parentFrame),
                 size: frameSize(frame),
                 opacity: clampOpacity(frame.opacity),
                 clipContent: frame.clipContent,

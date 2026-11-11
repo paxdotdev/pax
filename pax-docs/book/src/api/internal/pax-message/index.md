@@ -483,6 +483,13 @@ Type: `Option`<`f64`>
 ##### `transform`
 Type: `Option`<`Vec`<`f64`>>
 
+##### `transform_scroller`
+Type: `Option`<`Option`<`u32`>>
+
+Coordinate owner for both `transform` and `clip_path`: a native
+Scroller's content chart, or explicit null for world placement.
+Omitted means unchanged. Ownership changes co-publish geometry.
+
 ##### `clip_path`
 Type: `Option`<`String`>
 
@@ -1447,6 +1454,12 @@ Type: `Option`<`bool`>
 
 ##### `transform`
 Type: `Option`<`Vec`<`f64`>>
+
+##### `transform_scroller`
+Type: `Option`<`Option`<`u32`>>
+
+Coordinate owner for `transform`: a native Scroller's content chart, or
+explicit null for world/projected placement. Omitted means unchanged.
 
 ##### `size_x`
 Type: `Option`<`f64`>

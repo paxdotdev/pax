@@ -600,6 +600,14 @@ pub trait InstanceNode {
         true
     }
 
+    /// Whether hit shapes, local clips and coverage depend only on local content
+    /// and dimensions, never the containing scroller's world pose. Opting in
+    /// permits retained affine scroller charts for input and compositing.
+    /// Custom world-dependent callbacks and posed meshes must keep the default.
+    fn geometry_is_scroller_local(&self) -> bool {
+        false
+    }
+
     /// Used by scroller-like primitives to allocate a browser-owned presentation layer.
     fn scrolls_content(&self, _expanded_node: &ExpandedNode) -> bool {
         false

@@ -845,6 +845,7 @@ public class TextElement: NativePositionElement {
     public var editable: Bool
     public var clip: Bool
     public var transform: [Float]
+    public var transformScroller: PaxNodeId? = nil
     public var size_x: Float
     public var size_y: Float
     public var opacity: Double
@@ -895,6 +896,9 @@ public class TextElement: NativePositionElement {
         }
         if let transform = patch.transform {
             self.transform = transform
+        }
+        if patch.transformScrollerUpdated {
+            self.transformScroller = patch.transformScroller
         }
         if let size_x = patch.size_x {
             self.size_x = size_x
@@ -1109,6 +1113,8 @@ public class TextUpdatePatch: ResolvedPlacementPatch {
     public var zIndex: Int?
     public var content: String?
     public var transform: [Float]?
+    public var transformScrollerUpdated: Bool
+    public var transformScroller: PaxNodeId?
     public var size_x: Float?
     public var size_y: Float?
     public var opacity: Double?
@@ -1130,6 +1136,8 @@ public class TextUpdatePatch: ResolvedPlacementPatch {
         self.zIndex = readInt(fb["z_index"])
         self.content = fb["content"]?.asString
         self.transform = readFloatArray(fb["transform"])
+        self.transformScrollerUpdated = fieldExists(fb, "transform_scroller")
+        self.transformScroller = readNodeId(fb["transform_scroller"])
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
         self.opacity = readDouble(fb["opacity"])
@@ -1994,6 +2002,7 @@ public class FrameElement: ResolvedPlacementTarget {
     public var opacity: Double
     public var zIndex: Int
     public var transform: [Float]
+    public var transformScroller: PaxNodeId?
     public var size_x: Float
     public var size_y: Float
     public var clipPath: String?
@@ -2018,6 +2027,9 @@ public class FrameElement: ResolvedPlacementTarget {
     
     public func applyPatch(patch: FrameUpdatePatch) {
         //no-op to ID, as it is primary key
+        if patch.transformScrollerUpdated {
+            self.transformScroller = patch.transformScroller
+        }
         
         if patch.transform != nil {
             self.transform = patch.transform!
@@ -2191,6 +2203,8 @@ public class FrameUpdatePatch: ResolvedPlacementPatch {
     public var zIndexUpdated: Bool
     public var zIndex: Int?
     public var transform: [Float]?
+    public var transformScrollerUpdated: Bool
+    public var transformScroller: PaxNodeId?
     public var size_x: Float?
     public var size_y: Float?
     public var clipContent: Bool?
@@ -2206,6 +2220,8 @@ public class FrameUpdatePatch: ResolvedPlacementPatch {
         self.zIndexUpdated = fieldExists(fb, "z_index")
         self.zIndex = readInt(fb["z_index"])
         self.transform = readFloatArray(fb["transform"])
+        self.transformScrollerUpdated = fieldExists(fb, "transform_scroller")
+        self.transformScroller = readNodeId(fb["transform_scroller"])
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
         self.clipContent = fb["clip_content"]?.asBool
