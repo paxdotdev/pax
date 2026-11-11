@@ -620,6 +620,50 @@ fn exercise_tile_lifecycle(incremental: bool, prepared: bool) {
             .all(|r| r.presentation_ready)));
         assert_eq!(renderer.flushed_surfaces.borrow().len(), 1);
         assert_eq!(renderer.flushed_surfaces.borrow()[0].1, 1);
+
+        // Layout may change repeatedly while preparation is budget-blocked.
+        // Retain the submitted backing until a complete replay is admitted.
+        for width in [48, 56, 64] {
+            layout.borrow_mut().surfaces[0].surface.surface_width = width;
+            layout.borrow_mut().surfaces[0].surface.logical_width = width as f32;
+            renderer.refresh_layers(&[0]);
+            with_target(&mut renderer, |target| {
+                assert_eq!(target.renderers[0].renderer.surface_size(), (32, 32));
+                assert!(target.renderers[0].pending_backing_resize);
+            });
+        }
+        renderer.take_settled_surface_replays();
+        assert!(!renderer.prepare_settled_surface_replay(0, &[999_999]));
+        with_target(&mut renderer, |target| {
+            assert_eq!(target.renderers[0].renderer.surface_size(), (32, 32));
+        });
+        assert!(renderer.begin_surface_recording(0));
+        assert!(renderer.begin_node_with_bounds(0, 1, 0, bounds, 0));
+        renderer.draw_image(0, "red", bounds);
+        renderer.end_node(0, 1);
+        assert!(renderer.end_surface_recording(0));
+        assert!(renderer.prepare_settled_surface_replay(0, &[1]));
+        renderer.flush(0, Rc::clone(&dirty));
+        with_target(&mut renderer, |target| {
+            assert_eq!(target.renderers[0].renderer.surface_size(), (64, 32));
+            assert!(!target.renderers[0].pending_backing_resize);
+            assert!(target.renderers[0].presentation_ready);
+        });
+
+        // The non-cacheable direct-tile path follows the same commit boundary.
+        layout.borrow_mut().surfaces[0].surface.surface_width = 72;
+        layout.borrow_mut().surfaces[0].surface.logical_width = 72.0;
+        renderer.refresh_layers(&[0]);
+        renderer.take_settled_surface_replays();
+        with_target(&mut renderer, |target| {
+            assert_eq!(target.renderers[0].renderer.surface_size(), (64, 32));
+        });
+        assert!(renderer.begin_surface_fallback(0));
+        renderer.flush(0, Rc::clone(&dirty));
+        with_target(&mut renderer, |target| {
+            assert_eq!(target.renderers[0].renderer.surface_size(), (72, 32));
+            assert!(!target.renderers[0].pending_backing_resize);
+        });
         return;
     }
     assert_eq!(renderer.take_ready_canvas_layers(), vec![0]);

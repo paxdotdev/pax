@@ -1474,7 +1474,10 @@ fn build_conditional_expression_property(
     }
 
     let name = format!("conditional (if) expr ({})", expr_ast);
-    LocalProperty::computed_with_name(
+    // Animation inputs can change every frame while selecting the same branch.
+    // Stop that invalidation before it reaches child lists and settings discovery;
+    // properties inside the branch still observe their own inputs independently.
+    LocalProperty::computed_with_cutoff_and_name(
         move || {
             let new_value = expr_ast
                 .compute(cloned_stack.clone())
@@ -1488,6 +1491,7 @@ fn build_conditional_expression_property(
             })
         },
         &dependencies,
+        bool::eq,
         &name,
     )
 }

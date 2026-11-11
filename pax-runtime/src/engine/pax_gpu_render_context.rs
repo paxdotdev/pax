@@ -43,6 +43,9 @@ pub struct LayerRenderer {
     dpr: [f32; 2],
     needs_initial_replay: bool,
     presentation_ready: bool,
+    // Resizing a browser backing clears its pixels. Wait for an admitted,
+    // atomic replay/submission rather than clearing during layout planning.
+    pending_backing_resize: bool,
 }
 
 /// Current renderer set for one logical layer.
@@ -218,6 +221,7 @@ impl LayerRenderer {
             dpr,
             needs_initial_replay: true,
             presentation_ready: false,
+            pending_backing_resize: false,
         }
     }
 
@@ -248,6 +252,13 @@ impl LayerRenderer {
             self.origin_x as f64 + self.logical_width as f64,
             self.origin_y as f64 + self.logical_height as f64,
         )
+    }
+
+    fn apply_pending_backing_resize(&mut self) {
+        if std::mem::take(&mut self.pending_backing_resize) {
+            self.renderer
+                .resize_surface(self.surface_width as f32, self.surface_height as f32);
+        }
     }
 
     fn update_layout(&mut self, surface: &LayerSurfaceEntry) -> LayoutChangeKind {
@@ -922,6 +933,17 @@ impl PaxGpuRenderer {
     fn enqueue_layer_initialization(&self, layer_index: usize) {
         self.queue_layer_initialization(layer_index);
         self.schedule_layer_initialization();
+    }
+
+    fn apply_prepared_surface_resizes(&self, layer: usize) {
+        let mut backends = self.backends.borrow_mut();
+        if let Some(RenderLayerState::Ready((target, _))) = backends.get_mut(layer) {
+            for index in self.targeted_or_all_indices(layer, target.renderers.len()) {
+                if let Some(renderer) = target.renderers.get_mut(index) {
+                    renderer.apply_pending_backing_resize();
+                }
+            }
+        }
     }
 
     fn with_layer_context(&self, layer: usize, mut f: impl FnMut(&mut WgpuRenderer)) {
@@ -1729,10 +1751,10 @@ impl PaxGpuRenderer {
                                         -surface.origin_x,
                                         -surface.origin_y,
                                     ]));
-                                renderer.renderer.resize_surface(
-                                    surface.surface.surface_width as f32,
-                                    surface.surface.surface_height as f32,
-                                );
+                                renderer.pending_backing_resize = true;
+                                if !self.prepare_surface_content {
+                                    renderer.apply_pending_backing_resize();
+                                }
                                 renderer.renderer.set_viewport(
                                     surface.surface.logical_width,
                                     surface.surface.logical_height,
@@ -2000,6 +2022,7 @@ impl RenderContext for PaxGpuRenderer {
         let Some(drawings) = drawings else {
             return false;
         };
+        self.apply_prepared_surface_resizes(layer);
         self.pending_drawings.insert(layer, drawings);
         // Even an empty content region needs one transparent submission so the
         // surface's current generation becomes ready instead of staying pending.
@@ -2054,6 +2077,7 @@ impl RenderContext for PaxGpuRenderer {
         }
         self.direct_surface_layer = Some(layer);
         self.submitting_prepared_surface = true;
+        self.apply_prepared_surface_resizes(layer);
         self.clear(layer);
         true
     }

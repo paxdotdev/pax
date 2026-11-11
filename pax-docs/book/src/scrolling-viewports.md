@@ -984,6 +984,13 @@ reselects the next eligible batch after each submission, using the remaining
 allowance rather than stopping after one batch per layer. A blocked layer waits
 until the next pass while eligible siblings can continue; this does not relax
 the settled-scene checks or submit incomplete tiles.
+When a retained WebGPU tile changes backing size, layout planning keeps its
+previous pixels until a complete replay or direct-tile fallback is admitted.
+The backing resize and replacement draw then occur within the same atomic
+submission unit, including when several size requests arrive before preparation.
+This avoids clearing a visible canvas while its repaint is waiting for budget;
+it does not make native-element updates and GPU submission a cross-layer atomic
+transaction or eliminate the cost of responsive reflow.
 Within ordinary rendering, WebGPU services newly visible surfaces after current
 geometry, lighting, and removal setup, before unrelated drawing. Ordinary dirty
 drawing then completes visible logical layers before warm/offscreen layers,

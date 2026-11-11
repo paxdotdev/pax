@@ -3,8 +3,8 @@
 use crate::*;
 use pax_engine::api::LocalProperty;
 use pax_engine::api::{
-    cursor::CursorStyle, ButtonClick, Click, Color, Duration, EasingCurve, Event, MouseDown,
-    MouseMove, MouseOut, MouseOver, MouseUp,
+    cursor::CursorStyle, ButtonClick, Click, Color, Duration, EasingCurve, Event, MouseButton,
+    MouseCancel, MouseDown, MouseMove, MouseOut, MouseOver, MouseUp, SelectStart,
 };
 use pax_engine::*;
 use pax_runtime::api::NodeContext;
@@ -12,7 +12,6 @@ use pax_runtime::api::NodeContext;
 const DESKTOP_DRAWER_WIDTH_PX: f64 = 430.0;
 const MIN_PREVIEW_WIDTH_PX: f64 = 320.0;
 const MIN_DRAWER_WIDTH_PX: f64 = 280.0;
-const RESIZE_MIN_DELTA_PX: f64 = 2.0;
 const DRAWER_EASE_MS: u64 = 250;
 
 // Canonical Solarized sRGB values: https://ethanschoonover.com/solarized/.
@@ -93,6 +92,8 @@ pub struct ExampleHost {
     pub _drawer_arrived: Property<bool>,
     // Private drag state for the source divider.
     pub _is_resizing_drawer: Property<bool>,
+    // Pointer events only replace this request; layout consumes it once per UI tick.
+    pub _pending_drawer_width_px: Property<Option<f64>>,
     // Private responsive mode where the source drawer replaces the preview.
     pub _compact_drawer: Property<bool>,
 }
@@ -112,6 +113,7 @@ impl Default for ExampleHost {
             _preview_reserved_width_px: Property::new(0.0),
             _drawer_arrived: Property::new(false),
             _is_resizing_drawer: Property::new(false),
+            _pending_drawer_width_px: Property::new(None),
             _compact_drawer: Property::new(false),
         }
     }
@@ -141,17 +143,28 @@ impl ExampleHost {
     /// Keeps the animated drawer progress synchronized with external state writes.
     pub fn on_pre_render(&mut self, ctx: &NodeContext) {
         self.clamp_drawer_to_host(ctx.bounds_self.get().0);
+        if self._is_resizing_drawer.get()
+            && (!self.inline_source_viewer.get() || self._compact_drawer.get())
+        {
+            self._pending_drawer_width_px.set_if_neq(None);
+            self._is_resizing_drawer.set(false);
+            ctx.set_cursor(CursorStyle::Auto);
+        }
         let drawer_open = self.drawer_open.get();
         if drawer_open != self._drawer_target_open.get() {
             self._drawer_target_open.set(drawer_open);
             self._drawer_arrived.set(false);
             self._preview_reserved_width_px.set_if_neq(0.0);
+            self._pending_drawer_width_px.set_if_neq(None);
             if self._is_resizing_drawer.get() {
                 self._is_resizing_drawer.set(false);
                 ctx.set_cursor(CursorStyle::Auto);
             }
             self.animate_drawer_progress(drawer_open);
         } else {
+            // Commit both panes in the same settlement, never from a mouse
+            // interrupt between native/canvas presentation opportunities.
+            self.commit_pending_resize(ctx.bounds_self.get().0);
             let (arrived, reserved) = preview_layout_step(
                 drawer_open,
                 self._drawer_progress.get(),
@@ -173,25 +186,21 @@ impl ExampleHost {
 
     /// Starts dragging the source divider when pressed near the handle.
     pub fn on_resize_mouse_down(&mut self, ctx: &NodeContext, event: Event<MouseDown>) {
-        if !self.drawer_open.get() || self._preview_reserved_width_px.get() <= 0.0 {
-            return;
-        }
-
         let bounds = ctx.bounds_self.get();
         let divider_px = bounds.0 - self._drawer_width_px.get();
-        if (event.mouse.x - divider_px).abs() < 12.0 {
-            self._is_resizing_drawer.set(true);
+        let local_x = ctx
+            .local_point(pax_engine::api::math::Point2::new(event.mouse.x, event.mouse.y))
+            .x * bounds.0;
+        if (local_x - divider_px).abs() < 12.0 && self.begin_resize(&event) {
             ctx.set_cursor(CursorStyle::EwResize);
         }
     }
 
     /// Starts dragging from the explicit source divider hit target.
-    pub fn on_split_mouse_down(&mut self, ctx: &NodeContext, _event: Event<MouseDown>) {
-        if !self.drawer_open.get() || self._preview_reserved_width_px.get() <= 0.0 {
-            return;
+    pub fn on_split_mouse_down(&mut self, ctx: &NodeContext, event: Event<MouseDown>) {
+        if self.begin_resize(&event) {
+            ctx.set_cursor(CursorStyle::EwResize);
         }
-        self._is_resizing_drawer.set(true);
-        ctx.set_cursor(CursorStyle::EwResize);
     }
 
     /// Shows the platform resize cursor over the source divider.
@@ -212,28 +221,84 @@ impl ExampleHost {
             return;
         }
 
-        let bounds = ctx.bounds_self.get();
-        if bounds.0 < MIN_PREVIEW_WIDTH_PX + MIN_DRAWER_WIDTH_PX {
-            self._drawer_width_px.set_if_neq(bounds.0.max(0.0));
-            return;
-        }
-        let max_drawer_width = (bounds.0 - MIN_PREVIEW_WIDTH_PX).max(MIN_DRAWER_WIDTH_PX);
-        let local_x =
-            ctx.local_point(pax_engine::api::math::Point2::new(
-                event.mouse.x,
-                event.mouse.y,
-            ))
-            .x * bounds.0;
-        let drawer_width = (bounds.0 - local_x).clamp(MIN_DRAWER_WIDTH_PX, max_drawer_width);
-        if (drawer_width - self._drawer_width_px.get()).abs() >= RESIZE_MIN_DELTA_PX {
-            self._drawer_width_px.set(drawer_width);
-        }
+        event.prevent_default();
+        event.stop_propagation();
+        self.queue_resize_pointer(ctx, event.mouse.x, event.mouse.y);
     }
 
     /// Ends source divider dragging.
-    pub fn on_resize_mouse_up(&mut self, ctx: &NodeContext, _event: Event<MouseUp>) {
+    pub fn on_resize_mouse_up(&mut self, ctx: &NodeContext, event: Event<MouseUp>) {
+        if !self._is_resizing_drawer.get() || event.mouse.button != MouseButton::Left {
+            return;
+        }
+        event.prevent_default();
+        event.stop_propagation();
+        // Preserve the release coordinate even if no move delivered that last
+        // pixel. The pending request still commits at the next UI tick.
+        self.queue_resize_pointer(ctx, event.mouse.x, event.mouse.y);
         self._is_resizing_drawer.set(false);
         ctx.set_cursor(CursorStyle::Auto);
+    }
+
+    /// Cancels the gesture without applying an unpresented pointer request.
+    pub fn on_resize_mouse_cancel(&mut self, ctx: &NodeContext, event: Event<MouseCancel>) {
+        if !self._is_resizing_drawer.get() || event.mouse.button != MouseButton::Left {
+            return;
+        }
+        event.prevent_default();
+        event.stop_propagation();
+        self._pending_drawer_width_px.set_if_neq(None);
+        self._is_resizing_drawer.set(false);
+        ctx.set_cursor(CursorStyle::Auto);
+    }
+
+    /// Preserve ordinary text selection except while this divider owns a drag.
+    pub fn on_select_start(&mut self, _ctx: &NodeContext, event: Event<SelectStart>) {
+        if self._is_resizing_drawer.get() {
+            event.prevent_default();
+        }
+    }
+
+    fn begin_resize(&self, event: &Event<MouseDown>) -> bool {
+        if event.mouse.button != MouseButton::Left
+            || !self.drawer_open.get()
+            || !self.inline_source_viewer.get()
+            || self._compact_drawer.get()
+            || self._preview_reserved_width_px.get() <= 0.0
+        {
+            return false;
+        }
+        event.prevent_default();
+        event.stop_propagation();
+        self._pending_drawer_width_px.set_if_neq(None);
+        self._is_resizing_drawer.set(true);
+        true
+    }
+
+    fn queue_resize_pointer(&self, ctx: &NodeContext, x: f64, y: f64) {
+        let width = ctx.bounds_self.get().0;
+        let local_x = ctx.local_point(pax_engine::api::math::Point2::new(x, y)).x * width;
+        if local_x.is_finite() && width.is_finite() {
+            self._pending_drawer_width_px.set_if_neq(Some((width - local_x).round()));
+        }
+    }
+
+    fn commit_pending_resize(&self, host_width: f64) {
+        let Some(requested) = self._pending_drawer_width_px.get() else {
+            return;
+        };
+        self._pending_drawer_width_px.set(None);
+        if !self.drawer_open.get()
+            || !self.inline_source_viewer.get()
+            || self._compact_drawer.get()
+            || self._preview_reserved_width_px.get() <= 0.0
+        {
+            return;
+        }
+        if let Some((false, width)) = clamped_drawer_layout(host_width, requested) {
+            self._drawer_width_px.set_if_neq(width);
+            self._preview_reserved_width_px.set_if_neq(width);
+        }
     }
 
     fn animate_drawer_progress(&self, open: bool) {
@@ -448,6 +513,79 @@ pub struct ExampleSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn settled_host() -> ExampleHost {
+        let host = ExampleHost::default();
+        host.drawer_open.set(true);
+        host._preview_reserved_width_px.set(430.0);
+        host
+    }
+
+    #[test]
+    fn resize_coalesces_requests_and_commits_both_panes_together() {
+        let host = settled_host();
+        for width in [500.0, 520.0, 537.0] {
+            host._pending_drawer_width_px.set(Some(width));
+        }
+        assert_eq!(host._drawer_width_px.get(), 430.0);
+        assert_eq!(host._preview_reserved_width_px.get(), 430.0);
+        // A final release request is also consumed after the drag has ended.
+        assert!(!host._is_resizing_drawer.get());
+        host.commit_pending_resize(1280.0);
+        assert_eq!(host._drawer_width_px.get(), 537.0);
+        assert_eq!(host._preview_reserved_width_px.get(), 537.0);
+        assert_eq!(host._pending_drawer_width_px.get(), None);
+        host.commit_pending_resize(1280.0);
+        assert_eq!(host._drawer_width_px.get(), 537.0);
+    }
+
+    #[test]
+    fn queued_resize_uses_current_host_bounds_and_rejects_ineligible_layouts() {
+        let host = settled_host();
+        host._pending_drawer_width_px.set(Some(1000.0));
+        host.commit_pending_resize(900.0);
+        assert_eq!(host._drawer_width_px.get(), 580.0);
+        assert_eq!(host._preview_reserved_width_px.get(), 580.0);
+        host._pending_drawer_width_px.set(Some(-50.0));
+        host.commit_pending_resize(900.0);
+        assert_eq!(host._drawer_width_px.get(), 280.0);
+        for mode in 0..4 {
+            let host = settled_host();
+            match mode {
+                0 => host.drawer_open.set(false),
+                1 => host.inline_source_viewer.set(false),
+                2 => host._compact_drawer.set(true),
+                _ => host._preview_reserved_width_px.set(0.0),
+            }
+            host._pending_drawer_width_px.set(Some(600.0));
+            host.commit_pending_resize(1280.0);
+            assert_eq!(host._drawer_width_px.get(), 430.0);
+            assert_eq!(host._pending_drawer_width_px.get(), None);
+        }
+    }
+
+    #[test]
+    fn only_an_owned_primary_resize_cancels_selection_and_bubbling() {
+        let press = |button| Event::new(MouseDown {
+            mouse: pax_engine::api::MouseEventArgs {
+                x: 850.0, y: 200.0, button, modifiers: vec![],
+            },
+        });
+        let host = settled_host();
+        let right = press(MouseButton::Right);
+        assert!(!host.begin_resize(&right));
+        assert!(!right.cancelled());
+        assert!(!right.propagation_stopped());
+        let left = press(MouseButton::Left);
+        assert!(host.begin_resize(&left));
+        assert!(left.cancelled());
+        assert!(left.propagation_stopped());
+        assert!(host._is_resizing_drawer.get());
+        let closed = ExampleHost::default();
+        let left = press(MouseButton::Left);
+        assert!(!closed.begin_resize(&left));
+        assert!(!left.cancelled());
+    }
 
     #[test]
     fn compact_drawer_replaces_preview_at_narrow_widths() {

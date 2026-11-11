@@ -742,6 +742,26 @@ mod tests {
         child_common.borrow().x.set(Some(Size::Pixels(12.into())));
         context.drain_node_effects();
         assert_eq!(effect_runs.get(), baseline + 1);
+
+        // A sliding drawer is still rendered at its authored position, but its
+        // motion must not wake the ancestor's content measurement.
+        child_common
+            .borrow()
+            .layout_role
+            .set(Some(LayoutRole::Breakout));
+        context.drain_node_effects();
+        let breakout_baseline = effect_runs.get();
+        for offset in [100, 75, 50, 25, 0, 25, 50, 75, 100] {
+            child_common
+                .borrow()
+                .x
+                .set(Some(Size::Pixels(offset.into())));
+            context.drain_node_effects();
+            assert_eq!(effect_runs.get(), breakout_baseline);
+        }
+        child_common.borrow().layout_role.set(None);
+        context.drain_node_effects();
+        assert_eq!(effect_runs.get(), breakout_baseline + 1);
     }
 
     #[test]

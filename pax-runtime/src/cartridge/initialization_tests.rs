@@ -2304,6 +2304,7 @@ fn compiled_control_flow_keeps_bindings_during_startup_in_rich_and_binary_manife
                 id.clone(),
                 TemplateNodeDefinition {
                     type_id: leaf_type.clone(),
+                    settings: Some(vec![setting("value", expression("value * 2"))]),
                     ..Default::default()
                 },
             );
@@ -2373,6 +2374,19 @@ fn compiled_control_flow_keeps_bindings_during_startup_in_rich_and_binary_manife
                 "settings refresh must not rebuild control-flow parent bindings"
             );
             assert_eq!(nodes[0].children.get().len(), 1);
+            let original_child = nodes[0].children.get()[0].id;
+            assert_eq!(values(&nodes[0].children.get()[0]).0, 14.);
+            let child_list = nodes[0].children.clone();
+            let branch_reads = Rc::new(Cell::new(0));
+            let reads = branch_reads.clone();
+            let branch_observer = LocalProperty::computed(
+                move || {
+                    reads.set(reads.get() + 1);
+                    child_list.get().len()
+                },
+                &[nodes[0].children.untyped()],
+            );
+            assert_eq!(branch_observer.get(), 1);
             let before = nodes[1].children.get();
             assert_eq!(before.len(), 2);
             nodes[2].with_properties_unwrapped(|slot: &mut crate::Slot| {
@@ -2390,6 +2404,18 @@ fn compiled_control_flow_keeps_bindings_during_startup_in_rich_and_binary_manife
             root.with_properties_unwrapped(|props: &mut Probe| props.value.set(8.));
             engine.runtime_context.drain_node_effects();
             let after = nodes[1].children.get();
+            assert_eq!(branch_observer.get(), 1);
+            assert_eq!(
+                branch_reads.get(),
+                1,
+                "unchanged condition must not wake child-list consumers"
+            );
+            assert_eq!(nodes[0].children.get()[0].id, original_child);
+            assert_eq!(
+                values(&nodes[0].children.get()[0]).0,
+                16.,
+                "bindings inside the retained branch must still update"
+            );
             assert_eq!(after.len(), 2);
             assert_eq!(
                 after[0].id, before[1].id,
@@ -2405,6 +2431,19 @@ fn compiled_control_flow_keeps_bindings_during_startup_in_rich_and_binary_manife
             root.with_properties_unwrapped(|props: &mut Probe| props.value.set(0.));
             engine.runtime_context.drain_node_effects();
             assert!(nodes[0].children.get().is_empty());
+            assert_eq!(branch_observer.get(), 0);
+            assert_eq!(branch_reads.get(), 2);
+            for (value, expected_children, expected_reads) in [
+                (0.0, 0, 2),
+                (7.0, 1, 3),
+                (9.0, 1, 3),
+                (0.0, 0, 4),
+            ] {
+                root.with_properties_unwrapped(|props: &mut Probe| props.value.set(value));
+                engine.runtime_context.drain_node_effects();
+                assert_eq!(branch_observer.get(), expected_children);
+                assert_eq!(branch_reads.get(), expected_reads);
+            }
             // Explicit template replacement must still install the new structural expression.
             let mut edited = manifest.clone();
             let template = edited

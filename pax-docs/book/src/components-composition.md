@@ -356,8 +356,17 @@ full width before the drawer slides away. This avoids resizing responsive exampl
 content on every animation frame; the final reflow can still change the section's
 height. The delay is not a native/GPU presentation-readiness guarantee. Dragging
 the divider is available once the split settles and still resizes the preview
-live. Compact and separately mounted full-screen viewers do not reserve a
+live. Pointer moves are coalesced to the latest requested width per UI tick;
+the drawer and preview reservation change together. The divider captures the
+primary mouse gesture, suppressing browser text selection only during that drag,
+and cancels cleanly on focus loss. No full-preview input overlay is mounted for
+dragging. Compact and separately mounted full-screen viewers do not reserve a
 side-by-side preview column.
+
+The drawer, divider, and tab use `LayoutRole::Breakout`: their moving overflow
+does not contribute to the host's measured content extent. They retain normal
+rendering, input, and ancestor clipping; only the preview reservation changes
+the example's layout.
 
 A smaller moon/sun pill
 switch aligns with the header's right gutter and the center of its first text line.
@@ -459,6 +468,12 @@ Conditions use PAXEL directly after `if`; the braces enclose template
 content. An `else if` chain can choose among several states, and `else` is
 optional. Pax uses the first true branch, or the final `else` when present.
 Each branch can contain several elements.
+
+When a condition's inputs change but its Boolean result does not, Pax keeps
+the branch and suppresses downstream structural invalidation. Reactive bindings
+inside that branch still update independently—for example, the card's
+`progress` above continues changing before the condition switches branches.
+This behavior applies to development and release builds.
 
 Changing branches removes the old content and mounts the new content. Local
 state belongs to those component instances: if a card is removed and later

@@ -56,6 +56,11 @@ mount an `ExampleSourceViewer` elsewhere, such as above a page Scroller.
 
 Keeps the animated drawer progress synchronized with external state writes.
 
+##### `on_resize_mouse_cancel`
+<pre><code class="api-signature language-rust ignore">pub fn on_resize_mouse_cancel(&amp;mut self, ctx: &amp;<a href="../../../api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, event: <a href="../../../api/pax-runtime-api/events.md#event">Event</a>&lt;<a href="../../../api/pax-runtime-api/events.md#mousecancel">MouseCancel</a>&gt;)</code></pre>
+
+Cancels the gesture without applying an unpresented pointer request.
+
 ##### `on_resize_mouse_down`
 <pre><code class="api-signature language-rust ignore">pub fn on_resize_mouse_down(&amp;mut self, ctx: &amp;<a href="../../../api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, event: <a href="../../../api/pax-runtime-api/events.md#event">Event</a>&lt;<a href="../../../api/pax-runtime-api/events.md#mousedown">MouseDown</a>&gt;)</code></pre>
 
@@ -77,12 +82,17 @@ Restores the cursor after leaving the source divider.
 Shows the platform resize cursor over the source divider.
 
 ##### `on_resize_mouse_up`
-<pre><code class="api-signature language-rust ignore">pub fn on_resize_mouse_up(&amp;mut self, ctx: &amp;<a href="../../../api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, _event: <a href="../../../api/pax-runtime-api/events.md#event">Event</a>&lt;<a href="../../../api/pax-runtime-api/events.md#mouseup">MouseUp</a>&gt;)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn on_resize_mouse_up(&amp;mut self, ctx: &amp;<a href="../../../api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, event: <a href="../../../api/pax-runtime-api/events.md#event">Event</a>&lt;<a href="../../../api/pax-runtime-api/events.md#mouseup">MouseUp</a>&gt;)</code></pre>
 
 Ends source divider dragging.
 
+##### `on_select_start`
+<pre><code class="api-signature language-rust ignore">pub fn on_select_start(&amp;mut self, _ctx: &amp;<a href="../../../api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, event: <a href="../../../api/pax-runtime-api/events.md#event">Event</a>&lt;<a href="../../../api/pax-runtime-api/events.md#selectstart">SelectStart</a>&gt;)</code></pre>
+
+Preserve ordinary text selection except while this divider owns a drag.
+
 ##### `on_split_mouse_down`
-<pre><code class="api-signature language-rust ignore">pub fn on_split_mouse_down(&amp;mut self, ctx: &amp;<a href="../../../api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, _event: <a href="../../../api/pax-runtime-api/events.md#event">Event</a>&lt;<a href="../../../api/pax-runtime-api/events.md#mousedown">MouseDown</a>&gt;)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn on_split_mouse_down(&amp;mut self, ctx: &amp;<a href="../../../api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, event: <a href="../../../api/pax-runtime-api/events.md#event">Event</a>&lt;<a href="../../../api/pax-runtime-api/events.md#mousedown">MouseDown</a>&gt;)</code></pre>
 
 Starts dragging from the explicit source divider hit target.
 

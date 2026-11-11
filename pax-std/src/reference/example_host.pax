@@ -1,19 +1,18 @@
-<Group width=100% height=100% @mouse_move=self.on_resize_mouse_move @mouse_up=self.on_resize_mouse_up>
-    if self._is_resizing_drawer {
-        <Group width=100% height=100% @mouse_move=self.on_resize_mouse_move @mouse_up=self.on_resize_mouse_up>
-            <Rectangle fill=TRANSPARENT width=100% height=100% @mouse_move=self.on_resize_mouse_move @mouse_up=self.on_resize_mouse_up/>
-        </Group>
-    }
+<Group width=100% height=100% @mouse_move=self.on_resize_mouse_move @mouse_up=self.on_resize_mouse_up
+    @mouse_cancel=self.on_resize_mouse_cancel>
+    // The pressed divider owns mouse capture, including moves outside this host.
+    // Do not mount an extra full-preview hit surface for the same gesture.
     // The handle follows the drawer's leading edge, not the preview's layout
     // reservation. Full-screen presentations keep it inside the viewport.
+    // Drawer chrome must not contribute moving overflow to ancestor autosize.
     if self.inline_source_viewer || !self.drawer_open {
         <ExampleSourceToggle x={self.inline_source_viewer && !self._compact_drawer ? (100% - (self._drawer_width_px * self._drawer_progress)px) : 100%}
             y={self.inline_source_viewer && self._compact_drawer && self.drawer_open ? 0px : 24px}
-            width={self.drawer_open ? 28px : 112px}
+            width={self.drawer_open ? 28px : 112px} layout_role=LayoutRole::Breakout
             height={self.inline_source_viewer && self._compact_drawer && self.drawer_open ? 24px : 34px} open=bind:self.drawer_open/>
     }
     if self.inline_source_viewer && !self._compact_drawer && (self.drawer_open || self._drawer_progress > 0.001) {
-        <Group x={100% - (self._drawer_width_px * self._drawer_progress)px} y=0px width=18px height=100% anchor_x=50% anchor_y=0%>
+        <Group x={100% - (self._drawer_width_px * self._drawer_progress)px} y=0px width=18px height=100% anchor_x=50% anchor_y=0% layout_role=LayoutRole::Breakout>
             <Rectangle fill=@gradient {
                 linear: {
                     start: [0%, 50%],
@@ -33,7 +32,7 @@
     }
     if self.inline_source_viewer && (self.drawer_open || self._drawer_progress > 0.001) {
         <ExampleSourceViewer x={100% - (self._drawer_width_px * self._drawer_progress)px} y=0px width={(self._drawer_width_px)px} height=100%
-            anchor_x=0% anchor_y=0% title={self.title} sources={self.sources} selected_source=bind:self.selected_source
+            anchor_x=0% anchor_y=0% layout_role=LayoutRole::Breakout title={self.title} sources={self.sources} selected_source=bind:self.selected_source
             open=bind:self.drawer_open source_light_mode=bind:self.source_light_mode show_close_tab=false/>
     }
     if !(self.inline_source_viewer && self._compact_drawer && (self.drawer_open || self._drawer_progress > 0.001)) {
@@ -46,4 +45,5 @@
 @settings {
     @mount: on_mount
     @pre_render: on_pre_render
+    @select_start: on_select_start
 }
