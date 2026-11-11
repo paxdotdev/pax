@@ -4,7 +4,7 @@ use crate::render_backend::capture::CaptureKey;
 use pax_runtime_api::{math::ProjectedPlane, ShaderEffect};
 
 pub(super) struct EffectCapture {
-    effect: ShaderEffect,
+    pub(super) effect: ShaderEffect,
     projection: ProjectedPlane,
     layout: Box2D,
     local_bounds: kurbo::Rect,
@@ -105,6 +105,7 @@ impl WgpuRenderer<'_> {
         self.effect_nodes.retain(|_, owner| *owner != id);
         self.effect_nodes
             .extend(children.iter().map(|child| (*child, id)));
+        self.lighting_dependencies = None;
         self.effect_captures.insert(
             id,
             EffectCapture {
@@ -409,6 +410,20 @@ impl WgpuRenderer<'_> {
             self.resource_churn_stats.effect_source_cache_hits += 1;
             self.observe_work(Some(id), "effect source reuse", 1, source_pixels);
         }
+        effect.lighting.is_some().hash(&mut hash);
+        if let Some(lighting) = effect.lighting {
+            let frame = lighting.surface;
+            for vector in [frame.origin, frame.tangent_x, frame.tangent_y, frame.normal] {
+                vector.map(f32::to_bits).hash(&mut hash);
+            }
+            lighting.light_mask.hash(&mut hash);
+            lighting::LightingDependencies {
+                direct: lighting.light_mask,
+                lit: true,
+            }
+            .signature(&self.scene_lighting)
+            .hash(&mut hash);
+        }
         effect.program.hash(&mut hash);
         effect.encode_parameters().unwrap().hash(&mut hash);
         projection
@@ -432,6 +447,7 @@ impl WgpuRenderer<'_> {
             projection,
             signature,
             &globals,
+            &self.scene_lighting,
             &mut self.resource_churn_stats,
         );
         if let Some(before) = before {

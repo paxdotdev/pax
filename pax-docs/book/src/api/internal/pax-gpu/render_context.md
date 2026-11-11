@@ -77,6 +77,11 @@ Light-reactive material coefficients for a tessellated vector path.
 Defaults to unlit; use an explicit material to opt into scene lighting.
 
 #### Properties
+##### `frosted`
+Type: `f32`
+
+Strength of the grain-modulated broad sheen, clamped to 0–1.
+
 ##### `coefficients`
 Type: [`f32`; 4]
 
@@ -85,6 +90,12 @@ Type: [`f32`; 4]
 
 ##### `unlit`
 Type: `bool`
+
+#### Implementations
+##### `with_frosted`
+<pre><code class="api-signature language-rust ignore">pub fn with_frosted(self, strength: f32) -&gt; Self</code></pre>
+
+Adds a frosted sheen without changing the underlying paint alpha.
 
 ---
 

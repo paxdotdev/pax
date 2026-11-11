@@ -103,11 +103,39 @@ pub struct ShaderProgram {
     pub passes: &'static [ShaderPass],
 }
 
+/// Opt-in scene lighting for an effect's container plane. The runtime resolves the
+/// world frame and scoped light mask; low-level renderer callers supply them directly.
+/// Captured children retain their own material geometry; shader lighting samples this
+/// one plane, not a depth or normal map of the subtree.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ShaderLighting {
+    pub surface: crate::LightingSurface,
+    pub light_mask: u32,
+}
+
+impl Default for ShaderLighting {
+    fn default() -> Self {
+        Self {
+            surface: crate::LightingSurface {
+                origin: [0., 0., 0.],
+                tangent_x: [1., 0., 0.],
+                tangent_y: [0., 1., 0.],
+                normal: [0., 0., 1.],
+            },
+            light_mask: u32::MAX,
+        }
+    }
+}
+
 /// Current instance parameters and its conservative sampling/output support.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShaderEffect {
     /// Immutable recipe shared across mounted instances.
     pub program: &'static ShaderProgram,
+    /// `Some(Default::default())` requests this node's scoped scene lights and camera.
+    /// WGSL helpers include `scene_specular(p, tangent_normal, shininess)` and
+    /// `scene_ambient()`. `None` supplies no illumination and creates no light dependency.
+    pub lighting: Option<ShaderLighting>,
     /// One ordered value list per pass, matching that pass's schema.
     pub parameters: Vec<Vec<ShaderValue>>,
     /// Maximum absolute sampling displacement/output expansion on either local axis, in logical pixels.
@@ -118,6 +146,18 @@ pub struct ShaderEffect {
 impl ShaderEffect {
     /// Validate the recipe and encode its parameters. Shader syntax is checked by the GPU backend.
     pub fn encode_parameters(&self) -> Result<Vec<Vec<u8>>, String> {
+        if let Some(lighting) = self.lighting {
+            let s = lighting.surface;
+            if s.origin
+                .into_iter()
+                .chain(s.tangent_x)
+                .chain(s.tangent_y)
+                .chain(s.normal)
+                .any(|v| !v.is_finite())
+            {
+                return Err("shader lighting frame must be finite".into());
+            }
+        }
         let passes = self.program.passes;
         if passes.is_empty() || passes.len() > 8 || self.parameters.len() != passes.len() {
             return Err("expected 1–8 passes and one parameter list per pass".into());
@@ -215,6 +255,7 @@ mod tests {
     #[test]
     fn typed_slots_preserve_integer_bits_and_padding() {
         let effect = ShaderEffect {
+            lighting: None,
             program: &PROGRAM,
             parameters: vec![vec![
                 ShaderValue::Uint(u32::MAX),
@@ -253,6 +294,7 @@ mod tests {
             }],
         };
         let mut effect = ShaderEffect {
+            lighting: None,
             program: &CYCLE,
             parameters: vec![vec![]],
             outset: 0.,

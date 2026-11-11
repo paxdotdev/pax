@@ -47,7 +47,12 @@ pub(crate) struct Renderer {
 
 impl Renderer {
     pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, samples: u32) -> Self {
-        let source = [include_str!("lighting.wgsl"), include_str!("solid.wgsl")].join("\n");
+        let source = [
+            include_str!("scene_lighting.wgsl"),
+            include_str!("lighting.wgsl"),
+            include_str!("solid.wgsl"),
+        ]
+        .join("\n");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("opaque solid"),
             source: wgpu::ShaderSource::Wgsl(source.into()),
@@ -192,7 +197,12 @@ impl Renderer {
 mod tests {
     #[test]
     fn solid_shader_matches_uniform_layout() {
-        let source = [include_str!("lighting.wgsl"), include_str!("solid.wgsl")].join("\n");
+        let source = [
+            include_str!("scene_lighting.wgsl"),
+            include_str!("lighting.wgsl"),
+            include_str!("solid.wgsl"),
+        ]
+        .join("\n");
         let module = naga::front::wgsl::parse_str(&source).unwrap();
         naga::valid::Validator::new(
             naga::valid::ValidationFlags::all(),

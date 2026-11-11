@@ -19,6 +19,13 @@ Type: &'`static` [`ShaderProgram`](../../api/pax-runtime-api/shader_effect.md#sh
 
 Immutable recipe shared across mounted instances.
 
+##### `lighting`
+Type: `Option`<[`ShaderLighting`](../../api/pax-runtime-api/shader_effect.md#shaderlighting)>
+
+`Some(Default::default())` requests this node's scoped scene lights and camera.
+WGSL helpers include `scene_specular(p, tangent_normal, shininess)` and
+`scene_ambient()`. `None` supplies no illumination and creates no light dependency.
+
 ##### `parameters`
 Type: `Vec`<`Vec`<[`ShaderValue`](../../api/pax-runtime-api/shader_effect.md#shadervalue)>>
 
@@ -35,6 +42,21 @@ Keep this envelope stable during animation to reuse captures and attachments.
 <pre><code class="api-signature language-rust ignore">pub fn encode_parameters(&amp;self) -&gt; Result&lt;Vec&lt;Vec&lt;u8&gt;&gt;, String&gt;</code></pre>
 
 Validate the recipe and encode its parameters. Shader syntax is checked by the GPU backend.
+
+---
+
+### `ShaderLighting`
+Opt-in scene lighting for an effect's container plane. The runtime resolves the
+world frame and scoped light mask; low-level renderer callers supply them directly.
+Captured children retain their own material geometry; shader lighting samples this
+one plane, not a depth or normal map of the subtree.
+
+#### Properties
+##### `surface`
+Type: [`LightingSurface`](../../api/pax-runtime-api/rendering.md#lightingsurface)
+
+##### `light_mask`
+Type: `u32`
 
 ---
 

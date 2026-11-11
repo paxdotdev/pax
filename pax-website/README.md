@@ -433,11 +433,20 @@ Game-like uses a cool silver gradient and a moving GPU light scoped by
 preserving contrast in the chrome bands and headroom for highlights. The frame
 contains its own light but does not exclude the shell's lighting.
 Its sweep begins during the reveal and lasts 1.04 seconds.
-Flashy currently uses `Radiance` on white outlined letters, with the same moving
-light clock and an arc entrance, pending the dedicated sequin-glint effect.
-One normalized word artboard keeps the glow's reach and capture padding
-proportional to the type size; the native selection text stays outside the
-effect. CPU rendering retains the plain white letter paths.
+Flashy composes `Material::frosted(0.8)` on cool translucent-looking gradient
+letters with the reusable `Flashy` shader. One scoped scene `LightSource` drives
+both the material sheen and the shader’s narrow facet reflections; the long
+starburst rays retain a shared orientation. Light depth and radius scale with
+font size because scene lights measure those distances in world pixels. The facet phase stays zero, so the moving light alone triggers the
+effect. After a 600ms entrance delay, the light crosses the word in 2.2 seconds,
+finishing during the reading hold. Its clock freezes on pause and while offscreen.
+One 100px/em word artboard keeps spacing and capture padding proportional to
+type size. Its 16px reflector spacing and seed 40 are tuned to these outlines
+so all six letters catch the passing light, including both letters in the `fl`
+ligature. Recheck the full sweep when changing the font, word, or light path.
+Native selection text stays outside the effect. The source drawer
+includes Flashy's Rust and WGSL. This is a frosted surface treatment without
+backdrop sampling or refraction. CPU retains the unlit gradient letters.
 Portable uses `ImpressionistMode::Gauguin` on a field of 18 white star
 trails sweeping diagonally upward. Staggered speeds, lengths, and thicknesses
 create bright heads and long translucent tails; overlapping trails accumulate

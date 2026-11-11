@@ -908,6 +908,11 @@ fn ensure_known_type_definition(ctx: &mut ParsingContext, import_path: &str) -> 
                         type_id: numeric_type_id.clone(),
                     },
                     PropertyDefinition {
+                        name: "frosted".to_string(),
+                        flags: flags.clone(),
+                        type_id: numeric_type_id.clone(),
+                    },
+                    PropertyDefinition {
                         name: "emissive".to_string(),
                         flags: flags.clone(),
                         type_id: color_type_id,
@@ -3592,6 +3597,7 @@ pub struct SvgLogo {
                 ("diffuse", "f64".to_string(), true),
                 ("emissive", "pax_engine::api::Color".to_string(), true),
                 ("emissive_intensity", "f64".to_string(), true),
+                ("frosted", "f64".to_string(), true),
                 ("metallic", "f64".to_string(), true),
                 ("roughness", "f64".to_string(), true),
                 ("specular", "f64".to_string(), true),

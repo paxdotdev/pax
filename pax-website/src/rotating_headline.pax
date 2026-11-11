@@ -53,20 +53,23 @@
                         // Clip only the resting selection box; iOS uses its interactive text view here.
                         <Text class="selection" width={(self.run_width * self.font_px)px} height=100% wrap=false clip=true selectable=true>{self.word}</Text>
                         if self.word_index == 4 {
-                            // Temporary Radiance treatment until Flashy is ready. Normalize the
-                            // artboard so capture padding scales with type rather than viewport pixels.
-                            <Group width={(self.run_width * 1000)px} height=1500px anchor=0px
-                                scale={((self.font_px / 1000) * 100)%} layout_role=LayoutRole::Breakout>
-                                <Radiance width=100% height=100% foreground={SiteTheme::paper()} background={SiteTheme::ink()}
-                                    light_x={self.light_x * 1000} light_y=700 light_depth=900
-                                    brightness=3.0 reach=320 falloff=1.0 transmission=0 polish=0>
+                            // One 100px/em artboard gives sheen and glints the same light
+                            // coordinates, with capture padding and spacing scaling with type.
+                            <LightFrame width={(self.run_width * 100)px} height=150px anchor=0px
+                                scale={(self.font_px)%} layout_role=LayoutRole::Breakout>
+                                // Keep this seed/spacing pair together: the shaped word has
+                                // strong reflectors on every letter along the light's path.
+                                <Flashy width=100% height=100% phase=0 seed=40 spacing=16 brightness=1.0 flare=1.0>
                                     for cluster in self.clusters key cluster.byte_start {
-                                        <HeroLetter x={(cluster.x * 1000)px} y={(self.baseline * 1000)px}
-                                            width=1000px height=1000px cluster={cluster} ordinal={cluster.ordinal}
-                                            font_px=1000 cap_height={self.cap_height} kind=4 time_ms={self.letter_ms}/>
+                                        <HeroLetter x={(cluster.x * 100)px} y={(self.baseline * 100)px}
+                                            width=100px height=100px cluster={cluster} ordinal={cluster.ordinal}
+                                            font_px=100 cap_height={self.cap_height} kind=4 time_ms={self.letter_ms}/>
                                     }
-                                </Radiance>
-                            </Group>
+                                </Flashy>
+                                <LightSource x={(self.light_x * 100)px} y={((self.baseline - self.cap_height * 0.5) * 100)px}
+                                    width=1px height=1px anchor=0px z={(self.font_px * 0.95)px} radius={(self.font_px * 5)px} intensity=6.0
+                                    color=rgb(240, 248, 255) layout_role=LayoutRole::Breakout/>
+                            </LightFrame>
                         } else if self.word_index >= 2 {
                             // Filter the moving paint first, then clip it with the original letter coverage.
                             <Mask width={(self.run_width * self.font_px)px} height=100% alpha=true>

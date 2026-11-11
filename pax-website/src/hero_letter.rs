@@ -60,6 +60,8 @@ impl HeroLetter {
                         metallic: Property::new(0.82),
                         ..Default::default()
                     })
+                } else if kind.get() == 4 {
+                    Material::frosted(0.8)
                 } else {
                     Material::unlit()
                 }
@@ -81,6 +83,26 @@ impl HeroLetter {
 }
 
 fn letter_paint(kind: usize, index: usize) -> Paint {
+    if kind == 4 {
+        // A quiet cool body leaves headroom for the shared light's frosted sheen.
+        // Partial alpha suggests surface translucency without claiming backdrop refraction.
+        let stops = [
+            (0.0, [0.65, 0.70, 0.75, 0.94]),
+            (0.42, [0.50, 0.56, 0.64, 0.92]),
+            (1.0, [0.38, 0.45, 0.54, 0.94]),
+        ]
+        .into_iter()
+        .map(|(position, rgba)| GradientStop {
+            position: Size::Percent((position * 100.).into()),
+            color: Color::from_rgba_0_1(rgba),
+        })
+        .collect();
+        return Paint::LinearGradient(LinearGradient {
+            start: (Size::Percent(0.0.into()), Size::Percent(0.0.into())),
+            end: (Size::Percent(0.0.into()), Size::Percent(100.0.into())),
+            stops,
+        });
+    }
     if kind != 1 && kind != 2 {
         return Paint::Solid(SiteTheme::paper());
     }
@@ -204,7 +226,7 @@ mod tests {
     use super::*;
     #[test]
     fn all_letters_settle_and_pause_pose_is_exact() {
-        for kind in 1..=3 {
+        for kind in 1..=4 {
             for index in 0..16 {
                 assert_eq!(letter_pose(kind, index, 2500.0), REST);
                 assert_eq!(letter_pose(kind, index, 0.0).alpha, 0.0);

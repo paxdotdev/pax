@@ -79,6 +79,7 @@ impl LedGlow {
         // Fixed nine-tap support scales with the lamps, never with their changing occupancy.
         let spacing = (pitch * 0.18) as f32;
         ShaderEffect {
+            lighting: None,
             program: &GLOW,
             parameters: vec![
                 vec![ShaderValue::Float(spacing)],

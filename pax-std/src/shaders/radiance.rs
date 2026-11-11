@@ -169,6 +169,7 @@ impl Radiance {
             ]),
         ];
         ShaderEffect {
+            lighting: None,
             program: &PROGRAM,
             parameters: vec![values.clone(), values],
             // Reserve the tuning envelope so light motion never reallocates capture bounds.

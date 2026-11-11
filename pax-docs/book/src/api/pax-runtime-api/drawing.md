@@ -130,6 +130,12 @@ Type: `Property`<`f64`>
 
 Metallic response in the `[0.0, 1.0]` range.
 
+##### `frosted`
+Type: `Property`<`f64`>
+
+Fine frosted grain and broad light-colored sheen, from 0 (off) to 1.
+This shades the surface; it does not blur or refract content behind it.
+
 ##### `emissive`
 Type: `Property`<[`Color`](../../api/pax-runtime-api/color.md#color)>
 
@@ -236,6 +242,9 @@ Type: `f64`
 Type: `f64`
 
 ##### `metallic`
+Type: `f64`
+
+##### `frosted`
 Type: `f64`
 
 ##### `emissive`
@@ -542,6 +551,13 @@ Creates a lit material from explicit coefficients.
 <pre><code class="api-signature language-rust ignore">pub fn emissive(color: <a href="../../api/pax-runtime-api/color.md#color">Color</a>, intensity: f64) -&gt; Self</code></pre>
 
 An emissive material that adds color independent of lights.
+
+##### `frosted`
+<pre><code class="api-signature language-rust ignore">pub fn frosted(strength: f64) -&gt; Self</code></pre>
+
+A frosted surface with fine stationary grain and a broad sheen from scene lights.
+Strength is clamped to 0–1. Preserves paint alpha; no backdrop blur or refraction.
+Use unit ambient light to retain the paint color between passing highlights.
 
 ##### `glossy`
 <pre><code class="api-signature language-rust ignore">pub fn glossy(specular: f64) -&gt; Self</code></pre>

@@ -116,6 +116,17 @@ impl WgpuRenderer<'_> {
                     direct: node.light_mask,
                     lit: !node.material.unlit,
                 },
+                #[cfg(feature = "shaders")]
+                RetainedNode::Effect(node) => self
+                    .effect_captures
+                    .get(&node.id)
+                    .and_then(|capture| capture.effect.lighting)
+                    .map_or_else(LightingDependencies::default, |lighting| {
+                        LightingDependencies {
+                            direct: lighting.light_mask,
+                            lit: true,
+                        }
+                    }),
                 _ => continue,
             };
             if deps.signature(previous) != deps.signature(next) {
@@ -136,6 +147,20 @@ impl WgpuRenderer<'_> {
             // Include detached capture sources: their pixels can affect a visible
             // mask even when the source itself is absent from the visible draw list.
             for node in self.scene.values() {
+                #[cfg(feature = "shaders")]
+                if let RetainedNode::Effect(n) = node {
+                    if let Some(lighting) = self
+                        .effect_captures
+                        .get(&n.id)
+                        .and_then(|c| c.effect.lighting)
+                    {
+                        dependencies.include(LightingDependencies {
+                            direct: lighting.light_mask,
+                            lit: true,
+                        });
+                    }
+                }
+
                 #[cfg(feature = "3d")]
                 if let RetainedNode::Solid(n) = node {
                     dependencies.include(LightingDependencies {

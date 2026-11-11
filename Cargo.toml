@@ -207,6 +207,9 @@ opt-level = 0
 [profile.dev.package.shader-studio]
 opt-level = 0
 
+[profile.dev.package.flashy]
+opt-level = 0
+
 [profile.dev.package.led-oscilloscope]
 opt-level = 0
 
@@ -234,6 +237,7 @@ opt-level = "z"
 codegen-units = 1  
 
 [dev-dependencies]
+flashy = { path = "examples/fixtures/flashy", default-features = false }
 cuboid-router = { path = "examples/fixtures/cuboid-router", default-features = false }
 text-bodies = { path = "examples/fixtures/text-bodies", default-features = false }
 overlay-transfer = { path = "examples/fixtures/overlay-transfer", default-features = false }
@@ -461,6 +465,10 @@ path = "examples/fixtures/transition-grid.rs"
 [[example]]
 name = "shader-studio"
 path = "examples/fixtures/shader-studio.rs"
+
+[[example]]
+name = "flashy"
+path = "examples/fixtures/flashy.rs"
 
 [[example]]
 name = "text-bodies"

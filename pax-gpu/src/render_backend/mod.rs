@@ -12,13 +12,15 @@ const TRANSFORM_SHADER: &str = include_str!("transform_3d.wgsl");
 const TRANSFORM_SHADER: &str = include_str!("transform_2d.wgsl");
 fn geometry_shader_source(capacity: VectorUniformCapacity) -> String {
     let constants = format!(
-        "const VECTOR_TABLE_CAPACITY: u32 = {}u;\nconst VECTOR_PRIMITIVES_PER_BANK: u32 = {}u;",
+        "const VECTOR_TABLE_CAPACITY: u32 = {}u;\nconst VECTOR_PRIMITIVES_PER_BANK: u32 = {}u;\nconst VECTOR_MATERIALS_PER_BANK: u32 = {}u;",
         capacity.entries(),
+        capacity.entries() / 2,
         capacity.entries() / 2,
     );
     [
         constants.as_str(),
         TRANSFORM_SHADER,
+        include_str!("scene_lighting.wgsl"),
         include_str!("lighting.wgsl"),
         include_str!("radial_gradient.wgsl"),
         include_str!("geometry.wgsl"),
@@ -429,7 +431,7 @@ pub(crate) const MAX_BATCH_TRANSFORMS: usize = TRANSFORMS_PER_PAGE;
 
 // Small retained draws should not allocate three 512-entry tables. Two shader
 // variants bound pipeline proliferation while preserving the existing batch and
-// GPU limits. Both primitive banks remain aligned to 256-byte uniform offsets.
+// GPU limits. Primitive and material banks stay aligned to 256-byte uniform offsets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum VectorUniformCapacity {
     Compact,
@@ -454,6 +456,10 @@ impl VectorUniformCapacity {
 
     fn primitive_bank_bytes(self) -> u64 {
         (self.entries() / 2 * std::mem::size_of::<GpuPrimitive>()) as u64
+    }
+
+    fn material_bank_bytes(self) -> u64 {
+        (self.entries() / 2 * std::mem::size_of::<GpuMaterial>()) as u64
     }
 }
 
@@ -785,6 +791,25 @@ fn primitive_binding_for(
     })
 }
 
+// Frosted response expands each material to 48 bytes. Keep 512 materials per
+// batch using two aligned views within the browser's 16 KiB uniform limit.
+fn material_binding(buffer: &wgpu::Buffer, bank: u64) -> wgpu::BindingResource<'_> {
+    material_binding_for(buffer, bank, VectorUniformCapacity::Full)
+}
+
+fn material_binding_for(
+    buffer: &wgpu::Buffer,
+    bank: u64,
+    capacity: VectorUniformCapacity,
+) -> wgpu::BindingResource<'_> {
+    let size = capacity.material_bank_bytes();
+    wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+        buffer,
+        offset: bank * size,
+        size: wgpu::BufferSize::new(size),
+    })
+}
+
 fn create_primitive_bind_group_layout(device: &Device) -> BindGroupLayout {
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         entries: &[
@@ -858,6 +883,16 @@ fn create_primitive_bind_group_layout(device: &Device) -> BindGroupLayout {
                 },
                 count: None,
             },
+            wgpu::BindGroupLayoutEntry {
+                binding: 7,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
         ],
         label: Some("bind_group_layout"),
     })
@@ -894,7 +929,11 @@ impl<'w> RenderBackend<'w> {
                 },
                 wgpu::BindGroupEntry {
                     binding: 5,
-                    resource: self.materials_buffer.as_entire_binding(),
+                    resource: material_binding(&self.materials_buffer, 0),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: material_binding(&self.materials_buffer, 1),
                 },
                 wgpu::BindGroupEntry {
                     binding: 6,
@@ -1322,7 +1361,11 @@ impl<'w> RenderBackend<'w> {
                 },
                 wgpu::BindGroupEntry {
                     binding: 5,
-                    resource: materials_buffer.as_entire_binding(),
+                    resource: material_binding(&materials_buffer, 0),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: material_binding(&materials_buffer, 1),
                 },
                 wgpu::BindGroupEntry {
                     binding: 6,
@@ -1773,7 +1816,11 @@ impl<'w> RenderBackend<'w> {
                 },
                 wgpu::BindGroupEntry {
                     binding: 5,
-                    resource: materials_buffer.as_entire_binding(),
+                    resource: material_binding_for(materials_buffer, 0, capacity),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: material_binding_for(materials_buffer, 1, capacity),
                 },
                 wgpu::BindGroupEntry {
                     binding: 6,
@@ -3890,7 +3937,13 @@ mod shader_tests {
             .validate(&module)
             .expect("geometry shader should validate");
             assert_eq!(capacity.primitive_bank_bytes() % 256, 0);
+            assert_eq!(capacity.material_bank_bytes() % 256, 0);
+            assert_eq!(
+                capacity.material_bank_bytes() as usize * 2,
+                capacity.entries() * std::mem::size_of::<GpuMaterial>()
+            );
             for (name, expected) in [
+                ("Material", std::mem::size_of::<GpuMaterial>()),
                 (
                     "Primitives",
                     capacity.entries() / 2 * std::mem::size_of::<GpuPrimitive>(),
@@ -3899,10 +3952,7 @@ mod shader_tests {
                     "Colors",
                     capacity.entries() * std::mem::size_of::<GpuColor>(),
                 ),
-                (
-                    "Materials",
-                    capacity.entries() * std::mem::size_of::<GpuMaterial>(),
-                ),
+                ("Materials", capacity.material_bank_bytes() as usize),
             ] {
                 let ty = module
                     .types

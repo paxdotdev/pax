@@ -46,7 +46,7 @@ struct Gradients {
 }
 
 struct Materials {
-    materials: array<Material, VECTOR_TABLE_CAPACITY>,
+    materials: array<Material, VECTOR_MATERIALS_PER_BANK>,
 }
 
 @group(0) @binding(0) var<uniform> globals: Globals;
@@ -57,6 +57,12 @@ struct Materials {
 @group(0) @binding(4) var<storage, read> gradients: Gradients;
 @group(0) @binding(5) var<uniform> materials: Materials;
 @group(0) @binding(6) var<uniform> scene_lighting: SceneLighting;
+@group(0) @binding(7) var<uniform> materials_upper: Materials;
+
+fn scene_material(index: u32) -> Material {
+    if index < VECTOR_MATERIALS_PER_BANK { return materials.materials[index]; }
+    return materials_upper.materials[index - VECTOR_MATERIALS_PER_BANK];
+}
 @group(1) @binding(0) var alpha_mask: texture_2d<f32>;
 @group(1) @binding(1) var alpha_sampler: sampler;
 @group(1) @binding(2) var<uniform> alpha_domain: vec4<f32>;
@@ -123,6 +129,7 @@ fn scene_transform(id: u32) -> Transform {
 // Fragment shader
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let grain_size = max(0.7, max(length(dpdx(in.local_position)), length(dpdy(in.local_position))));
 
     let primitive = scene_primitive(in.prim_id);
     if primitive.draw_range.z > 0.5 {
@@ -168,10 +175,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         (all(mask_uv >= vec2<f32>(0.0)) && all(mask_uv <= vec2<f32>(1.0))));
     color = apply_lighting(
         color,
-        materials.materials[primitive.material_id],
+        scene_material(primitive.material_id),
         in.world_position,
         lighting_normal(scene_transform(primitive.transform_id)),
         primitive.light_mask,
+        vec3<f32>(in.local_position / grain_size, 0.0),
     );
     return color;
 }

@@ -21,11 +21,44 @@ struct PassOutput {
     binding: BindGroup,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct GpuEffectLighting {
+    scene: data::GpuSceneLighting,
+    origin: [f32; 4],
+    tangent_x: [f32; 4],
+    tangent_y: [f32; 4],
+    normal: [f32; 4],
+    mask: [u32; 4],
+}
+
+impl GpuEffectLighting {
+    fn new(effect: &ShaderEffect, scene: &data::GpuSceneLighting) -> Self {
+        let lighting = effect.lighting.unwrap_or_default();
+        let frame = lighting.surface;
+        let vector = |v: [f32; 3]| [v[0], v[1], v[2], 0.];
+        Self {
+            scene: if effect.lighting.is_some() {
+                *scene
+            } else {
+                Default::default()
+            },
+            origin: vector(frame.origin),
+            tangent_x: vector(frame.tangent_x),
+            tangent_y: vector(frame.tangent_y),
+            normal: vector(frame.normal),
+            mask: [lighting.light_mask, 0, 0, 0],
+        }
+    }
+}
+
 struct Output {
     recipe: &'static pax_runtime_api::ShaderProgram,
     source: Texture,
     domain: [[f32; 4]; 10],
     domain_buffer: wgpu::Buffer,
+    lighting: GpuEffectLighting,
+    lighting_buffer: wgpu::Buffer,
     rect_buffer: wgpu::Buffer,
     passes: Vec<PassOutput>,
     composite: BindGroup,
@@ -84,6 +117,8 @@ pub(super) fn shader_source(pass: &ShaderPass) -> Result<String, String> {
         ));
     }
     source.push_str("};\n@group(0) @binding(1) var<uniform> parameters: Parameters;\n");
+    source.push_str(include_str!("scene_lighting.wgsl"));
+    source.push_str(include_str!("effect_lighting.wgsl"));
     source.push_str(include_str!("effect.wgsl"));
     source.push('\n');
     source.push_str(pass.source);
@@ -95,7 +130,7 @@ pub(super) fn shader_source(pass: &ShaderPass) -> Result<String, String> {
     )
     .validate(&module)
     .map_err(|e| format!("{}: {}", pass.label, e.emit_to_string(&source)))?;
-    // The wrapper owns exactly five resources. Naga permits unused declarations to alias
+    // The wrapper owns exactly six resources. Naga permits unused declarations to alias
     // their bindings, so checking only the binding range would admit extra resources.
     let resources: Vec<_> = module
         .global_variables
@@ -103,10 +138,10 @@ pub(super) fn shader_source(pass: &ShaderPass) -> Result<String, String> {
         .filter_map(|(_, variable)| variable.binding.as_ref())
         .collect();
     if module.entry_points.len() != 2
-        || resources.len() != 5
+        || resources.len() != 6
         || resources
             .iter()
-            .any(|binding| binding.group != 0 || binding.binding > 4)
+            .any(|binding| binding.group != 0 || binding.binding > 5)
     {
         return Err(format!(
             "{}: effect code cannot declare resources or entry points",
@@ -191,7 +226,14 @@ impl Effects {
         let device = &backend.device;
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Effect pass"),
-            entries: &[uniform(0), uniform(1), texture(2), texture(3), sampler(4)],
+            entries: &[
+                uniform(0),
+                uniform(1),
+                texture(2),
+                texture(3),
+                sampler(4),
+                uniform(5),
+            ],
         });
         let composite_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Effect composition"),
@@ -249,8 +291,10 @@ impl RenderBackend<'_> {
         projection: pax_runtime_api::math::ProjectedPlane,
         signature: u64,
         source_globals: &data::GpuGlobals,
+        scene_lighting: &data::GpuSceneLighting,
         stats: &mut crate::ResourceChurnStats,
     ) {
+        let lighting = GpuEffectLighting::new(effect, scene_lighting);
         let parameters = effect
             .encode_parameters()
             .unwrap_or_else(|error| panic!("shader effect {}: {error}", effect.program.label));
@@ -288,7 +332,9 @@ impl RenderBackend<'_> {
             source.width() as f32,
             source.height() as f32,
         ];
-        let domain = [rect, a[0], a[1], a[2], b[0], b[1], b[2], clips[0], clips[1], storage];
+        let domain = [
+            rect, a[0], a[1], a[2], b[0], b[1], b[2], clips[0], clips[1], storage,
+        ];
         let final_downsample = effect.program.passes.last().unwrap().downsample;
         let composite_rect = [
             rect,
@@ -357,6 +403,13 @@ impl RenderBackend<'_> {
                     contents: bytemuck::cast_slice(&domain),
                     usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
                 });
+            let lighting_buffer =
+                self.device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("Effect scene lighting"),
+                        contents: bytemuck::bytes_of(&lighting),
+                        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                    });
             let source_view = source.create_view(&Default::default());
             let mut passes: Vec<PassOutput> = Vec::new();
             for (recipe, values) in effect.program.passes.iter().zip(&parameters) {
@@ -410,6 +463,10 @@ impl RenderBackend<'_> {
                             binding: 4,
                             resource: wgpu::BindingResource::Sampler(&effects.sampler),
                         },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: lighting_buffer.as_entire_binding(),
+                        },
                     ],
                 });
                 passes.push(PassOutput {
@@ -456,6 +513,8 @@ impl RenderBackend<'_> {
                     source,
                     domain,
                     domain_buffer,
+                    lighting,
+                    lighting_buffer,
                     rect_buffer,
                     passes,
                     composite,
@@ -481,6 +540,11 @@ impl RenderBackend<'_> {
         if output.signature == Some(signature) {
             stats.effect_cache_hits += 1;
             return;
+        }
+        if bytemuck::bytes_of(&output.lighting) != bytemuck::bytes_of(&lighting) {
+            self.queue
+                .write_buffer(&output.lighting_buffer, 0, bytemuck::bytes_of(&lighting));
+            output.lighting = lighting;
         }
         let mut encoder = self
             .device
@@ -530,7 +594,7 @@ mod tests {
     use pax_runtime_api::ShaderParameter;
     #[test]
     fn rejects_additional_resources_on_engine_bindings() {
-        for binding in 0..=4 {
+        for binding in 0..=5 {
             let source = format!(
                 "@group(0) @binding({binding}) var extra: texture_2d<f32>;\n\
                  fn effect(p: vec2<f32>) -> vec4<f32> {{ return sample_input0(p); }}"

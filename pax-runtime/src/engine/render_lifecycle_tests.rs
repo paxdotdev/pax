@@ -383,16 +383,28 @@ fn render_probe_args() -> crate::InstantiationArgs {
 #[test]
 fn node_inspection_resolves_baked_identity_without_preparing_geometry() {
     use crate::InstanceNode;
-    use pax_manifest::{LocationInfo, TemplateNodeId, TemplateNodeSelectorInfo, TypeId, UniqueTemplateNodeIdentifier};
+    use pax_manifest::{
+        LocationInfo, TemplateNodeId, TemplateNodeSelectorInfo, TypeId,
+        UniqueTemplateNodeIdentifier,
+    };
     let mut engine = engine();
     let ctx = engine.runtime_context.clone();
     let _graph = ctx.property_graph.enter();
     let mut args = render_probe_args();
     let component = TypeId::build_singleton("example::Main", Some("Main"));
-    args.template_node_identifier = Some(UniqueTemplateNodeIdentifier::build(component, TemplateNodeId::build(7)));
-    args.template_node_type_id = Some(TypeId::build_singleton("example::Rectangle", Some("Rectangle")));
+    args.template_node_identifier = Some(UniqueTemplateNodeIdentifier::build(
+        component,
+        TemplateNodeId::build(7),
+    ));
+    args.template_node_type_id = Some(TypeId::build_singleton(
+        "example::Rectangle",
+        Some("Rectangle"),
+    ));
     args.template_node_selector_info = Some(TemplateNodeSelectorInfo {
-        source_location: Some(LocationInfo {start_line_col: (4, 2), end_line_col: (5, 9)}),
+        source_location: Some(LocationInfo {
+            start_line_col: (4, 2),
+            end_line_col: (5, 9),
+        }),
         ..Default::default()
     });
     let mut root_args = render_probe_args();
@@ -525,6 +537,7 @@ impl crate::InstanceNode for ShaderProbe {
             }],
         };
         Some(ShaderEffect {
+            lighting: None,
             program: &PROGRAM,
             parameters: vec![vec![]],
             outset: 0.0,

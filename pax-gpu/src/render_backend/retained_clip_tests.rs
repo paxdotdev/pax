@@ -125,7 +125,13 @@ fn retained_vector_uniform_tiers_preserve_pixels_and_updates() {
         let compact = render(false, mirror);
         assert_eq!(full.0, compact.0, "mirror={mirror}");
         // First frame contains two small draws and one full-capacity draw.
-        assert_eq!(full.1[0] - compact.1[0], 2 * (512 - 32) * (48 + 16 + 32));
+        assert_eq!(
+            full.1[0] - compact.1[0],
+            (2 * (512 - 32)
+                * (std::mem::size_of::<GpuPrimitive>()
+                    + std::mem::size_of::<GpuColor>()
+                    + std::mem::size_of::<GpuMaterial>())) as u64
+        );
         assert_eq!(
             full.1[8..],
             compact.1[8..],
@@ -1219,6 +1225,7 @@ fn perspective_effect_and_detached_source_follow_camera_and_tile_charts() {
                 .unwrap()
                 .post_mapping(PlanarProjection([1., 0., 0.001, 0., 1., 0., 0., 0., 1.]));
             let effect = ShaderEffect {
+                lighting: None,
                 program: &PROGRAM,
                 parameters: vec![vec![]],
                 outset: 6.,
@@ -3490,6 +3497,7 @@ fn shader_effect_pixels_clip_cache_and_tile_halo() {
             renderer.clip(rect(2., 0., 60., 32.));
             renderer.end_node(9);
             let effect = ShaderEffect {
+                lighting: None,
                 program: &PROGRAM,
                 parameters: vec![vec![ShaderValue::Float(if frame == 0 { 0. } else { 24. })]],
                 outset: 28.,
@@ -3585,6 +3593,7 @@ fn shader_effect_off_tile_and_cached_sources_skip_capture_setup() {
         let device = backend.device.clone();
         let mut renderer = WgpuRenderer::new(backend);
         let effect = ShaderEffect {
+            lighting: None,
             program: &PROGRAM,
             parameters: vec![vec![]],
             outset: 4.,
@@ -3672,6 +3681,7 @@ fn shader_effect_movement_reuses_textures_and_updates_coordinates() {
     let device = backend.device.clone();
     let mut renderer = WgpuRenderer::new(backend);
     let effect = ShaderEffect {
+        lighting: None,
         program: &PROGRAM,
         parameters: vec![vec![]],
         outset: 0.,
@@ -3762,6 +3772,7 @@ fn shader_effect_animated_bounds_reuse_storage_without_stretching_or_leaking() {
         let mut renderer = WgpuRenderer::new(backend);
         renderer.set_viewport(80., 40., [dpr, dpr]);
         let effect = ShaderEffect {
+            lighting: None,
             program: &PROGRAM,
             parameters: vec![vec![], vec![pax_runtime_api::ShaderValue::Float(2. / dpr)]],
             outset: 0.,
@@ -3838,11 +3849,13 @@ fn shader_effect_nested_pixels_and_relative_opacity() {
     let mut renderer = WgpuRenderer::new(backend);
     for frame in 0..3 {
         let outer = ShaderEffect {
+            lighting: None,
             program: &PROGRAM,
             parameters: vec![vec![ShaderValue::Float(1.)]],
             outset: 0.,
         };
         let inner = ShaderEffect {
+            lighting: None,
             program: &PROGRAM,
             parameters: vec![vec![ShaderValue::Float(if frame == 0 { 1. } else { 0.5 })]],
             outset: 0.,
@@ -4011,6 +4024,7 @@ fn shader_effect_gaussian_matches_across_tiles() {
                     renderer.set_viewport(width, 32., [dpr, dpr]);
                     renderer.transform(Transform2D::translation(-origin, 0.));
                     let effect = ShaderEffect {
+                        lighting: None,
                         program,
                         parameters: vec![
                             vec![
@@ -4150,6 +4164,7 @@ fn shader_effect_output_obeys_stencil_and_alpha() {
         1,
         2,
         &ShaderEffect {
+            lighting: None,
             program: &PROGRAM,
             parameters: vec![vec![]],
             outset: 0.,
@@ -4520,6 +4535,7 @@ fn lighting_changes_invalidate_only_affected_shader_sources() {
             100 + id,
             id as i32,
             &ShaderEffect {
+                lighting: None,
                 program: &PROGRAM,
                 parameters: vec![vec![]],
                 outset: 0.0,
@@ -6565,6 +6581,7 @@ fn shader_composite_respects_overlay_domain_above_background() {
         }),
     );
     let effect = ShaderEffect {
+        lighting: None,
         program: &PROGRAM,
         parameters: vec![vec![]],
         outset: 0.,
@@ -7240,6 +7257,7 @@ fn spatial_captures_match_main_scene_depth_fades_and_retire() {
                     1,
                     0,
                     &ShaderEffect {
+                        lighting: None,
                         program: &IDENTITY,
                         parameters: vec![vec![]],
                         outset: 0.,
@@ -7436,6 +7454,7 @@ fn filtered_solid_uses_container_depth_against_outside_surfaces() {
             1,
             1,
             &ShaderEffect {
+                lighting: None,
                 program: &IDENTITY,
                 parameters: vec![vec![]],
                 outset: 0.,
@@ -7786,4 +7805,245 @@ fn overlay_domains_isolate_solid_depth_and_retire_composition_state() {
     renderer.flush();
     device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
     assert_eq!(renderer.spatial_capture_resource_counts(), (0, 0));
+}
+
+#[cfg(feature = "shaders")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn scene_lighting_shares_material_lights_and_reuses_unlit_sources() {
+    use crate::{LightShape, Material, SceneLight, SceneLighting};
+    use pax_runtime_api::{ShaderEffect, ShaderInput, ShaderLighting, ShaderPass, ShaderProgram};
+    static PROGRAM: ShaderProgram = ShaderProgram {
+        label: "scene-lit effect",
+        passes: &[ShaderPass {
+            label: "scene-lit.wgsl",
+            source: "fn effect(p: vec2<f32>) -> vec4<f32> {
+                let source = sample_input0(p);
+                if scene_light_count() == 0u { return source; }
+                if p.x < 16.0 { return source; }
+                let rgb = vec3<f32>(1.0) - exp(-scene_specular(p, vec3<f32>(0.0,0.0,1.0),32.0));
+                return vec4<f32>(mix(source.rgb, rgb * source.a, 0.8), source.a);
+            }",
+            parameters: &[],
+            inputs: [ShaderInput::Subtree; 2],
+            downsample: 1,
+        }],
+    };
+    for frosted in [false, true] {
+        let layer = MetalLayer::new();
+        let mut config = RenderConfig::new(true, 32, 32, [1., 1.]);
+        config.required_limits = Some(wgpu::Limits {
+            max_storage_buffers_per_shader_stage: 1,
+            max_storage_buffer_binding_size: 128 * 1024 * 1024,
+            ..wgpu::Limits::downlevel_webgl2_defaults()
+        });
+        let backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(layer.0.cast(), config)
+        })
+        .unwrap();
+        let device = backend.device.clone();
+        let mut renderer = WgpuRenderer::new(backend);
+        let light = SceneLight {
+            shape: LightShape::Point,
+            position: [116., 216., 64.],
+            half_extent: [0.; 3],
+            direction: [0., 0., -1.],
+            color: Color::rgba(1., 0., 0., 1.),
+            intensity: 4.,
+            radius: 128.,
+        };
+        let mut lighting = SceneLighting {
+            active: true,
+            ambient_is_authored: true,
+            ambient_intensity: 1.,
+            surface_to_world: [1., 0., 0., 1., 100., 200.],
+            lights: vec![
+                SceneLight {
+                    color: Color::rgba(0., 1., 0., 1.),
+                    ..light
+                },
+                light,
+            ],
+            ..Default::default()
+        };
+        renderer.set_scene_lighting(lighting.clone());
+        let mut effect_lighting = ShaderLighting::default();
+        effect_lighting.light_mask = 2;
+        effect_lighting.surface.origin = [100., 200., 0.];
+        renderer.begin_shader_effect(
+            10,
+            0,
+            &ShaderEffect {
+                program: &PROGRAM,
+                parameters: vec![vec![]],
+                outset: 0.,
+                lighting: Some(effect_lighting),
+            },
+            Transform2D::identity(),
+            (32., 32.),
+            &[],
+            &[1],
+        );
+        renderer.begin_node(1, 0, 2);
+        #[cfg(feature = "3d")]
+        renderer.set_node_lighting_surface(1, Some(effect_lighting.surface));
+        renderer.fill_path_with_material_and_opacity(
+            rect(0., 0., 32., 32.),
+            Fill::Solid(Color::rgba(0.1, 0.1, 0.1, 0.5)),
+            if frosted {
+                Material::custom(1., 0., 0., 64. / 88., Color::rgba(0., 0., 0., 1.), 0.)
+                    .with_frosted(1.)
+            } else {
+                Material::unlit()
+            },
+            1.,
+        );
+        renderer.end_node(1);
+        renderer.end_shader_effect();
+        let capture = |renderer: &mut WgpuRenderer, id| {
+            renderer.request_screenshot_capture(id);
+            renderer.flush();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            renderer.take_screenshot_capture(id).unwrap()
+        };
+        let pixel = |frame: &CapturedFrame, x: usize| -> [u8; 4] {
+            frame.rgba[(16 * frame.width as usize + x) * 4..][..4]
+                .try_into()
+                .unwrap()
+        };
+        let red = capture(&mut renderer, 0);
+        assert!(pixel(&red, 24)[0] > pixel(&red, 24)[2] + 40);
+        assert!(
+            (pixel(&red, 24)[3] as i32 - 128).abs() <= 1,
+            "source alpha is retained"
+        );
+        if frosted {
+            assert!(pixel(&red, 8)[0] > pixel(&red, 8)[2] + 40);
+        } else {
+            assert_eq!(pixel(&red, 8)[0], pixel(&red, 8)[2]);
+        }
+        renderer.take_resource_churn_stats();
+        lighting.lights[1].color = Color::rgba(0., 0., 1., 1.);
+        assert!(
+            renderer.set_scene_lighting(lighting.clone()),
+            "effect alone depends on its light"
+        );
+        let blue = capture(&mut renderer, 1);
+        assert!(pixel(&blue, 24)[2] > pixel(&blue, 24)[0] + 40);
+        if frosted {
+            assert!(pixel(&blue, 8)[2] > pixel(&blue, 8)[0] + 40);
+        }
+        let stats = renderer.take_resource_churn_stats();
+        assert_eq!(stats.effect_source_renders, u64::from(frosted));
+        assert_eq!(stats.effect_source_cache_hits, u64::from(!frosted));
+        assert_eq!(stats.effect_passes, 1);
+        assert_eq!(stats.effect_pipeline_compilations, 0);
+        assert_eq!(stats.effect_texture_allocations, 0);
+        lighting.lights[0].position[0] += 100.;
+        assert!(
+            !renderer.set_scene_lighting(lighting.clone()),
+            "out-of-scope lights do not invalidate"
+        );
+        let unchanged = capture(&mut renderer, 2);
+        assert_eq!(blue.rgba, unchanged.rgba);
+        lighting.lights[1].shape = LightShape::Strip;
+        renderer.set_scene_lighting(lighting.clone());
+        let strip = capture(&mut renderer, 3);
+        assert_eq!(
+            blue.rgba, strip.rgba,
+            "zero-length strip matches point in both paths"
+        );
+        lighting.lights[1].position[0] += 1000.;
+        assert!(renderer.set_scene_lighting(lighting.clone()));
+        let dark = capture(&mut renderer, 4);
+        assert_eq!(
+            pixel(&dark, 24)[0],
+            pixel(&dark, 24)[2],
+            "radius applies to shader glints"
+        );
+        if frosted {
+            assert_eq!(
+                pixel(&dark, 8)[0],
+                pixel(&dark, 8)[2],
+                "radius applies to material sheen"
+            );
+        }
+        lighting.lights[1].shape = LightShape::Directional;
+        renderer.set_scene_lighting(lighting);
+        let directional = capture(&mut renderer, 5);
+        assert!(pixel(&directional, 24)[2] > pixel(&directional, 24)[0] + 60);
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn lighting_material_banks_preserve_both_uniform_tiers_at_browser_limits() {
+    use crate::{Material, SceneLighting};
+    let layer = MetalLayer::new();
+    let mut config = RenderConfig::new(true, 66, 32, [1., 1.]);
+    config.required_limits = Some(wgpu::Limits {
+        max_storage_buffers_per_shader_stage: 1,
+        max_storage_buffer_binding_size: 128 * 1024 * 1024,
+        ..wgpu::Limits::downlevel_webgl2_defaults()
+    });
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(layer.0.cast(), config)
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let context = Rc::clone(&backend.context);
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.set_scene_lighting(SceneLighting {
+        active: true,
+        ambient_is_authored: true,
+        ambient_intensity: 0.,
+        ..Default::default()
+    });
+    for count in [16, 17, 32, 33, 257, 512] {
+        renderer.begin_node(1, 0, 0);
+        for i in 0..count {
+            renderer.fill_path_with_material_and_opacity(
+                rect((i % 32) as f32 * 2., (i / 32) as f32 * 2., 2., 2.),
+                Fill::Solid(Color::rgba(0., 0., 0., 1.)),
+                Material::custom(
+                    0.,
+                    0.,
+                    0.,
+                    0.5,
+                    Color::rgba(i as f32 / 511., 0., 0., 1.),
+                    1.,
+                ),
+                1.,
+            );
+        }
+        renderer.end_node(1);
+        // An image keeps these draws on the retained path, where small material
+        // tables actually use the compact shader and its 16-entry banks.
+        renderer.begin_node(2, 1, 0);
+        renderer.draw_image(
+            "material-tier-pixel",
+            0,
+            &Image {
+                rgba: vec![0, 0, 255, 255],
+                pixel_width: 1,
+                pixel_height: 1,
+            },
+            Box2D::new(point(64., 0.), point(66., 2.)),
+        );
+        renderer.end_node(2);
+        renderer.request_screenshot_capture(count as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let frame = renderer.take_screenshot_capture(count as u32).unwrap();
+        assert_pixel(&frame, 65, 1, [0, 0, 255, 255]);
+        for i in 0..count {
+            assert_pixel(
+                &frame,
+                (i % 32) * 2,
+                (i / 32) * 2,
+                [(i as f32 / 511. * 255.).round() as u8, 0, 0, 255],
+            );
+        }
+    }
+    assert_eq!(context.vector_pipelines.borrow().len(), 2);
 }

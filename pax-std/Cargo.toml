@@ -20,6 +20,9 @@ pax-message = {path = "../pax-message", version="0.39.1"}
 pax-runtime = {path = "../pax-runtime", version="0.39.1"}
 serde = { version = "1.0.159", features=["derive"]}
 
+[dev-dependencies]
+naga = { version = "28.0.0", features = ["wgsl-in"] }
+
 [features]
 3d = ["pax-engine/3d", "pax-runtime/3d"]
 # Opt-in GPU subtree filters, including runtime WGSL validation.

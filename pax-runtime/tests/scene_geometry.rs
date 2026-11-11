@@ -337,6 +337,7 @@ fn cold_nested_shader_replay_preserves_settled_geometry_and_submits_without_a_ti
                 passes: &[],
             };
             Some(ShaderEffect {
+                lighting: None,
                 program: &PROGRAM,
                 parameters: vec![],
                 outset: 0.0,

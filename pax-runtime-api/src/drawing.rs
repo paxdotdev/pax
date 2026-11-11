@@ -478,6 +478,10 @@ pub struct MaterialParams {
     pub roughness: Property<f64>,
     /// Metallic response in the `[0.0, 1.0]` range.
     pub metallic: Property<f64>,
+    /// Fine frosted grain and broad light-colored sheen, from 0 (off) to 1.
+    /// This shades the surface; it does not blur or refract content behind it.
+    #[serde(default)]
+    pub frosted: Property<f64>,
     /// Additive emissive color.
     pub emissive: Property<Color>,
     /// Additive emissive intensity.
@@ -492,6 +496,7 @@ impl Default for MaterialParams {
             specular: Property::new(0.08),
             roughness: Property::new(0.78),
             metallic: Property::new(0.0),
+            frosted: Property::new(0.0),
             emissive: Property::new(Color::BLACK),
             emissive_intensity: Property::new(0.0),
         }
@@ -505,6 +510,7 @@ impl PartialEq for MaterialParams {
             && self.specular.get() == other.specular.get()
             && self.roughness.get() == other.roughness.get()
             && self.metallic.get() == other.metallic.get()
+            && self.frosted.get() == other.frosted.get()
             && self.emissive.get() == other.emissive.get()
             && self.emissive_intensity.get() == other.emissive_intensity.get()
     }
@@ -517,6 +523,7 @@ impl Hash for MaterialParams {
         self.specular.get().to_bits().hash(state);
         self.roughness.get().to_bits().hash(state);
         self.metallic.get().to_bits().hash(state);
+        self.frosted.get().to_bits().hash(state);
         self.emissive.get().hash(state);
         self.emissive_intensity.get().to_bits().hash(state);
     }
@@ -530,6 +537,7 @@ impl Interpolatable for MaterialParams {
             specular: Property::new(self.specular.get().interpolate(&other.specular.get(), t)),
             roughness: Property::new(self.roughness.get().interpolate(&other.roughness.get(), t)),
             metallic: Property::new(self.metallic.get().interpolate(&other.metallic.get(), t)),
+            frosted: Property::new(self.frosted.get().interpolate(&other.frosted.get(), t)),
             emissive: Property::new(self.emissive.get().interpolate(&other.emissive.get(), t)),
             emissive_intensity: Property::new(
                 self.emissive_intensity
@@ -567,6 +575,7 @@ pub struct ResolvedMaterialParams {
     pub specular: f64,
     pub roughness: f64,
     pub metallic: f64,
+    pub frosted: f64,
     pub emissive: Color,
     pub emissive_intensity: f64,
 }
@@ -589,6 +598,7 @@ impl Material {
                 specular: p.specular.local().get(),
                 roughness: p.roughness.local().get(),
                 metallic: p.metallic.local().get(),
+                frosted: p.frosted.local().get(),
                 emissive: p.emissive.local().get(),
                 emissive_intensity: p.emissive_intensity.local().get(),
             }),
@@ -605,6 +615,7 @@ impl Material {
                 specular: p.specular.get(),
                 roughness: p.roughness.get(),
                 metallic: p.metallic.get(),
+                frosted: p.frosted.get(),
                 emissive: p.emissive.get(),
                 emissive_intensity: p.emissive_intensity.get(),
             }),
@@ -622,6 +633,19 @@ impl Material {
     /// Opts into scene lighting with a soft, low-specular response.
     pub fn matte() -> Self {
         Self::Lit(MaterialParams::default())
+    }
+
+    /// A frosted surface with fine stationary grain and a broad sheen from scene lights.
+    /// Strength is clamped to 0–1. Preserves paint alpha; no backdrop blur or refraction.
+    /// Use unit ambient light to retain the paint color between passing highlights.
+    pub fn frosted(strength: f64) -> Self {
+        Self::Lit(MaterialParams {
+            diffuse: Property::new(0.0),
+            specular: Property::new(0.0),
+            roughness: Property::new(64.0 / 88.0),
+            frosted: Property::new(strength.clamp(0.0, 1.0)),
+            ..MaterialParams::default()
+        })
     }
 
     /// A higher-specular material with lower roughness.
@@ -687,6 +711,17 @@ impl Interpolatable for Material {
 
 impl HelperFunctions for Material {
     fn register_all_functions() {
+        register_function(
+            "Material".to_string(),
+            "frosted".to_string(),
+            std::sync::Arc::new(|args| {
+                if args.len() != 1 {
+                    return Err("Expected 1 argument for function Material::frosted".to_string());
+                }
+                let strength = f64::try_coerce(args.into_iter().next().unwrap())?;
+                Ok(Material::frosted(strength).to_pax_value())
+            }),
+        );
         register_function(
             "Material".to_string(),
             "matte".to_string(),

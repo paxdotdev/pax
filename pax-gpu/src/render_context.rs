@@ -3785,6 +3785,7 @@ fn hash_fill_bits<H: Hasher>(fill: &Fill, state: &mut H) {
 
 fn hash_material_bits<H: Hasher>(material: &Material, state: &mut H) {
     material.unlit.hash(state);
+    material.frosted.to_bits().hash(state);
     for value in material.coefficients {
         value.to_bits().hash(state);
     }
@@ -3802,12 +3803,14 @@ fn hash_color_bits<H: Hasher>(color: &Color, state: &mut H) {
 fn to_gpu_material(material: Material) -> GpuMaterial {
     if material.unlit {
         return GpuMaterial {
+            surface: [0.; 4],
             coefficients: [-1.0, 0.0, 0.0, 0.0],
             emissive: [0.0; 4],
         };
     }
 
     GpuMaterial {
+        surface: [material.frosted, 0., 0., 0.],
         coefficients: material.coefficients,
         emissive: material.emissive,
     }
@@ -4424,14 +4427,23 @@ impl Fill {
 /// Light-reactive material coefficients for a tessellated vector path.
 /// Defaults to unlit; use an explicit material to opt into scene lighting.
 pub struct Material {
+    /// Strength of the grain-modulated broad sheen, clamped to 0–1.
+    pub frosted: f32,
     pub coefficients: [f32; 4],
     pub emissive: [f32; 4],
     pub unlit: bool,
 }
 
 impl Material {
+    /// Adds a frosted sheen without changing the underlying paint alpha.
+    pub fn with_frosted(mut self, strength: f32) -> Self {
+        self.frosted = strength.clamp(0., 1.);
+        self
+    }
+
     pub fn matte() -> Self {
         Self {
+            frosted: 0.,
             coefficients: [1.0, 0.82, 0.08, 0.78],
             emissive: [0.0; 4],
             unlit: false,
@@ -4460,6 +4472,7 @@ impl Material {
                 emissive_intensity.max(0.0),
             ],
             unlit: false,
+            frosted: 0.,
         }
     }
 
@@ -4468,6 +4481,7 @@ impl Material {
             coefficients: [0.0; 4],
             emissive: [0.0; 4],
             unlit: true,
+            frosted: 0.,
         }
     }
 }
@@ -4829,12 +4843,19 @@ mod tests {
             }),
             ClipReference::Alpha { owner: 5 },
         ] {
-            push_retained_segment(&mut segments, &mut current, &[root, clip], &arena, Vec::new());
+            push_retained_segment(
+                &mut segments,
+                &mut current,
+                &[root, clip],
+                &arena,
+                Vec::new(),
+            );
         }
         assert_eq!(segments.len(), 3);
         assert_eq!(segments[0].clips.len(), 1);
         assert!(segments[1..].iter().all(|segment| segment.clips.is_empty()
-            && segment.stencil_depth == 1 && segment.run.stencil_index == 1));
+            && segment.stencil_depth == 1
+            && segment.run.stencil_index == 1));
         assert!(segments[1].run.scissor.is_some());
         assert_eq!(segments[2].run.alpha_mask, Some(5));
         assert_eq!(current, vec![0]);

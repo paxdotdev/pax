@@ -203,6 +203,16 @@ impl HomePage {
         ));
         for (label, language, code) in [
             (
+                "pax-std/src/shaders/flashy.rs",
+                "rust",
+                include_str!("../../pax-std/src/shaders/flashy.rs"),
+            ),
+            (
+                "pax-std/src/shaders/flashy.wgsl",
+                "wgsl",
+                include_str!("../../pax-std/src/shaders/flashy.wgsl"),
+            ),
+            (
                 "pax-std/src/shaders/radiance.rs",
                 "rust",
                 include_str!("../../pax-std/src/shaders/radiance.rs"),

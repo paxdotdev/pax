@@ -137,6 +137,7 @@ impl Corona {
             ShaderValue::Float(self.surface.get().clamp(0., 0.35) as f32),
         ];
         ShaderEffect {
+            lighting: None,
             program: &PROGRAM,
             parameters: vec![values.clone(), values],
             // Reserve the whole tuning envelope plus reconstruction support so

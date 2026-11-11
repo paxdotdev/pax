@@ -854,7 +854,7 @@ The [Frame](api/pax-std/core/frame.md), [Mask](api/pax-std/core/mask.md), and
 
 A userland primitive can filter its rendered descendants with a sequence of
 WGSL fragment passes. `pax_std::shaders` provides `GaussianBlur`,
-`Impressionist`, `Corona`, `Radiance`, and `RimRefraction`, also exported by `pax_std::*` and `pax_kit::*`. They use the
+`Impressionist`, `Corona`, `Radiance`, `RimRefraction`, and `Flashy`, also exported by `pax_std::*` and `pax_kit::*`. They use the
 same public renderer extension API available to your own primitives. The
 `shader-studio` example imports these standard-library components.
 
@@ -899,6 +899,28 @@ without applying the filter, as described below. The first target is web WebGPU,
 Metal pixel tests covering the shared renderer.
 
 <a id="spatial-filter-composition"></a>
+
+Custom shader primitives can request scene lighting by setting
+`ShaderEffect.lighting = Some(ShaderLighting::default())`; use `None` for filters
+that do not need it. The runtime supplies the container's world plane, scoped
+light mask, and camera. Existing Rust recipes must add `lighting: None` when
+upgrading. WGSL receives these helpers without declaring resources:
+
+- `scene_specular(p, normal, shininess)` returns summed RGB specular irradiance.
+  Position uses effect-local pixels; normal uses an orthonormal surface tangent
+  frame, so scaling the artwork preserves facet slopes. Shininess is positive.
+- `scene_world_position(p)` and `scene_world_normal(normal)` convert to world space.
+- `scene_light_count()` returns the number of eligible direct lights (up to eight);
+  lights outside this node's scope do not contribute.
+- `scene_ambient()` returns eligible ambient RGB illumination.
+
+Point, strip, and directional sampling uses the same calculation as vector
+materials. Opted-in effects invalidate when their eligible lights or camera
+change. Unlit source pixels can remain cached while only the shader reruns;
+light-reactive child materials also redraw their source. Changing lighting
+reuses shader pipelines and pass textures. Without opt-in the helpers return
+no illumination. Low-level renderer callers must provide the resolved
+`ShaderLighting` plane and mask themselves.
 
 With `3d` and `shaders` enabled, a shader container resolves the internal depth
 of its subtree before filtering. Its result is a flat image on the container's
@@ -1276,6 +1298,88 @@ pauses its light clock while offscreen; its `HeroSection.radiance_enabled` flag
 selects the plain logo. See the
 [`Radiance` API reference](api/pax-std/shaders/radiance.md).
 
+
+#### Flashy
+
+`Flashy` adds surface-anchored specular glints and atmospheric flares from scoped
+scene `LightSource`s. Compose it with `Material::frosted(...)` on the child
+vector for a broad grainy sheen. Both use the same light positions, colors,
+intensities, radius falloff, and camera. Moving one light sweeps both responses
+across the artwork; no independent sparkle clock is needed.
+
+```pax
+<LightFrame width=400px height=180px>
+    <Flashy width=100% height=100% seed=17 spacing=18 brightness=1.4 flare=0.65>
+        <Ellipse x=50% y=50% width=320px height=120px
+            fill={paint: rgb(50, 65, 95) material: {Material::frosted(0.8)}}/>
+    </Flashy>
+    <LightSource x={(self.light_x)px} y=90px z=180px width=1px height=1px
+        anchor=0px radius=1200px intensity=2.0 color=WHITE/>
+    <AmbientLight intensity=1 color=WHITE/>
+</LightFrame>
+```
+
+Enable the `shaders` feature as described above. Reflectors sample captured
+**alpha**, so dark and light painted areas can both host glints. Keep the page
+background outside the container. Native `Text` cannot be captured; use vector
+`Path` outlines for treated lettering. Thin outlines host fewer reflectors;
+reduce `spacing` to place more. A changing alpha mask reveals or hides them.
+
+| Property | Default | Meaning |
+| --- | --- | --- |
+| `phase` | `0.0` | Optional facet rocking in turns; leave fixed for a stationary surface |
+| `seed` | `17` | Deterministic positions and reflector orientations |
+| `spacing` | `18.0` | Local logical pixels between reflectors, clamped to 8–48; also scales glints |
+| `brightness` | `1.4` | Glint strength, clamped to 0–4; zero preserves the captured material |
+| `flare` | `0.65` | Atmospheric spread/strength, clamped to 0–5; zero retains pinpoint cores |
+
+Control shared illumination with `LightSource.intensity`; control the surface
+sheen with `Material::frosted(strength)`. Materials and effects already compose:
+the material shades the vector, then Flashy filters those pixels. A plain or
+unlit vector can also host glints. With no eligible direct light, Flashy adds
+nothing. Point, strip, and directional lights obey normal LightFrame scope.
+
+Flashy owns no clock. For the example, animate the light's `x` from `-100px` to
+`500px`. Fixed lights and phase freeze the lighting. To rock facets as well,
+animate `phase`; one turn loops seamlessly. Pause decorative motion when hidden
+and provide a pause control. Changing spacing or seed redistributes reflectors.
+
+Values from 0–1 add rays and haze. `flare=2` doubles their reach relative to 1;
+`flare=5` gives five times the reach. This does not move reflectors or broaden
+the pinpoint cores. Cores follow the projected facet shapes, while long
+starburst rays share a fixed orientation in the effect's local viewing frame.
+Transforming the container also transforms those rays.
+
+The implementation uses one full-resolution pass. At `flare<=1`, it searches
+nine cells with at most nine anchor reads plus the source pixel. Larger flares
+expand the search, up to 121 cells at 5. Each candidate samples up to eight
+eligible scene lights. Inactive and out-of-reach glints skip the anchor read.
+There is no particle history or broad blur pass. Keep the container close to
+the artwork; capture size and display resolution affect cost. Support is bounded
+to `0.95 * spacing * max(1, flare)`, with a stable 240-local-pixel capture outset.
+Outer clips can cut off flares.
+
+This remains a stylized surface treatment. Glints sample the container plane,
+not a depth/normal map of its children; use it for coplanar artwork. The frosted
+material uses each vector's own geometry. Neither performs backdrop blur or
+refraction. WGPU applies the treatment; CPU renders ordinary child paint.
+The [capture restrictions](#experimental-shader-containers) apply in debug and
+release. The interactive fixture includes lettering, a disc surface, shared
+light pause/scrub, independent material sheen and flare controls, and A/B:
+
+```sh
+pax-cli run --path examples/fixtures/flashy --target web
+```
+
+Migration from the earlier experimental recipe: replace Flashy's `light_x`,
+`light_y`, `light_depth`, and `light_color` with a sibling `LightSource` inside
+a common `LightFrame`; put `Material::frosted(sheen)` on the child fill/stroke.
+Light coordinates are now in the scene's transformed frame. `brightness` only
+scales glints; `LightSource.intensity` scales both responses. Retune intensity
+and radius for the scene light's finite-radius falloff.
+
+See the [`Flashy` API reference](api/pax-std/shaders/flashy.md) and
+[materials guide](drawing-styling.md#lighting-and-materials).
 
 #### RimRefraction
 

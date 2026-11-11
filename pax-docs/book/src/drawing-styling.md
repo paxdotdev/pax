@@ -749,6 +749,31 @@ declarations need changing. Unlit paints skip light evaluation and do not add
 light-driven redraw dependencies; a tile sharing other lit content can still
 need repainting.
 
+`Material::frosted(strength)` adds fine stationary grain and a broad highlight
+colored by the scene lights. Strength is clamped to 0–1; zero disables this
+additional sheen. The helper preserves the underlying paint through ambient
+lighting and uses no diffuse or ordinary specular contribution. Use
+`AmbientLight intensity=1` to keep the base color between highlights. For custom
+responses, `MaterialParams.frosted` controls the same sheen and `roughness`
+controls its width. Existing material presets default to `frosted=0`.
+
+```pax
+<LightFrame width=400px height=180px>
+    <Ellipse x=50% y=50% width=320px height=120px
+        fill={paint: rgb(50, 65, 95) material: {Material::frosted(0.8)}}/>
+    <LightSource x={(self.light_x)px} y=90px z=180px width=1px height=1px
+        anchor=0px radius=1200px intensity=2.0 color=WHITE/>
+    <AmbientLight intensity=1 color=WHITE/>
+</LightFrame>
+```
+
+Animate the light's `x` to pass the highlight across the shape. Grain follows
+the surface's local coordinates, and shading retains the paint alpha. This is
+a frosted **surface appearance**: it does not blur or refract the backdrop.
+Materials render before enclosing shader effects; wrap this vector in
+[`Flashy`](compositing-effects.md#flashy) to add glints and flares from the same
+scoped light without another material capture pass. CPU retains the base paint.
+
 LightFrame containment is one-way: outside lights can enter, while lights
 inside cannot affect parents or sibling frames. Canvas-layer reachability
 still applies, and `AmbientLight` is layer-wide rather than confined by

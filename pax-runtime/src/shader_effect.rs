@@ -41,7 +41,7 @@ impl ExpandedNode {
         context: &Rc<RuntimeContext>,
         renderer: &mut dyn RenderContext,
     ) -> bool {
-        let Some(effect) = borrow!(self.instance_node).shader_effect(self) else {
+        let Some(mut effect) = borrow!(self.instance_node).shader_effect(self) else {
             assert!(!self.shader_effect_bound.get(), "a mounted shader primitive must keep returning a recipe; use an identity pass to disable its effect");
             return false;
         };
@@ -96,6 +96,32 @@ impl ExpandedNode {
         }
         let projected = context.canvas_surface_projection_for_node(self);
         let geometry = context.canvas_geometry_for_node(self);
+        if effect.lighting.is_some() {
+            #[cfg(feature = "3d")]
+            let surface = self.spatial_geometry().get().lighting_surface();
+            #[cfg(not(feature = "3d"))]
+            let surface = {
+                let m = (context.canvas_surface_to_world(layer) * geometry.surface_transform)
+                    .as_coeffs();
+                Some(pax_runtime_api::LightingSurface {
+                    origin: [m[4] as f32, m[5] as f32, 0.],
+                    tangent_x: [m[0] as f32, m[1] as f32, 0.],
+                    tangent_y: [m[2] as f32, m[3] as f32, 0.],
+                    normal: [0., 0., 1.],
+                })
+            };
+            effect.lighting = Some(surface.map_or_else(
+                || pax_runtime_api::ShaderLighting {
+                    light_mask: 0,
+                    ..Default::default()
+                },
+                |surface| pax_runtime_api::ShaderLighting {
+                    surface,
+                    light_mask: context.canvas_node_light_mask(self.id),
+                },
+            ));
+        }
+
         let projection = projected.unwrap_or_else(|| {
             pax_runtime_api::math::ProjectedPlane::affine(geometry.surface_transform)
         });

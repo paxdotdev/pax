@@ -49,12 +49,14 @@ macro_rules! effect_instance {
 }
 
 pub mod corona;
+pub mod flashy;
 pub mod gaussian_blur;
 pub mod impressionist;
 pub mod radiance;
 pub mod rim_refraction;
 
 pub use corona::*;
+pub use flashy::*;
 pub use gaussian_blur::*;
 pub use impressionist::*;
 pub use radiance::*;

@@ -99,6 +99,7 @@ impl GaussianBlur {
             ]
         };
         ShaderEffect {
+            lighting: None,
             program: &BLUR,
             parameters: vec![
                 pass([1., 0.], 1., (blend < 1.) as u32),

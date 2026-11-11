@@ -58,6 +58,7 @@ fn effect(p: vec2<f32>) -> vec4<f32> {
 impl ForegroundInk {
     fn recipe(&self) -> ShaderEffect {
         ShaderEffect {
+            lighting: None,
             program: &INK,
             parameters: vec![vec![
                 ShaderValue::Float(self.pitch.get().max(1.) as f32),

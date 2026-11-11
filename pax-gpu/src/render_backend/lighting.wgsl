@@ -1,25 +1,8 @@
 struct Material {
+    surface: vec4<f32>,
     coefficients: vec4<f32>,
     emissive: vec4<f32>,
 }
-
-
-struct SceneLight {
-    position: vec4<f32>,
-    direction: vec4<f32>,
-    color: vec4<f32>,
-    params: vec4<f32>,
-}
-
-struct SceneLighting {
-    surface_to_world_x: vec4<f32>,
-    surface_to_world_y: vec4<f32>,
-    view: vec4<f32>,
-    ambient: vec4<f32>,
-    flags: vec4<u32>,
-    lights: array<SceneLight, 8>,
-}
-
 
 
 fn apply_lighting(
@@ -28,6 +11,7 @@ fn apply_lighting(
     world_position: vec3<f32>,
     normal: vec3<f32>,
     light_mask: u32,
+    grain_position: vec3<f32>,
 ) -> vec4<f32> {
     if scene_lighting.flags.x == 0u {
         return color;
@@ -47,9 +31,9 @@ fn apply_lighting(
     if eligible_light_mask == 0u && scene_lighting.flags.z == 0u {
         return color;
     }
-    let surface_position = world_position;
-    let to_view = scene_lighting.view.xyz - world_position * scene_lighting.view.w;
-    let view_dir = to_view / max(length(to_view), 0.0001);
+    let view_dir = scene_view_at(scene_lighting.view, world_position);
+    var frost_rgb = vec3<f32>(0.0);
+    var frost_energy = 0.0;
     var lighting = scene_lighting.ambient.rgb * scene_lighting.ambient.a * ambient_coeff;
 
     for (var i = 0u; i < 8u; i++) {
@@ -61,41 +45,27 @@ fn apply_lighting(
         }
 
         let light = scene_lighting.lights[i];
-        var light_dir: vec3<f32>;
-        var attenuation = 1.0;
-        if light.params.x < 0.5 || light.params.x > 1.5 {
-            var emitter_position = light.position.xyz;
-            if light.params.x > 1.5 {
-                // A continuous finite segment in world space, using one light slot.
-                // Zero length reduces to a point; translation never alters its extent.
-                let extent = light.direction.xyz;
-                let extent_squared = dot(extent, extent);
-                if extent_squared > 0.000001 {
-                    let along = clamp(dot(surface_position - emitter_position, extent) / extent_squared, -1.0, 1.0);
-                    emitter_position += extent * along;
-                }
-            }
-            let to_light = emitter_position - surface_position;
-            let distance = max(length(to_light), 0.0001);
-            let radius = max(light.params.y, 0.0001);
-            let falloff = max(1.0 - distance / radius, 0.0);
-            attenuation = falloff * falloff;
-            light_dir = to_light / distance;
-        } else {
-            let direction_len = max(length(light.direction.xyz), 0.0001);
-            light_dir = -light.direction.xyz / direction_len;
-        }
-
+        let sampled = sample_scene_light(light, world_position);
+        let light_dir = sampled.xyz;
+        let attenuation = sampled.w;
         let diffuse = max(dot(normal, light_dir), 0.0);
-        let half_sum = light_dir + view_dir;
-        let half_dir = half_sum / max(length(half_sum), 0.0001);
-        let shininess = mix(96.0, 8.0, roughness);
-        let specular = pow(max(dot(normal, half_dir), 0.0), shininess);
+        let specular = scene_specular_lobe(light_dir, view_dir, normal, mix(96.0, 8.0, roughness));
+        let energy = light.color.a * attenuation * specular;
+        frost_rgb += light.color.rgb * energy;
+        frost_energy += energy;
         lighting += light.color.rgb * light.color.a * attenuation *
             ((diffuse_coeff * diffuse) + (specular_coeff * specular));
     }
 
     let lit_rgb = color.rgb * clamp(lighting, vec3<f32>(0.0), vec3<f32>(8.0))
         + material.emissive.rgb * material.emissive.a;
-    return vec4<f32>(lit_rgb, color.a);
+    if material.surface.x <= 0.0 { return vec4<f32>(lit_rgb, color.a); }
+    // Grain is attached to the surface and band-limited to the raster footprint.
+    let cell = vec3<i32>(floor(grain_position));
+    var h = (bitcast<u32>(cell.x) * 1597334677u) ^ (bitcast<u32>(cell.y) * 3812015801u) ^ (bitcast<u32>(cell.z) * 2798796415u);
+    h = (h ^ (h >> 16u)) * 2246822519u;
+    let grain = 0.82 + 0.18 * f32(h & 65535u) / 65535.0;
+    let sheen = 1.0 - exp(-clamp(material.surface.x, 0.0, 1.0) * frost_energy * grain);
+    let sheen_color = frost_rgb / max(frost_energy, 0.0001);
+    return vec4<f32>(mix(lit_rgb, sheen_color, sheen), color.a);
 }

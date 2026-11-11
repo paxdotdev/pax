@@ -723,6 +723,7 @@ impl CoercionRules for MaterialParams {
                         "specular" => params.specular = Property::new(f64::try_coerce(value)?),
                         "roughness" => params.roughness = Property::new(f64::try_coerce(value)?),
                         "metallic" => params.metallic = Property::new(f64::try_coerce(value)?),
+                        "frosted" => params.frosted = Property::new(f64::try_coerce(value)?),
                         "emissive" => params.emissive = Property::new(Color::try_coerce(value)?),
                         "emissive_intensity" | "emissiveIntensity" => {
                             params.emissive_intensity = Property::new(f64::try_coerce(value)?)
@@ -767,6 +768,12 @@ impl CoercionRules for Material {
                     }
                     "Unlit" | "unlit" => Material::Unlit,
                     "Matte" | "matte" => Material::matte(),
+                    "Frosted" | "frosted" => {
+                        if args.len() != 1 {
+                            return Err("Expected 1 argument for Material::frosted".into());
+                        }
+                        Material::frosted(f64::try_coerce(args.into_iter().next().unwrap())?)
+                    }
                     "Glossy" | "glossy" => {
                         let specular = args
                             .into_iter()
@@ -966,6 +973,59 @@ mod tests {
 
         let err = Depth::try_coerce(pct(50)).expect_err("percent depth should fail");
         assert!(err.contains("percent depth"));
+    }
+
+    #[test]
+    fn frosted_material_roundtrips_and_exposes_nested_reactivity() {
+        let graph = crate::properties::PropertyGraph::new(|| {});
+        let _guard = graph.enter();
+        use crate::{Interpolatable, ToPaxValue};
+        let helper = PaxValue::Enum(Box::new((
+            "Material".into(),
+            "frosted".into(),
+            vec![PaxValue::Numeric(Numeric::F64(0.8))],
+        )));
+        let material = Material::try_coerce(helper).unwrap();
+        assert_eq!(material, Material::frosted(0.8));
+        assert_eq!(
+            Material::try_coerce(material.clone().to_pax_value()).unwrap(),
+            material
+        );
+        assert_eq!(material.nested_properties().len(), 8);
+        let Material::Lit(params) = &material else {
+            panic!("lit material")
+        };
+        params.frosted.set(0.4);
+        let crate::ResolvedMaterial::Lit(snapshot) = material.snapshot() else {
+            panic!("lit snapshot")
+        };
+        assert_eq!(snapshot.frosted, 0.4);
+        let Material::Lit(midpoint) = material.interpolate(&Material::frosted(0.8), 0.5) else {
+            panic!("lit interpolation")
+        };
+        assert!((midpoint.frosted.get() - 0.6).abs() < 1e-10);
+        let empty = MaterialParams::try_coerce(PaxValue::Object(Default::default())).unwrap();
+        assert_eq!(
+            empty.frosted.get(),
+            0.0,
+            "existing materials retain their response"
+        );
+        let mut json = serde_json::to_value(params).unwrap();
+        assert_eq!(
+            serde_json::from_value::<MaterialParams>(json.clone())
+                .unwrap()
+                .frosted
+                .get(),
+            0.4
+        );
+        json.as_object_mut().unwrap().remove("frosted");
+        assert_eq!(
+            serde_json::from_value::<MaterialParams>(json)
+                .unwrap()
+                .frosted
+                .get(),
+            0.0
+        );
     }
 
     #[test]

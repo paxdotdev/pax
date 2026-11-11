@@ -3296,6 +3296,7 @@ pub(super) fn to_pax_gpu_material(material: &pax_runtime_api::ResolvedMaterial) 
                 to_pax_gpu_color(&params.emissive.clone()),
                 params.emissive_intensity.max(0.0) as f32,
             )
+            .with_frosted(params.frosted as f32)
         }
     }
 }
@@ -3441,6 +3442,7 @@ mod tests {
             passes: &[],
         };
         let effect = ShaderEffect {
+            lighting: None,
             program: &PROGRAM,
             parameters: vec![],
             outset: 0.0,

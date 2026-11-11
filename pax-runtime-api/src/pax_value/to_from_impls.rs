@@ -380,6 +380,7 @@ impl ToPaxValue for MaterialParams {
                 ("specular".to_string(), self.specular.to_pax_value()),
                 ("roughness".to_string(), self.roughness.to_pax_value()),
                 ("metallic".to_string(), self.metallic.to_pax_value()),
+                ("frosted".to_string(), self.frosted.to_pax_value()),
                 ("emissive".to_string(), self.emissive.to_pax_value()),
                 (
                     "emissive_intensity".to_string(),
@@ -402,6 +403,7 @@ impl ToPaxValue for Material {
                 p.specular.untyped(),
                 p.roughness.untyped(),
                 p.metallic.untyped(),
+                p.frosted.untyped(),
                 p.emissive.untyped(),
                 p.emissive_intensity.untyped(),
             ],

@@ -1,0 +1,122 @@
+if @gpu {
+    <Group width=0px height=0px @tick=self.animate/>
+}
+<Scroller width=100% height=100% autosize=true>
+    <Stacker x=50% width={(self.panel_width)px} autosize=true gutter=16px>
+        <Group width=100% height=20px/>
+        <Text class="eyebrow" width=100% height=20px text="PAX / MATERIAL STUDIES / 04"/>
+        <Text class="title" width=100% height={self.small ? 72px : 52px} text="A little light. A thousand facets."/>
+        <Text class="copy" width=100% height={self.small ? 48px : 36px} text="One passing light. A soft sheen and sharp reflections."/>
+        <Group width=100% height={(self.panel_width * 0.50)px} @viewport_proximity_change=self.visibility>
+            <LightFrame width=920px height=460px scale={(self.panel_width / 920 * 100)%} layout_role=LayoutRole::Breakout>
+                <Flashy id=letter_effect x=140px y=10px width=640px height=208.84px seed={self.seed} spacing={self.spacing}
+                    brightness={self.treated ? 1.0 : 0.0} flare={self.flare}>
+                    <Path width=100% height=100% elements={self.letters}
+                        fill={paint: {self.outline ? rgba(0, 0, 0, 0%) : (self.dark ? rgb(134, 147, 170) : rgb(60, 69, 89))} material: {self.treated ? Material::frosted(self.sheen) : Material::unlit()}} stroke={
+                            paint: {self.dark ? rgb(198, 209, 230) : rgb(42, 51, 70)}
+                            width: {self.outline ? 3px : 0px}
+                            material: {self.treated ? Material::frosted(self.sheen) : Material::unlit()}
+                        }/>
+                </Flashy>
+                <Flashy id=fabric_effect x=46px y=254px width=828px height=176px seed={self.seed} spacing={self.spacing}
+                    brightness={self.treated ? 1.0 : 0.0} flare={self.flare}>
+                    for row in 0..7 {
+                        for col in 0..36 {
+                            <Ellipse x={(col * 23 + (row %% 2) * 4)px} y={(row * 23)px} width=26px height=26px
+                                fill={paint: {rgb(40 + (col * 7 + row * 3) %% 45, 53 + (col * 3 + row * 7) %% 55, 83 + (col * 4 + row * 11) %% 65)} material: {self.treated ? Material::frosted(self.sheen) : Material::unlit()}} stroke={
+                                    paint: rgba(170, 195, 220, 20%)
+                                    width: 0.7px
+                                    material: {self.treated ? Material::frosted(self.sheen) : Material::unlit()}
+                                }/>
+                        }
+                    }
+                </Flashy>
+                <LightSource x={(self.light_x)px} y=230px z={(220 * self.panel_width / 920)px} width=1px height=1px
+                    anchor=0px radius={(2200 * self.panel_width / 920)px} intensity={self.brightness} color=WHITE/>
+                <AmbientLight intensity=1 color=WHITE/>
+            </LightFrame>
+        </Group>
+        <Group width=100% height={self.small ? 84px : 36px}>
+            <Button class="button" id=pause width={self.small ? 48% : 23.5%} label={self.playing ? "Pause motion" : "Resume motion"}
+                @button_click=self.pause/>
+            <Button class="button" id=treatment x={self.small ? 52% : 25.5%} width={self.small ? 48% : 23.5%}
+                label={self.treated ? "Show plain (A/B)" : "Show Flashy (A/B)"} @button_click=self.treatment/>
+            <Button class="button" id=outline x={self.small ? 0% : 51%} y={self.small ? 48px : 0px} width={self.small ? 48% : 23.5%}
+                label={self.outline ? "Solid lettering" : "Outline lettering"} @button_click=self.outline/>
+            <Button class="button" id=theme x={self.small ? 52% : 76.5%} y={self.small ? 48px : 0px} width={self.small ? 48% : 23.5%}
+                label={self.dark ? "Light background" : "Dark background"} @button_click=self.theme/>
+        </Group>
+        <Group width=100% height=58px>
+            <Text class="eyebrow" width=100% height=20px text="LIGHT SWEEP / 14 SECONDS / DRAG TO FREEZE"/>
+            <Slider class="slider" id=phase y=28px width=100% height=24px value=bind:phase min=0.0 max=1.0 step=0.001
+                @slider_change=self.scrub/>
+        </Group>
+        <Group width=100% height=58px>
+            <Text class="copy" width=48% height=20px text={"Spacing / " + self.spacing + " px"}/>
+            <Slider class="slider" id=spacing y=28px width=48% height=24px value=bind:spacing min=8.0 max=48.0 step=1.0/>
+            <Text class="copy" x=52% anchor_x=0% width=48% height=20px text={"Light intensity / " + self.brightness}/>
+            <Slider class="slider" id=brightness x=52% anchor_x=0% y=28px width=48% height=24px value=bind:brightness min=0.0 max=4.0
+                step=0.05/>
+        </Group>
+        <Group width=100% height=58px>
+            <Text class="copy" width=48% height=20px text={"Frosted sheen / " + self.sheen}/>
+            <Slider class="slider" id=sheen y=28px width=48% height=24px value=bind:sheen min=0.0 max=1.0 step=0.01/>
+            <Text class="copy" x=52% anchor_x=0% width=48% height=20px text={"Atmospheric flare / " + self.flare}/>
+            <Slider class="slider" id=flare x=52% anchor_x=0% y=28px width=48% height=24px value=bind:flare min=0.0 max=5.0 step=0.01/>
+        </Group>
+        <Group width=100% height=36px>
+            <Button class="button" id=reseed width=48% label={"Seed / " + self.seed} @button_click=self.reseed/>
+            <Button class="button" id=reset x=52% width=48% label="Reset" @button_click=self.reset/>
+        </Group>
+        <Text class="copy" width=100% height=42px text={@gpu
+            ? "WebGPU / Stationary facets. One light drives both sheen and flares."
+            : "CPU / Plain artwork. Flashy requires the WGPU renderer."}/>
+        <Group width=100% height=24px/>
+    </Stacker>
+</Scroller>
+<Rectangle width=100% height=100% fill={self.dark ? rgb(9, 12, 20) : rgb(224, 227, 232)}/>
+
+@settings {
+    @mount: mount
+    @tick: layout
+    .title {
+        style: {
+            font: "Georgia"
+            font_size: {self.small ? 27px : 40px}
+            fill: {self.dark ? rgb(232, 234, 241) : rgb(26, 33, 48)}
+        }
+    }
+    .eyebrow {
+        style: {
+            font: "Arial"
+            font_size: 11px
+            fill: {self.dark ? rgb(136, 155, 186) : rgb(65, 80, 103)}
+        }
+    }
+    .copy {
+        style: {
+            font: "Arial"
+            font_size: 13px
+            fill: {self.dark ? rgb(151, 162, 184) : rgb(65, 80, 103)}
+        }
+    }
+    .slider {
+        accent: {self.dark ? rgb(184, 207, 247) : rgb(65, 80, 103)}
+        background: {self.dark ? rgb(37, 46, 65) : rgb(195, 203, 217)}
+        corner_radius: 12.0
+    }
+    .button {
+        height: 36px
+        anchor_x: 0%
+        anchor_y: 0%
+        color: {self.dark ? rgb(26, 34, 50) : rgb(205, 212, 224)}
+        hover_color: {self.dark ? rgb(42, 54, 76) : rgb(186, 198, 218)}
+        style: {
+            font: "Arial"
+            font_size: 12px
+            fill: {self.dark ? rgb(224, 232, 247) : rgb(26, 33, 48)}
+            align_horizontal: TextAlignHorizontal::Center
+            align_vertical: TextAlignVertical::Center
+        }
+    }
+}

@@ -115,6 +115,7 @@ impl RimRefraction {
         let rgba = |c: Color| V::Vec4(c.to_rgba_0_1().map(|v| v as f32));
         let surface = self.surface_color.get();
         ShaderEffect {
+            lighting: None,
             program: &PROGRAM,
             parameters: vec![vec![
                 rgba(surface.clone().unwrap_or(Color::BLACK)),

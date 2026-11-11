@@ -231,6 +231,7 @@ impl Impressionist {
         ];
         marks.extend(PointillistPreset::for_mode(&mode).uniforms());
         ShaderEffect {
+            lighting: None,
             program: &PAINT,
             parameters: vec![vec![V::Float(size)], marks],
             // Covers the longest sweep plus orientation sampling. Stable across modes so

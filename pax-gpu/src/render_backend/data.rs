@@ -36,6 +36,7 @@ pub(crate) struct GpuColor {
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub(crate) struct GpuMaterial {
+    pub surface: [f32; 4],
     pub coefficients: [f32; 4],
     pub emissive: [f32; 4],
 }

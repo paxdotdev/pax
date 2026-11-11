@@ -110,6 +110,7 @@
       - [reference::example_host](api/pax-std/reference/example_host.md)
     - [shaders](api/pax-std/shaders.md)
       - [shaders::corona](api/pax-std/shaders/corona.md)
+      - [shaders::flashy](api/pax-std/shaders/flashy.md)
       - [shaders::gaussian_blur](api/pax-std/shaders/gaussian_blur.md)
       - [shaders::impressionist](api/pax-std/shaders/impressionist.md)
       - [shaders::radiance](api/pax-std/shaders/radiance.md)

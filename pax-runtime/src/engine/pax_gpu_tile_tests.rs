@@ -107,6 +107,7 @@ fn shader_capture_keeps_descendant_masks_on_the_owning_layer() {
     renderer.save(1);
     renderer.clip(1, Rect::new(0.0, 0.0, 16.0, 32.0).to_path(0.1));
     let effect = ShaderEffect {
+        lighting: None,
         program: &PROGRAM,
         parameters: vec![vec![]],
         outset: 0.0,
@@ -248,6 +249,7 @@ fn shader_palette_updates_reach_warm_tiles_during_cold_replay() {
         }
     });
     let effect = ShaderEffect {
+        lighting: None,
         program: &PROGRAM,
         parameters: vec![vec![]],
         outset: 0.0,

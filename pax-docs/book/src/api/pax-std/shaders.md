@@ -10,6 +10,7 @@ Enable the opt-in `shaders` Cargo feature on `pax-kit` or `pax-std`.
 
 ## Submodules
 - [shaders::corona](shaders/corona.md)
+- [shaders::flashy](shaders/flashy.md)
 - [shaders::gaussian_blur](shaders/gaussian_blur.md)
 - [shaders::impressionist](shaders/impressionist.md)
 - [shaders::radiance](shaders/radiance.md)

@@ -17,6 +17,8 @@ const WRITE_MS: f64 = 1600.0 * HERO_TIMING_SCALE;
 const GRADIENT_PERIOD_MS: f64 = 2500.0 * HERO_TIMING_SCALE;
 const LETTER_SETTLED_MS: f64 = 2500.0 * HERO_TIMING_SCALE;
 const LIGHT_SWEEP_MS: f64 = 1300.0 * HERO_TIMING_SCALE;
+const FROST_LIGHT_DELAY_MS: f64 = 600.0;
+const FROST_LIGHT_SWEEP_MS: f64 = 2200.0;
 
 /// A fixed three-line signboard. Creative masks a morphing CMY mesh with Handwriter;
 /// its native text equivalent lives outside the mask. Only the current word mounts.
@@ -143,8 +145,11 @@ impl RotatingHeadline {
         // A separate light clock freezes on pause instead of following the pose snap.
         let light_ms = light_time(self._light_ms.get(), dt, changed, self.playing.get());
         self._light_ms.set_if_neq(light_ms);
-        self.light_x
-            .set_if_neq(light_position(light_ms, self.run_width.get()));
+        self.light_x.set_if_neq(if pose.index == 4 {
+            frosted_light_position(light_ms, self.run_width.get())
+        } else {
+            light_position(light_ms, self.run_width.get())
+        });
     }
 
     fn apply_pose(&mut self, pose: WordPose) {
@@ -213,7 +218,7 @@ fn light_time(previous: f64, dt: f64, changed: bool, playing: bool) -> f64 {
     if changed {
         0.0
     } else if playing {
-        (previous + dt).min(LIGHT_SWEEP_MS)
+        (previous + dt).min(FROST_LIGHT_DELAY_MS + FROST_LIGHT_SWEEP_MS)
     } else {
         previous
     }
@@ -222,6 +227,13 @@ fn light_time(previous: f64, dt: f64, changed: bool, playing: bool) -> f64 {
 fn light_position(time: f64, width: f64) -> f64 {
     let t = (time / LIGHT_SWEEP_MS).clamp(0.0, 1.0);
     -0.8 + (width + 1.6) * (t * t * (3.0 - 2.0 * t))
+}
+
+fn frosted_light_position(time: f64, width: f64) -> f64 {
+    // Let the short arc entrance settle before the strongest reflection crosses
+    // the word. End beyond the opposite edge while it is still held for reading.
+    let t = ((time - FROST_LIGHT_DELAY_MS) / FROST_LIGHT_SWEEP_MS).clamp(0.0, 1.0);
+    -1.2 + (width + 2.4) * (t * t * (3.0 - 2.0 * t))
 }
 
 fn creative_time(previous: f64, dt: f64, creative: bool, playing: bool) -> f64 {
@@ -497,5 +509,23 @@ mod tests {
                 light_position(LIGHT_SWEEP_MS + 100.0, width)
             );
         }
+    }
+
+    #[test]
+    fn frosted_light_crosses_settled_letters_during_the_reading_hold() {
+        let width = 3.047;
+        assert_eq!(frosted_light_position(0., width), -1.2);
+        assert_eq!(frosted_light_position(FROST_LIGHT_DELAY_MS, width), -1.2);
+        let midpoint = FROST_LIGHT_DELAY_MS + FROST_LIGHT_SWEEP_MS / 2.;
+        assert!(midpoint > LETTER_SETTLED_MS / 2.);
+        assert!((frosted_light_position(midpoint, width) - width / 2.).abs() < 1e-9);
+        let end = FROST_LIGHT_DELAY_MS + FROST_LIGHT_SWEEP_MS;
+        assert!(end < HOLD_MS);
+        assert!((frosted_light_position(end, width) - (width + 1.2)).abs() < 1e-9);
+        assert_eq!(
+            frosted_light_position(end, width),
+            frosted_light_position(HOLD_MS, width)
+        );
+        assert_eq!(light_time(midpoint, 16., false, false), midpoint);
     }
 }
