@@ -18,7 +18,9 @@ Pause or drag **Light sweep** to hold the light. **Show plain (A/B)** bypasses t
 material sheen and flare effect without changing the artwork. **Outline lettering** switches the filled
 vector word to a 3-pixel stroke, useful for judging sparse alpha coverage.
 **Light background** checks contrast on a pale surface. **Seed** changes the
-spatial distribution; **Reset** restores the material defaults and resumes.
+spatial distribution; **Reset** restores the fixture defaults and resumes.
+Startup and Reset use spacing **8px**, light intensity **4.0**, frosted sheen
+**1.0**, atmospheric flare **4.0**, and seed **17**.
 Spacing, scene light intensity, material sheen, and atmospheric flare are shared by both specimens.
 **Atmospheric flare** ranges from 0 to 5: zero leaves pinpoint cores, 0–1 adds
 rays and haze, and 1–5 enlarges their reach up to five times the size at 1.

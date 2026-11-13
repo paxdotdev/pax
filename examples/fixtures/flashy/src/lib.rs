@@ -1,6 +1,12 @@
 use pax_kit::*;
 mod lettering;
 
+const DEFAULT_SPACING: f64 = 8.0;
+const DEFAULT_LIGHT_INTENSITY: f64 = 4.0;
+const DEFAULT_SHEEN: f64 = 1.0;
+const DEFAULT_FLARE: f64 = 4.0;
+const DEFAULT_SEED: u32 = 17;
+
 pax_kit::runnable! { root: crate::Example }
 
 #[pax]
@@ -27,15 +33,14 @@ pub struct Example {
 
 impl Default for Example {
     fn default() -> Self {
-        let effect = Flashy::default();
         Self {
             phase: Property::new(0.25),
             light_x: Property::new(460.),
-            sheen: Property::new(0.8),
-            spacing: Property::new(effect.spacing.get()),
-            brightness: Property::new(1.75),
-            flare: Property::new(effect.flare.get()),
-            seed: Property::new(effect.seed.get()),
+            sheen: Property::new(DEFAULT_SHEEN),
+            spacing: Property::new(DEFAULT_SPACING),
+            brightness: Property::new(DEFAULT_LIGHT_INTENSITY),
+            flare: Property::new(DEFAULT_FLARE),
+            seed: Property::new(DEFAULT_SEED),
             playing: Property::new(true),
             treated: Property::new(true),
             dark: Property::new(true),
@@ -98,13 +103,12 @@ impl Example {
         self.seed.set(self.seed.get().wrapping_add(1));
     }
     pub fn reset(&mut self, ctx: &NodeContext, _: Event<ButtonClick>) {
-        let effect = Flashy::default();
         self.phase.set(0.25);
-        self.sheen.set(0.8);
-        self.spacing.set(effect.spacing.get());
-        self.brightness.set(1.75);
-        self.flare.set(effect.flare.get());
-        self.seed.set(effect.seed.get());
+        self.sheen.set(DEFAULT_SHEEN);
+        self.spacing.set(DEFAULT_SPACING);
+        self.brightness.set(DEFAULT_LIGHT_INTENSITY);
+        self.flare.set(DEFAULT_FLARE);
+        self.seed.set(DEFAULT_SEED);
         self.treated.set(true);
         self.playing.set(true);
         self.last_time.set(ctx.elapsed_time_millis() as f64);
