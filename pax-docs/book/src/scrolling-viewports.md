@@ -1513,6 +1513,10 @@ clipping, or update behavior. The optimization reduces allocation and upload
 bytes, not the number of buffers. It adds no buffer pool and does not increase
 cache or tile budgets.
 
+On Android, moving a Scroller or changing an ancestor clip refreshes cached
+surface residency even without a scroll event. Idle frames and paint-only updates
+reuse the plan when the container's presented bounds and clips are unchanged.
+
 Removed surfaces are released. Native logical-layer contexts are released when
 their last tile and pending creation release them; the browser retains its shared
 device/pipeline context until the mounted app is disposed. Unused image textures

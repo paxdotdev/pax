@@ -1686,12 +1686,55 @@ fn native_surface_residency_follows_nested_scroll_clips_without_observers() {
         generation,
         "moving a scroll owner must invalidate the host's cached residency plan"
     );
+    let generation = engine.runtime_context.layer_canvas_plan_generation();
+    engine.tick();
+    inner
+        .get_common_properties()
+        .borrow()
+        .opacity
+        .set(Some(0.5.into()));
+    engine.tick();
+    assert_eq!(
+        engine.runtime_context.layer_canvas_plan_generation(),
+        generation,
+        "idle and paint-only updates must retain the residency plan"
+    );
+    outer
+        .get_common_properties()
+        .borrow()
+        .height
+        .set(Some(Size::Pixels(10.0.into())));
+    engine.tick();
+    assert!(!engine.runtime_context.native_layer_may_be_visible(layer));
+    assert_ne!(
+        engine.runtime_context.layer_canvas_plan_generation(),
+        generation
+    );
+    let generation = engine.runtime_context.layer_canvas_plan_generation();
+    outer
+        .get_common_properties()
+        .borrow()
+        .height
+        .set(Some(Size::Pixels(240.0.into())));
+    engine.tick();
+    assert!(engine.runtime_context.native_layer_may_be_visible(layer));
+    assert_ne!(
+        engine.runtime_context.layer_canvas_plan_generation(),
+        generation
+    );
+    let generation = engine.runtime_context.layer_canvas_plan_generation();
     inner
         .get_common_properties()
         .borrow()
         .y
         .set(Some(Size::Pixels(800.0.into())));
     engine.tick();
+    assert!(!engine.runtime_context.native_layer_may_be_visible(layer));
+    assert_ne!(
+        engine.runtime_context.layer_canvas_plan_generation(),
+        generation
+    );
+    let generation = engine.runtime_context.layer_canvas_plan_generation();
     // An escaped descendant prevents whole-layer residency culling.
     inner.children.get()[0]
         .get_common_properties()
@@ -1700,4 +1743,8 @@ fn native_surface_residency_follows_nested_scroll_clips_without_observers() {
         .set(Some(true));
     engine.tick();
     assert!(engine.runtime_context.native_layer_may_be_visible(layer));
+    assert_ne!(
+        engine.runtime_context.layer_canvas_plan_generation(),
+        generation
+    );
 }

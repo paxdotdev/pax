@@ -1458,7 +1458,8 @@ fn update_container_presentation(
     let Some((bounds, _)) = presented_container_geometry(id, ctx, state, presented) else {
         return;
     };
-    let viewport = ctx.globals().viewport.get().bounds;
+    let globals = ctx.globals();
+    let viewport = globals.viewport.get().bounds;
     let mut clipped = OcclusionBox::from_viewport(viewport.0, viewport.1);
     // Match full reconciliation's conservative clip bounds. Exact paths still
     // belong to Frame/Scroller and native masks; no bbox replaces those masks.
@@ -1493,6 +1494,12 @@ fn update_container_presentation(
     let hash = hash_node_presentation(node.as_ref(), ctx, Some(bounds), Some(clipped));
     if node.presentation_cache_hash.get() == hash {
         return;
+    }
+    if globals.platform == pax_runtime_api::Platform::Native {
+        // Native hosts cache surface residency by this generation. Moving a
+        // container or its clip can expose cold tiles without any scroll event.
+        // Reuse the presentation comparison so paint-only changes keep the plan.
+        ctx.mark_layer_canvas_plans_dirty();
     }
     if record.scrolls {
         ctx.enqueue_native_message(pax_message::NativeMessage::ScrollerUpdate(ScrollerPatch {
