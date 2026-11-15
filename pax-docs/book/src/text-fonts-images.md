@@ -750,6 +750,12 @@ that view's reference. An empty URL clears the image. Source replacement does
 not let an earlier load overwrite the new image. Missing or unsupported assets
 report a host error rather than silently substituting artwork.
 
+Windows has an unresolved intermittent `NativeImage` failure during startup or
+early resize: WinUI reports that an interface was marshalled for a different
+thread, and the host exits with an error. Recent acceptance runs did not
+reproduce it, but that does not establish a fix. Include repeated launches and
+early resizing when qualifying image-heavy Windows applications.
+
 PNG, JPEG, and SVG use the platform decoders. Linux SVG support requires the
 GdkPixbuf SVG loader, included in the tested GNOME runtime. Linux decodes SVG
 once at its intrinsic or decoder-default raster size; later scaling resizes

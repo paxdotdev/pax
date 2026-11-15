@@ -216,7 +216,7 @@ function Check-BundledFont {
     Check 'Font metric helper completed successfully' ($exit -eq 0 -and $complete.Count -eq 1) @{exit=$exit;output=$stdout}
     $metrics=$complete[0]
     $report.fontMetrics=$metrics;$report.stagedFontSha256=(Get-FileHash -LiteralPath $font -Algorithm SHA256).Hash
-    $correct=$metrics.pid -eq $process.Id -and $metrics.hwnd -eq $process.MainWindowHandle.ToInt64() -and $metrics.automationId -ceq $id -and 
+    $correct=$metrics.pid -eq $process.Id -and $metrics.hwnd -eq $process.MainWindowHandle.ToInt64() -and $metrics.automationId -ceq $id -and
         $metrics.fontFile -ceq $font -and $metrics.text -ceq 'Bundled Manrope: @@@@@@@@' -and $metrics.qualified -eq $true -and $metrics.negativeControlsDistinct -eq $true
     Check 'Native glyph metrics match bundled Manrope and exclude system fallbacks' $correct $metrics
     $report.bundledFont='qualified: native text-range metrics match exact staged Manrope font with distinct Arial and Segoe UI negative controls'
@@ -357,7 +357,7 @@ try {
         if($drained.Success){
             $state=$drained.Groups[1].Value|ConvertFrom-Json
             $report.closedGpu=$state
-            $bounded=$state.pendingFrames -eq 0 -and $state.pendingBytes -eq 0 -and $state.allocatedImages -eq 0 -and $state.allocatedBytes -eq 0 -and 
+            $bounded=$state.pendingFrames -eq 0 -and $state.pendingBytes -eq 0 -and $state.allocatedImages -eq 0 -and $state.allocatedBytes -eq 0 -and
                 $state.published -eq $state.retired -and $state.published -ge 30 -and $state.capacity -eq 3 -and $state.closing -eq $true
         }
         $report.checks+=@{name='Continuous frame delivery drained all bounded exports';passed=$bounded;detail='At least 30 published images; all retired; no live export allocation on close'}

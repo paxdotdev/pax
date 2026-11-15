@@ -64,7 +64,7 @@
       <SubSystem>Windows</SubSystem>
       <AdditionalDependencies>d3d11.lib;d3d12.lib;dxgi.lib;d2d1.lib;windowscodecs.lib;ole32.lib;windowsapp.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
-    
+
   </ItemDefinitionGroup>
   <ItemGroup><ClCompile Include="host.cpp" /><ClInclude Include="composition_presenter.h" /><ClInclude Include="native_scene.h" /><ClInclude Include="native_mask.h" /><ClInclude Include="mask_path.h" /></ItemGroup>
   <ItemGroup><None Include="packages.config" /></ItemGroup>

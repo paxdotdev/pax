@@ -23,4 +23,3 @@ designtime = ["pax-kit/designtime"]
 name = "native-scroll-snap"
 path = "src/main.rs"
 required-features = ["standalone"]
-

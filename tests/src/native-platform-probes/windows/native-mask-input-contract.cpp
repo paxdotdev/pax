@@ -33,7 +33,7 @@ struct App:ApplicationT<App,Markup::IXamlMetadataProvider> {
     XamlTypeInfo::XamlControlsXamlMetaDataProvider metadata{nullptr};Window window{nullptr};
     com_ptr<ID3D11Device> device;std::unique_ptr<NativeScene> scene;ScrollViewer outer{nullptr},inner{nullptr},retired{nullptr};
     winrt::Microsoft::UI::Dispatching::DispatcherQueueTimer timer{nullptr};
-    
+
     unsigned clicked_id=0;
     unsigned phase=0,outer_acks=0,inner_acks=0,previous_acks=0;double last_x=0,last_y=0,before_inner=0,before_outer=0,before_inner_cross=0;
     XamlTypeInfo::XamlControlsXamlMetaDataProvider provider(){if(!metadata)metadata=XamlTypeInfo::XamlControlsXamlMetaDataProvider();return metadata;}

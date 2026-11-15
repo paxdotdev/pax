@@ -1,13 +1,13 @@
 # Targets, Build, and Deployment
-<!-- summary: Choose a target, build a release, host a web application, and understand Apple packaging. -->
-<!-- tags: targets, build, deployment, web, macos, ios, ipados, assets, metadata -->
+<!-- summary: Choose a target, build a release, and understand web, Apple, desktop, and experimental Android packaging. -->
+<!-- tags: targets, build, deployment, web, macos, ios, ipados, windows, linux, android, assets, metadata -->
 
 A running development project is the starting point. To put it in someone
 else's hands, choose a target, build its artifacts, and check those artifacts
 in the environment where people will use them.
 
-Pax targets web, macOS, iOS, iPadOS, and alpha Windows/Linux desktop. Web
-releases can be served as static files. macOS has a release build path; distribution adds Apple's signing and
+Pax targets web, macOS, iOS, iPadOS, alpha Windows/Linux desktop, and experimental
+Android. Web releases can be served as static files. macOS has a release build path; distribution adds Apple's signing and
 packaging steps. iOS and iPadOS support debug and release builds, including
 local simulator and connected-device runs. [Apple distribution](#apple-distribution)
 requires additional signing and delivery steps.
@@ -1088,10 +1088,13 @@ must use explicit system families or bundled files; general remote font sources
 are not supported. See
 [desktop fonts](text-fonts-images.md#fonts-on-experimental-desktop-hosts).
 
-Windows queues image bursts beyond eight active decoders while retaining its
-32 MiB decoded-pixel limit per image. Linux image decoding currently runs on
-the GTK thread. See [image loading](text-fonts-images.md#image-sources) for the
-loading and memory boundaries when building image-heavy scenes.
+For canvas `Image`, Windows queues bursts beyond eight active decoders while
+retaining its 32 MiB decoded-pixel limit per image; Linux decoding currently
+runs on the GTK thread. See [image loading](text-fonts-images.md#image-sources)
+for canvas loading and memory boundaries. The separate
+[`NativeImage` loaders](text-fonts-images.md#native-images-and-target-boundaries) are asynchronous on
+both hosts and have their own limits, including an unresolved intermittent
+Windows image-loading failure.
 
 Canvas keyboard events and native editor input follow separate focus paths.
 See [keyboard delivery](event-handling-rust.md#keyboard-delivery) for shortcuts,
