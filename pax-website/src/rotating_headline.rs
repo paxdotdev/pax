@@ -2,12 +2,11 @@ use crate::{HeroCluster, HeroLetter, SiteTheme};
 use pax_kit::math::Point2;
 use pax_kit::*;
 
-const WORDS: [&str; 5] = [
+const WORDS: [&str; 4] = [
     "creative",
     crate::hero_outlines::WORDS[0],
     crate::hero_outlines::WORDS[1],
     crate::hero_outlines::WORDS[2],
-    crate::hero_outlines::WORDS[3],
 ];
 pub(crate) const HERO_TIMING_SCALE: f64 = 0.8;
 const HOLD_MS: f64 = 4200.0 * HERO_TIMING_SCALE;
@@ -17,7 +16,6 @@ const WRITE_MS: f64 = 1600.0 * HERO_TIMING_SCALE;
 const GRADIENT_PERIOD_MS: f64 = 2500.0 * HERO_TIMING_SCALE;
 const LETTER_SETTLED_MS: f64 = 2500.0 * HERO_TIMING_SCALE;
 const LIGHT_SWEEP_MS: f64 = 1300.0 * HERO_TIMING_SCALE;
-const FROST_LIGHT_DELAY_MS: f64 = 600.0;
 const FROST_LIGHT_SWEEP_MS: f64 = 2200.0;
 
 /// A fixed three-line signboard. Creative masks a morphing CMY mesh with Handwriter;
@@ -109,7 +107,7 @@ impl RotatingHeadline {
                 .set_if_neq(rest_time(self._elapsed_ms.get()));
         }
         let pose = pose_at(self._elapsed_ms.get());
-        if matches!(pose.index, 2 | 3) && pose.opacity == 1.0 && self.playing.get() {
+        if matches!(pose.index, 1 | 2) && pose.opacity == 1.0 && self.playing.get() {
             // Freeze the painted field during exit so only its cached composite fades.
             self.pigment_phase
                 .set(self.pigment_phase.get() + dt * 0.0015);
@@ -145,7 +143,7 @@ impl RotatingHeadline {
         // A separate light clock freezes on pause instead of following the pose snap.
         let light_ms = light_time(self._light_ms.get(), dt, changed, self.playing.get());
         self._light_ms.set_if_neq(light_ms);
-        self.light_x.set_if_neq(if pose.index == 4 {
+        self.light_x.set_if_neq(if pose.index == 3 {
             frosted_light_position(light_ms, self.run_width.get())
         } else {
             light_position(light_ms, self.run_width.get())
@@ -168,8 +166,9 @@ impl RotatingHeadline {
 impl RotatingHeadline {
     pub fn treatment_kind(word_index: usize) -> usize {
         match word_index {
-            2 => 3, // Native: painted field and arc entrance.
-            3 => 2, // Portable: Gauguin field and a traveling bounce.
+            1 => 3, // Native: painted field and arc entrance.
+            2 => 2, // Portable: Gauguin field and a traveling bounce.
+            3 => 4, // Eye-catching: frosted letters and Flashy facet reflections.
             _ => word_index,
         }
     }
@@ -218,7 +217,7 @@ fn light_time(previous: f64, dt: f64, changed: bool, playing: bool) -> f64 {
     if changed {
         0.0
     } else if playing {
-        (previous + dt).min(FROST_LIGHT_DELAY_MS + FROST_LIGHT_SWEEP_MS)
+        (previous + dt).min(FROST_LIGHT_SWEEP_MS)
     } else {
         previous
     }
@@ -230,9 +229,9 @@ fn light_position(time: f64, width: f64) -> f64 {
 }
 
 fn frosted_light_position(time: f64, width: f64) -> f64 {
-    // Let the short arc entrance settle before the strongest reflection crosses
-    // the word. End beyond the opposite edge while it is still held for reading.
-    let t = ((time - FROST_LIGHT_DELAY_MS) / FROST_LIGHT_SWEEP_MS).clamp(0.0, 1.0);
+    // Sweep alongside the letter entrance, without parking on the first glints
+    // while the remaining letters assemble. Finish during the reading hold.
+    let t = (time / FROST_LIGHT_SWEEP_MS).clamp(0.0, 1.0);
     -1.2 + (width + 2.4) * (t * t * (3.0 - 2.0 * t))
 }
 
@@ -345,10 +344,7 @@ fn pose_at(time: f64) -> WordPose {
     match RotatingHeadline::treatment_kind(index) {
         0 => {
             pose.x = -excursion * 1.65;
-        } // Express slide → game-like.
-        1 => {
-            pose.sy = (1.0 - excursion).max(0.015);
-        } // Split-flap → native.
+        } // Creative slides out; the filtered words retain fixed captures.
         // Keep filtered captures stationary: the cached painted word can fade
         // without resizing its source, shader outputs, or letter mask each frame.
         _ => {}
@@ -362,10 +358,7 @@ mod tests {
 
     #[test]
     fn words_hold_in_requested_order_and_loop() {
-        assert_eq!(
-            WORDS,
-            ["creative", "game-like", "native", "portable", "flashy"]
-        );
+        assert_eq!(WORDS, ["creative", "native", "portable", "eye-catching"]);
         for index in 0..WORDS.len() * 2 {
             let pose = pose_at(index as f64 * CYCLE_MS + HOLD_MS / 2.0);
             assert_eq!(pose.index, index % WORDS.len());
@@ -401,8 +394,7 @@ mod tests {
             .map(|i| pose_at(i as f64 * CYCLE_MS + HOLD_MS + 225.0))
             .collect();
         assert!(poses[0].x < 0.0 && poses[0].y == 0.0);
-        assert!(poses[1].sy < 1.0 && poses[1].x == 0.0);
-        for pose in &poses[2..] {
+        for pose in &poses[1..] {
             assert_eq!(
                 (pose.x, pose.y, pose.sx, pose.sy, pose.angle),
                 (0.0, 0.0, 1.0, 1.0, 0.0)
@@ -512,14 +504,16 @@ mod tests {
     }
 
     #[test]
-    fn frosted_light_crosses_settled_letters_during_the_reading_hold() {
-        let width = 3.047;
+    fn frosted_light_moves_during_the_reveal_and_finishes_in_the_reading_hold() {
+        let width = 6.521; // Eye-catching's shaped advance in ems.
         assert_eq!(frosted_light_position(0., width), -1.2);
-        assert_eq!(frosted_light_position(FROST_LIGHT_DELAY_MS, width), -1.2);
-        let midpoint = FROST_LIGHT_DELAY_MS + FROST_LIGHT_SWEEP_MS / 2.;
-        assert!(midpoint > LETTER_SETTLED_MS / 2.);
+        assert!(frosted_light_position(16., width) > frosted_light_position(0., width));
+        // The old 600ms delay parked the light outside the first letter for the
+        // entire early reveal. It must already be crossing the word by then.
+        assert!(frosted_light_position(600., width) > 0.);
+        let midpoint = FROST_LIGHT_SWEEP_MS / 2.;
         assert!((frosted_light_position(midpoint, width) - width / 2.).abs() < 1e-9);
-        let end = FROST_LIGHT_DELAY_MS + FROST_LIGHT_SWEEP_MS;
+        let end = FROST_LIGHT_SWEEP_MS;
         assert!(end < HOLD_MS);
         assert!((frosted_light_position(end, width) - (width + 1.2)).abs() < 1e-9);
         assert_eq!(
@@ -527,5 +521,6 @@ mod tests {
             frosted_light_position(HOLD_MS, width)
         );
         assert_eq!(light_time(midpoint, 16., false, false), midpoint);
+        assert_eq!(light_time(end, 16., false, true), end);
     }
 }

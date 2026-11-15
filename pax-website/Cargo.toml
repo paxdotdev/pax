@@ -9,14 +9,14 @@ publish = false
 
 [package.metadata.pax]
 loader = true
-title = "Pax — A declarative language for native and web UI"
+title = "Pax — Build creative user interfaces with Rust"
 
 [package.metadata.pax.web]
 yield_mount = true
 loader_exit = "first_viewport"
 background_color = "#11110f"
-server_owned_prefixes = ["/blog", "/ai", "/ai.md", "/paxflix", "/calculator", "/oscilloscope", "/space-game"]
-title = "Pax — A declarative language for native and web UI"
+server_owned_prefixes = ["/blog", "/ai", "/ai.md", "/paxflix", "/calculator", "/oscilloscope"]
+title = "Pax — Build creative user interfaces with Rust"
 favicon = "assets/branding/pax-favicon.ico"
 site_name = "Pax"
 site_url = "https://pax.dev"
@@ -26,7 +26,7 @@ social_image_alt = "Pax logo"
 [features]
 default = ["app"]
 # Embedded headers share the component source without demo cartridges or filters.
-app = ["dep:led-oscilloscope", "dep:calculator", "dep:paxflix", "dep:space-game", "pax-kit/shaders"]
+app = ["dep:led-oscilloscope", "dep:calculator", "dep:paxflix", "pax-kit/shaders"]
 standalone = ["app", "pax-kit/host"]
 
 [dependencies]
@@ -34,7 +34,6 @@ led-oscilloscope = { version = "0.39.1", path = "../examples/led-oscilloscope", 
 pax-kit = { version = "0.39.1", path = "../pax-kit" }
 calculator = { version = "0.39.1", path = "../examples/calculator", default-features = false, optional = true }
 paxflix = { version = "0.39.1", path = "../examples/paxflix", default-features = false, optional = true }
-space-game = { version = "0.39.1", path = "../examples/fixtures/space-game", default-features = false, optional = true }
 
 [target.'cfg(target_vendor = "apple")'.dependencies]
 # backtrace 0.3.76 needs dyld bindings removed from iOS in libc 0.2.190.

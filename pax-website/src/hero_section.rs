@@ -108,11 +108,10 @@ impl HeroSection {
         self._light_last_ms.set(now);
         let millis = self.playhead_ms.get() + elapsed;
         self.playhead_ms.set(millis);
-        // Match the main logo's −20–120% path, with a stationary handoff at 2100ms.
-        let phase = ((millis - 2100.0).max(0.0) / 12000.0).rem_euclid(1.0);
-        let cosine = (phase * std::f64::consts::TAU).cos();
-        self.idle_light_x.set(490.0 - 462.0 * cosine);
-        self.idle_light_y.set(205.0 + 28.0 * cosine);
+        // The idle sweep starts at the intro's stationary handoff at 2100ms.
+        let (x, y) = crate::site_logo::idle_light_position(millis - 2100.0);
+        self.idle_light_x.set(x);
+        self.idle_light_y.set(y);
     }
 
     pub fn logo_visibility(&mut self, ctx: &NodeContext, event: Event<ViewportProximityChange>) {
@@ -142,7 +141,8 @@ impl HeroSection {
             } else {
                 width * 0.88 * 0.66
             };
-            font_px.set_if_neq((text_width / 11.4).clamp(23.0, 90.0));
+            // Reserve the widest first line (Build eye-catching) for every word.
+            font_px.set_if_neq((text_width / 10.4).clamp(23.0, 90.0));
             let target_logo_width = if width < 900.0 {
                 // Reserve View Source's 112px width and a 24px gap on the shared top row.
                 ((width - 48.0).min(300.0) * 0.8).min((width - 184.0).max(1.0))

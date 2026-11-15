@@ -1,41 +1,30 @@
 <Group width=100% height=100%>
-    <ImportSettings>
-        <SiteTheme />
-    </ImportSettings>
-    <Stacker id=authoring_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=40px>
+    <ImportSettings><SiteTheme /></ImportSettings>
+    <Stacker id=authoring_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=48px>
         <Stacker width={self.compact ? 100% : 82%} autosize=true gutter=24px>
-            <Text class="editorial_kicker" width=100%>WHY A LANGUAGE? / COMMON GROUND</Text>
-            <Text class="editorial_title" width=100%>{r"A playground for your mind.
-And artificial minds."}</Text>
-            <Text class="editorial_lead" width=100%>Give an idea a form you can think with. Pax lets you express an interface in a compact, declarative language—something you and a coding agent can read, reshape, and bring to life together.</Text>
-            <Text class="editorial_body" width=100%>Structure, layout, style, motion, and relationships between values are expressed directly, in one declarative layer. Describe how the pieces fit together; let the runtime keep them connected. Rust owns application state, logic, and side effects.</Text>
+            ///#h2
+            <Text class="editorial_title" width=100%>Fluent in UI</Text>
+            <Text class="editorial_lead" width=100%>Pax is a declarative UI language that combines HTML-like markup with spreadsheet-like expressions.</Text>
+            <Text class="editorial_body" width=100%>Pax is designed to make user interface creation powerful, expressive, and fun.</Text>
         </Stacker>
-        <SharedDefinitionDemo width=100% height={self.compact ? 680px : 360px} compact={self.compact}/>
-        <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=32px
-            direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}>
-            <Stacker width=100% autosize=true gutter=12px>
-                <Text class="editorial_kicker" width=100%>01 / MAKE INTENT INSPECTABLE</Text>
-                <Text class="editorial_subtitle" width=100%>A contract you can point to.</Text>
-                <Text class="editorial_body" width=100%>A proposed interface becomes something concrete to review—not just an agent's explanation of what it intends to build. Read the definition, question a relationship, and agree on what to change.</Text>
+        ///#ignore
+        <SharedDefinitionDemo width=100% height={self.compact ? 610px : 330px} compact={self.compact}/>
+        <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter={self.compact ? 32px : 6%}
+            direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
+            sizes={self.compact ? [] : [Some(60%), None]}>
+            <Stacker width=100% autosize=true gutter=24px>
+                ///#h3
+                <Text class="editorial_subtitle" width=100%>Not a programming language, but a companion to one</Text>
+                <Text class="editorial_body" width=100% markdown=true>Declarative `.pax` files sit alongside Rust. Describe your interface's structure, appearance, and relationships in Pax; write application logic with the full power of Rust. Changes to reactive Rust state flow through [Pax expressions](https://docs.pax.dev/data-binding-expressions.html), like updates through a spreadsheet.</Text>
+                <Text class="editorial_lead" width=100%>Whether you're building a business application, a mobile app, an interactive art project, data visualizations, or a game—if it can be expressed in pixels, it can be built in Pax.</Text>
+                <Text class="editorial_body" width=100% markdown=true>Want to see how it works? Open any **View Source** tab to see how that section was built, or explore the [website's source on GitHub](https://github.com/paxdotdev/pax/tree/main/pax-website).</Text>
             </Stacker>
-            <Stacker width=100% autosize=true gutter=12px>
-                <Text class="editorial_kicker" width=100%>02 / CLOSE THE LOOP</Text>
-                <Text class="editorial_subtitle" width=100%>Try an idea. See what happens.</Text>
-                <Text class="editorial_body" width=100%>Run the interface, inspect the scene, and try an interaction. Revise the same definition as your idea takes shape. Pax's hot reload and developer tools make that feedback loop available to people and coding agents alike.</Text>
-            </Stacker>
+            ///#ignore
+            <CalculatorPreview width=100% height={(self.calculator_height)px} content_height=bind:self.calculator_height
+                compact=true live={!self.compact}/>
         </Stacker>
-        <Stacker width={self.compact ? 100% : 82%} autosize=true gutter=14px>
-            <Text class="editorial_note" width=100%>An explicit definition is common ground, not a proof of correctness. Application behavior still depends on Rust logic, and the result still needs testing. Template hot reload runs in debug CLI sessions; Rust changes require a rebuild.</Text>
-            <Rectangle class="site_rule" width=100% height=1px/>
-            <Text class="editorial_kicker" width=100%>WHERE THIS COULD LEAD</Text>
-            <Text class="editorial_subtitle" width=100%>A shared scratchpad for visual thinking.</Text>
-            <Text class="editorial_body" width=100%>We believe the right language can be a creative meeting place for people and machines: expressive enough to explore an idea, structured enough to inspect and revise it. We're building toward a shared visual scratchpad, grounded in the declarative language and runtime you can use today.</Text>
-        </Stacker>
-        <Link width=100% height=28px url="https://docs.pax.dev/template-language/" target=Target::New>
-            <Text class="editorial_link" width=100%>EXPLORE THE LANGUAGE →</Text>
-        </Link>
     </Stacker>
-    <Rectangle class="site_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 40px) : 88%} height=1px/>
+    <Rectangle class="site_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 48px) : 88%} height=1px/>
     <Rectangle class="site_ink" width=100% height=100%/>
 </Group>
 

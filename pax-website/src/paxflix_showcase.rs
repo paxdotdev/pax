@@ -95,4 +95,16 @@ mod tests {
         assert!(template.contains("#phone_wing"));
         assert!(template.contains("#front_tablet"));
     }
+
+    #[test]
+    fn center_tablet_stays_upright_while_capture_wings_keep_their_choreography() {
+        let template = include_str!("paxflix_showcase.pax");
+        let tablet = template.split("<Group id=front_tablet").nth(1).unwrap();
+        assert!(tablet.split('>').next().unwrap().contains("rotate=0deg"));
+        let arrival = template.split("#front_tablet {").nth(1).unwrap();
+        let tablet_tracks = arrival.split("#desktop_wing").next().unwrap();
+        assert!(tablet_tracks.contains("y:"));
+        assert!(!tablet_tracks.contains("rotate:"));
+        assert_eq!(arrival.matches("rotate:").count(), 2);
+    }
 }

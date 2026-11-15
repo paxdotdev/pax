@@ -38,6 +38,11 @@ fn effect(p: vec2<f32>) -> vec4<f32> {
             let radius = length(delta);
             if radius >= support_radius { continue; }
 
+            // Transparent anchors cannot emit a glint. Reject them before facet
+            // trig and scene lighting, especially in sparse lettering captures.
+            let coverage = sample_input0(anchor).a;
+            if coverage <= 0.0 { continue; }
+
             // A fixed phase gives stationary seeded facets. Their normals never
             // follow the light: moving the source alone makes them catch and fade.
             let cycle = (parameters.phase - flashy_random(key + 2u)) * 6.28318530718;
@@ -53,8 +58,6 @@ fn effect(p: vec2<f32>) -> vec4<f32> {
             let normal = tipped_n * cos(yaw) + u * sin(yaw);
             let specular = scene_specular(anchor, normal, 110.0);
             if max(specular.r, max(specular.g, specular.b)) < 0.0002 { continue; }
-            let coverage = sample_input0(anchor).a;
-            if coverage <= 0.0 { continue; }
 
             // Only the tiny surface core inherits the facet's projected shape.
             // Invert its tangent frame to preserve rotation and foreshortening.

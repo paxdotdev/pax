@@ -19,20 +19,34 @@
     if self.layout_ready {
         if self.compact {
             <Group x={(self.stage_x)px} anchor=0% width=390px height=844px scale={(self.stage_scale)%} layout_role=LayoutRole::Breakout>
-                <Link width=100% height=100% url="/calculator/" target=Target::Current>
+                if self.live {
                     <DeviceFrame width=100% height=100% kind="phone" edge_to_edge=true>
-                        <NativeImage width=100% height=100% url="assets/calculator/phone.jpg" fit=ImageFit::Paint/>
+                        <Calculator id=live_calculator width=100% height=100% embedded=true disable_keyboard=true
+                            safe_top=48 safe_bottom=20/>
                     </DeviceFrame>
-                </Link>
-            </Group>
-        } else {
-            <Group x={(self.stage_x)px} anchor=0% width=880px height=900px scale={(self.stage_scale)%} layout_role=LayoutRole::Breakout>
-                <Group id=front_phone x=440px y=450px anchor=50% width=390px height=844px>
+                } else {
                     <Link width=100% height=100% url="/calculator/" target=Target::Current>
                         <DeviceFrame width=100% height=100% kind="phone" edge_to_edge=true>
                             <NativeImage width=100% height=100% url="assets/calculator/phone.jpg" fit=ImageFit::Paint/>
                         </DeviceFrame>
                     </Link>
+                }
+            </Group>
+        } else {
+            <Group x={(self.stage_x)px} anchor=0% width=880px height=900px scale={(self.stage_scale)%} layout_role=LayoutRole::Breakout>
+                <Group id=front_phone x=440px y=450px anchor=50% width=390px height=844px>
+                    if self.live {
+                        <DeviceFrame width=100% height=100% kind="phone" edge_to_edge=true>
+                            <Calculator id=live_fanout_calculator width=100% height=100% embedded=true disable_keyboard=true
+                                safe_top=48 safe_bottom=20/>
+                        </DeviceFrame>
+                    } else {
+                        <Link width=100% height=100% url="/calculator/" target=Target::Current>
+                            <DeviceFrame width=100% height=100% kind="phone" edge_to_edge=true>
+                                <NativeImage width=100% height=100% url="assets/calculator/phone.jpg" fit=ImageFit::Paint/>
+                            </DeviceFrame>
+                        </Link>
+                    }
                 </Group>
                 <Group id=window_wing x=225px y=425px anchor=50% width=560px height=792px scale=62% rotate=-9deg>
                     <Link width=100% height=100% url="/calculator/" target=Target::Current>

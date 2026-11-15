@@ -62,6 +62,16 @@ mod tests {
     }
 
     #[test]
+    fn nav_light_ticks_only_for_the_visible_gpu_logo() {
+        let shell = include_str!("site_shell.pax");
+        assert!(shell
+            .contains("if self.has_hero && !self.hide_nav && self.nav_logo_entry > 0.0 && @gpu"));
+        assert!(shell.contains("@tick=self.advance_nav_light"));
+        assert!(shell.contains("light_x={self.nav_light_x} light_y={self.nav_light_y}"));
+        assert!(!shell.contains("light_x=28 light_y=233"));
+    }
+
+    #[test]
     fn strip_is_owned_by_the_shell_not_individual_buttons() {
         let shell = include_str!("site_shell.pax");
         assert_eq!(shell.matches("<StripLight").count(), 1);
@@ -93,6 +103,8 @@ pub struct SiteShell {
     pub nav_reveal: Property<f64>,
     pub portal_progress: Property<f64>,
     pub nav_logo_entry: Property<f64>,
+    pub nav_light_x: Property<f64>,
+    pub nav_light_y: Property<f64>,
     pub home_request: Property<u64>,
     pub compact: Property<bool>,
     pub safe_top: Property<f64>,
@@ -110,6 +122,7 @@ pub struct SiteShell {
 
 impl SiteShell {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
+        self.advance_nav_light(ctx);
         let top = self.safe_top.local();
         let compact = self.compact.local();
         let deps = [top.untyped(), compact.untyped()];
@@ -176,6 +189,14 @@ impl SiteShell {
 
     pub fn move_pointer_light(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
         self.place_pointer_light(ctx, event.mouse.x, event.mouse.y);
+    }
+
+    pub fn advance_nav_light(&mut self, ctx: &NodeContext) {
+        // The hero clock pauses offscreen. Sample the runtime clock here instead;
+        // a visibility-gated tick drives only the nav twin's shader uniforms.
+        let (x, y) = crate::site_logo::idle_light_position(ctx.elapsed_time_millis() as f64);
+        self.nav_light_x.local().set_if_neq(x);
+        self.nav_light_y.local().set_if_neq(y);
     }
 
     pub fn touch_pointer_light(&mut self, ctx: &NodeContext, event: Event<TouchStart>) {

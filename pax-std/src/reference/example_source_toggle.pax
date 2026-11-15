@@ -1,6 +1,8 @@
 <Group width=100% height=100%>
-    // The outward tip shifts the white shape's visual center to the left.
-    <Button x={(4 - 4 * self._open_progress)px} width={100% - 4px} height=100%
+    // Preserve VIEW SOURCE's optical inset; center × between the notch's
+    // inner point and the right edge. Both insets meet at zero as the edge flattens.
+    <Button x={(Math::max(4 - 8 * self._open_progress, 16 * self._open_progress - 8))px}
+        width={100% - (Math::max(4 - 8 * self._open_progress, 16 * self._open_progress - 8))px} height=100%
         @button_click=self.toggle color=TRANSPARENT hover_color=TRANSPARENT corner_radius=0 style={
             font: {
                 family: "Manrope"
@@ -12,18 +14,18 @@
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
         }>{self.open ? "×" : "VIEW SOURCE"}</Button>
-    // Morph the same vertex through the flat edge: an inward notch when
-    // closed, an outward arrow tip when open. No background-colored overlay.
+    // Fold the convex tip into a concave notch through a flat edge. Move the
+    // shoulders too, keeping the leftmost point at x=0 throughout the morph.
     <Path width=100% height=100% fill=WHITE elements={[
-        PathElement::Point(0px, 0%),
+        PathElement::Point((Math::max(0, 8 - 16 * self._open_progress))px, 0%),
         PathElement::Line,
         PathElement::Point(100%, 0%),
         PathElement::Line,
         PathElement::Point(100%, 100%),
         PathElement::Line,
-        PathElement::Point(0px, 100%),
+        PathElement::Point((Math::max(0, 8 - 16 * self._open_progress))px, 100%),
         PathElement::Line,
-        PathElement::Point((8 - 16 * self._open_progress)px, 50%),
+        PathElement::Point((Math::max(0, 16 * self._open_progress - 8))px, 50%),
         PathElement::Close
     ]}/>
 </Group>

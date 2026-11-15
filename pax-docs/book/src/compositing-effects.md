@@ -1411,12 +1411,16 @@ Transforming the container also transforms those rays.
 
 The implementation uses one full-resolution pass. At `flare<=1`, it searches
 nine cells with at most nine anchor reads plus the source pixel. Larger flares
-expand the search, up to 121 cells at 5. Each candidate samples up to eight
-eligible scene lights. Inactive and out-of-reach glints skip the anchor read.
+expand the search, up to 121 cells at 5. Out-of-reach glints skip the anchor read;
+transparent anchors skip facet calculations and lighting. Remaining candidates
+sample up to eight eligible scene lights.
 There is no particle history or broad blur pass. Keep the container close to
 the artwork; capture size and display resolution affect cost. Support is bounded
-to `0.95 * spacing * max(1, flare)`, with a stable 240-local-pixel capture outset.
-Outer clips can cut off flares.
+to `0.95 * spacing * max(1, flare)`. Capture padding is `4.75 * spacing + 12`
+local pixels per side: enough for the maximum flare plus a filtering allowance.
+It follows clamped spacing, but stays fixed while flare, phase, brightness, and
+lights animate. Changing spacing can resize the capture; prefer light or phase
+animation for a stable reflector field. Outer clips can cut off flares.
 
 This remains a stylized surface treatment. Glints sample the container plane,
 not a depth/normal map of its children; use it for coplanar artwork. The frosted

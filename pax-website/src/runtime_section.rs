@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 
-use crate::{CalculatorPreview, PaxflixShowcase, SiteTheme};
+use crate::{PaxflixShowcase, SiteTheme};
 use pax_kit::*;
 
 const COMPACT_BREAKPOINT_PX: f64 = 760.0;
@@ -12,22 +12,19 @@ pub struct RuntimeSection {
     pub _height_bound: Property<bool>,
     pub compact: Property<bool>,
     pub showcase_height: Property<f64>,
-    pub calculator_height: Property<f64>,
     pub scene_progress: Property<f64>,
 }
 
 #[cfg(test)]
 mod tests {
     #[test]
-    fn runtime_gives_paxflix_a_full_row_and_keeps_the_calculator_below() {
+    fn paxflix_has_its_own_row_and_calculator_accompanies_the_language() {
         let runtime = include_str!("runtime_section.pax");
         assert_eq!(runtime.matches("<PaxflixShowcase").count(), 1);
-        assert_eq!(runtime.matches("<CalculatorPreview").count(), 1);
-        assert_eq!(runtime.matches("compact={self.compact}").count(), 2);
-        assert!(!runtime.contains("Some(62%)"));
-        assert!(
-            runtime.find("<PaxflixShowcase").unwrap() < runtime.find("<CalculatorPreview").unwrap()
-        );
+        assert!(!runtime.contains("<CalculatorPreview"));
+        let authoring = include_str!("authoring_section.pax");
+        assert_eq!(authoring.matches("<CalculatorPreview").count(), 1);
+        assert!(authoring.contains("compact=true"));
         assert!(!include_str!("resource_section.pax").contains("<CalculatorPreview"));
     }
 }

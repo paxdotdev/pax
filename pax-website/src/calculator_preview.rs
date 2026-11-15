@@ -1,12 +1,16 @@
 use crate::{DeviceFrame, SiteTheme};
+use calculator::Calculator;
 use pax_kit::*;
 
-/// A captured phone, window, and tablet; each opens the standalone calculator.
+/// A phone preview, optionally live, with captured wings in the fanout layout.
 #[pax]
 #[file("calculator_preview.pax")]
 pub struct CalculatorPreview {
     pub content_height: Property<f64>,
+    /// Show just the phone instead of the three-device fanout.
     pub compact: Property<bool>,
+    /// Enable the interactive phone independently of the single-device layout.
+    pub live: Property<bool>,
     pub layout_ready: Property<bool>,
     pub stage_scale: Property<f64>,
     pub stage_x: Property<f64>,
@@ -25,8 +29,8 @@ impl CalculatorPreview {
         let height = self.devices_height.local();
         let content_height = self.content_height.local();
         let update = move || {
-            // The showcase row's breakpoint controls the mode, not the narrower
-            // preview column's width. Desktop therefore retains the whole fanout.
+            // The caller chooses single-phone versus fanout independently of
+            // this column's width and whether its primary screen is live.
             let layout = DeviceLayout::new(bounds.get().0, compact.get());
             scale.set_if_neq(layout.scale * 100.0);
             x.set_if_neq(layout.x);
@@ -72,11 +76,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn homepage_never_mounts_a_calculator_and_each_capture_is_linked() {
+    fn desktop_phone_is_live_without_keyboard_capture_and_mobile_stays_linked() {
         let template = include_str!("calculator_preview.pax");
-        assert!(!template.contains("<Calculator"));
+        // Each mutually exclusive device layout supplies one live phone branch.
+        assert_eq!(template.matches("if self.live").count(), 2);
+        assert_eq!(template.matches("<Calculator ").count(), 2);
+        assert_eq!(
+            template
+                .matches("embedded=true disable_keyboard=true")
+                .count(),
+            2
+        );
+        assert_eq!(template.matches("safe_top=48 safe_bottom=20").count(), 2);
+        for branch in template.split("if self.live {").skip(1) {
+            let live_branch = branch.split("} else {").next().unwrap();
+            assert!(live_branch.contains("<Calculator "));
+            assert!(!live_branch.contains("<Link"));
+            assert!(!live_branch.contains("<NativeImage"));
+        }
         assert_eq!(template.matches("url=\"/calculator/\"").count(), 5);
         assert!(template.contains("#front_phone"));
+        let authoring = include_str!("authoring_section.pax");
+        assert!(authoring.contains("compact=true live={!self.compact}"));
     }
 
     #[test]

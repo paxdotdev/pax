@@ -11,7 +11,6 @@ pub struct FrameworkSection {
     pub _height_bound: Property<bool>,
     pub compact: Property<bool>,
     pub scope_height: Property<f64>,
-    pub game_height: Property<f64>,
     pub scene_progress: Property<f64>,
 }
 

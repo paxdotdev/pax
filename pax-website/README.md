@@ -105,17 +105,35 @@ stay mounted in their own rendering contexts, while fully hidden controls unmoun
 Source inspection hides the nav. The homepage starts without a reserved nav gap;
 other routes keep their nav-sized inset and static logo.
 
+## Homepage content
+
+The page opens with “Build creative/native/portable/eye-catching user interfaces
+with Rust,” the platform statement, and the install snippet. Experimental native
+Android/Windows/Linux targets and beta status are intentional launch messaging;
+check the release's target availability before publishing. The install commands
+appear only in the hero, not again in the closing CTA.
+
+Paxflix's full-width fanout follows the hero without a second runtime manifesto.
+“Fluent in UI” pairs a real template with its live result and places one phone-framed
+calculator beside the Rust/Pax explanation: interactive on desktop, a linked capture
+on compact layouts. The toolkit carousel and its GPU/CPU qualification precede the
+centered live desktop oscilloscope.
+“A love letter to the pixel” pairs the acrostic with the project's influences,
+creative mission, and MIT / Apache-2.0 license. The closing CTA links to setup and
+examples, followed by docs, GitHub, blog, community, and platform support.
+
 The opening sequence uses the outer native scroller as a shared clock.
 `scroll_story.rs` maps its offset into overlapping chapter-local clocks for the
-hero, the Paxflix/calculator section, and creative examples. The hero starts fully composed;
+hero, the Paxflix showcase, and the toolkit examples. The hero starts fully composed;
 its heading shifts slightly on departure, while
 device frames assemble, hold their poses, and depart. Named component timelines sample those ranges in either
 scroll direction. Measured content and viewport minima determine section heights,
 with additional breathing room capped so tall screens do not introduce empty
 screenfuls. Animated child transforms do not change those heights. This first slice
 does not pin scenes. Paxflix keeps three devices at every width, with a live
-center tablet on desktop and linked screenshots on compact layouts. The compact
-calculator becomes a single screenshot link, while the creative studies stack vertically.
+center tablet on desktop and linked screenshots on compact layouts. The
+calculator retains its single-phone layout at every width; only compact layouts
+use the screenshot link. The oscilloscope occupies its own centered study.
 
 `GlassAction` shares opal/obsidian paint and material helpers, with 5⅓px corners, from
 `SiteTheme`, without outline strokes. `SiteShell` owns one stationary `StripLight`
@@ -151,17 +169,22 @@ scroll. Animated transforms leave the reserved home and section layout unchanged
 
 The shell retains its 64px/80px responsive nav and safe-area insets. Pages without
 a hero show the static `NavLogo`. The hero logo replays on click; the nav twin
-requests a scroll back to the top. The nav twin uses the completed logo and a
-stationary Radiance light, without replaying the hero's intro. This is a website
+requests a scroll back to the top. The nav twin uses the completed logo and the
+same slow 12-second Radiance sweep as the hero, without replaying its intro.
+It samples the runtime clock independently of the offscreen hero's paused
+playhead; its light updates run only while the nav twin is entering, docked, or
+leaving on GPU. Hidden navigation and CPU rendering do not run this light tick.
+This is a website
 motion-design workaround, not a fix for the deferred foreground-compositing
 limitation in PAX-1041.
 
-The creative-freedom section embeds a live oscilloscope on desktop; below its
-900px breakpoint it uses a linked screenshot. Space Game remains a linked
-screenshot at every size. `FramedStudy` projects either content into the same
-tilted device frame. The oscilloscope has a fixed 1000×600 logical viewport:
-scroll choreography scales and rotates the surrounding frame without resizing
-the instrument. Its existing visibility handling pauses animation offscreen,
+The toolkit's example row embeds a live oscilloscope on desktop; below its
+900px breakpoint it uses a linked screenshot. `FramedStudy` spans the page's
+content gutters, with no rotation or simulated window chrome. On desktop its
+logical viewport grows from 1000×600 to 1600×600 as the host widens, giving the
+LED matrix more visible columns before scaling the whole instrument. The compact
+capture keeps its original 1000×600 aspect ratio. Scroll choreography only moves
+the cabinet vertically; it never resizes it. Its existing visibility handling pauses animation offscreen,
 but the initial scene still mounts. System reduced-motion integration is tracked
 in PAX-1048.
 
@@ -200,9 +223,9 @@ yielded startup can reveal the initial viewport and progressively present the
 remainder, with native text appearing before artwork. Keep the loader setting,
 startup mode, and viewport dimensions the same when comparing measurements;
 the standalone Paxflix desktop route mounts the full 21-shelf catalogue.
-The desktop homepage also mounts one embedded Paxflix instance and one
-oscilloscope; their device choreography does not mount or unmount them. The
-calculator, Space Game, and compact previews remain screenshot-only. Opening an example's route mounts a
+The desktop homepage also mounts one embedded instance each of Paxflix, the
+calculator, and the oscilloscope; scrolling does not mount or unmount them.
+Compact previews remain screenshot-only. Opening an example's route mounts a
 single example without the homepage. See
 [resumable startup](../pax-docs/book/src/how-pax-runs.md#experimental-resumable-startup-on-web).
 
@@ -293,7 +316,7 @@ an ordinary HTML article with an independently mounted header and HTML navigatio
 fallback; see the [blog workflow](../pax-blog/README.md#shared-pax-header).
 
 The website declares `/blog`, `/ai`, `/ai.md`, `/paxflix`, `/calculator`,
-`/oscilloscope`, and `/space-game` as `server_owned_prefixes`.
+and `/oscilloscope` as `server_owned_prefixes`.
 Navigating to these paths loads a server document instead of a Pax client route.
 The `/blog/*` Router placeholder must not be restored. `build.rs` generates
 `public/ai/index.html` from `public/ai.md` only when its contents change.
@@ -336,7 +359,9 @@ handling, and skips shelf-card entrance observers while retaining interaction an
 nested scrolling. Its viewport stays at 1024×768 logical pixels. Only the outer
 device stage scales to the available width, without a maximum-width cap; the
 scroll-sampled arrival, hold, and departure poses transform those frames without
-resizing the app. It stays mounted as the page scrolls. Crossing the compact
+resizing the app. The center tablet stays upright throughout scrolling; only its
+vertical position changes, while the captured wings retain their rotations.
+It stays mounted as the page scrolls. Crossing the compact
 breakpoint replaces the app with a capture, so returning to desktop starts fresh.
 
 The screenshot devices and full-screen action open `/paxflix/`; the desktop
@@ -356,43 +381,42 @@ implemented in this version.
 
 ## Calculator showcase
 
-Below Paxflix, the native-and-web section shows a calculator three-device fanout: a captured,
-upright phone in front, with a smaller tilted macOS-style window on the left and
-a tablet on the right. The window uses `DeviceFrame kind="window"`, with a dark
-title bar and traffic-light controls. Its narrow capture fills the content area
-without the calculator's wide-window background gutters.
-All three screens use `NativeImage`; none mounts a calculator. The frame poses
-respond to the shared runtime chapter clock without resizing their captured content.
+“Fluent in UI” shows a single upright phone alongside the Rust/Pax explanation.
+At the authoring section's 900px desktop breakpoint, its screen mounts the canonical
+`Calculator` with `embedded=true` and `disable_keyboard=true`. The virtual phone
+supplies 48px top and 20px bottom safe-area insets so the island and home indicator
+do not cover controls. The 390×844 logical phone stage scales to the available
+column (capped at 312px wide), without resizing the calculator's logical viewport.
+The live app has no enclosing link: its keys and graph can be used in place.
 
-Paxflix has its own full-width row. Above the section's 760px breakpoint, the
-calculator occupies 38% of the following row, with supporting copy alongside it.
-Below that breakpoint, the calculator becomes one tappable phone capture and the
-copy stacks underneath. The section chooses the presentation mode rather than
-the narrow calculator column mistaking itself for a mobile viewport. The
-fixed-aspect stage scales to its assigned column without stretching the devices.
+Below that breakpoint the copy and phone stack, and the phone becomes a tappable
+`NativeImage` capture. The section, not the narrow preview column, selects whether
+the calculator is live. `CalculatorPreview.compact` chooses the single-phone
+layout independently of `live`; its optional fanout still supports captured window
+and tablet wings. Scrolling retains the desktop calculator session; switching to
+the screenshot layout unmounts it, so returning to desktop starts a fresh session.
 
-The compact preview, captured wings, and full-screen action open `/calculator/`.
+The compact preview, optional captured wings, and full-screen action open `/calculator/`.
 Like `/paxflix/`, this is a generated document entry with server-owned navigation:
 one live example, no homepage tree, and safe-area-aware full-screen layout with a
 Back to Pax link. Each new demo session starts with fresh calculator state.
-The runtime section's View Source includes both showcases and the calculator full-screen wrapper;
+The authoring section's View Source includes the preview and calculator full-screen wrapper;
 application logic remains in the canonical `examples/calculator` Cargo dependency.
 Capture provenance and refresh commands live in `assets/calculator/README.md`.
 
-## Linked creative examples
+## Linked creative example
 
-`/oscilloscope/` and `/space-game/` are generated document entries, with the same
-server-owned navigation policy as the other examples. They mount only the chosen
-app, provide View Source, and have a Back to Pax link. Their homepage captures
-live in `assets/playground/`; that directory's README describes how to refresh
-them. The website asset namespace symlinks Space Game's canonical sprite files,
-just as it does for Paxflix media.
+`/oscilloscope/` is a generated document entry, with the same server-owned
+navigation policy as the other examples. It mounts only the oscilloscope,
+provides View Source, and has a Back to Pax link. Its compact homepage capture
+lives in `assets/playground/`; that directory's README describes how to refresh it.
+Space Game is no longer included in the website's routes, assets, or Cargo
+dependencies; its canonical standalone fixture remains in `examples/fixtures/space-game`.
 
-All four live examples still share the website's Wasm bundle. Screenshot-only
-presentation for the calculator, Space Game, and compact Paxflix/oscilloscope
-removes their homepage node trees, timers, nested scrollers, and rendering work;
-it does **not** split the initial download. Desktop Paxflix and the oscilloscope
-intentionally retain one live instance each for performance evaluation. Independent example
+All three live examples still share the website's Wasm bundle. Screenshot-only
+presentation on compact layouts removes their homepage node trees, timers, nested
+scrollers, and rendering work; it does **not** split the initial download.
+Desktop Paxflix, the calculator, and the oscilloscope retain one live instance each. Independent example
 bundles would be a separate packaging improvement. Returning to the homepage
 does not retain the abandoned example's application state, except where the
 browser itself restores a document from its back/forward cache.
@@ -438,51 +462,47 @@ Content and visual design history are archived in
 
 ## Shared-definition section
 
-`AuthoringSection` is parked, not mounted on the homepage; its source remains
-available for a future editorial pass. Its
-“A playground for your mind. And artificial minds.” headline introduces an
-expressive, compact UI definition as a shared, inspectable contract for people
-and coding agents. Compactness refers to directly declaring UI relationships,
-not a measured token-efficiency claim. The visual-scratchpad vision remains
-explicitly aspirational. Copy and layout remain open to editorial review.
+`AuthoringSection` is the mounted “Fluent in UI” section. It explains the
+markup/expression language and the boundary between declarative UI and Rust
+application logic, with a single-device calculator preview. Its View Source
+panel includes the language demonstration and calculator sources.
 
 `SharedDefinitionDemo` pairs the actual `relationship_preview.pax` source
 (embedded with `include_str!`) with a live instance of that component. The 25%
 and 75% buttons change one state value, updating both the label and bar; they do
 not simulate source editing or an agent interaction. The panels stack below
-900px. No animation clock or additional dependency is introduced. The homepage
-does not allocate source-viewer state or source strings for this parked section.
+900px. No animation clock or additional dependency is introduced.
 
 ## Hero lettering
 
-The four Manrope words in `RotatingHeadline` use checked-in Bézier outlines at
+The three Manrope words in `RotatingHeadline` use checked-in Bézier outlines at
 weight 800 of the [bundled font](assets/fonts/README.md). `HeroLetter` animates
-ordinary Pax paths: game-like accelerates and brakes, native assembles along
+ordinary Pax paths: native assembles along
 short arcs, and portable presses and rebounds. Native and portable freeze their
 painted fields and fade in place on exit, reusing the assembled pixels rather
-than resizing shader captures. Creative keeps its EMSLeague handwriting and CMY
+than resizing shader captures. Letter poses derive reactively from the word, ordinal, and clock, including
+the retained native → portable handoff; they do not wait for a per-letter
+pre-render callback. Creative keeps its EMSLeague handwriting and CMY
 mesh treatment, with boundary control points moving up to 26 percentage points
 and the center up to 30, while keeping the cells convex. The mesh loops every
 two seconds, twice the previous morph speed.
 Its stroke width is `max(1.6, font_px * 0.038) + 1.5` logical pixels.
 The source drawer includes the path loader, generated geometry, and letter component.
+The selectable “Build” prefix occupies only its 2.75em slot, leaving the
+transparent native text over the animated word available for direct selection.
 
-Game-like uses a cool silver gradient and a moving GPU light scoped by
-`LightFrame`. Its ambient response is 0.91 under the shell's unit ambient light,
-preserving contrast in the chrome bands and headroom for highlights. The frame
-contains its own light but does not exclude the shell's lighting.
-Its sweep begins during the reveal and lasts 1.04 seconds.
-Flashy composes `Material::frosted(0.8)` on cool translucent-looking gradient
+Eye-catching composes `Material::frosted(0.8)` on cool translucent-looking gradient
 letters with the reusable `Flashy` shader. One scoped scene `LightSource` drives
 both the material sheen and the shader’s narrow facet reflections; the long
 starburst rays retain a shared orientation. Light depth and radius scale with
 font size because scene lights measure those distances in world pixels. The facet phase stays zero, so the moving light alone triggers the
-effect. After a 600ms entrance delay, the light crosses the word in 2.2 seconds,
-finishing during the reading hold. Its clock freezes on pause and while offscreen.
+effect. The light begins moving with the letter entrance and crosses the word
+in 2.2 seconds, finishing during the reading hold. Its clock freezes on pause
+and while offscreen.
 One 100px/em word artboard keeps spacing and capture padding proportional to
-type size. Its 16px reflector spacing and seed 40 are tuned to these outlines
-so all six letters catch the passing light, including both letters in the `fl`
-ligature. Recheck the full sweep when changing the font, word, or light path.
+type size. Its 10px reflector spacing and seed 40 define a stable facet field;
+`flare=5.0` extends the atmospheric rays and haze around those glints.
+Recheck the full sweep when changing the font, word, or light path.
 Native selection text stays outside the effect. The source drawer
 includes Flashy's Rust and WGSL. This is a frosted surface treatment without
 backdrop sampling or refraction. CPU retains the unlit gradient letters.
@@ -523,7 +543,7 @@ normal Text nodes determine the paragraph's position.
 `OpenSourceSection` follows the feature gallery and precedes the final CTA.
 It connects Pax's free-and-open-source identity with the project's
 creative mission; the MIT / Apache-2.0 license and inline GitHub link live here rather than repeating in the
-footer. The maturity and accessibility qualifications remain in the footer.
+footer. The footer links to platform support and notes that APIs and capabilities evolve.
 The section and its lettering are inspectable through their own ExampleHost.
 
 `Acrostic` uses four retained cyclic tapes containing MAKE, PLAY, OPEN, FREE,
@@ -634,9 +654,10 @@ automatic OS reduced-motion handling yet. The logo plays once on mount and
 replays when clicked or tapped at home; replay is disabled while visiting the nav.
 The hero owns one playhead for the 1440ms reveal and Radiance lighting, including
 click replay at home. The light returns to −20%, dims to 1.70, and idles between
-−20% and 120% every 12 seconds. The same Radiance effect and light playhead
-continue through the move into navigation and while docked, with the light
-volume scaling down alongside the logo.
+−20% and 120% every 12 seconds. The nav twin uses the same path and brightness,
+but its own visibility-gated clock, so it keeps panning while the hero is paused
+offscreen. Each logo keeps its own Radiance capture through the portal transition,
+with the light volume scaling alongside that instance.
 Set `HeroSection.radiance_enabled=false` for the plain logo;
 CPU also renders the plain children.
 

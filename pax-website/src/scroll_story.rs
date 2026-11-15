@@ -15,7 +15,7 @@ impl OpeningStory {
         // viewport. Cap extra breathing room until a scene can occupy it.
         let hero_span = hero.max(580.0).max(height.min(hero + 96.0));
         let runtime_span = runtime
-            .max(790.0)
+            .max(400.0)
             .max((height * if compact { 1.0 } else { 2.0 }).min(runtime + 160.0));
         let scroll = scroll.max(0.0);
         Self {

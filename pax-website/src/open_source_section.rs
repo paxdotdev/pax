@@ -20,7 +20,7 @@ impl OpenSourceSection {
         let artwork_width = if self.compact.get() {
             width - 48.0
         } else {
-            width * 0.88 * 0.61
+            width * 0.88 * 0.48
         };
         self.artwork_height.set_if_neq(Acrostic::height(
             artwork_width,

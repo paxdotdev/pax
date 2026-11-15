@@ -88,6 +88,7 @@ static PROGRAM: ShaderProgram = ShaderProgram {
 
 impl Flashy {
     fn recipe(&self) -> ShaderEffect {
+        let spacing = self.spacing.get().clamp(8., 48.);
         ShaderEffect {
             lighting: Some(Default::default()),
             program: &PROGRAM,
@@ -95,12 +96,13 @@ impl Flashy {
                 // Reduce before f32 conversion so long-running clocks retain phase precision.
                 V::Float(self.phase.get().rem_euclid(1.) as f32),
                 V::Uint(self.seed.get()),
-                V::Float(self.spacing.get().clamp(8., 48.) as f32),
+                V::Float(spacing as f32),
                 V::Float(self.brightness.get().clamp(0., 4.) as f32),
                 V::Float(self.flare.get().clamp(0., 5.) as f32),
             ]],
-            // 4.75 * max spacing plus source filtering. Stable through all tuning and motion.
-            outset: 240.,
+            // Cover the maximum flare at this spacing plus the existing filtering
+            // guard. Flare/light animation must not resize capture textures.
+            outset: 4.75 * spacing + 12.,
         }
     }
 }
@@ -157,7 +159,7 @@ mod tests {
     }
 
     #[test]
-    fn tuning_is_bounded_and_keeps_one_capture_envelope() {
+    fn tuning_is_bounded_and_sizes_capture_to_clamped_spacing() {
         let effect = Flashy::default();
         for (spacing, brightness, flare, expected) in [
             (-100., -1., -1., [8., 0., 0.]),
@@ -172,12 +174,33 @@ mod tests {
             effect.flare.set(flare);
             effect.seed.set(u32::MAX);
             let recipe = effect.recipe();
-            assert_eq!(recipe.outset, 240.);
+            assert_eq!(recipe.outset, 4.75 * expected[0] as f64 + 12.);
             assert_eq!(&recipe.parameters[0][2..5], &expected.map(V::Float));
             recipe.encode_parameters().unwrap();
         }
         effect.phase.set(f64::NAN);
         assert!(effect.recipe().encode_parameters().is_err());
+    }
+
+    #[test]
+    fn capture_covers_maximum_flare_without_resizing_during_animation() {
+        let effect = Flashy::default();
+        for spacing in [8., 10., 18., 48.] {
+            effect.spacing.set(spacing);
+            let outset = effect.recipe().outset;
+            for flare in [0., 0.65, 1., 2., 4., 5.] {
+                effect.flare.set(flare);
+                effect.phase.set(flare * 0.1);
+                effect.brightness.set(flare * 0.5);
+                let recipe = effect.recipe();
+                assert_eq!(recipe.outset, outset);
+                let support = spacing * 0.95 * flare.max(1.);
+                assert!(recipe.outset >= support + 12. - 1e-10);
+                recipe.encode_parameters().unwrap();
+            }
+        }
+        effect.spacing.set(10.);
+        assert_eq!(effect.recipe().outset, 59.5);
     }
 
     #[test]

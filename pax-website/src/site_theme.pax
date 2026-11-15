@@ -46,6 +46,11 @@
         }
     }
     .editorial_body {
+        _style_link: TextStyle {
+            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
+            font_size: {@viewport.width < 760 ? 16px : 18px}
+            fill: {SiteTheme::paper()}
+        }
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
@@ -60,6 +65,11 @@
         }
     }
     .editorial_note {
+        _style_link: TextStyle {
+            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
+            font_size: 14px
+            fill: {SiteTheme::paper()}
+        }
         style: TextStyle {
             font: Font::Web(
                 "Manrope",

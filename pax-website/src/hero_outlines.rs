@@ -2,7 +2,7 @@
 use crate::HeroCluster;
 use pax_kit::{PathElement, Size};
 
-pub const WORDS: [&str; 4] = [RUNS[0].text, RUNS[1].text, RUNS[2].text, RUNS[3].text];
+pub const WORDS: [&str; 3] = [RUNS[0].text, RUNS[1].text, RUNS[2].text];
 
 pub struct HeroRun {
     pub clusters: Vec<HeroCluster>,

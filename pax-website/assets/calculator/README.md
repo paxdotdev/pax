@@ -1,8 +1,8 @@
 # Calculator device captures
 
-All homepage devices use captures of the canonical
-`examples/calculator` component; no calculator trees mount on the homepage.
-All three captures show
+Compact homepage layouts use a phone capture of the canonical
+`examples/calculator` component; desktop mounts a live calculator in that phone.
+The optional fanout's window and tablet remain captures. All three captures show
 the initial polar graph, not a separate mockup or duplicated implementation.
 
 Use `NativeImage` to preserve the captures' color and aspect ratio, as in the

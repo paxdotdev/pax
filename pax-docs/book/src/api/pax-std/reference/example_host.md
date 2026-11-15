@@ -129,8 +129,8 @@ A page-edge source tab, bound to the owning viewer's open state.
 
 Place at `x=100%`, with 112px width when closed and 28px when open, and 34px
 height. Its native button remains keyboard-operable in either state.
-The white tab morphs its inward notch into a left-pointing tip on opening,
-extending 8px beyond its left bound. Leave that edge unclipped.
+The white tab morphs its convex left-pointing tip into a concave notch on
+opening. The shape stays within its bounds, with a fixed leftmost edge.
 
 #### Properties
 ##### `open`

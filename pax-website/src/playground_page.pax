@@ -9,17 +9,13 @@
         <Text class="editorial_link" width=100% height=100% text="← BACK TO PAX"/>
     </Link>
     <Text x={100% - 16px} anchor_x=100% y=8px width={100% - 160px} height=36px
-        text={self.game ? "HOLD TO STEER / WASD + SPACE" : "OSCILLOSCOPE / LIVE"}
+        text="OSCILLOSCOPE / LIVE"
         style={font: {family: "Manrope", url: "/assets/fonts/Manrope.ttf"}, font_size: 11px,
             fill: {SiteTheme::muted()}, align_horizontal: TextAlignHorizontal::Right, align_vertical: TextAlignVertical::Center}/>
     <ExampleHost y=52px width=100% height={100% - 52px}
-        title={self.game ? "Space Game" : "LED Oscilloscope"} sources={self.sources}>
+        title="LED Oscilloscope" sources={self.sources}>
         <Frame width=100% height=100%>
-            if self.game {
-                <SpaceGame width=100% height=100%/>
-            } else {
-                <LedOscilloscope width=100% height=100% message="DREAM IT. BUILD IT."/>
-            }
+            <LedOscilloscope width=100% height=100% message="DREAM IT. BUILD IT."/>
         </Frame>
     </ExampleHost>
 </Group>

@@ -35,7 +35,7 @@ pub struct HeroLetter {
 }
 
 impl HeroLetter {
-    pub fn mount(&mut self, ctx: &NodeContext) {
+    pub fn mount(&mut self, _ctx: &NodeContext) {
         // Reused keyed clusters can change word/color at a handoff. Paint depends
         // only on identity; motion never reconstructs their paths.
         let kind = self.kind.local();
@@ -68,17 +68,35 @@ impl HeroLetter {
             },
             &deps,
         ));
-        self.on_pre_render(ctx);
+        self.bind_motion();
     }
 
-    pub fn on_pre_render(&mut self, _ctx: &NodeContext) {
-        let pose = letter_pose(self.kind.get(), self.ordinal.get(), self.time_ms.get());
-        self.dx.set_if_neq(pose.x);
-        self.dy.set_if_neq(pose.y);
-        self.sx.set_if_neq(pose.sx * 100.0);
-        self.sy.set_if_neq(pose.sy * 100.0);
-        self.angle.set_if_neq(pose.angle);
-        self.alpha.set_if_neq(pose.alpha);
+    fn bind_motion(&self) {
+        // Native → portable retains these keyed instances. A pre-render callback
+        // can read the old published inputs before the parent's new word/clock
+        // bindings settle, flashing the new paths at the previous word's opacity.
+        // Derive the pose in the same graph as the paths instead of copying it
+        // across lifecycle phases; retained and newly mounted letters agree.
+        let kind = self.kind.local();
+        let ordinal = self.ordinal.local();
+        let time = self.time_ms.local();
+        let deps = [kind.untyped(), ordinal.untyped(), time.untyped()];
+        let pose = LocalProperty::computed_with_cutoff(
+            move || letter_pose(kind.get(), ordinal.get(), time.get()),
+            &deps,
+            PartialEq::eq,
+        );
+        let bind = |target: &Property<f64>, sample: fn(LetterPose) -> f64| {
+            let pose = pose.clone();
+            let deps = [pose.untyped()];
+            target.replace_with(LocalProperty::computed(move || sample(pose.get()), &deps));
+        };
+        bind(&self.dx, |p| p.x);
+        bind(&self.dy, |p| p.y);
+        bind(&self.sx, |p| p.sx * 100.0);
+        bind(&self.sy, |p| p.sy * 100.0);
+        bind(&self.angle, |p| p.angle);
+        bind(&self.alpha, |p| p.alpha);
     }
 }
 
@@ -155,6 +173,13 @@ struct LetterPose {
     angle: f64,
     alpha: f64,
 }
+impl Default for LetterPose {
+    fn default() -> Self {
+        REST
+    }
+}
+// This private graph value is sampled from the clock, never eased independently.
+impl Interpolatable for LetterPose {}
 const REST: LetterPose = LetterPose {
     x: 0.0,
     y: 0.0,
@@ -224,6 +249,67 @@ fn letter_pose(kind: usize, index: usize, time: f64) -> LetterPose {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retained_letters_follow_word_and_clock_without_another_lifecycle_callback() {
+        use pax_kit::api::properties::drain_effects;
+
+        let graph = pax_kit::api::properties::PropertyGraph::new(|| {});
+        let _graph = graph.enter();
+        let word_index = LocalProperty::new(1_usize);
+        let clock = LocalProperty::new(2000.0);
+        let letter = HeroLetter::default();
+        let index = word_index.clone();
+        letter.kind.replace_with(LocalProperty::computed(
+            move || crate::RotatingHeadline::treatment_kind(index.get()),
+            &[word_index.untyped()],
+        ));
+        let time = clock.clone();
+        letter.time_ms.replace_with(LocalProperty::computed(
+            move || time.get(),
+            &[clock.untyped()],
+        ));
+        letter.bind_motion();
+        drain_effects(1000);
+        assert_eq!(letter.alpha.local().get(), 1.0);
+        assert_eq!(letter.sy.local().get(), 100.0);
+
+        // The parent changes during pre-render, before the new inputs have been
+        // published. Normal graph settlement must also derive the new pose,
+        // without waiting for another per-letter lifecycle callback.
+        clock.set(0.0);
+        word_index.set(2);
+        assert_eq!(letter.time_ms.get(), 2000.0);
+        assert_eq!(letter.kind.get(), 3);
+        drain_effects(1000);
+        assert_eq!(letter.alpha.local().get(), 0.0);
+        assert_eq!(letter.angle.local().get(), 0.0);
+        let mut previous_alpha = 0.0;
+        for millis in (0..=2000).step_by(16) {
+            clock.set(millis as f64);
+            drain_effects(1000);
+            let expected = letter_pose(2, 0, millis as f64);
+            let alpha = letter.alpha.local().get();
+            assert_eq!(alpha, expected.alpha);
+            assert!(alpha >= previous_alpha);
+            assert_eq!(letter.sx.local().get(), expected.sx * 100.0);
+            assert_eq!(letter.sy.local().get(), expected.sy * 100.0);
+            assert_eq!(letter.dy.local().get(), expected.y);
+            previous_alpha = alpha;
+        }
+
+        // Re-keying/reordering can change the stagger independently of the clock.
+        letter.ordinal.local().set(7);
+        clock.set(200.0);
+        drain_effects(1000);
+        assert_eq!(letter.alpha.local().get(), 0.0);
+        word_index.set(1);
+        clock.set(0.0);
+        drain_effects(1000);
+        assert_eq!(letter.dx.local().get(), letter_pose(3, 7, 0.0).x);
+        assert_eq!(letter.alpha.local().get(), 0.0);
+    }
+
     #[test]
     fn all_letters_settle_and_pause_pose_is_exact() {
         for kind in 1..=4 {

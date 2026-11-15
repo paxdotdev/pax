@@ -18,7 +18,8 @@
     </Link>
     if self.layout_ready {
         <Group x=0px anchor=0% width=1280px height=780px scale={(self.stage_scale)%} layout_role=LayoutRole::Breakout>
-            <Group id=front_tablet x=640px y=406px anchor=50% width=1048px height=812px scale=76%>
+            // Keep the live screen axis-aligned; only the captured wings rotate.
+            <Group id=front_tablet x=640px y=406px anchor=50% width=1048px height=812px scale=76% rotate=0deg>
                 if self.compact {
                     <Link width=100% height=100% url="/paxflix/" target=Target::Current>
                         <DeviceFrame width=100% height=100% kind="tablet">
@@ -65,12 +66,6 @@
             42%: 406px, Linear,
             78%: 406px, InQuad,
             100%: 370px,
-        }
-        rotate: {
-            0%: 3deg, OutQuad,
-            42%: 0deg, Linear,
-            78%: 0deg, InQuad,
-            100%: -2deg,
         }
     }
     #desktop_wing {

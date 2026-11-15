@@ -348,9 +348,10 @@ direct parent/child connection. Callers can deliberately bind multiple hosts
 to the same selection property when synchronized selection is wanted.
 
 ExampleHost's VIEW SOURCE tab attaches to the drawer's leading edge. Its white,
-stroke-free shape has semibold black lettering. Its inward arrow notch animates
-through a flat edge into a left-pointing tip when opened, reversing on close.
-The tip extends 8px beyond the tab's left bound, so leave that edge unclipped. The tab follows
+stroke-free shape has semibold black lettering. VIEW SOURCE has a convex,
+left-pointing tip that animates through a flat edge into a concave notch when
+opened, reversing on close. The 8px-deep tip and notch stay within the tab's bounds;
+its leftmost edge does not drift during the shape morph. The tab follows
 the drawer as it opens, closes, or resizes, shrinking to a compact
 × tab while open; there is no separate close button inside the header. The native
 tab button supports keyboard focus and activation.

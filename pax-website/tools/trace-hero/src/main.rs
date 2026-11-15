@@ -4,7 +4,7 @@ use font::{OutlineCommand, OutlineFont};
 use sha2::{Digest, Sha256};
 use std::{error::Error, fmt::Write, fs, path::Path};
 
-const WORDS: [&str; 4] = ["game-like", "native", "portable", "flashy"];
+const WORDS: [&str; 3] = ["native", "portable", "eye-catching"];
 const WEIGHT: f32 = 800.0;
 const ACROSTIC_ALPHABET: &str = "ACDEFKLMNOPRY";
 

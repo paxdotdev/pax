@@ -21,6 +21,10 @@ pub struct HomePage {
     pub source_light: Property<bool>,
     pub runtime_source_open: Property<bool>,
     pub runtime_source_selected: Property<usize>,
+    pub authoring_source_open: Property<bool>,
+    pub authoring_source_selected: Property<usize>,
+    pub authoring_height: Property<f64>,
+    pub authoring_sources: Property<Vec<ExampleSource>>,
     pub framework_source_open: Property<bool>,
     pub framework_source_selected: Property<usize>,
     pub gallery_source_open: Property<bool>,
@@ -50,12 +54,16 @@ impl HomePage {
         let hero = self.hero_height.local();
         let runtime = self.runtime_height.local();
         let framework = self.framework_height.local();
+        let authoring = self.authoring_height.local();
+        let gallery = self.gallery_height.local();
         let deps = [
             viewport.untyped(),
             scroll.untyped(),
             hero.untyped(),
             runtime.untyped(),
             framework.untyped(),
+            authoring.untyped(),
+            gallery.untyped(),
         ];
         let hero_span = self.hero_span.local();
         let runtime_span = self.runtime_span.local();
@@ -75,12 +83,15 @@ impl HomePage {
             runtime_progress.set_if_neq(story.runtime_progress);
             // Match the fixed section footprints in home_page.pax, not the
             // transformed device bounds. Motion must not change scroll extent.
-            let framework_top = story.hero_span + story.runtime_span;
+            let framework_top = story.hero_span
+                + story.runtime_span
+                + authoring.get().max(640.0)
+                + gallery.get().max(760.0);
             framework_progress.set_if_neq(crate::scroll_story::section_progress(
                 scroll.get(),
                 viewport.get().1,
                 framework_top,
-                framework.get().max(640.0),
+                framework.get().max(400.0),
             ));
         };
         update_story();
@@ -93,6 +104,7 @@ impl HomePage {
         let open = [
             self.hero_source_open.local(),
             self.runtime_source_open.local(),
+            self.authoring_source_open.local(),
             self.framework_source_open.local(),
             self.gallery_source_open.local(),
             self.open_source_source_open.local(),
@@ -343,12 +355,6 @@ impl HomePage {
                 "src/framed_study.rs",
                 include_str!("framed_study.rs"),
             ));
-            files.extend(section_sources(
-                "space-game/src/lib.pax",
-                include_str!("../../examples/fixtures/space-game/src/lib.pax"),
-                "space-game/src/lib.rs",
-                include_str!("../../examples/fixtures/space-game/src/lib.rs"),
-            ));
             for (label, code) in [
                 (
                     "led-oscilloscope/lib.pax",
@@ -506,7 +512,25 @@ impl HomePage {
                 code: code.into(),
             });
         }
-        runtime_sources.extend(calculator_sources);
+        let mut authoring_sources = section_sources(
+            "src/authoring_section.pax",
+            include_str!("authoring_section.pax"),
+            "src/authoring_section.rs",
+            include_str!("authoring_section.rs"),
+        );
+        authoring_sources.extend(section_sources(
+            "src/shared_definition_demo.pax",
+            include_str!("shared_definition_demo.pax"),
+            "src/shared_definition_demo.rs",
+            include_str!("shared_definition_demo.rs"),
+        ));
+        authoring_sources.push(ExampleSource {
+            label: "src/relationship_preview.pax".into(),
+            language: "pax".into(),
+            code: include_str!("relationship_preview.pax").into(),
+        });
+        authoring_sources.extend(calculator_sources);
+        self.authoring_sources.set(authoring_sources);
         self.runtime_sources.set(runtime_sources);
         self.feature_gallery_sources.set(vec![
             ExampleSource {
@@ -571,4 +595,44 @@ fn section_sources(
             code: rust_code.to_string(),
         },
     ]
+}
+
+#[cfg(test)]
+mod content_tests {
+    #[test]
+    fn homepage_pairs_examples_in_the_agreed_editorial_order() {
+        let page = include_str!("home_page.pax");
+        let sections = [
+            "<HeroSection",
+            "<RuntimeSection",
+            "<AuthoringSection",
+            "<FeatureGallery",
+            "<FrameworkSection",
+            "<OpenSourceSection",
+            "<ResourceSection",
+        ];
+        let positions: Vec<_> = sections
+            .iter()
+            .map(|section| {
+                assert_eq!(page.matches(section).count(), 1);
+                page.find(section).unwrap()
+            })
+            .collect();
+        assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
+        assert!(page.contains("open=bind:self.authoring_source_open"));
+        assert!(page.contains("drawer_open=bind:self.authoring_source_open"));
+    }
+
+    #[test]
+    fn install_is_in_the_hero_and_removed_copy_stays_removed() {
+        let hero = include_str!("hero_section.pax");
+        let footer = include_str!("resource_section.pax");
+        assert!(hero.contains("cargo install pax-cli"));
+        assert!(!footer.contains("cargo install pax-cli"));
+        assert!(hero.contains("iPadOS"));
+        assert!(hero.contains("Other targets are in beta."));
+        assert!(!hero.contains("This website was built in Pax"));
+        assert!(!include_str!("framework_section.pax").contains("Dream it. Build it."));
+        assert!(!include_str!("authoring_section.pax").contains("artificial minds"));
+    }
 }

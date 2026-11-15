@@ -1,12 +1,12 @@
 <Group width=100% height=100%>
+    // Keep the prefix's selectable hitbox out of the animated word beside it.
     ///#h1
-    <Text class="headline" width=100% height={(self.font_px * 1.3)px} wrap=false>A declarative language</Text>
-    <Group y={(self.font_px * 1.18)px} width=100% height={(self.font_px * 1.3)px}>
-        <Text class="headline" width={(self.font_px * 1.6)px} height=100% wrap=false>for</Text>
+    <Text class="headline" width={(self.font_px * 2.75)px} height={(self.font_px * 1.3)px} wrap=false>Build</Text>
+    <Group width=100% height={(self.font_px * 1.3)px}>
         // Keep animated descendants out of the autosized ancestor's layout hull.
         // The fixed signboard and normal headline text determine the paragraph position.
         ///#ignore
-        <Frame x={(self.font_px * 1.65)px} y={(self.font_px * -0.1)px} width={100% - (self.font_px * 1.65)px}
+        <Frame x={(self.font_px * 2.75)px} y={(self.font_px * -0.1)px} width={100% - (self.font_px * 2.75)px}
             height={(self.font_px * 1.5)px} layout_role=LayoutRole::Breakout>
             <Group x={(self.word_x * self.font_px)px} y={(self.font_px * (0.75 + self.word_y))px} anchor_y=50% width=100% height=100%
                 scale_x={(self.word_scale_x)%} scale_y={(self.word_scale_y)%} rotate={(self.word_rotate)deg} opacity={self.word_opacity}>
@@ -52,14 +52,13 @@
                     if self.vector_ready {
                         // Clip only the resting selection box; iOS uses its interactive text view here.
                         <Text class="selection" width={(self.run_width * self.font_px)px} height=100% wrap=false clip=true selectable=true>{self.word}</Text>
-                        if self.word_index == 4 {
+                        if self.word_index == 3 {
                             // One 100px/em artboard gives sheen and glints the same light
                             // coordinates, with capture padding and spacing scaling with type.
                             <LightFrame width={(self.run_width * 100)px} height=150px anchor=0px
                                 scale={(self.font_px)%} layout_role=LayoutRole::Breakout>
-                                // Keep this seed/spacing pair together: the shaped word has
-                                // strong reflectors on every letter along the light's path.
-                                <Flashy width=100% height=100% phase=0 seed=40 spacing=16 brightness=1.0 flare=1.0>
+                                // A stable reflector field glints under the moving scene light.
+                                <Flashy width=100% height=100% phase=0 seed=40 spacing=10 brightness=1.0 flare=5.0>
                                     for cluster in self.clusters key cluster.byte_start {
                                         <HeroLetter x={(cluster.x * 100)px} y={(self.baseline * 100)px}
                                             width=100px height=100px cluster={cluster} ordinal={cluster.ordinal}
@@ -70,14 +69,14 @@
                                     width=1px height=1px anchor=0px z={(self.font_px * 0.95)px} radius={(self.font_px * 5)px} intensity=6.0
                                     color=rgb(240, 248, 255) layout_role=LayoutRole::Breakout/>
                             </LightFrame>
-                        } else if self.word_index >= 2 {
+                        } else {
                             // Filter the moving paint first, then clip it with the original letter coverage.
                             <Mask width={(self.run_width * self.font_px)px} height=100% alpha=true>
                                 if @gpu {
                                     <Impressionist width=100% height=100%
-                                        mode={self.word_index == 2 ? ImpressionistMode::Signac : ImpressionistMode::Gauguin}
-                                        size={self.font_px * (self.word_index == 2 ? 0.50 : 0.08)} seed=17 phase={self.pigment_phase}>
-                                        if self.word_index == 2 {
+                                        mode={self.word_index == 1 ? ImpressionistMode::Signac : ImpressionistMode::Gauguin}
+                                        size={self.font_px * (self.word_index == 1 ? 0.50 : 0.08)} seed=17 phase={self.pigment_phase}>
+                                        if self.word_index == 1 {
                                             // Move the radial paint inside fixed geometry to keep capture bounds stable.
                                             for i in 0..6 {
                                                 <Rectangle width=100% height=100% fill={paint: @gradient {
@@ -131,19 +130,6 @@
                                     }
                                 </Group>
                             </Mask>
-                        } else {
-                            <LightFrame width=100% height=100%>
-                                for cluster in self.clusters key cluster.byte_start {
-                                    <HeroLetter x={(cluster.x * self.font_px)px} y={(self.baseline * self.font_px)px}
-                                        width={(self.font_px)px} height={(self.font_px)px} cluster={cluster} ordinal={cluster.ordinal}
-                                        font_px={self.font_px} cap_height={self.cap_height} kind={RotatingHeadline::treatment_kind(self.word_index)} time_ms={self.letter_ms}/>
-                                }
-                                if self.word_index == 1 {
-                                    <LightSource x={(self.light_x * self.font_px)px} y={((self.baseline - self.cap_height * 0.45) * self.font_px)px}
-                                        width=1px height=1px z={(self.font_px * 0.65)px} radius={(self.font_px * 5.0)px}
-                                        intensity=2.8 color=rgb(242, 248, 255) layout_role=LayoutRole::Breakout/>
-                                }
-                            </LightFrame>
                         }
                     } else {
                         <Text class="headline" width=100% height=100% wrap=false>{self.word}</Text>
@@ -152,8 +138,10 @@
             </Group>
         </Frame>
     </Group>
-    <Text class="headline" y={(self.font_px * 2.36)px} width=100% height={(self.font_px * 1.3)px}
+    <Text class="headline" y={(self.font_px * 1.18)px} width=100% height={(self.font_px * 1.3)px}
         wrap=false>user interfaces</Text>
+    <Text class="headline" y={(self.font_px * 2.36)px} width=100% height={(self.font_px * 1.3)px}
+        wrap=false>with Rust</Text>
 </Group>
 
 @settings {

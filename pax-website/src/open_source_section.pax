@@ -1,26 +1,18 @@
 <Group width=100% height=100%>
-    <ImportSettings>
-        <SiteTheme />
-    </ImportSettings>
+    <ImportSettings><SiteTheme /></ImportSettings>
     <Stacker id=open_source_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=40px>
-        <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=48px
+        <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter={self.compact ? 40px : 6%}
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
-            sizes={self.compact ? [] : [Some(61%), None]}>
+            sizes={self.compact ? [] : [Some(48%), None]}>
             ///#ignore
             <Acrostic width=100% height={(self.artwork_height)px} columns={self.compact ? 6 : 7}/>
             <Stacker width=100% autosize=true gutter=24px>
                 ///#h2
-                <Text class="editorial_title" width=100%>{"Made for makers."}</Text>
-                <Text class="editorial_lead" width=100% markdown=true
-                    _style_link={
-                        font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
-                        font_size: {@viewport.width < 760 ? 19px : 23px}
-                        fill: {SiteTheme::paper()}
-                        align_vertical: TextAlignVertical::Top
-                        align_horizontal: TextAlignHorizontal::Left
-                        align_multiline: TextAlignHorizontal::Left
-                    }>Pax is free and open source. MIT / Apache-2.0 licensed. [See it on GitHub](https://github.com/paxdotdev/pax)</Text>
-                <Text class="editorial_body" width=100%>We're building Pax to bring software creation closer to an artistic medium: something personal, expressive, and open to experimentation. We want more people to be able to turn their imagination into software—and more of humanity to have a hand in shaping the digital world.</Text>
+                <Text class="editorial_title" width=100%>A love letter to the pixel</Text>
+                <Text class="editorial_lead" width=100%>Pax's grammar, compiler, and rendering engine were designed from scratch to empower you to express your imagination on any screen.</Text>
+                <Text class="editorial_body" width=100%>Pax borrows its design from prior art spanning from Visual Basic, to Flash, to React, to XAML, to Delphi, to the Nintendo Entertainment System. While these technologies may be a blast from the past, each of them got something right—and emerging from this melting pot, Pax aims its arrow towards the future.</Text>
+                <Text class="editorial_body" width=100%>Pax's goal is twofold: to empower more of humanity to create software, and to unlock the screen as a medium for art.</Text>
+                <Text class="editorial_body" width=100% markdown=true>Pax is free and open source. MIT / Apache-2.0 licensed, available on [GitHub](https://github.com/paxdotdev/pax).</Text>
             </Stacker>
         </Stacker>
     </Stacker>
