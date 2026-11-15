@@ -43,7 +43,8 @@ struct _PaxNode {
   GtkWidget parent;
   PaxNativeScene *scene;
   guint id, layer;
-  gint64 parent_id;
+  gint64 parent_id, transform_scroller;
+  double authored_transform[6];
   int z;
   char *kind, *tile_key;
   GtkWidget *control, *content, *input;
@@ -1275,7 +1276,8 @@ static void node_snapshot(GtkWidget *widget, GtkSnapshot *snapshot) {
     clips++;
     if (node->clip_path) {
       graphene_matrix_t world, inverse;
-      node_matrix(node, &world);
+      double *m = node->authored_transform;
+      graphene_matrix_init_from_2d(&world, m[0], m[1], m[2], m[3], m[4], m[5]);
       if (graphene_matrix_inverse(&world, &inverse)) {
         gtk_snapshot_save(snapshot);
         transformed_clip = TRUE;
@@ -1381,6 +1383,8 @@ static void pax_node_class_init(PaxNodeClass *klass) {
 }
 static void pax_node_init(PaxNode *node) {
   node->matrix[0] = node->matrix[3] = node->opacity = 1;
+  node->authored_transform[0] = node->authored_transform[3] = 1;
+  node->transform_scroller = -1;
   node->text_width_constraint = node->text_height_constraint = -1;
   node->parent_id = -1;
   node->mask = g_ptr_array_new_with_free_func(mask_free);
@@ -2298,6 +2302,9 @@ static gboolean update_node(PaxNode *node, JsonObject *patch, GError **error) {
   node->opacity = CLAMP(number(patch, "opacity", node->opacity), 0, 1);
   node->radius = MAX(0, number(patch, "corner_radius", node->radius));
   node->clip = boolean(patch, "clip_content", node->clip);
+  if (json_object_has_member(patch, "transform_scroller"))
+    node->transform_scroller = has(patch, "transform_scroller")
+        ? json_object_get_int_member(patch, "transform_scroller") : -1;
   if (has(patch, "transform")) {
     JsonArray *array = json_object_get_array_member(patch, "transform");
     if (json_array_get_length(array) != 6) {
@@ -2307,7 +2314,7 @@ static gboolean update_node(PaxNode *node, JsonObject *patch, GError **error) {
       return FALSE;
     }
     for (guint i = 0; i < 6; i++)
-      node->matrix[i] = json_array_get_double_element(array, i);
+      node->authored_transform[i] = json_array_get_double_element(array, i);
   }
   if (has(patch, "clip_path")) {
     if (node->clip_path)
@@ -2608,6 +2615,27 @@ static void reconcile(PaxNativeScene *scene) {
   g_hash_table_iter_init(&iter, scene->nodes);
   while (g_hash_table_iter_next(&iter, NULL, &value))
     g_ptr_array_add(all, value);
+  // Scroller patches stay world-space. Resolve retained Text/Frame poses
+  // before placing children, independently of creation and z-order.
+  for (guint i = 0; i < all->len; i++) {
+    PaxNode *node = g_ptr_array_index(all, i);
+    if (node->tile_key) continue;
+    double *m = node->authored_transform;
+    memcpy(node->matrix, m, sizeof(node->matrix));
+    if (node->transform_scroller >= 0) {
+      PaxNode *owner = g_hash_table_lookup(scene->nodes,
+          GUINT_TO_POINTER((guint)node->transform_scroller));
+      if (!owner || strcmp(owner->kind, "Scroller") || owner->transform_scroller >= 0) {
+        // An incomplete owner cannot safely place or expose its native child.
+        memset(node->matrix, 0, sizeof(node->matrix));
+        continue;
+      }
+      double *p = owner->authored_transform, *out = node->matrix;
+      out[0]=p[0]*m[0]+p[2]*m[1]; out[1]=p[1]*m[0]+p[3]*m[1];
+      out[2]=p[0]*m[2]+p[2]*m[3]; out[3]=p[1]*m[2]+p[3]*m[3];
+      out[4]=p[0]*m[4]+p[2]*m[5]+p[4]; out[5]=p[1]*m[4]+p[3]*m[5]+p[5];
+    }
+  }
   g_ptr_array_sort(all, compare_nodes);
   scene->placement_visits += all->len;
   for (guint i = 0; i < all->len; i++) {

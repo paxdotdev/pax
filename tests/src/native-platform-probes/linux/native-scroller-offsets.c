@@ -84,6 +84,13 @@ static GtkWidget *find(GtkWidget *root) {
   }
   return NULL;
 }
+static GtkWidget *find_text(GtkWidget *root) {
+  if (GTK_IS_LABEL(root) && !strcmp(gtk_label_get_text(GTK_LABEL(root)), "Local")) return root;
+  for (GtkWidget *child=gtk_widget_get_first_child(root); child; child=gtk_widget_get_next_sibling(child)) {
+    GtkWidget *found=find_text(child); if (found) return found;
+  }
+  return NULL;
+}
 static gboolean close_to(double actual, double expected) {
   return fabs(actual - expected) < .1;
 }
@@ -161,6 +168,28 @@ int main(void) {
   pump(300);
   check(&t, offsets(x, y, retained_x, 0), "later growth does not resurrect a previously clamped request");
   check(&t, find(scene) == control, "resize and programmatic movement preserve native control identity");
+
+  apply(&t, "[{\"ScrollerUpdate\":{\"id\":17,\"scroll_x\":0,\"scroll_y\":0}},{\"FrameCreate\":{\"id\":20,\"parent_frame\":17,\"render_layer_id\":0}},{\"FrameUpdate\":{\"id\":20,\"size_x\":100,\"size_y\":80,\"transform_scroller\":17,\"transform\":[1,0,0,1,12,14]}},{\"TextCreate\":{\"id\":21,\"parent_frame\":20,\"render_layer_id\":0}},{\"TextUpdate\":{\"id\":21,\"size_x\":60,\"size_y\":20,\"content\":\"Local\",\"selectable\":false,\"transform_scroller\":17,\"transform\":[1,0,0,1,17,21]}}]");
+  pump(200);
+  GtkWidget *label=find_text(scene);
+  check(&t, label!=NULL, "retained text is mounted inside the Frame");
+  if (label) {
+    graphene_point_t zero={0,0}, before_point, after_point;
+    GtkWidget *placement=gtk_widget_get_parent(label);
+    gboolean measured=gtk_widget_compute_point(placement, control, &zero, &before_point);
+    apply(&t, "[{\"ScrollerUpdate\":{\"id\":17,\"transform\":[0,1,-1,0,280,30]}}]");
+    pump(200);
+    measured &= gtk_widget_compute_point(placement, control, &zero, &after_point);
+    check(&t, measured && close_to(before_point.x,17) && close_to(before_point.y,21) &&
+          close_to(after_point.x,17) && close_to(after_point.y,21),
+          "host-only rotation preserves Scroller-local Text through a Frame");
+    apply(&t, "[{\"TextUpdate\":{\"id\":21,\"parent_frame\":null,\"transform_scroller\":null,\"transform\":[1,0,0,1,50,55]}}]");
+    pump(200);
+    measured=gtk_widget_compute_point(placement, scene, &zero, &after_point);
+    check(&t, measured && close_to(after_point.x,50) && close_to(after_point.y,55),
+          "explicit null coordinate owner restores world placement");
+  }
+  apply(&t, "[{\"TextDelete\":21},{\"FrameDelete\":20}]");
 
   g_object_ref(x);
   g_object_ref(y);

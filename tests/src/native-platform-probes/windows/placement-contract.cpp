@@ -115,6 +115,32 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             check(label.Width()>before&&label.RenderTransform()==label_transform,"autosize-remeasurement-retains-placement-objects");
             auto retired=child;update(LR"([{"FrameDelete":2},{"FrameCreate":{"id":2,"render_layer_id":0}},{"FrameUpdate":{"id":2,"size_x":30,"size_y":30,"clip_content":true}}])");
             child=find(scene->root(),2);check(child!=retired&&child.RenderTransform()!=transform&&child.Clip()!=clip,"recreated-node-has-independent-placement-objects");
+            update(LR"([{"ScrollerCreate":{"id":10,"render_layer_id":0}},{"ScrollerUpdate":{"id":10,"size_x":160,"size_y":150,"size_inner_pane_x":300,"size_inner_pane_y":300,"transform":[1,0,0,1,20,30]}},{"FrameCreate":{"id":11,"parent_frame":10,"render_layer_id":0}},{"FrameUpdate":{"id":11,"size_x":80,"size_y":60,"transform_scroller":10,"transform":[1,0,0,1,12,14],"clip_content":true,"clip_path":"M12,14 L92,14 L92,74 L12,74 Z"}},{"TextCreate":{"id":12,"parent_frame":11,"render_layer_id":0}},{"TextUpdate":{"id":12,"size_x":40,"size_y":20,"content":"Local","transform_scroller":10,"transform":[1,0,0,1,17,21]}}])");
+            auto scrolling=find(scene->root(),10).Children().GetAt(0).as<ScrollViewer>();
+            auto local_frame=find(scrolling.Content().as<Canvas>(),11);
+            auto local_text=find(local_frame.Children().GetAt(0).as<Canvas>(),12);
+            auto local_point=[&] {return local_text.TransformToVisual(scrolling.Content().as<Canvas>()).TransformPoint({0,0});};
+            auto retained_local=local_text.RenderTransform();
+            point=local_point();check(std::abs(point.X-17)<.01&&std::abs(point.Y-21)<.01,"scroller-local-text-through-frame-uses-content-coordinates");
+            update(LR"([{"ScrollerUpdate":{"id":10,"transform":[0,1,-1,0,200,40]}}])");
+            point=local_point();check(std::abs(point.X-17)<.01&&std::abs(point.Y-21)<.01,"host-only-rotation-retains-local-child-placement");
+            check(local_text.RenderTransform()==retained_local,"host-movement-retains-native-transform-identity");
+            check(bool(Hosting::ElementCompositionPreview::GetElementVisual(local_frame.Children().GetAt(0)).Clip()),"scroller-local-frame-retains-clip");
+            update(LR"([{"TextUpdate":{"id":12,"parent_frame":null,"transform_scroller":null,"transform":[1,0,0,1,50,55]}}])");
+            point=local_text.TransformToVisual(scene->root()).TransformPoint({0,0});
+            check(std::abs(point.X-50)<.01&&std::abs(point.Y-55)<.01,"explicit-null-owner-restores-world-placement");
+            update(LR"([{"ScrollerCreate":{"id":13,"render_layer_id":0}},{"ScrollerUpdate":{"id":13,"size_x":160,"size_y":150,"size_inner_pane_x":80,"size_inner_pane_y":40,"transform":[1,0,0,1,20,30]}},{"TextCreate":{"id":14,"parent_frame":13,"render_layer_id":0}},{"TextUpdate":{"id":14,"size_x":40,"size_y":20,"content":"Short","transform_scroller":13,"transform":[1,0,0,1,14,14],"style":{"align_vertical":"Top"}}}])");
+            auto short_scroll=find(scene->root(),13).Children().GetAt(0).as<ScrollViewer>();
+            auto short_text=find(short_scroll.Content().as<Canvas>(),14);
+            point=short_text.TransformToVisual(short_scroll).TransformPoint({0,0});
+            record("short-content-origin",true,"x="+std::to_string(point.X)+" y="+std::to_string(point.Y));
+            check(std::abs(point.X-14)<.01&&std::abs(point.Y-14)<.01,"short-scroller-content-retains-authored-top-left-origin");
+            update(LR"([{"ScrollerUpdate":{"id":13,"size_inner_pane_x":320,"size_inner_pane_y":300}}])");
+            point=short_text.TransformToVisual(short_scroll).TransformPoint({0,0});
+            check(std::abs(point.X-14)<.01&&std::abs(point.Y-14)<.01,"growing-scroll-content-retains-authored-origin");
+            update(LR"([{"ScrollerUpdate":{"id":13,"size_inner_pane_x":80,"size_inner_pane_y":40,"size_x":200,"size_y":200}}])");
+            point=short_text.TransformToVisual(short_scroll).TransformPoint({0,0});
+            check(std::abs(point.X-14)<.01&&std::abs(point.Y-14)<.01,"shrinking-scroll-content-and-resizing-viewport-retain-origin");
             record("diagnostics",true,scene->composition_diagnostics());finish(true);
         } catch(hresult_error const& error){record("failure",false,to_string(error.message()));finish(false);}
           catch(std::exception const& error){record("failure",false,error.what());finish(false);}

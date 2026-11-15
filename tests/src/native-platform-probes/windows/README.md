@@ -941,9 +941,9 @@ Actual source-drawer, nested demo, and responsive-layout interactions still need
 functional checks in addition to this general scrolling probe.
 
 `make-website-source-manifest.py REPOSITORY OUTPUT.json` freezes the canonical
-website's 98 authored source-tab identities without copying their contents. It
+website's 102 authored source-tab identities without copying their contents. It
 recognizes literal pairs, language tuples, and `ExampleSource` entries, preserving
-the six drawers' authored order and repeated source occurrences: hero 29,
+the six drawers' authored order and repeated source occurrences: hero 33,
 runtime 32, framework 20, gallery 8, open source 7, and resources 2. The runtime
 drawer includes the separately constructed 12-file calculator catalogue. It also writes
 `OUTPUT.sections.json`, binding the authored section order, unique visible
@@ -973,6 +973,9 @@ point, UIA hit ancestry, and scroll position. The current drawer has no separate
 selected-file label; the exact document hash establishes selection. Source text
 discovery stays inside the newly mounted native code scroller, identified by
 its new native identity and its alignment immediately below the tab scroller.
+When the code viewport is at its origin and the first line is unobscured, the
+probe also reads that line's native glyph bounds and checks its top inset. This
+catches short documents being vertically centered despite exact text readback.
 The open/close affordance is a native Button named `VIEW SOURCE` or `×`;
 source labels remain Text peers inside a 48-pixel viewport with 36-pixel tabs.
 An ambiguous or missing code viewport fails the probe. A failed
@@ -1048,6 +1051,17 @@ demo interactions, and it cannot be combined with either other restricted scope.
 HomePage binds its scroll offset to the surviving root component, so returning
 home need not start at zero. The wheel check chooses the direction with room to
 scroll and requires movement in that direction after the new scroller mounts.
+`-WebsiteHeaderOnly` instead exercises the fixed navigation's real scroll reveal
+at 1280px, 700px, then 1280px again. It captures the native Get Started label and
+GPU background immediately after reveal and after two and ten seconds. Settled
+pixel checks compare the background's padding columns with SiteHeader's authored
+box, independently of native UI Automation bounds, and check label centering.
+This catches a vector that paints once during entry and stays displaced even
+though native text and interaction checks pass. It does not measure frame-by-frame
+native/vector synchronization. The report scope is `header`; use it with
+`-WebsiteInteractionsOnly`, `-WebsitePhases`, and the source manifest, separately
+from other restricted scopes. Update its geometry oracle when SiteHeader changes.
+
 Conversely, `-WebsiteDemosOnly` exercises the live calculator route, returns home
 for Paxflix route feedback and theme controls, then checks gallery wheel input.
 It skips source traversal and the separate final route-retirement replay. Graph-wheel
@@ -1363,6 +1377,9 @@ and input suspension without losing editor text or selection, then recovery when
 the transform becomes invertible. Set `PAX_PLACEMENT_CONTRACT_LOG` for JSONL output.
 A retained transform must still recompute the child's relative matrix whenever
 its ancestor changes; child-only dirty flags do not establish this contract.
+Scroller-local Text/Frame patches also cover owner-only motion and explicit
+handoff back to world coordinates. Undersized content must keep the same
+top-left origin as it grows, shrinks, and its viewport resizes.
 
 `build-native-mask-input-contract.ps1` checks the production mask/input path on
 an unlocked interactive Windows desktop. Set `PAX_NATIVE_MASK_INPUT_LOG` for

@@ -51,8 +51,8 @@ for label, relative in pairs:
         raise ValueError(f"Conflicting authored source label {label}")
     seen[label] = row
     rows.append(row)
-if len(rows) != 98:
-    raise ValueError(f"Canonical website source catalogue changed: expected 98 tabs, found {len(rows)}")
+if len(rows) != 102:
+    raise ValueError(f"Canonical website source catalogue changed: expected 102 tabs, found {len(rows)}")
 # Section membership is part of the acceptance oracle: repeated labels must be
 # clicked in each authored drawer, not merely counted anywhere on the page.
 # These boundaries intentionally recognize this fixture's source construction;
@@ -65,7 +65,7 @@ def fragment(start, end):
 
 sections = [
     ("hero", "hero_sources", None, "hero_section.pax",
-     "let mut hero_sources =", "let mut open_source_sources =", 29),
+     "let mut hero_sources =", "let mut open_source_sources =", 33),
     ("runtime", "runtime_sources", "A PORTABLE RUNTIME", "runtime_section.pax",
      "let mut runtime_sources =", "self.feature_gallery_sources.set", 32),
     ("framework", "framework_sources", "BUILT FOR CREATIVE FREEDOM", "framework_section.pax",

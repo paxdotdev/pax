@@ -30,7 +30,8 @@ final class PaxScene extends FrameLayout {
     boolean disposed;
     boolean hierarchyDirty;
     boolean transformsDirty=true;
-    final Matrix relativeScratch=new Matrix(),inverseScratch=new Matrix();
+    final Matrix relativeScratch=new Matrix(),inverseScratch=new Matrix(),resolvedScratch=new Matrix();
+    final float[] resolvedValues=new float[9];
     boolean captureInFlight;
     long ticks, committed;
     long planGeneration=-1;
@@ -305,7 +306,7 @@ final class PaxScene extends FrameLayout {
                     for(String key:new String[]{"parent_frame","z_index"})
                         if(patch.has(key) && !Objects.equals(patch.opt(key),model.opt(key))) hierarchyDirty=true;
                     Iterator<String> keys=patch.keys();
-                    while(keys.hasNext()) { String key=keys.next(); if(!patch.isNull(key) || key.equals("parent_frame")) model.put(key,patch.get(key)); }
+                    while(keys.hasNext()) { String key=keys.next(); if(!patch.isNull(key) || key.equals("parent_frame") || key.equals("transform_scroller")) model.put(key,patch.get(key)); }
                     changed.add(id);
                 }
             }
@@ -335,6 +336,19 @@ final class PaxScene extends FrameLayout {
     void updateTransforms() {
         if(!transformsDirty) return;
         transformsDirty=false;
+        // Resolve coordinate owners first; a retained Text/Frame needs no
+        // new patch when only its owning Scroller moves.
+        for(Node node:nodes.values()) {
+            resolvedScratch.set(node.authored);
+            if(node.transformScroller>=0) {
+                Node owner=nodes.get(node.transformScroller);
+                if(owner==null || !owner.kind.equals("Scroller") || owner.transformScroller>=0)
+                    throw new IllegalStateException("Native transform owner must be a Scroller");
+                resolvedScratch.setConcat(owner.authored,node.authored);
+            }
+            resolvedScratch.getValues(resolvedValues);
+            if(!Arrays.equals(node.worldValues,resolvedValues)) {node.worldValues=resolvedValues.clone();node.world.set(resolvedScratch);node.worldRevision++;}
+        }
         for(Node node:nodes.values()) {
             int parent=node.model.isNull("parent_frame")?-1:node.model.optInt("parent_frame",-1);
             Node p=nodes.get(parent);
@@ -492,8 +506,9 @@ final class PaxScene extends FrameLayout {
         final int id;final String kind;final FrameLayout content;
         final FrameLayout placement;
         final View control;
-        final Matrix world=new Matrix();
-        float[] worldValues;
+        final Matrix world=new Matrix(),authored=new Matrix();
+        float[] worldValues,authoredValues;
+        int transformScroller=-1;
         long worldRevision,lastWorldRevision=-1,lastParentRevision=-1;
         Node lastParent;
         float[] lastTransform;
@@ -694,14 +709,18 @@ final class PaxScene extends FrameLayout {
                 if(lastWidth!=Math.max(1,pixelsW) || lastHeight!=Math.max(1,pixelsH)) transformsDirty=true;
                 size(this,Math.max(1,pixelsW),Math.max(1,pixelsH));
                 if(placement.getLayoutParams()==null) size(placement,getLayoutParams().width,getLayoutParams().height);
-                float[] nextWorld=matrix(patch.optJSONArray("transform"),density);
-                if(!Arrays.equals(worldValues,nextWorld)) {worldValues=nextWorld;world.setValues(nextWorld);worldRevision++;transformsDirty=true;}
+                float[] nextAuthored=matrix(patch.optJSONArray("transform"),density);
+                int nextOwner=patch.isNull("transform_scroller")?-1:patch.optInt("transform_scroller",-1);
+                if(!Arrays.equals(authoredValues,nextAuthored) || transformScroller!=nextOwner) {
+                    authoredValues=nextAuthored;authored.setValues(nextAuthored);
+                    transformScroller=nextOwner;transformsDirty=true;
+                }
                 setAlpha((float)patch.optDouble("opacity",1));
                 boolean clipping=patch.optBoolean("clip_content",false);setClipChildren(clipping);
                 clip=null;
                 if(!patch.optString("clip_path","").isEmpty()) {
                     clip=path(patch.getString("clip_path")); Matrix inv=new Matrix();
-                    if(world.invert(inv)) { Matrix scale=new Matrix();scale.setScale(density,density);inv.preConcat(scale);clip.transform(inv); }
+                    if(authored.invert(inv)) { Matrix scale=new Matrix();scale.setScale(density,density);inv.preConcat(scale);clip.transform(inv); }
                 } else if(clipping) {clip=new Path();float radius=(float)patch.optDouble("corner_radius",0)*density;clip.addRoundRect(0,0,w*density,h*density,radius,radius,Path.Direction.CW);}
                 masks.clear();JSONObject mask=patch.optJSONObject("mask");
                 if(mask!=null) { JSONArray entries=mask.getJSONArray("entries");for(int i=0;i<entries.length();i++)masks.add(new Mask(entries.getJSONObject(i),density)); }

@@ -27,6 +27,7 @@ social_image_alt = "Pax logo"
 default = ["app"]
 # Embedded headers share the component source without demo cartridges or filters.
 app = ["dep:led-oscilloscope", "dep:calculator", "dep:paxflix", "dep:space-game", "pax-kit/shaders"]
+standalone = ["app", "pax-kit/host"]
 
 [dependencies]
 led-oscilloscope = { version = "0.39.1", path = "../examples/led-oscilloscope", default-features = false, optional = true }
@@ -41,9 +42,6 @@ libc = "=0.2.189"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
-
-[features]
-standalone = ["pax-kit/host"]
 
 [[bin]]
 name = "run"

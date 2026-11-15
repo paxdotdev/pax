@@ -54,6 +54,10 @@ the notes move upward on screen. At rest, the vertical range here is
 viewport, there is no travel on that axis. Platform overscroll and bounce
 can temporarily present the edges differently.
 
+Content that is smaller than the viewport keeps its origin at the viewport's
+top-left corner; the native host does not center the pane. Use ordinary child
+layout to center content when that is the intended design.
+
 `scroll_height=300%` would also describe 720 pixels for this viewport:
 percentages on the scroll extent are relative to the Scroller's own viewport.
 The extent establishes how far you can scroll; it does not stretch the child

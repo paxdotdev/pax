@@ -199,6 +199,42 @@ fn clear(ctx: &RuntimeContext) {
 }
 
 #[test]
+fn viewport_canvas_motion_keeps_invalidating_retained_paint() {
+    use pax_runtime_api::LocalProperty;
+    use std::cell::Cell;
+
+    let (ctx, root) = mount(vec![retained_probe(Kind::Canvas, vec![])]);
+    let parent = root.children.get()[0].clone();
+    let node = parent.children.get()[0].clone();
+    assert!(node.canvas_owner.get().is_none());
+    let paints = Rc::new(Cell::new(0));
+    let count = paints.clone();
+    node.changed_listener.replace_with(LocalProperty::computed(
+        move || count.set(count.get() + 1),
+        &[node.canvas_transform_and_bounds.untyped()],
+    ));
+    ctx.register_expanded_node_effect_property_named(&node, &node.changed_listener, "paint");
+    ctx.drain_node_effects();
+    ctx.canvas_surface_transform_for_node(&node);
+
+    for y in [-80., -60., -20., 0., 20., 0., -80.] {
+        let previous = paints.get();
+        parent
+            .get_common_properties()
+            .borrow()
+            .y
+            .set(Some(Size::Pixels(y.into())));
+        ctx.drain_node_effects();
+        assert!(
+            paints.get() > previous,
+            "movement to {y} must invalidate paint"
+        );
+        let transform = ctx.canvas_surface_transform_for_node(&node);
+        assert_eq!(transform.as_coeffs()[5], y);
+    }
+}
+
+#[test]
 fn retained_host_motion_and_subsequent_clip_edits_match_full_rebuild() {
     let (ctx, root) = mount(vec![retained_probe(
         Kind::Clip,

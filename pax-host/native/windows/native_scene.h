@@ -82,6 +82,8 @@ private:
         media::Matrix placed_matrix{1, 0, 0, 1, 0, 0};
         winrt::Windows::Foundation::Rect placed_clip{};
         media::Matrix world{1, 0, 0, 1, 0, 0};
+        media::Matrix authored_transform{1, 0, 0, 1, 0, 0};
+        std::optional<uint32_t> transform_scroller;
         double width = 0, height = 0;
         double corner_radius = 0;
         uint32_t selected_id = 0;
@@ -810,6 +812,11 @@ private:
             if (kind == L"Scroller") {
                 node->snap_content = winrt::make_self<SnapCanvas>();
                 node->children = node->snap_content.as<controls::Canvas>();
+                // An explicitly sized content pane otherwise centers when it
+                // is smaller than the viewport, shifting native and GPU nodes
+                // away from the engine's authored content origin.
+                node->children.HorizontalAlignment(xaml::HorizontalAlignment::Left);
+                node->children.VerticalAlignment(xaml::VerticalAlignment::Top);
             } else node->children = controls::Canvas();
             if (kind == L"Frame") node->control = node->children;
             else {
@@ -951,6 +958,9 @@ private:
             node.mask_dirty |= !node.holes.empty() || bool(node.clip_path) ||
                 (node.kind == L"Scroller" && node.corner_radius > 0);
         }
+        if (patch.HasKey(L"transform_scroller"))
+            node.transform_scroller = present(patch, L"transform_scroller")
+                ? std::optional<uint32_t>(uint32_t(number(patch, L"transform_scroller"))) : std::nullopt;
         if (present(patch, L"transform")) {
             auto t = patch.GetNamedArray(L"transform");
             if (t.Size() != 6) throw std::invalid_argument("Native affine transform requires six values");
@@ -961,7 +971,7 @@ private:
                         std::to_string(node.id) + " transform[" + std::to_string(index) +
                         "] must be a finite number");
             }
-            node.world = {t.GetNumberAt(0), t.GetNumberAt(1), t.GetNumberAt(2), t.GetNumberAt(3), t.GetNumberAt(4), t.GetNumberAt(5)};
+            node.authored_transform = {t.GetNumberAt(0), t.GetNumberAt(1), t.GetNumberAt(2), t.GetNumberAt(3), t.GetNumberAt(4), t.GetNumberAt(5)};
             if (node.clip_path) node.mask_dirty = true;
         }
         if (present(patch, L"z_index")) controls::Canvas::SetZIndex(node.host, int(number(patch, L"z_index")));
@@ -1312,9 +1322,9 @@ private:
             }
             operation = "ancestor clip geometry";
             if (node.clip_path && node.width > 0 && node.height > 0) {
-                // FramePatch.clip_path is world-space; NativeMaskUpdate coverage
-                // is already local. Keep these two established contracts distinct.
-                auto inverse = relative(media::Matrix{1, 0, 0, 1, 0, 0}, node.world);
+                // Frame clip paths share the authored transform chart (world or
+                // Scroller content). Mask holes are already node-local.
+                auto inverse = relative(media::Matrix{1, 0, 0, 1, 0, 0}, node.authored_transform);
                 // Placement has hidden this collapsed plane. Keep the mask
                 // dirty so recovery rebuilds the world-space ancestor clip.
                 if (!inverse) return;
@@ -1680,6 +1690,22 @@ public:
                 else if (name.ends_with(L"Delete")) {
                     uint32_t id = uint32_t(pair.Value().GetNumber()); auto& node = require(id); detach(node); nodes_.erase(id);
                 } else throw std::invalid_argument("Unsupported Windows native message: " + winrt::to_string(name));
+            }
+            // Resolve all coordinate owners before placing any children. A
+            // retained Text/Frame can move with its Scroller without a patch.
+            for (auto& [id, node] : nodes_) {
+                auto m = node->authored_transform;
+                if (node->transform_scroller) {
+                    auto& owner = require(*node->transform_scroller);
+                    if (owner.kind != L"Scroller" || owner.transform_scroller)
+                        throw std::invalid_argument("Native transform owner must be a world-space Scroller");
+                    auto p = owner.authored_transform;
+                    m = {p.M11*m.M11+p.M21*m.M12, p.M12*m.M11+p.M22*m.M12,
+                         p.M11*m.M21+p.M21*m.M22, p.M12*m.M21+p.M22*m.M22,
+                         p.M11*m.OffsetX+p.M21*m.OffsetY+p.OffsetX,
+                         p.M12*m.OffsetX+p.M22*m.OffsetY+p.OffsetY};
+                }
+                node->world = m;
             }
             operation = "place node"; message_name = {};
             for (auto& [id, node] : nodes_) { node_id = id; placement(*node); }

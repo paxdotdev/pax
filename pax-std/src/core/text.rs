@@ -102,6 +102,7 @@ struct TextMeasurementState {
     next_generation: u64,
     requested_key: Option<TextMeasurementKey>,
     pending_generation: Option<u64>,
+    invalidation_revision: LocalProperty<u64>,
 }
 
 thread_local! {
@@ -181,6 +182,8 @@ impl TextMeasurementState {
         // reject any in-flight response measured with the old native metrics.
         self.requested_key = None;
         self.pending_generation = None;
+        self.invalidation_revision
+            .set(self.invalidation_revision.get().wrapping_add(1));
         true
     }
 }
@@ -314,7 +317,17 @@ impl InstanceNode for TextInstance {
             &deps,
             PartialEq::eq,
         );
-        let mut deps = vec![constraints.untyped()];
+        // OS metric changes must invalidate the content/measurement computation,
+        // not just the independent placement listener that consumes its cache.
+        let invalidation = self
+            .measurements
+            .borrow_mut()
+            .nodes
+            .entry(id)
+            .or_default()
+            .invalidation_revision
+            .clone();
+        let mut deps = vec![constraints.untyped(), invalidation.untyped()];
         expanded_node.with_properties_unwrapped(|p: &mut Text| {
             deps.extend([
                 p.text.untyped(),
@@ -927,7 +940,11 @@ const DEFAULT_FONT_URL: &str = "https://fonts.googleapis.com/css2?family=Roboto:
 // Resolve at the native-message boundary, not while compiling the manifest:
 // a cartridge baked on another OS must retain the same default-font meaning.
 fn platform_font_url<'a>(family: &str, url: &'a str, style: &FontStyle) -> &'a str {
-    if cfg!(any(target_os = "windows", target_os = "linux", target_os = "android")) {
+    if cfg!(any(
+        target_os = "windows",
+        target_os = "linux",
+        target_os = "android"
+    )) {
         native_default_font_url(family, url, style)
     } else {
         url

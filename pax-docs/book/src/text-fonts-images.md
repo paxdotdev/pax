@@ -317,6 +317,8 @@ screen DPI. The Windows host remeasures Text's omitted dimensions after a live
 system text-size change, even when its content and width have not changed.
 Autosized containers can then grow and move following content using the new
 measurement. Repeated Text elements keep independent measurements.
+Native metric notifications also invalidate cached text measurements; retaining
+text placement while its Scroller moves does not suppress live text-size updates.
 
 Increasing text size does not automatically enlarge authored Pax widths and
 heights. Leave a paragraph's height unspecified and use an autosized parent

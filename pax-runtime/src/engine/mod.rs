@@ -177,6 +177,12 @@ impl StartupReconciliationTiming {
                 preparations: geometry_after
                     .preparations
                     .saturating_sub(self.geometry_before.preparations),
+                local_preparations: geometry_after
+                    .local_preparations
+                    .saturating_sub(self.geometry_before.local_preparations),
+                surface_coverage_reuses: geometry_after
+                    .surface_coverage_reuses
+                    .saturating_sub(self.geometry_before.surface_coverage_reuses),
                 index_updates: geometry_after
                     .index_updates
                     .saturating_sub(self.geometry_before.index_updates),

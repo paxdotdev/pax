@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <map>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <stdexcept>
 #include <vector>
@@ -34,36 +35,55 @@ class NativeImages {
     static Action load(std::weak_ptr<Resource> weak) {
         auto cancellation = co_await winrt::get_cancellation_token();
         cancellation.enable_propagation();
+        auto owner_thread = GetCurrentThreadId();
+        char const* stage = "retain source";
         try {
             auto resource = weak.lock();
             if (!resource) co_return;
             auto source = resource->source;
             auto path = winrt::hstring(resource->file.native());
             resource.reset();
+            stage = "open file";
             auto file = co_await winrt::Windows::Storage::StorageFile::GetFileFromPathAsync(path);
+            stage = "open stream";
             auto stream = co_await file.OpenReadAsync();
+            stage = "encoded size";
             if (stream.Size() > 32 * 1024 * 1024)
                 throw std::runtime_error("Native image exceeds the 32 MiB encoded-asset budget");
             namespace imaging = winrt::Microsoft::UI::Xaml::Media::Imaging;
+            stage = "query image source";
             if (auto svg = source.try_as<imaging::SvgImageSource>()) {
+                stage = "set SVG source";
                 auto status = co_await svg.SetSourceAsync(stream);
                 if (status != imaging::SvgImageSourceLoadStatus::Success)
                     throw std::runtime_error("WinUI could not decode the native SVG image");
             } else {
+                stage = "create bitmap decoder";
                 auto decoder = co_await winrt::Windows::Graphics::Imaging::BitmapDecoder::CreateAsync(stream);
+                stage = "decoded dimensions";
                 uint64_t bytes = uint64_t(decoder.PixelWidth()) * decoder.PixelHeight() * 4;
                 if (!bytes || bytes > 32 * 1024 * 1024)
                     throw std::runtime_error("Native image exceeds the 32 MiB decoded-asset budget");
                 if (auto current = weak.lock()) current->decoded_bytes = bytes;
+                stage = "rewind stream";
                 stream.Seek(0);
+                stage = "set bitmap source";
                 co_await source.as<imaging::BitmapImage>().SetSourceAsync(stream);
             }
+            stage = "close stream";
             stream.Close();
             if (auto current = weak.lock()) current->ready = true;
         } catch (winrt::hresult_canceled const&) {
             // Cancellation accompanies retirement; it is not a live asset error.
         } catch (winrt::hresult_error const& error) {
-            if (auto current = weak.lock()) current->error = winrt::to_string(error.message());
+            if (auto current = weak.lock()) {
+                std::ostringstream detail;
+                detail << stage << ": HRESULT=0x" << std::hex << uint32_t(error.code().value)
+                    << std::dec << " owner_thread=" << owner_thread
+                    << " current_thread=" << GetCurrentThreadId() << ": "
+                    << winrt::to_string(error.message());
+                current->error = detail.str();
+            }
         } catch (std::exception const& error) {
             if (auto current = weak.lock()) current->error = error.what();
         }

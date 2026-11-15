@@ -2319,13 +2319,17 @@ impl RuntimeContext {
     /// A collapsed surface owner has no drawable area; its descendants receive a
     /// collapsed transform until the owner becomes invertible again.
     pub fn canvas_surface_transform_for_node(&self, node: &ExpandedNode) -> Affine {
+        // Paint listeners observe this property even on viewport canvases and
+        // during ownership changes. Consume it on the world-space fallback too:
+        // leaving it dirty suppresses subsequent motion invalidations.
+        let canvas_transform = Affine::from(node.canvas_transform_and_bounds.get().transform);
         if node.canvas_owner.get().is_some()
             && node.canvas_owner.get()
                 == self
                     .get_layer_scroller_owner(node.occlusion.get().render_layer_id)
                     .map(|id| id.to_u32())
         {
-            Affine::from(node.canvas_transform_and_bounds.get().transform)
+            canvas_transform
         } else {
             self.world_to_canvas_transform_for_node(node)
                 * Affine::from(node.presentation_transform_and_bounds.get().transform)

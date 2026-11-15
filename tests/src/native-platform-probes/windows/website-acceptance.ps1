@@ -1,7 +1,7 @@
 ﻿# Companion to check-native-scroll.ps1. Uses its owned input, lifecycle and logging
 # helpers; never sets application properties or substitutes content.
 function Invoke-WebsiteAcceptance {
- $report.websiteInteractionScope=if($WebsiteRouteOnly){'route'}elseif($WebsiteSourcesOnly){'sources-and-route'}elseif($WebsiteDemosOnly){'demos'}else{'full'};$report.websiteInteractionIssues=@();$report.websiteInteractionSteps=@();$report.websiteSourceTabs=@();$report.websiteSourceClicks=@();$report.websiteClickObservations=@();$report.websiteRevealSamples=@();$report.websiteSourceChromeHits=@();Save
+ $report.websiteInteractionScope=if($WebsiteHeaderOnly){'header'}elseif($WebsiteRouteOnly){'route'}elseif($WebsiteSourcesOnly){'sources-and-route'}elseif($WebsiteDemosOnly){'demos'}else{'full'};$report.websiteInteractionIssues=@();$report.websiteInteractionSteps=@();$report.websiteSourceTabs=@();$report.websiteSourceClicks=@();$report.websiteClickObservations=@();$report.websiteRevealSamples=@();$report.websiteSourceChromeHits=@();Save
  $sourceRows=Get-Content $WebsiteSourceManifest -Raw|ConvertFrom-Json
  $sourceTruth=@{};foreach($row in $sourceRows){
   if($sourceTruth.ContainsKey($row.label) -and $sourceTruth[$row.label].displaySha256Utf8 -cne $row.displaySha256Utf8){throw ('Conflicting frozen source identity: '+$row.label)}
@@ -277,6 +277,12 @@ function Invoke-WebsiteAcceptance {
  }
  function Mark([string]$name){$report.websiteInteractionSteps+=@{name=$name;utc=[DateTime]::UtcNow.ToString('o');sample=(Website-Sample $name)};Shot $name;Save}
 
+ if($WebsiteHeaderOnly){
+  . (Join-Path $PSScriptRoot 'website-header-acceptance.ps1')
+  Invoke-WebsiteHeaderAcceptance
+  return
+ }
+
  if(!$WebsiteSourcesOnly -and !$WebsiteRouteOnly){
  # The homepage now authors screenshot links; its live calculator is mounted
  # by /calculator/. Exercise that actual route before the unchanged keypad and
@@ -391,7 +397,7 @@ function Invoke-WebsiteAcceptance {
  Check 'Section inventory has six unique authored sections' ($drawerPlan.Count -eq 6 -and @($drawerPlan.id|Sort-Object -Unique).Count -eq 6) @($drawerPlan.id)
  $plannedOccurrences=@($drawerPlan|ForEach-Object{$_.sources}|ForEach-Object{$_.label+'|'+$_.displaySha256Utf8}|Sort-Object)
  $frozenOccurrences=@($sourceRows|ForEach-Object{$_.label+'|'+$_.displaySha256Utf8}|Sort-Object)
- Check 'Section inventory preserves all 98 frozen source occurrences' ($sectionManifest.expectedSourceOccurrences -eq 98 -and $frozenOccurrences.Count -eq 98 -and ($plannedOccurrences -join "`n") -ceq ($frozenOccurrences -join "`n")) @{expected=$frozenOccurrences.Count;actual=$plannedOccurrences.Count}
+ Check 'Section inventory preserves all 102 frozen source occurrences' ($sectionManifest.expectedSourceOccurrences -eq 102 -and $frozenOccurrences.Count -eq 102 -and ($plannedOccurrences -join "`n") -ceq ($frozenOccurrences -join "`n")) @{expected=$frozenOccurrences.Count;actual=$plannedOccurrences.Count}
  Check 'Source viewer matches current authored native controls' ($sectionManifest.sourceViewer.toggleName -ceq 'VIEW SOURCE' -and $sectionManifest.sourceViewer.toggleControlType -ceq 'Button' -and $sectionManifest.sourceViewer.closeName -ceq '×' -and $sectionManifest.sourceViewer.tabViewportHeight -eq 48 -and $sectionManifest.sourceViewer.tabHeight -eq 36) $sectionManifest.sourceViewer
  $report.websiteSourceTraversalProvenance=@{sectionManifestSha256=(Get-FileHash -LiteralPath $sectionPath -Algorithm SHA256).Hash.ToLowerInvariant();sourceManifestSha256=$sourceHash;sourceProvenance=$sectionManifest.sourceProvenance;expectedSectionCounts=@($drawerPlan|ForEach-Object{@($_.sources).Count})}
  # Source discovery below uses the website's wide layout, where every section
@@ -571,6 +577,26 @@ function Invoke-WebsiteAcceptance {
     Save;throw $originalFailure
    }
    $visited[$name]=$true
+   # Exact text alone cannot catch short documents centered in a tall viewport.
+   # Read the first visible glyph without scrolling or changing the selection.
+   $codeBounds=$codeScroll.Current.BoundingRectangle
+   $codePattern=$codeScroll.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
+   $outerBounds=Visible-Scroll-Bounds $outer
+   $topGeometry=@{viewport=$codeBounds.ToString();verticalPercent=$codePattern.Current.VerticalScrollPercent;horizontalPercent=$codePattern.Current.HorizontalScrollPercent}
+   $firstGlyph=[regex]::Match($content,'\S')
+   if($firstGlyph.Success -and $codePattern.Current.VerticalScrollPercent -le .05 -and $codePattern.Current.HorizontalScrollPercent -le .05 -and $codeBounds.Top -ge $outerBounds.Top+80*$scale -and $codeBounds.Top+42*$scale -lt $outerBounds.Bottom){
+    $range=$sourcePattern.DocumentRange.Clone()
+    [void]$range.MoveEndpointByUnit([System.Windows.Automation.Text.TextPatternRangeEndpoint]::Start,[System.Windows.Automation.Text.TextUnit]::Character,$firstGlyph.Index)
+    $range.MoveEndpointByRange([System.Windows.Automation.Text.TextPatternRangeEndpoint]::End,$range,[System.Windows.Automation.Text.TextPatternRangeEndpoint]::Start)
+    [void]$range.MoveEndpointByUnit([System.Windows.Automation.Text.TextPatternRangeEndpoint]::End,[System.Windows.Automation.Text.TextUnit]::Character,1)
+    $rectangles=$range.GetBoundingRectangles();$topGeometry.firstGlyphRectangles=$rectangles
+    $leadingLines=($content.Substring(0,$firstGlyph.Index) -split "`n").Count-1
+    $topGeometry.leadingLines=$leadingLines
+    $topGeometry.expectedMaximumInset=(42+20*$leadingLines)*$scale
+    $topGeometry.inset=if($rectangles.Count -gt 0 -and !$rectangles[0].IsEmpty){$rectangles[0].Top-$codeBounds.Top}else{$null}
+    $clickReceipt.topGeometry=$topGeometry;Save
+    Check 'Source first line retains authored top spacing' ($null -ne $topGeometry.inset -and $topGeometry.inset -ge 8*$scale -and $topGeometry.inset -le $topGeometry.expectedMaximumInset) @{label=$name;geometry=$topGeometry}
+   }else{$topGeometry.notObserved='First line clipped or source viewport scrolled';$clickReceipt.topGeometry=$topGeometry;Save}
    $report.websiteSourceTabs+=@{section=$section;tab=$tab;label=$name;sha256=$expected.displaySha256Utf8;utc=[DateTime]::UtcNow.ToString('o')};[void](Website-Sample 'source-tab');Save
   }
   Mark "source-section-$section"

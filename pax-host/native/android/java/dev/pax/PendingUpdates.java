@@ -52,9 +52,9 @@ final class PendingUpdates {
         Iterator<String> keys=source.keys();
         while(keys.hasNext()) {
             String key=keys.next();
-            // Null normally means an absent patch field. parent_frame alone
-            // uses explicit null to move a node back into the root container.
-            if(!source.isNull(key) || key.equals("parent_frame")) target.put(key,source.get(key));
+            // Parent and coordinate-owner fields use explicit null to return
+            // to root/world space; other nulls mean an absent patch field.
+            if(!source.isNull(key) || key.equals("parent_frame") || key.equals("transform_scroller")) target.put(key,source.get(key));
         }
     }
     private static int size(JSONObject value) {return value.toString().getBytes(StandardCharsets.UTF_8).length;}

@@ -227,6 +227,9 @@ Scroller surface, standard local geometry also retains hit bounds and native
 occlusion coverage across host-only movement. Pointer queries enter the current
 host chart; world-space geometry consumers resolve the current pose on demand.
 Internal clip edits, content edits, and resizing still repair affected records.
+Outside a scroller-owned canvas, including fixed navigation in an `Overlay`,
+moving a vector continues to invalidate its retained paint placement on every
+position change, including when it slides into or out of the viewport.
 External clipping is enforced at the native host boundary; escaping content,
 shared layers, and world-dependent custom primitives remain conservative.
 Container presentation and external overlaps can still require work. These optimizations are shared by

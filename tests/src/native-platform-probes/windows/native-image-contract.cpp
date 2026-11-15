@@ -272,6 +272,18 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             });
             image(3).ImageOpened([this](auto const&,auto const&){svg_open=true;});
             for(unsigned i=0;i<10;++i)burst.push_back(resources.acquire(assets.native_image(L"assets/burst-"+to_hstring(i)+L".png")));
+            // Start native operations, then change layout and retire consumers
+            // before the UI dispatcher can deliver their completion callbacks.
+            scene->poll_native_images();resources.poll();
+            update(LR"([{"NativeImageUpdate":{"id":1,"size_x":140,"size_y":80}},{"NativeImageUpdate":{"id":2,"size_x":80,"size_y":140}}])");
+            scene->resize(500,360,1);scene->root().UpdateLayout();
+            for(unsigned cycle=0;cycle<12;++cycle) {
+                update(LR"([{"NativeImageCreate":{"id":99,"render_layer_id":0}},{"NativeImageUpdate":{"id":99,"size_x":64,"size_y":32,"url":"assets/burst-0.png"}}])");
+                scene->poll_native_images();
+                update(LR"([{"NativeImageDelete":99}])");
+            }
+            update(LR"([{"NativeImageUpdate":{"id":1,"size_x":100,"size_y":100}},{"NativeImageUpdate":{"id":2,"size_x":100,"size_y":100}}])");
+            scene->resize(420,320,1);
             timer=winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread().CreateTimer();
             timer.Interval(std::chrono::milliseconds(100));timer.Tick([this](auto const&,auto const&){tick();});timer.Start();
         } catch(hresult_error const& error){record("startup",false,to_string(error.message()));finish(false);}

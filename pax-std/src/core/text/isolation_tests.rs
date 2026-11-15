@@ -316,3 +316,58 @@ fn spatial_entry_and_exit_publish_coordinate_mode_atomically() {
         .any(|p| p.transform_scroller == Some(Some(owner)) && p.transform.is_some()));
     f.assert_chart();
 }
+
+#[test]
+fn native_metric_changes_invalidate_cached_content_without_touching_siblings() {
+    let mut f = Fixture::new(2, Platform::Native);
+    let node = f.texts[0].clone();
+    node.get_common_properties().borrow().height.set(None);
+    let first = f
+        .settle()
+        .into_iter()
+        .find_map(|p| p.measure_generation)
+        .unwrap();
+    let id = node.id.to_u32();
+    {
+        let _graph = f.engine.runtime_context.property_graph.enter();
+        node.instance_node.borrow().handle_native_interrupt(
+            &node,
+            &pax_message::NativeInterrupt::TextMeasurementResponse(
+                pax_message::TextMeasurementResponseArgs {
+                    id,
+                    generation: first,
+                    width: 200.,
+                    height: 20.,
+                },
+            ),
+        );
+    }
+    f.settle();
+    let invalidate = |f: &Fixture, generation| {
+        let _graph = f.engine.runtime_context.property_graph.enter();
+        node.instance_node.borrow().handle_native_interrupt(
+            &node,
+            &pax_message::NativeInterrupt::TextMeasurementInvalidated(
+                pax_message::TextMeasurementInvalidatedArgs { id, generation },
+            ),
+        );
+    };
+    invalidate(&f, first);
+    let patches = f.settle();
+    assert_eq!(
+        patches.len(),
+        1,
+        "only the affected text should be remeasured"
+    );
+    let second = patches[0]
+        .measure_generation
+        .expect("fresh native measurement");
+    assert_ne!(second, first);
+    assert_eq!(patches[0].id, id);
+    assert!(patches[0].content.is_none() && patches[0].transform.is_none());
+    invalidate(&f, first);
+    assert!(
+        f.settle().is_empty(),
+        "stale metric notifications remain ignored"
+    );
+}

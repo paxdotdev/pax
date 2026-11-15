@@ -54,6 +54,9 @@ public final class HostTests extends Instrumentation {
             require(patch.getString("content").length()==20000 && patch.getDouble("opacity")==0.999,"Latest patch lost content/state");
             pending.add(message("TextUpdate",new JSONObject().put("id",7).put("parent_frame",JSONObject.NULL)));
             require(patch.isNull("parent_frame"),"Explicit root reparenting was lost");
+            pending.add(message("TextUpdate",new JSONObject().put("id",7).put("transform_scroller",3)));
+            pending.add(message("TextUpdate",new JSONObject().put("id",7).put("transform_scroller",JSONObject.NULL)));
+            require(patch.has("transform_scroller") && patch.isNull("transform_scroller"),"Explicit world coordinate handoff was lost");
             pending.observed("Text",7,new JSONObject().put("content","new user edit"));
             require(!patch.has("content") && pending.bytes()<150,"Old content survived newer native input");
             pending.add(message("TextUpdate",new JSONObject().put("id",7).put("content","APP TRANSFORM")));
