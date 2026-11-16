@@ -9,7 +9,7 @@ fn executable_in(directory: &Path, name: &str, suffix: &str) -> Option<PathBuf> 
 
 fn tool(variable: &str, name: &str) -> eyre::Result<PathBuf> {
     if let Some(path) = std::env::var_os(variable) {
-        return Ok(path.into());
+        return explicit_tool(variable, path.into());
     }
     if let Some(path) = std::env::var_os("PATH").and_then(|paths| {
         std::env::split_paths(&paths)
@@ -18,23 +18,13 @@ fn tool(variable: &str, name: &str) -> eyre::Result<PathBuf> {
         return Ok(path);
     }
     if name == "wasm-bindgen" {
-        if let Some(home) = std::env::var_os("HOME") {
-            for cache in [
-                "Library/Caches/.wasm-pack",
-                ".cache/.wasm-pack",
-                ".wasm-pack",
-            ] {
-                if let Ok(entries) = fs::read_dir(Path::new(&home).join(cache)) {
-                    let mut candidates: Vec<_> = entries
-                        .flatten()
-                        .filter_map(|e| executable_in(&e.path(), name, std::env::consts::EXE_SUFFIX))
-                        .collect();
-                    candidates.sort();
-                    if let Some(path) = candidates.pop() {
-                        return Ok(path);
-                    }
-                }
-            }
+        if let Some(path) = cached_wasm_pack_tool(
+            &wasm_pack_cache_roots(),
+            "wasm-bindgen-",
+            Path::new(&format!("{name}{}", std::env::consts::EXE_SUFFIX)),
+            variable,
+        )? {
+            return Ok(path);
         }
     }
     Err(eyre!("Loader builds require {name}; install the qualified tool or set {variable} to its executable. See the loading-screen documentation."))
@@ -66,6 +56,23 @@ pub(super) fn compile(
 ) -> eyre::Result<()> {
     let splitter = tool("PAX_WASM_SPLIT", "wasm-split-cli")?;
     let bindgen = tool("PAX_WASM_BINDGEN", "wasm-bindgen")?;
+    let version = Command::new(&bindgen)
+        .arg("--version")
+        .output()
+        .map_err(|err| {
+            eyre!(
+                "Failed to run selected wasm-bindgen at {}: {err}; check PAX_WASM_BINDGEN or PATH",
+                bindgen.display()
+            )
+        })?;
+    if !version.status.success() {
+        return Err(eyre!(
+            "Selected wasm-bindgen at {} failed --version: {}",
+            bindgen.display(),
+            String::from_utf8_lossy(&version.stderr)
+        ));
+    }
+    println!("{} 🛠️  Using {} ({}) with splitter {}. wasm-bindgen-cli must match the application's resolved wasm-bindgen dependency", *PAX_BADGE, bindgen.display(), String::from_utf8_lossy(&version.stdout).trim(), splitter.display());
     let mut cmd = Command::new("cargo");
     cmd.current_dir(&layout.cartridge_dir)
         .args(["build", "--lib", "--target", "wasm32-unknown-unknown"])

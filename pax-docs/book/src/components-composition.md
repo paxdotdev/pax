@@ -904,8 +904,21 @@ cargo install wasm-bindgen-cli --version 0.2.129 --locked
 pax-cli run --path my-app --target web --release
 ```
 
-`PAX_WASM_SPLIT` and `PAX_WASM_BINDGEN` can select explicit executables. Normal
-builds without a loader retain their existing packaging path. The bootstrap
+The version in the install command is an example; check your application's
+resolved version with `cargo tree -i wasm-bindgen` before choosing it.
+`PAX_WASM_SPLIT` and `PAX_WASM_BINDGEN` select explicit executable file paths;
+relative paths select files from the directory where you launch the CLI.
+Otherwise the CLI searches `PATH`. For `wasm-bindgen`, it also checks wasm-pack
+caches, including Windows' `LOCALAPPDATA`. Multiple cached executables require
+an explicit selection instead of guessing compatibility from their names.
+The build prints the selected bindgen path and version. A schema mismatch
+requires a `wasm-bindgen-cli` version matching the resolved Rust dependency.
+
+The optional Binaryen optimizer follows `PAX_WASM_OPT`, then `WASM_OPT`, then
+`PATH`, then wasm-pack caches. A missing explicitly selected file is an error;
+unset the variable to resume discovery. If Binaryen fails, the diagnostic names
+the selected executable; choose a compatible version with `PAX_WASM_OPT`.
+Normal builds without a loader retain their existing packaging path. The bootstrap
 must finish loading before a Pax component can render; progress covers the
 second Wasm download. Append `?pax_loader_ms=5000` to a preview URL to artificially
 slow that stream for inspection. Remove it to observe real loading behavior.

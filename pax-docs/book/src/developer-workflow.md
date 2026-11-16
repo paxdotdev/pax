@@ -11,6 +11,93 @@ Start with a project from [Getting Started](getting-started.md). Commands in
 this chapter run from that project's directory unless stated otherwise. The
 web examples need an open browser tab connected to the running application.
 
+## Develop Pax from a checkout
+
+For changes to Pax itself, use the CLI built from the same checkout as the
+application's Pax dependencies. The repository examples already use Cargo path
+dependencies. After installing the [workstation prerequisites](getting-started.md#prepare-your-workstation),
+run these commands from the monorepo root:
+
+```sh
+cargo build -p pax-cli
+cargo run -p pax-cli -- run --libdev --path examples/fixtures/fireworks --target web
+```
+
+Web interface builds need the Node version recorded in `.nvmrc`, npm, and Bash
+on `PATH`, including on Windows. `cargo run -p pax-cli -- ...` checks whether the
+local CLI needs rebuilding before invoking it. An independently installed
+`pax-cli` can contain a different compiler, example bundle, and native SDK.
+The repository does not check in `Cargo.lock`; generate the initial lockfile
+before using `--locked` for repeat builds. Retain that lockfile when comparing
+builds so dependency updates do not change the experiment.
+
+For `run` and `build`, `--libdev` enables contributor behavior such as rebuilding
+the checked-out web interface when its inputs change. It does **not** redirect
+an existing project's registry dependencies to the checkout. Prefer developing
+from the monorepo examples, whose Pax dependencies already point locally.
+Inspect `cargo metadata --format-version 1` from the application directory;
+the relevant Pax packages should have `source: null` and `manifest_path` values
+inside the intended checkout. Check transitive packages such as `pax-runtime`
+and `pax-std`, as well as `pax-kit`.
+
+Automatic libdev selection covers the checkout's `examples/` and `tests/src/`
+trees. Use explicit `--libdev` for the root `pax-website` and external projects;
+the website's existing Cargo paths select local Rust crates independently of
+whether its JavaScript interface is rebuilt.
+
+To create a separate application for testing the library, use the local CLI:
+
+```sh
+cargo run -p pax-cli -- create --libdev ../pax-libdev-example --example increment
+cargo run -p pax-cli -- run --libdev --path ../pax-libdev-example --target web
+```
+
+`create --libdev` writes absolute Pax dependency paths to the monorepo used to
+build that CLI, preserving dependency features, optionality, and aliases. A
+renamed dependency is identified by its Cargo `package` name. The checkout
+must still be present; a published CLI without it reports how to build the CLI
+locally. These paths follow local crate version changes and need updating if
+the checkout moves. Existing applications created by older CLIs are not
+rewritten: replace their Pax dependency versions with local `path` entries or
+create a new fixture, then check the transitive metadata. Creation without
+an explicit libdev request continues to use published dependencies.
+
+### Native contributor loop
+
+Install the [desktop prerequisites](targets-build-deploy.md#desktop-prerequisites).
+On Windows, use:
+
+```sh
+cargo run -p pax-cli -- run --libdev --path examples/fixtures/native-desktop-smoke --target windows
+cargo run -p pax-cli -- build --libdev --path examples/fixtures/native-desktop-smoke --target windows --release
+```
+
+On Linux, substitute `--target linux` and set `GSK_RENDERER=ngl` as described in
+the prerequisites. A Debug CLI session reloads `.pax` edits. For Rust changes,
+stop the session, rebuild, and restart. Test Release separately: it uses the
+baked program and disables template reload. Direct Cargo execution does not
+start the reload server; see the [desktop packaging instructions](targets-build-deploy.md#build-and-run-a-desktop-package).
+
+Rebuild the local CLI before validating native host changes. CLI builds copy
+platform sources and their shared ABI header from the checkout when that source
+directory is available. Ejected native interfaces use their sibling
+`interfaces/common/pax-desktop.h`; older custom interfaces without that file
+fall back to the CLI's embedded header. Cargo's native SDK build and the CLI's
+source-unavailable fallback use embedded sources, so reusing an older CLI is
+not a complete freshness check. Windows/Linux SDK restore and output directories
+are excluded from Cargo's native source tracking; editing an authored host
+source still rebuilds its embedded copy.
+`PAX_HOST_SDK_DIR` selects an already built SDK and
+skips its automatic native compilation; rebuild that SDK yourself after native
+source changes and match the target, architecture, and Debug/Release profile.
+Unset the override when checking the ordinary SDK build and extraction path.
+Keep the entire packaged output directory together when running the result.
+
+Build caches are local to Cargo workspaces and application `.pax` directories;
+the standalone website can add another Cargo target directory. Reuse them for
+iteration and measure disk availability before a cold Debug/Release matrix.
+Use bounded Cargo job counts on constrained machines rather than copying a
+different workstation's global Cargo configuration.
 
 ## Hot reloading
 
@@ -54,7 +141,8 @@ GPU surfaces, asset uploads/failures, and recent frame durations. Timing arrays
 contain p50, p95, p99, maximum milliseconds, and total sample count. Emulator
 timings help find regressions but do not establish physical-device performance.
 
-On Android, macOS, iOS, iPadOS and web, the debug default is `pax`. `all` is accepted as a migration
+On all supported targets, including experimental Windows, Linux, and Android,
+the debug default is `pax`. `all` is accepted as a migration
 alias for `pax`; it no longer replaces Rust code in the running process. No
 automatic restart is implied. Inline templates in `.rs` files also require a
 rebuild. A new component type or event handler may need compiled information

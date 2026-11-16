@@ -4,7 +4,11 @@ mod sdk;
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/sdk.rs");
-    println!("cargo:rerun-if-changed=native");
+    // Desktop inputs are tracked by include_bytes! in desktop_sources. Watching
+    // the whole native tree also treats local SDK restore/build caches as inputs.
+    for directory in ["native/macos", "native/ios", "native/common"] {
+        println!("cargo:rerun-if-changed={directory}");
+    }
     println!("cargo:rerun-if-env-changed=PAX_HOST_FRAMEWORK_DIR");
     println!("cargo:rerun-if-env-changed=PAX_HOST_SDK_DIR");
     let target = env::var("CARGO_CFG_TARGET_OS").unwrap();

@@ -69,7 +69,11 @@ pub fn extract(target: &str, destination: &Path) -> std::io::Result<()> {
         })?
         .join("common");
     fs::create_dir_all(&common)?;
-    fs::write(common.join("pax-desktop.h"), HEADER)
+    let header = common.join("pax-desktop.h");
+    if fs::read(&header).ok().as_deref() != Some(HEADER) {
+        fs::write(header, HEADER)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

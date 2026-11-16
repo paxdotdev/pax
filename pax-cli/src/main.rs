@@ -202,7 +202,7 @@ fn cli() -> App<'static, 'static> {
                     .takes_value(true)
                     .required(true)
                     .index(1))  // Positional arg, `pax create positional_arg_here`
-                .arg( ARG_LIBDEV.clone())
+                .arg( ARG_LIBDEV.clone().help("Create with Pax path dependencies pointing to the monorepo used to build this CLI."))
                 .arg( ARG_LIBDEV_MODE.clone())
                 .arg(Arg::with_name("example")
                     .long("example")
@@ -412,6 +412,7 @@ fn perform_nominal_action(
             pax_compiler::perform_create(&CreateContext {
                 path,
                 is_libdev_mode,
+                use_local_dependencies: matches!(parse_libdev_mode(args)?, LibdevMode::Enabled),
                 version,
                 example: args.value_of("example").map(str::to_string),
             })

@@ -234,8 +234,33 @@ fn wasm_pack_cache_roots() -> Vec<PathBuf> {
     roots
 }
 
-fn find_cached_wasm_pack_wasm_opt(name: &str) -> Option<PathBuf> {
-    for root in wasm_pack_cache_roots() {
+fn explicit_tool(variable: &str, path: PathBuf) -> eyre::Result<PathBuf> {
+    if !path.is_file() {
+        return Err(eyre!(
+            "{variable} selects {}, which is not a file; set it to the tool executable or unset it to use PATH/cache discovery",
+            path.display()
+        ));
+    }
+    // A bare filename passed to Command would search PATH instead of running
+    // the local file that we just checked.
+    path.canonicalize().map_err(|err| {
+        eyre!(
+            "Cannot resolve {variable} executable {}: {err}",
+            path.display()
+        )
+    })
+}
+
+// Cache directory names are not a compatibility policy. In particular,
+// lexicographic order does not identify the matching wasm-bindgen schema.
+fn cached_wasm_pack_tool(
+    roots: &[PathBuf],
+    prefix: &str,
+    relative_executable: &Path,
+    variable: &str,
+) -> eyre::Result<Option<PathBuf>> {
+    let mut candidates = Vec::new();
+    for root in roots {
         let Ok(entries) = fs::read_dir(root) else {
             continue;
         };
@@ -244,26 +269,42 @@ fn find_cached_wasm_pack_wasm_opt(name: &str) -> Option<PathBuf> {
             let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
                 continue;
             };
-            if !file_name.starts_with("wasm-opt-") {
+            if !file_name.starts_with(prefix) {
                 continue;
             }
-            let candidate = path.join("bin").join(name);
+            let candidate = path.join(relative_executable);
             if candidate.is_file() {
-                return Some(candidate);
+                candidates.push(candidate);
             }
         }
     }
-    None
+    candidates.sort();
+    candidates.dedup();
+    if candidates.len() > 1 {
+        return Err(eyre!(
+            "Multiple cached tool executables found: {}. Select the compatible executable with {variable}, or install it on PATH",
+            candidates.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")
+        ));
+    }
+    Ok(candidates.pop())
 }
 
-fn find_wasm_opt() -> Option<PathBuf> {
+fn find_wasm_opt() -> eyre::Result<Option<PathBuf>> {
     let name = wasm_opt_binary_name();
-    std::env::var_os("PAX_WASM_OPT")
-        .or_else(|| std::env::var_os("WASM_OPT"))
-        .map(PathBuf::from)
-        .filter(|candidate| candidate.is_file())
-        .or_else(|| find_executable_on_path(name))
-        .or_else(|| find_cached_wasm_pack_wasm_opt(name))
+    for variable in ["PAX_WASM_OPT", "WASM_OPT"] {
+        if let Some(path) = std::env::var_os(variable) {
+            return explicit_tool(variable, path.into()).map(Some);
+        }
+    }
+    if let Some(path) = find_executable_on_path(name) {
+        return Ok(Some(path));
+    }
+    cached_wasm_pack_tool(
+        &wasm_pack_cache_roots(),
+        "wasm-opt-",
+        &Path::new("bin").join(name),
+        "PAX_WASM_OPT",
+    )
 }
 
 fn optimize_web_wasm(
@@ -271,7 +312,7 @@ fn optimize_web_wasm(
     process_child_ids: &Arc<Mutex<Vec<u64>>>,
     preserve_wasm_names: bool,
 ) -> Result<(), eyre::Report> {
-    let Some(wasm_opt) = find_wasm_opt() else {
+    let Some(wasm_opt) = find_wasm_opt()? else {
         println!(
             "{} 🗜️  Skipping wasm-opt transfer-size candidate; install Binaryen or set PAX_WASM_OPT=/path/to/wasm-opt to enable it",
             *PAX_BADGE
@@ -314,7 +355,10 @@ fn optimize_web_wasm(
     let output = wait_with_output(process_child_ids, child);
     if !output.status.success() {
         let _ = fs::remove_file(&optimized_path);
-        return Err(eyre!("failed to optimize wasm with wasm-opt"));
+        return Err(eyre!(
+            "wasm-opt at {} failed with {}; see its output above. Select a compatible Binaryen executable with PAX_WASM_OPT",
+            wasm_opt.display(), output.status
+        ));
     }
 
     let optimized_bytes = fs::read(&optimized_path)?;
@@ -788,6 +832,80 @@ fn cleanup_web_dev_session(
 mod tests {
     use super::copy_web_reload_artifacts;
     use std::fs;
+
+    #[cfg(unix)]
+    #[test]
+    fn explicit_web_tool_filename_runs_the_selected_file() {
+        use std::io::Write;
+        use std::os::unix::fs::PermissionsExt;
+
+        let mut executable = tempfile::Builder::new()
+            .prefix(".pax-tool-")
+            .tempfile_in(std::env::current_dir().unwrap())
+            .unwrap();
+        executable
+            .write_all(b"#!/bin/sh\nprintf selected-local-tool")
+            .unwrap();
+        fs::set_permissions(executable.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        let executable = executable.into_temp_path();
+        let selected =
+            super::explicit_tool("PAX_WASM_BINDGEN", executable.file_name().unwrap().into())
+                .unwrap();
+        let empty_path = tempfile::tempdir().unwrap();
+        let output = std::process::Command::new(selected)
+            .env("PATH", empty_path.path())
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"selected-local-tool");
+    }
+
+    #[test]
+    fn web_tool_selection_rejects_invalid_overrides_and_ambiguous_caches() {
+        use super::{cached_wasm_pack_tool, explicit_tool};
+        use std::path::Path;
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        let error = explicit_tool("PAX_WASM_OPT", root.join("missing tool"))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("PAX_WASM_OPT") && error.contains("not a file"));
+        assert!(explicit_tool("PAX_WASM_BINDGEN", root.to_path_buf()).is_err());
+        for (prefix, relative) in [
+            ("wasm-bindgen-", "wasm-bindgen.exe"),
+            ("wasm-opt-", "bin/wasm-opt.exe"),
+        ] {
+            let cache = root.join(prefix);
+            fs::create_dir_all(&cache).unwrap();
+            let roots = [cache.clone()];
+            assert_eq!(
+                cached_wasm_pack_tool(&roots, prefix, Path::new(relative), "SELECT_TOOL").unwrap(),
+                None
+            );
+            let first = cache.join(format!("{prefix}0.2.99")).join(relative);
+            fs::create_dir_all(first.parent().unwrap()).unwrap();
+            fs::write(&first, []).unwrap();
+            assert_eq!(
+                explicit_tool("SELECT_TOOL", first.clone()).unwrap(),
+                first.canonicalize().unwrap()
+            );
+            assert_eq!(
+                cached_wasm_pack_tool(&roots, prefix, Path::new(relative), "SELECT_TOOL").unwrap(),
+                Some(first)
+            );
+            let second = cache.join(format!("{prefix}0.2.100")).join(relative);
+            fs::create_dir_all(second.parent().unwrap()).unwrap();
+            fs::write(&second, []).unwrap();
+            let error = cached_wasm_pack_tool(&roots, prefix, Path::new(relative), "SELECT_TOOL")
+                .unwrap_err()
+                .to_string();
+            assert!(
+                error.contains("SELECT_TOOL")
+                    && error.contains("0.2.99")
+                    && error.contains("0.2.100")
+            );
+        }
+    }
 
     #[test]
     fn selects_one_web_entrypoint_without_removing_dependency_exports() {

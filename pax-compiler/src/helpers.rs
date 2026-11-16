@@ -738,9 +738,20 @@ pub(crate) fn for_each_dependency_mut(
     Ok(())
 }
 
+pub(crate) fn dependency_package_name<'a>(
+    alias: &'a str,
+    dependency: &'a toml_edit::Item,
+) -> &'a str {
+    dependency
+        .as_table_like()
+        .and_then(|table| table.get("package"))
+        .and_then(|item| item.as_str())
+        .unwrap_or(alias)
+}
+
 pub fn update_pax_dependency_versions(doc: &mut Document, ctx_version: &str) {
     for_each_dependency_mut(doc, |name, dependency| {
-        if name.starts_with("pax-") {
+        if dependency_package_name(name, dependency).starts_with("pax-") {
             if let Some(table) = dependency.as_table_like_mut() {
                 table.insert("version", toml_edit::value(ctx_version));
             } else {

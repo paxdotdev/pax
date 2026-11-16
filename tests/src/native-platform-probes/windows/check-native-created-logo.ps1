@@ -56,6 +56,42 @@ $oldLog=$env:PAX_WINDOWS_HOST_LOG;$env:PAX_WINDOWS_HOST_LOG=Join-Path $run 'nati
 $oldDpi=[PaxControlsInput]::SetThreadDpiAwarenessContext([IntPtr]::new(-4))
 $report=[ordered]@{result='running';cleanRetirement=$false;startedUtc=[DateTime]::UtcNow.ToString('o');exe=$Executable;sha256=(Get-FileHash $Executable).Hash;checks=@();observations=@();screenshots=@();timingScope='host callbacks/submission/publication, not GPU/display/DCV frames';samples=@();scrolls=@()}
 function Save { $report|ConvertTo-Json -Depth 12|Set-Content (Join-Path $run 'result.json') -Encoding UTF8 }
+function Host-Log {
+ if(-not(Test-Path $env:PAX_WINDOWS_HOST_LOG)){return ''}
+ # A live reader must not deny writes to the host's best-effort diagnostic log.
+ $stream=[IO.File]::Open($env:PAX_WINDOWS_HOST_LOG,[IO.FileMode]::Open,[IO.FileAccess]::Read,([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+ $reader=New-Object IO.StreamReader($stream)
+ try{return $reader.ReadToEnd()}finally{$reader.Dispose();$stream.Dispose()}
+}
+# Require the final GPU close and its following drained marker; initialization
+# counters cannot establish successful retirement.
+function Get-ProbeRetirement([string]$text){
+ $receipt=@{passed=$false;closedGpuLine=$null;drainedLine=$null;closedGpu=$null;error=$null}
+ $lines=@($text -split "`r?`n");$gpuIndex=-1;$markerIndex=-1;$lastNonempty=-1;$payload=$null;$drained=$false
+ for($i=0;$i -lt $lines.Count;$i++){
+  if(!$lines[$i].Trim()){continue};$lastNonempty=$i
+  if($lines[$i] -match '^\d+\s+closed_gpu=(.*)$'){$gpuIndex=$i;$payload=$Matches[1]}
+  if($lines[$i] -match '^\d+\s+closed exports_drained=(true|false)\s*$'){$markerIndex=$i;$drained=$Matches[1] -ceq 'true'}
+ }
+ if($gpuIndex -lt 0){$receipt.error='Missing closed_gpu record';return $receipt}
+ $receipt.closedGpuLine=$gpuIndex+1;$receipt.drainedLine=if($markerIndex -ge 0){$markerIndex+1}else{$null}
+ if(!$drained -or $markerIndex -le $gpuIndex -or $markerIndex -ne $lastNonempty){$receipt.error='Missing or nonterminal successful drained marker after final GPU close';return $receipt}
+ try{
+  $gpu=$payload|ConvertFrom-Json;$receipt.closedGpu=$gpu
+  foreach($key in @('allocatedBytes','allocatedImages','pendingBytes','pendingFrames','published','retired')){
+   $property=$gpu.PSObject.Properties[$key]
+   if($null -eq $property){throw "Missing terminal GPU counter: $key"}
+   $value=$property.Value
+   if($value -isnot [ValueType] -or $value -is [bool] -or [decimal]$value -lt 0 -or [decimal]$value -ne [Math]::Floor([decimal]$value)){throw "Invalid terminal GPU counter: $key"}
+  }
+  $closing=$gpu.PSObject.Properties['closing']
+  if($null -eq $closing -or $closing.Value -isnot [bool] -or !$closing.Value){throw 'Terminal GPU record is not closing'}
+  foreach($key in @('allocatedBytes','allocatedImages','pendingBytes','pendingFrames')){if($gpu.$key -ne 0){throw "Terminal GPU resources remain: $key"}}
+  if($gpu.published -ne $gpu.retired){throw 'Terminal GPU published/retired counts differ'}
+  $receipt.passed=$true
+ }catch{$receipt.error=$_.Exception.Message}
+ return $receipt
+}
 function Check($name,[bool]$ok,$detail){$report.checks+=@{name=$name;passed=$ok;detail=$detail};Save;if(-not $ok){throw "$name failed: $($detail|ConvertTo-Json -Compress -Depth 5)"}}
 function Items($type){$c=New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty,$type);$a=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$c);for($i=0;$i -lt $a.Count;$i++){,$a.Item($i)}}
 function Settle {Start-Sleep -Milliseconds 350}
@@ -88,8 +124,8 @@ try {
  if($ExpectedHostSha256){Check 'Expected host file hash' ($hostHash -ieq $ExpectedHostSha256) $hostHash}
  if($ExpectedExecutableSha256){Check 'Expected executable file hash' ($report.sha256 -ieq $ExpectedExecutableSha256) $report.sha256}
  $process=Start-Process $Executable -WorkingDirectory $(if($WorkingDirectory){$WorkingDirectory}else{Split-Path $Executable}) -PassThru -RedirectStandardOutput (Join-Path $run 'stdout.log') -RedirectStandardError (Join-Path $run 'stderr.log');$handle=$process.Handle;$report.pid=$process.Id
- $until=[DateTime]::UtcNow.AddSeconds(60);do{Start-Sleep -Milliseconds 200;$process.Refresh();if($process.HasExited){throw 'App exited before first frame'}}while(($process.MainWindowHandle -eq [IntPtr]::Zero -or -not(Test-Path $env:PAX_WINDOWS_HOST_LOG) -or -not([IO.File]::ReadAllText($env:PAX_WINDOWS_HOST_LOG).Contains('first_frame_published'))) -and [DateTime]::UtcNow -lt $until)
- Check 'Actual Pax runtime first frame' ([IO.File]::ReadAllText($env:PAX_WINDOWS_HOST_LOG).Contains('first_frame_published')) $process.MainWindowHandle.ToInt64()
+ $until=[DateTime]::UtcNow.AddSeconds(60);do{Start-Sleep -Milliseconds 200;$process.Refresh();if($process.HasExited){throw 'App exited before first frame'}}while(($process.MainWindowHandle -eq [IntPtr]::Zero -or -not((Host-Log).Contains('first_frame_published'))) -and [DateTime]::UtcNow -lt $until)
+ Check 'Actual Pax runtime first frame' ((Host-Log).Contains('first_frame_published')) $process.MainWindowHandle.ToInt64()
  $report.loadedExecutablePath=$process.MainModule.FileName;$report.loadedExecutableSha256=(Get-FileHash $report.loadedExecutablePath).Hash
  Check 'Expected executable actually running' ($report.loadedExecutablePath -ieq $Executable -and $report.loadedExecutableSha256 -ieq $report.sha256) @{path=$report.loadedExecutablePath;sha256=$report.loadedExecutableSha256}
  $cartridgeName=[IO.Path]::GetFileNameWithoutExtension($Executable).Replace('-','_')+'.dll'
@@ -109,7 +145,7 @@ try {
  $replay=@(Items ([System.Windows.Automation.ControlType]::Text)|Where-Object{$_.Current.Name -ceq 'Replay'});Check 'Scaffold Replay text is visible' ($replay.Count -eq 1) $replay.Count
  $font=$replay[0].GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern).DocumentRange.GetAttributeValue([System.Windows.Automation.TextPattern]::FontNameAttribute)
  Check 'Scaffold reports bundled default Roboto style' (($font -split '#')[-1] -ceq 'Roboto') $font
- $light=Pixel 5 5;Check 'Initial light background' (@($light|Where-Object{[Math]::Abs($_-255) -gt 2}).Count -eq 0) $light;Shot 'initial'
+ $dark=Pixel 5 5;Check 'Initial dark background' ([Math]::Abs($dark[0]-17) -le 2 -and [Math]::Abs($dark[1]-17) -le 2 -and [Math]::Abs($dark[2]-16) -le 2) $dark;Shot 'initial'
  $slider.SetFocus();Tap 0x25
  Check 'Native slider arrow scrubs one authored step' ([Math]::Abs($range.Current.Value-0.999) -lt 0.0001) $range.Current.Value
  $bounds=$slider.Current.BoundingRectangle;$x=[int]($bounds.X+$bounds.Width-12*$scale);$y=[int]($bounds.Y+$bounds.Height/2)
@@ -119,13 +155,17 @@ try {
  Start-Sleep -Milliseconds 450;Check 'Scrubbing cancels the running transition' ([Math]::Abs($range.Current.Value-$scrub) -lt 0.0001) $range.Current.Value
  Click-Item $replay[0];$restarted=$range.Current.Value;Check 'Replay starts a new animation' ($restarted -lt 0.95) $restarted
  Start-Sleep -Seconds 2;Check 'Replay animation reaches completion' ([Math]::Abs($range.Current.Value-1) -lt 0.0001) $range.Current.Value
- Button 'Use dark background';$dark=Pixel 5 5;Check 'Native background button updates rendered canvas' (@($dark|Where-Object{[Math]::Abs($_-17) -gt 2}).Count -eq 0) $dark
- Check 'Background binding updates native button label' (@(Items ([System.Windows.Automation.ControlType]::Button)|Where-Object{$_.Current.Name -ceq 'Use light background'}).Count -eq 1) 'Use light background';Shot 'dark'
- Button 'Use light background';$restored=Pixel 5 5;Check 'Background restores correctly' (@($restored|Where-Object{[Math]::Abs($_-255) -gt 2}).Count -eq 0) $restored
+ Button 'Use light background';$light=Pixel 5 5;Check 'Native background button updates rendered canvas' ([Math]::Abs($light[0]-232) -le 2 -and [Math]::Abs($light[1]-234) -le 2 -and [Math]::Abs($light[2]-230) -le 2) $light
+ Check 'Background binding updates native button label' (@(Items ([System.Windows.Automation.ControlType]::Button)|Where-Object{$_.Current.Name -ceq 'Use dark background'}).Count -eq 1) 'Use dark background';Shot 'light'
+ Button 'Use dark background';$restored=Pixel 5 5;Check 'Background restores correctly' ([Math]::Abs($restored[0]-17) -le 2 -and [Math]::Abs($restored[1]-17) -le 2 -and [Math]::Abs($restored[2]-16) -le 2) $restored
+ Button 'Disable radiance'
+ Check 'Radiance binding updates native button label' (@(Items ([System.Windows.Automation.ControlType]::Button)|Where-Object{$_.Current.Name -ceq 'Enable radiance'}).Count -eq 1) 'Enable radiance'
+ Button 'Enable radiance'
+ Check 'Radiance binding restores native button label' (@(Items ([System.Windows.Automation.ControlType]::Button)|Where-Object{$_.Current.Name -ceq 'Disable radiance'}).Count -eq 1) 'Disable radiance'
  $report.result='passed'
 }catch{$report.result='failed';$report.error=$_.ToString();throw}finally{
  if($process -and -not $process.HasExited){[void]$process.CloseMainWindow();$closed=$process.WaitForExit(15000);$report.close=@{graceful=$closed;exitCode=if($closed){$process.ExitCode}else{$null}};if(!$closed){$process.Kill();$report.result='failed'}elseif($process.ExitCode -ne 0){$report.result='failed'}}
- if(Test-Path $env:PAX_WINDOWS_HOST_LOG){$tail=[IO.File]::ReadAllText($env:PAX_WINDOWS_HOST_LOG);$report.cleanRetirement=$tail.Contains('closed exports_drained=true') -and $tail.Contains('"allocatedBytes":0')}
+ if(Test-Path $env:PAX_WINDOWS_HOST_LOG){$report.retirement=Get-ProbeRetirement (Host-Log);$report.cleanRetirement=$report.retirement.passed}
  if(!$report.cleanRetirement){$report.result='failed'};$report.finishedUtc=[DateTime]::UtcNow.ToString('o');Save;$env:PAX_WINDOWS_HOST_LOG=$oldLog;[void][PaxControlsInput]::SetThreadDpiAwarenessContext($oldDpi)
 }
 if($report.result -ne 'passed'){throw $report.error}

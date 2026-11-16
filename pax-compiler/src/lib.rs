@@ -831,21 +831,19 @@ fn copy_interface_files_for_target(ctx: &RunContext, pax_dir: &PathBuf) {
 
     if let Some(custom_interface) = custom_interface {
         copy_interface_files(&custom_interface, &interface_path, &ctx.target);
+        if has_desktop_header(&ctx.target) {
+            let header = custom_interface
+                .parent()
+                .unwrap()
+                .join("common/pax-desktop.h");
+            copy_desktop_header(
+                header.is_file().then_some(header.as_path()),
+                &interface_path,
+            )
+            .expect("copy custom desktop ABI header");
+        }
     } else {
         copy_default_interface_files(&interface_path, ctx);
-    }
-
-    if matches!(
-        ctx.target,
-        RunTarget::Windows | RunTarget::Linux | RunTarget::Android
-    ) {
-        let common = pax_dir.join(INTERFACE_DIR_NAME).join("common");
-        fs::create_dir_all(&common).expect("create native common directory");
-        fs::write(
-            common.join("pax-desktop.h"),
-            pax_host::sources::DESKTOP_HEADER,
-        )
-        .expect("copy desktop ABI header");
     }
 
     // Copy common files for macOS and iOS builds
@@ -856,6 +854,29 @@ fn copy_interface_files_for_target(ctx: &RunContext, pax_dir: &PathBuf) {
         let common_dest = pax_dir.join(INTERFACE_DIR_NAME).join("common");
         copy_common_swift_files(ctx, &common_dest);
     }
+}
+
+fn has_desktop_header(target: &RunTarget) -> bool {
+    matches!(
+        target,
+        RunTarget::Windows | RunTarget::Linux | RunTarget::Android
+    )
+}
+
+fn copy_desktop_header(source: Option<&Path>, interface: &Path) -> io::Result<()> {
+    // Keep the header paired with the selected host sources. Older custom
+    // interfaces without an ejected header retain the embedded-header fallback.
+    let bytes = match source {
+        Some(path) => fs::read(path)?,
+        None => pax_host::sources::DESKTOP_HEADER.to_vec(),
+    };
+    let common = interface.parent().unwrap().join("common");
+    fs::create_dir_all(&common)?;
+    let destination = common.join("pax-desktop.h");
+    if fs::read(&destination).ok().as_deref() != Some(bytes.as_slice()) {
+        fs::write(destination, bytes)?;
+    }
+    Ok(())
 }
 
 fn copy_interface_files(src: &Path, dest: &Path, target: &RunTarget) {
@@ -884,6 +905,13 @@ fn copy_default_interface_files(interface_path: &Path, ctx: &RunContext) {
 
     if ctx.is_libdev_mode || interface_src.exists() {
         copy_interface_files(&interface_src, interface_path, &ctx.target);
+        if has_desktop_header(&ctx.target) {
+            copy_desktop_header(
+                Some(&interface_src.parent().unwrap().join("common/pax-desktop.h")),
+                interface_path,
+            )
+            .expect("copy checked-out desktop ABI header");
+        }
     } else {
         // File src is include_dir — recursively extract files from include_dir into full_path
         match ctx.target {
@@ -1879,6 +1907,7 @@ mod tests {
         perform_create(&CreateContext {
             path: project.to_string_lossy().to_string(),
             is_libdev_mode: false,
+            use_local_dependencies: false,
             version: env!("CARGO_PKG_VERSION").to_string(),
             example: None,
         })
@@ -1940,6 +1969,7 @@ mod tests {
         perform_create(&CreateContext {
             path: override_project.to_string_lossy().to_string(),
             is_libdev_mode: false,
+            use_local_dependencies: false,
             version: "9.8.7".to_string(),
             example: Some("increment".to_string()),
         })
@@ -1971,10 +2001,32 @@ mod tests {
             .iter()
             .any(|bin| bin["name"].as_str() == Some("counter-app")));
 
+        let auto_project = dir.path().join("auto-app");
+        perform_create(&CreateContext {
+            path: auto_project.to_string_lossy().to_string(),
+            is_libdev_mode: true,
+            use_local_dependencies: false,
+            version: "9.8.7".to_string(),
+            example: Some("increment".to_string()),
+        })
+        .unwrap();
+        let auto_manifest = fs::read_to_string(auto_project.join("Cargo.toml"))
+            .unwrap()
+            .parse::<toml_edit::Document>()
+            .unwrap();
+        assert_eq!(
+            auto_manifest["dependencies"]["pax-kit"]["version"].as_str(),
+            Some("9.8.7")
+        );
+        assert!(auto_manifest["dependencies"]["pax-kit"]
+            .get("path")
+            .is_none());
+
         let libdev_project = dir.path().join("libdev-app");
         perform_create(&CreateContext {
             path: libdev_project.to_string_lossy().to_string(),
             is_libdev_mode: true,
+            use_local_dependencies: true,
             version: "9.8.7".to_string(),
             example: Some("ink-and-light".to_string()),
         })
@@ -1991,14 +2043,46 @@ mod tests {
             .parse::<toml_edit::Document>()
             .unwrap();
         assert_created_debug_profile(&libdev_manifest, "libdev-app", "ink-and-light");
-        assert!(libdev_manifest["dependencies"]
-            .as_table()
-            .unwrap()
-            .iter()
-            .all(|(_, dependency)| dependency
-                .as_inline_table()
-                .map(|table| !table.contains_key("path"))
-                .unwrap_or(true)));
+        let kit = &libdev_manifest["dependencies"]["pax-kit"];
+        assert_eq!(
+            Path::new(kit["path"].as_str().unwrap()),
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .unwrap()
+                .canonicalize()
+                .unwrap()
+                .join("pax-kit")
+        );
+        assert!(kit.get("version").is_none());
+    }
+
+    #[test]
+    fn native_custom_interfaces_use_their_header_and_preserve_legacy_fallback() {
+        for target in [RunTarget::Windows, RunTarget::Linux, RunTarget::Android] {
+            let dir = tempfile::tempdir().unwrap();
+            let mut ctx = release_context(false);
+            ctx.target = target;
+            ctx.project_path = dir.path().to_path_buf();
+            let interface = dir
+                .path()
+                .join("interfaces")
+                .join(build_interface_dir_name(&ctx.target));
+            fs::create_dir_all(&interface).unwrap();
+            fs::write(interface.join("host-source"), "custom host").unwrap();
+            let common = dir.path().join("interfaces/common");
+            fs::create_dir_all(&common).unwrap();
+            fs::write(common.join("pax-desktop.h"), "custom ABI").unwrap();
+            let pax_dir = dir.path().join(".pax");
+            copy_interface_files_for_target(&ctx, &pax_dir);
+            let copied_header = pax_dir.join("interface/common/pax-desktop.h");
+            assert_eq!(fs::read(&copied_header).unwrap(), b"custom ABI");
+            fs::remove_file(common.join("pax-desktop.h")).unwrap();
+            copy_interface_files_for_target(&ctx, &pax_dir);
+            assert_eq!(
+                fs::read(&copied_header).unwrap(),
+                pax_host::sources::DESKTOP_HEADER
+            );
+        }
     }
 
     #[test]
@@ -2008,6 +2092,7 @@ mod tests {
         let error = perform_create(&CreateContext {
             path: project.to_string_lossy().to_string(),
             is_libdev_mode: false,
+            use_local_dependencies: false,
             version: env!("CARGO_PKG_VERSION").to_string(),
             example: Some("missing".to_string()),
         })
@@ -2112,11 +2197,78 @@ codegen-units = 32
 
     #[test]
     fn non_pax_path_dependencies_are_rejected() {
-        let mut doc = "[dependencies]\nhelper = { version = \"1\", path = \"../helper\" }\n"
+        for dependency in [
+            "helper = { version = \"1\", path = \"../helper\" }",
+            "pax-helper = { package = \"helper\", version = \"1\", path = \"../helper\" }",
+        ] {
+            let mut doc = format!("[dependencies]\n{dependency}\n")
+                .parse::<toml_edit::Document>()
+                .unwrap();
+            let error = sanitize_created_project_dependencies(&mut doc).unwrap_err();
+            assert!(error.contains("helper"));
+        }
+    }
+
+    #[test]
+    fn libdev_creation_requires_a_checkout_and_all_selected_local_packages() {
+        let empty = tempfile::tempdir().unwrap();
+        let error = libdev_workspace_root(&empty.path().join("pax-compiler")).unwrap_err();
+        assert!(error.contains("create --libdev requires the Pax monorepo"));
+        assert!(error.contains("cargo run -p pax-cli"));
+        let root = libdev_workspace_root(Path::new(env!("CARGO_MANIFEST_DIR"))).unwrap();
+        let mut doc = "[dependencies]\npax-missing-fixture = \"1\"\n"
             .parse::<toml_edit::Document>()
             .unwrap();
-        let error = sanitize_created_project_dependencies(&mut doc).unwrap_err();
-        assert!(error.contains("helper"));
+        let error = bind_created_project_to_checkout(&mut doc, &root).unwrap_err();
+        assert!(error.contains("pax-missing-fixture"));
+        assert!(error.contains("unavailable"));
+    }
+
+    #[test]
+    fn libdev_creation_binds_all_dependency_sections_and_preserves_options() {
+        let root = libdev_workspace_root(Path::new(env!("CARGO_MANIFEST_DIR"))).unwrap();
+        let mut doc = r#"
+[dependencies]
+pax-kit = "9.8.7"
+serde = { version = "1", features = ["derive"] }
+pax-json = { package = "serde_json", version = "1" }
+[dev-dependencies]
+pax-runtime = { version = "9.8.7", default-features = false }
+[target.'cfg(windows)'.build-dependencies]
+ui = { package = "pax-kit", version = "9.8.7", path = "../pax-kit", features = ["host"], optional = true }
+"#
+        .parse::<toml_edit::Document>()
+        .unwrap();
+        // Exercise creation's complete dependency preparation, including the
+        // sanitization that runs before local path binding.
+        update_pax_dependency_versions(&mut doc, "0.0.1");
+        assert_eq!(
+            doc["dependencies"]["pax-json"]["version"].as_str(),
+            Some("1")
+        );
+        assert_eq!(
+            doc["target"]["cfg(windows)"]["build-dependencies"]["ui"]["version"].as_str(),
+            Some("0.0.1")
+        );
+        sanitize_created_project_dependencies(&mut doc).unwrap();
+        bind_created_project_to_checkout(&mut doc, &root).unwrap();
+        // Reparse the serialized form: Windows paths and spaces must survive TOML.
+        let doc = doc.to_string().parse::<toml_edit::Document>().unwrap();
+        assert_eq!(
+            doc["dependencies"]["pax-kit"]["path"].as_str(),
+            root.join("pax-kit").to_str()
+        );
+        assert_eq!(
+            doc["dev-dependencies"]["pax-runtime"]["default-features"].as_bool(),
+            Some(false)
+        );
+        let ui = &doc["target"]["cfg(windows)"]["build-dependencies"]["ui"];
+        assert_eq!(ui["package"].as_str(), Some("pax-kit"));
+        assert_eq!(ui["features"][0].as_str(), Some("host"));
+        assert_eq!(ui["optional"].as_bool(), Some(true));
+        assert_eq!(ui["path"].as_str(), root.join("pax-kit").to_str());
+        assert!(ui.get("version").is_none());
+        assert_eq!(doc["dependencies"]["serde"]["version"].as_str(), Some("1"));
     }
 
     #[test]
@@ -2332,19 +2484,14 @@ fn eject_interface_files(ctx: &RunContext, pax_dir: &PathBuf) -> io::Result<()> 
     let src_path = get_libdev_interface_path(ctx);
     if ctx.is_libdev_mode || src_path.exists() {
         copy_interface_files(&src_path, &target_custom_interface_dir, &ctx.target);
+        if has_desktop_header(&ctx.target) {
+            copy_desktop_header(
+                Some(&src_path.parent().unwrap().join("common/pax-desktop.h")),
+                &target_custom_interface_dir,
+            )?;
+        }
     } else {
         extract_interface_template(ctx, &target_custom_interface_dir)?;
-    }
-    if matches!(
-        ctx.target,
-        RunTarget::Windows | RunTarget::Linux | RunTarget::Android
-    ) {
-        let common = custom_interfaces_dir.join("common");
-        fs::create_dir_all(&common)?;
-        fs::write(
-            common.join("pax-desktop.h"),
-            pax_host::sources::DESKTOP_HEADER,
-        )?;
     }
 
     println!(
@@ -2401,6 +2548,9 @@ pub fn perform_clean(path: &str) {
 pub struct CreateContext {
     pub path: String,
     pub is_libdev_mode: bool,
+    /// Bind Pax dependencies to this CLI's checkout only on an explicit request.
+    /// Automatic libdev selection continues to affect scaffolding alone.
+    pub use_local_dependencies: bool,
     pub version: String,
     pub example: Option<String>,
 }
@@ -2415,6 +2565,13 @@ pub fn perform_create(ctx: &CreateContext) -> Result<(), String> {
         ));
     }
     let selected = bundled_examples::selected_example_name(ctx.example.as_deref())?;
+    let libdev_root = if ctx.use_local_dependencies {
+        Some(libdev_workspace_root(Path::new(env!(
+            "CARGO_MANIFEST_DIR"
+        )))?)
+    } else {
+        None
+    };
     let parent = full_path
         .parent()
         .filter(|path| !path.as_os_str().is_empty())
@@ -2442,6 +2599,9 @@ pub fn perform_create(ctx: &CreateContext) -> Result<(), String> {
 
     update_pax_dependency_versions(&mut doc, &ctx.version);
     sanitize_created_project_dependencies(&mut doc)?;
+    if let Some(root) = &libdev_root {
+        bind_created_project_to_checkout(&mut doc, root)?;
+    }
     rename_created_project_profile_overrides(&mut doc, &crate_name)?;
     rename_created_project_launcher(&mut doc, &crate_name);
 
@@ -2485,12 +2645,20 @@ pub fn perform_create(ctx: &CreateContext) -> Result<(), String> {
         )
     })?;
 
+    let libdev_arg = if ctx.use_local_dependencies {
+        " --libdev"
+    } else {
+        ""
+    };
     println!(
-        "\nCreated `{}` from bundled example `{}`.\nTo run:\n  `cd {}`\n  `pax-cli run --target=web`",
+        "\nCreated `{}` from bundled example `{}`.\nTo run:\n  `cd {}`\n  `pax-cli run{libdev_arg} --target=web`",
         crate_name,
         selected,
         full_path.to_str().unwrap(),
     );
+    if ctx.use_local_dependencies {
+        println!("Use this same checkout-built CLI for subsequent commands.");
+    }
     Ok(())
 }
 
@@ -2568,14 +2736,99 @@ fn rename_created_project_profile_overrides(
 
 fn sanitize_created_project_dependencies(doc: &mut toml_edit::Document) -> Result<(), String> {
     helpers::for_each_dependency_mut(doc, |name, dependency| {
+        let is_pax = helpers::dependency_package_name(name, dependency).starts_with("pax-");
         if let Some(table) = dependency.as_table_like_mut() {
-            if table.contains_key("path") && !name.starts_with("pax-") {
+            if table.contains_key("path") && !is_pax {
                 return Err(format!(
                     "Bundled example dependency `{name}` uses a monorepo-relative path"
                 ));
             }
             table.remove("path");
         }
+        Ok(())
+    })
+}
+
+fn libdev_workspace_root(compiler_directory: &Path) -> Result<PathBuf, String> {
+    let root = compiler_directory
+        .parent()
+        .and_then(|path| path.canonicalize().ok());
+    let valid = root.as_ref().is_some_and(|root| {
+        fs::read_to_string(root.join("Cargo.toml"))
+            .ok()
+            .and_then(|source| source.parse::<toml_edit::Document>().ok())
+            .is_some_and(|doc| doc.get("workspace").is_some())
+            && [
+                "pax-cli",
+                "pax-compiler",
+                "pax-kit",
+                "pax-runtime",
+                "pax-std",
+            ]
+            .iter()
+            .all(|name| root.join(name).join("Cargo.toml").is_file())
+    });
+    if !valid {
+        return Err(format!(
+            "create --libdev requires the Pax monorepo used to build this CLI at {}. \
+             Clone the monorepo and run `cargo run -p pax-cli -- create --libdev <path>` \
+             from its root, or omit --libdev to use published dependencies.",
+            compiler_directory.display()
+        ));
+    }
+    Ok(root.unwrap())
+}
+
+fn bind_created_project_to_checkout(
+    doc: &mut toml_edit::Document,
+    root: &Path,
+) -> Result<(), String> {
+    helpers::for_each_dependency_mut(doc, |alias, dependency| {
+        let package = helpers::dependency_package_name(alias, dependency).to_owned();
+        if !package.starts_with("pax-") {
+            return Ok(());
+        }
+        let directory = root.join(&package);
+        let source = fs::read_to_string(directory.join("Cargo.toml")).map_err(|err| {
+            format!(
+                "Local libdev dependency `{package}` is unavailable at {}: {err}",
+                directory.display()
+            )
+        })?;
+        let local = source
+            .parse::<toml_edit::Document>()
+            .map_err(|err| format!("Invalid local libdev dependency `{package}`: {err}"))?;
+        if local
+            .get("package")
+            .and_then(|item| item.get("name"))
+            .and_then(|item| item.as_str())
+            != Some(package.as_str())
+        {
+            return Err(format!(
+                "Expected local dependency `{package}` at {}",
+                directory.display()
+            ));
+        }
+        let path = directory.to_str().ok_or_else(|| {
+            format!(
+                "Local libdev dependency path is not UTF-8: {}",
+                directory.display()
+            )
+        })?;
+        if dependency.as_str().is_some() {
+            *dependency = toml_edit::Item::Value(toml_edit::Value::InlineTable(
+                toml_edit::InlineTable::new(),
+            ));
+        }
+        let table = dependency
+            .as_table_like_mut()
+            .ok_or_else(|| format!("Unsupported dependency declaration for `{alias}`"))?;
+        // Local development follows this checkout's version as it changes;
+        // retain features, optionality and renamed-package metadata.
+        for key in ["version", "git", "branch", "tag", "rev", "registry"] {
+            table.remove(key);
+        }
+        table.insert("path", toml_edit::value(path));
         Ok(())
     })
 }
