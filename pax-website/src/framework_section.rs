@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 
-use crate::{FramedStudy, SiteTheme};
+use crate::{CalculatorPreview, FramedStudy, SiteTheme};
 use led_oscilloscope::LedOscilloscope;
 use pax_kit::*;
 
@@ -11,6 +11,7 @@ pub struct FrameworkSection {
     pub _height_bound: Property<bool>,
     pub compact: Property<bool>,
     pub scope_height: Property<f64>,
+    pub calculator_height: Property<f64>,
     pub scene_progress: Property<f64>,
 }
 

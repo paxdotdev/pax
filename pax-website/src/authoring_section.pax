@@ -3,25 +3,17 @@
     <Stacker id=authoring_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=48px>
         <Stacker width={self.compact ? 100% : 82%} autosize=true gutter=24px>
             ///#h2
-            <Text class="editorial_title" width=100%>Fluent in UI</Text>
-            <Text class="editorial_lead" width=100%>Pax is a declarative UI language that combines HTML-like markup with spreadsheet-like expressions.</Text>
-            <Text class="editorial_body" width=100%>Pax is designed to make user interface creation powerful, expressive, and fun.</Text>
+            <Text class="editorial_title" width=100%>A declarative language for interactive graphics</Text>
+            <Text class="editorial_lead" width=100%>Pax combines HTML-like markup with spreadsheet-like expressions—a powerful, expressive, and fun way to build user interfaces.</Text>
         </Stacker>
         ///#ignore
         <SharedDefinitionDemo width=100% height={self.compact ? 610px : 330px} compact={self.compact}/>
-        <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter={self.compact ? 32px : 6%}
-            direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
-            sizes={self.compact ? [] : [Some(60%), None]}>
-            <Stacker width=100% autosize=true gutter=24px>
-                ///#h3
-                <Text class="editorial_subtitle" width=100%>Not a programming language, but a companion to one</Text>
-                <Text class="editorial_body" width=100% markdown=true>Declarative `.pax` files sit alongside Rust. Describe your interface's structure, appearance, and relationships in Pax; write application logic with the full power of Rust. Changes to reactive Rust state flow through [Pax expressions](https://docs.pax.dev/data-binding-expressions.html), like updates through a spreadsheet.</Text>
-                <Text class="editorial_lead" width=100%>Whether you're building a business application, a mobile app, an interactive art project, data visualizations, or a game—if it can be expressed in pixels, it can be built in Pax.</Text>
-                <Text class="editorial_body" width=100% markdown=true>Want to see how it works? Open any **View Source** tab to see how that section was built, or explore the [website's source on GitHub](https://github.com/paxdotdev/pax/tree/main/pax-website).</Text>
-            </Stacker>
-            ///#ignore
-            <CalculatorPreview width=100% height={(self.calculator_height)px} content_height=bind:self.calculator_height
-                compact=true live={!self.compact}/>
+        <Stacker width={self.compact ? 100% : 82%} autosize=true gutter=24px>
+            ///#h3
+            <Text class="editorial_subtitle" width=100%>Fluent in UI</Text>
+            <Text class="editorial_body" width=100% markdown=true>Declarative `.pax` files sit alongside Rust. Describe your interface in Pax; write your application logic with the full power of Rust.</Text>
+            <Text class="editorial_lead" width=100%>Whether you're building a business application, a mobile app, an interactive art project, data visualizations, or a game—if it can be expressed in pixels, it can be built in Pax.</Text>
+            <Text class="editorial_body" width=100% markdown=true>Want to see how it works? Open any **View Source** tab to see how that section was built, or explore the [website's source on GitHub](https://github.com/paxdotdev/pax/tree/main/pax-website).</Text>
         </Stacker>
     </Stacker>
     <Rectangle class="site_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 48px) : 88%} height=1px/>

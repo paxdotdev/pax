@@ -18,7 +18,7 @@ const LETTER_SETTLED_MS: f64 = 2500.0 * HERO_TIMING_SCALE;
 const LIGHT_SWEEP_MS: f64 = 1300.0 * HERO_TIMING_SCALE;
 const FROST_LIGHT_SWEEP_MS: f64 = 2200.0;
 
-/// A fixed three-line signboard. Creative masks a morphing CMY mesh with Handwriter;
+/// A fixed two-line signboard. Creative masks a morphing CMY mesh with Handwriter;
 /// its native text equivalent lives outside the mask. Only the current word mounts.
 #[pax]
 #[file("rotating_headline.pax")]

@@ -10,10 +10,10 @@ Web previews enable the experimental loading screen. Install the qualified
 Wasm splitter and matching wasm-bindgen CLI described in
 [loading-context components](../pax-docs/book/src/components-composition.md#loading-context-components-experimental)
 before running; both the bootstrap and application Wasm are emitted by the same build.
-The website sets `loader_exit = "first_viewport"` under `[package.metadata.pax.web]`:
-the loading screen exits once the initial viewport's native measurements and visible
-surfaces are ready. Remaining content mounts cooperatively after the loader disappears;
-ordinary animations and input still wait for full mounting.
+The website sets `loader_exit = "full_mount"` under `[package.metadata.pax.web]`:
+the loading screen stays over the prepared hero until mounting finishes and the
+main animation clock can run. Its 250 ms exit overlaps the hero's startup settling
+interval, instead of exposing a stationary logo while the rest of the site mounts.
 
 ## Local development
 
@@ -107,24 +107,28 @@ other routes keep their nav-sized inset and static logo.
 
 ## Homepage content
 
-The page opens with “Build creative/native/portable/eye-catching user interfaces
-with Rust,” the platform statement, and the install snippet. Experimental native
+The page opens with the two-line heading “Build creative/native/portable/eye-catching
+user interfaces,” followed by “From a single Rust codebase,” the platform statement,
+and the install snippet. Experimental native
 Android/Windows/Linux targets and beta status are intentional launch messaging;
 check the release's target availability before publishing. The install commands
 appear only in the hero, not again in the closing CTA.
 
-Paxflix's full-width fanout follows the hero without a second runtime manifesto.
-“Fluent in UI” pairs a real template with its live result and places one phone-framed
-calculator beside the Rust/Pax explanation: interactive on desktop, a linked capture
-on compact layouts. The toolkit carousel and its GPU/CPU qualification precede the
-centered live desktop oscilloscope.
+“A declarative language for interactive graphics” follows the hero, pairing a real
+template with its live result and explaining the Rust/Pax boundary. Paxflix's
+full-width fanout comes next, without a second runtime manifesto. The toolkit
+carousel and its GPU/CPU qualification precede the live desktop oscilloscope and,
+beneath it, a centered phone-framed calculator. Both demos use linked captures on
+compact layouts.
 “A love letter to the pixel” pairs the acrostic with the project's influences,
 creative mission, and MIT / Apache-2.0 license. The closing CTA links to setup and
 examples, followed by docs, GitHub, blog, community, and platform support.
 
 The opening sequence uses the outer native scroller as a shared clock.
 `scroll_story.rs` maps its offset into overlapping chapter-local clocks for the
-hero, the Paxflix showcase, and the toolkit examples. The hero starts fully composed;
+hero, the Paxflix showcase, and the toolkit examples. Paxflix's clock includes the
+language section's measured height, including reflow when its drawer opens.
+The hero starts fully composed;
 its heading shifts slightly on departure, while
 device frames assemble, hold their poses, and depart. Named component timelines sample those ranges in either
 scroll direction. Measured content and viewport minima determine section heights,
@@ -136,15 +140,12 @@ calculator retains its single-phone layout at every width; only compact layouts
 use the screenshot link. The oscilloscope occupies its own centered study.
 
 `GlassAction` shares opal/obsidian paint and material helpers, with 5⅓px corners, from
-`SiteTheme`, without outline strokes. `SiteShell` owns one stationary `StripLight`
-from `(0, 100% viewport height)` to `(100% viewport width, 33% viewport height)`, outside the scroller
-and safe-area insets. Its length and angle respond only to viewport resizing;
-scrolling surfaces move underneath it. Opal has a soft response; obsidian has a
+`SiteTheme`, without outline strokes. Opal has a soft response; obsidian has a
 narrow specular response. Buttons do not own lights or a separate lighting clock.
-`SiteShell` also adds a viewport-space point light following mouse movement and touch
+`SiteShell` supplies a viewport-space point light following mouse movement and touch
 start/move, outside section light frames, without capturing input or cancelling
-native scrolling. A unit ambient contribution preserves ordinary matte paints;
-native labels stay unlit. Base paints remain visible on CPU renderers, but dynamic
+native scrolling; there is no global strip light. A unit ambient contribution
+preserves ordinary matte paints; native labels stay unlit. Base paints remain visible on CPU renderers, but dynamic
 lighting requires the GPU backend. These are opaque glass-like surfaces, not
 refractive glass. The GitHub icon's official source is
 recorded alongside the asset in `assets/branding/`.
@@ -196,14 +197,17 @@ a five-second ceiling prevents a persistently slow frame rate from suppressing
 the logo indefinitely. There is no fixed delay added to every page load.
 
 The website enables `package.metadata.pax.loader`,
-`package.metadata.pax.web.yield_mount`, and `loader_exit = "first_viewport"` in
+`package.metadata.pax.web.yield_mount`, and `loader_exit = "full_mount"` in
 the web metadata. The loading screen stays visible while the main application's
 initial viewport mounts in a hidden, inert region. Once its required content,
-native measurements, and visible surface submissions are ready, the page appears
-beneath the loader and the loader begins its exit. Remaining content mounts
-cooperatively after the loader disappears. The main animation clock stays held
-until mounting finishes; input is enabled once both mounting and loader exit
-complete. This handoff does not reduce the total mounting cost. See
+native measurements, and visible surface submissions are ready, the page is prepared
+beneath the opaque loader. Remaining content mounts cooperatively before the loader
+begins its exit. Full mounting releases the main animation clock, allowing the
+hero's 100 ms settling interval and logo reveal to begin during the loader's
+250 ms fade. Slow frames can still extend that settling interval; this is not a
+guarantee of a particular first animation frame. Input is enabled once the loader
+exit completes. This handoff trades a longer loading screen for avoiding a frozen
+hero; it does not reduce the total mounting cost. See
 [loading screens](../pax-docs/book/src/components-composition.md#loading-context-components-experimental)
 for the build requirements and publication contract.
 
@@ -381,16 +385,16 @@ implemented in this version.
 
 ## Calculator showcase
 
-“Fluent in UI” shows a single upright phone alongside the Rust/Pax explanation.
-At the authoring section's 900px desktop breakpoint, its screen mounts the canonical
+The demos section shows a single upright phone beneath the oscilloscope and before
+the acrostic. At the section's 900px desktop breakpoint, its screen mounts the canonical
 `Calculator` with `embedded=true` and `disable_keyboard=true`. The virtual phone
 supplies 48px top and 20px bottom safe-area insets so the island and home indicator
 do not cover controls. The 390×844 logical phone stage scales to the available
-column (capped at 312px wide), without resizing the calculator's logical viewport.
+width (capped at 312px wide), without resizing the calculator's logical viewport.
 The live app has no enclosing link: its keys and graph can be used in place.
 
-Below that breakpoint the copy and phone stack, and the phone becomes a tappable
-`NativeImage` capture. The section, not the narrow preview column, selects whether
+Below that breakpoint the phone becomes a tappable `NativeImage` capture.
+The section, not the narrow phone stage, selects whether
 the calculator is live. `CalculatorPreview.compact` chooses the single-phone
 layout independently of `live`; its optional fanout still supports captured window
 and tablet wings. Scrolling retains the desktop calculator session; switching to
@@ -400,7 +404,7 @@ The compact preview, optional captured wings, and full-screen action open `/calc
 Like `/paxflix/`, this is a generated document entry with server-owned navigation:
 one live example, no homepage tree, and safe-area-aware full-screen layout with a
 Back to Pax link. Each new demo session starts with fresh calculator state.
-The authoring section's View Source includes the preview and calculator full-screen wrapper;
+The demos section's View Source includes the preview and calculator full-screen wrapper;
 application logic remains in the canonical `examples/calculator` Cargo dependency.
 Capture provenance and refresh commands live in `assets/calculator/README.md`.
 
@@ -462,10 +466,11 @@ Content and visual design history are archived in
 
 ## Shared-definition section
 
-`AuthoringSection` is the mounted “Fluent in UI” section. It explains the
+`AuthoringSection` is the mounted “A declarative language for interactive graphics”
+section, with “Fluent in UI” as its smaller subheading. It explains the
 markup/expression language and the boundary between declarative UI and Rust
-application logic, with a single-device calculator preview. Its View Source
-panel includes the language demonstration and calculator sources.
+application logic. Its View Source panel includes the language demonstration;
+calculator sources live with the demos section instead.
 
 `SharedDefinitionDemo` pairs the actual `relationship_preview.pax` source
 (embedded with `include_str!`) with a live instance of that component. The 25%
@@ -535,12 +540,12 @@ handoffs, 1.28-second creative writing, and proportionally shorter letter
 entrances/staggers and logo reveal. Creative's mesh uses the faster two-second
 period described above. The word's clipping Frame has
 `layout_role=LayoutRole::Breakout`: animated descendant bounds cannot change
-the ancestor Stacker's measured height. The fixed three-line signboard and its
+the ancestor Stacker's measured height. The fixed two-line signboard and its
 normal Text nodes determine the paragraph's position.
 
 ## Free and open source / kinetic acrostic
 
-`OpenSourceSection` follows the feature gallery and precedes the final CTA.
+`OpenSourceSection` follows the oscilloscope/calculator demos and precedes the final CTA.
 It connects Pax's free-and-open-source identity with the project's
 creative mission; the MIT / Apache-2.0 license and inline GitHub link live here rather than repeating in the
 footer. The footer links to platform support and notes that APIs and capabilities evolve.

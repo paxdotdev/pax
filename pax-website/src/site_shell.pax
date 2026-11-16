@@ -3,11 +3,7 @@ if self.has_hero && !self.hide_nav && self.nav_logo_entry > 0.0 && @gpu {
     <Group width=0px height=0px @tick=self.advance_nav_light/>
 }
 <Group width=100% height=100%>
-    // Fixed in the full viewport, outside safe-area insets and the scroller.
-    // The strip endpoints are (0, 100% height) and (100% width, 33% height).
-    <StripLight id=viewport_strip x=50% y=66.5% anchor=50% width={(self.strip_length)px} height=1px
-        rotate={(self.strip_angle)rad} z=58px radius=360px intensity=1.4 color=WHITE/>
-    // The pointer light remains independent of the stationary strip.
+    // Follow input in viewport space without affecting native scrolling.
     <LightSource x={self.pointer_light_active ? (self.pointer_light_x)px : 65%}
         y={self.pointer_light_active ? (self.pointer_light_y)px : 25%} anchor=50% width=1px height=1px
         z=95px radius=480px intensity=0.9 color=WHITE/>

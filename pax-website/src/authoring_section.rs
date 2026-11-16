@@ -1,4 +1,4 @@
-use crate::{CalculatorPreview, SharedDefinitionDemo, SiteTheme};
+use crate::{SharedDefinitionDemo, SiteTheme};
 use pax_kit::*;
 
 #[pax]
@@ -7,7 +7,6 @@ pub struct AuthoringSection {
     pub content_height: Property<f64>,
     pub _height_bound: Property<bool>,
     pub compact: Property<bool>,
-    pub calculator_height: Property<f64>,
 }
 
 impl AuthoringSection {

@@ -18,14 +18,28 @@ pub struct RuntimeSection {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn paxflix_has_its_own_row_and_calculator_accompanies_the_language() {
+    fn paxflix_has_its_own_row_and_calculator_follows_the_oscilloscope() {
         let runtime = include_str!("runtime_section.pax");
         assert_eq!(runtime.matches("<PaxflixShowcase").count(), 1);
         assert!(!runtime.contains("<CalculatorPreview"));
         let authoring = include_str!("authoring_section.pax");
-        assert_eq!(authoring.matches("<CalculatorPreview").count(), 1);
-        assert!(authoring.contains("compact=true"));
+        assert!(!authoring.contains("<CalculatorPreview"));
+        let demos = include_str!("framework_section.pax");
+        assert_eq!(demos.matches("<CalculatorPreview").count(), 1);
+        assert!(
+            demos.find("<LedOscilloscope").unwrap() < demos.find("<CalculatorPreview").unwrap()
+        );
+        assert!(demos.contains("compact=true live={!self.compact}"));
         assert!(!include_str!("resource_section.pax").contains("<CalculatorPreview"));
+    }
+
+    #[test]
+    fn hero_introduces_rust_in_the_supporting_copy_not_a_third_heading_line() {
+        let headline = include_str!("rotating_headline.pax");
+        assert!(!headline.contains(">with Rust</Text>"));
+        let hero = include_str!("hero_section.pax");
+        assert!(hero.contains("From a single Rust codebase, ship to native macOS"));
+        assert!(hero.contains("self.font_px * 2.52"));
     }
 }
 

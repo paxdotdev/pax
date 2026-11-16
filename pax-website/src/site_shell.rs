@@ -5,54 +5,9 @@ use pax_kit::math::Point2;
 use pax_kit::*;
 
 const COMPACT_BREAKPOINT_PX: f64 = 760.0;
-// The emitter is centered at (50% width, 66.5% height). Only viewport geometry
-// changes its pose; scroll and pointer state must never move this light.
-fn viewport_strip_pose(width: f64, height: f64) -> (f64, f64) {
-    let width = if width.is_finite() {
-        width.max(0.0)
-    } else {
-        0.0
-    };
-    let rise = if height.is_finite() {
-        height.max(0.0) * 0.67
-    } else {
-        0.0
-    };
-    (width.hypot(rise), (-rise).atan2(width))
-}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    #[test]
-    fn strip_endpoints_match_the_viewport_diagonal_at_each_aspect_ratio() {
-        for (width, height) in [
-            (390.0, 844.0),
-            (1000.0, 652.0),
-            (1440.0, 960.0),
-            (844.0, 390.0),
-        ] {
-            let (length, angle) = viewport_strip_pose(width, height);
-            let half_x = length * angle.cos() * 0.5;
-            let half_y = length * angle.sin() * 0.5;
-            let center = (width * 0.5, height * 0.665);
-            assert!((center.0 - half_x).abs() < 1e-8);
-            assert!((center.1 - half_y - height).abs() < 1e-8);
-            assert!((center.0 + half_x - width).abs() < 1e-8);
-            assert!((center.1 + half_y - height * 0.33).abs() < 1e-8);
-        }
-    }
-
-    #[test]
-    fn provisional_strip_bounds_remain_finite() {
-        for (width, height) in [(0.0, 0.0), (-1.0, 20.0), (f64::NAN, f64::INFINITY)] {
-            let (length, angle) = viewport_strip_pose(width, height);
-            assert!(length.is_finite() && length >= 0.0);
-            assert!(angle.is_finite());
-        }
-    }
-
     #[test]
     fn nav_moves_without_group_opacity() {
         let shell = include_str!("site_shell.pax");
@@ -72,11 +27,12 @@ mod tests {
     }
 
     #[test]
-    fn strip_is_owned_by_the_shell_not_individual_buttons() {
+    fn shell_keeps_pointer_lighting_without_a_strip() {
         let shell = include_str!("site_shell.pax");
-        assert_eq!(shell.matches("<StripLight").count(), 1);
+        assert!(!shell.contains("<StripLight"));
+        assert!(shell.contains("<LightSource x={self.pointer_light_active"));
+        assert!(shell.contains("<AmbientLight intensity=1.0"));
         assert!(!include_str!("glass_action.pax").contains("<StripLight"));
-        assert!(!include_str!("hero_section.pax").contains("light_progress"));
     }
 }
 
@@ -116,8 +72,6 @@ pub struct SiteShell {
     pub pointer_light_x: Property<f64>,
     pub pointer_light_y: Property<f64>,
     pub pointer_light_active: Property<bool>,
-    pub strip_length: Property<f64>,
-    pub strip_angle: Property<f64>,
 }
 
 impl SiteShell {
@@ -150,14 +104,9 @@ impl SiteShell {
         let right = self.safe_right.local();
         let deps = [bounds.untyped(), left.untyped(), right.untyped()];
         let compact = self.compact.local();
-        let strip_length = self.strip_length.local();
-        let strip_angle = self.strip_angle.local();
         let update = move || {
-            let (width, height) = bounds.get();
+            let (width, _) = bounds.get();
             compact.set_if_neq(width - left.get() - right.get() < COMPACT_BREAKPOINT_PX);
-            let (length, angle) = viewport_strip_pose(width, height);
-            strip_length.set_if_neq(length);
-            strip_angle.set_if_neq(angle);
         };
         update();
         ctx.subscribe(&deps, update);

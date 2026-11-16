@@ -8,6 +8,7 @@ use pax_kit::*;
 pub struct HomePage {
     pub scroll_y: Property<f64>,
     pub hero_span: Property<f64>,
+    pub authoring_span: Property<f64>,
     pub runtime_span: Property<f64>,
     pub hero_exit: Property<f64>,
     pub runtime_progress: Property<f64>,
@@ -66,6 +67,7 @@ impl HomePage {
             gallery.untyped(),
         ];
         let hero_span = self.hero_span.local();
+        let authoring_span = self.authoring_span.local();
         let runtime_span = self.runtime_span.local();
         let hero_exit = self.hero_exit.local();
         let runtime_progress = self.runtime_progress.local();
@@ -75,17 +77,19 @@ impl HomePage {
                 scroll.get(),
                 viewport.get(),
                 hero.get(),
+                authoring.get(),
                 runtime.get(),
             );
             hero_span.set_if_neq(story.hero_span);
+            authoring_span.set_if_neq(story.authoring_span);
             runtime_span.set_if_neq(story.runtime_span);
             hero_exit.set_if_neq(story.hero_exit);
             runtime_progress.set_if_neq(story.runtime_progress);
             // Match the fixed section footprints in home_page.pax, not the
             // transformed device bounds. Motion must not change scroll extent.
             let framework_top = story.hero_span
+                + story.authoring_span
                 + story.runtime_span
-                + authoring.get().max(640.0)
                 + gallery.get().max(760.0);
             framework_progress.set_if_neq(crate::scroll_story::section_progress(
                 scroll.get(),
@@ -349,6 +353,7 @@ impl HomePage {
             include_str!("framework_section.rs"),
         ));
         self.framework_sources.update(|files| {
+            files.extend(calculator_sources);
             files.extend(section_sources(
                 "src/framed_study.pax",
                 include_str!("framed_study.pax"),
@@ -529,7 +534,6 @@ impl HomePage {
             language: "pax".into(),
             code: include_str!("relationship_preview.pax").into(),
         });
-        authoring_sources.extend(calculator_sources);
         self.authoring_sources.set(authoring_sources);
         self.runtime_sources.set(runtime_sources);
         self.feature_gallery_sources.set(vec![
@@ -604,8 +608,8 @@ mod content_tests {
         let page = include_str!("home_page.pax");
         let sections = [
             "<HeroSection",
-            "<RuntimeSection",
             "<AuthoringSection",
+            "<RuntimeSection",
             "<FeatureGallery",
             "<FrameworkSection",
             "<OpenSourceSection",
