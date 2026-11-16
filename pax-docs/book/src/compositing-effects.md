@@ -981,6 +981,27 @@ reuses shader pipelines and pass textures. Without opt-in the helpers return
 no illumination. Low-level renderer callers must provide the resolved
 `ShaderLighting` plane and mask themselves.
 
+The `rain-pane` fixture uses these helpers with an analytic shared water contour
+over a dark captured Rectangle. Drops land across the glass as brief splotches,
+then develop smooth tails as they descend with seeded creep-and-slip timing.
+Nearby drops contribute to a shared potential before shading, giving contacts a
+fuller pooled shape. Its 0–12× rain-frequency control changes arrival cadence without
+speeding descent. Tight specular highlights leave the underlying source visible
+without a diffuse body-colour fill. The surface is passive and uses neither generated image uploads
+nor persistent fluid simulation.
+Three drifting cyan, magenta and yellow point lights demonstrate coloured illumination from ordinary
+scoped `LightSource` nodes, with white point and strip comparisons available.
+Those emitters and their animation belong to the example; `WetPane` consumes its
+host's scoped lighting and creates no lights of its own.
+The effect defines the tuned surface defaults, and the fixture initializes its
+controls from them; a host can override individual properties and drive `time`.
+Its water and light clocks can be paused independently,
+and its plain-Rectangle and identity-filter views separate the visual effect
+from capture overhead. Foreground Text and controls remain outside the capture.
+This is a web/WGPU study, not a texture-map material or backdrop-refraction API;
+CPU treatment is deferred. See the fixture's
+[controls and limitations](https://github.com/paxdotdev/pax/tree/main/examples/fixtures/rain-pane).
+
 With `3d` and `shaders` enabled, a shader container resolves the internal depth
 of its subtree before filtering. Its result is a flat image on the container's
 plane. Outside surfaces and solids intersect that plane, including when it is

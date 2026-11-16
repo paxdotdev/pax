@@ -246,6 +246,9 @@ opt-level = 0
 [profile.dev.package.increment-cube]
 opt-level = 0
 
+[profile.dev.package.rain-pane]
+opt-level = 0
+
 [profile.release]
 lto = true
 opt-level = "z" 
@@ -253,6 +256,7 @@ codegen-units = 1
 
 [dev-dependencies]
 increment-cube = { path = "examples/increment-cube", default-features = false }
+rain-pane = { path = "examples/fixtures/rain-pane", default-features = false }
 flashy = { path = "examples/fixtures/flashy", default-features = false }
 cuboid-router = { path = "examples/fixtures/cuboid-router", default-features = false }
 text-bodies = { path = "examples/fixtures/text-bodies", default-features = false }
@@ -532,3 +536,7 @@ path = "examples/fixtures/increment.rs"
 [[example]]
 name = "increment-cube"
 path = "examples/increment-cube.rs"
+
+[[example]]
+name = "rain-pane"
+path = "examples/fixtures/rain-pane.rs"

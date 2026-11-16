@@ -1,0 +1,98 @@
+<Scroller width=100% height=100% autosize=true>
+    <Stacker x=50% width={(self.panel_width)px} autosize=true gutter=24px>
+        <Group width=100% height=32px/>
+        <Text class="eyebrow" width=100% height=18px text="PAX / SURFACE STUDIES / RAIN"/>
+        <Frame id=stage width=100% height={(self.panel_height)px} corner_radius=16
+            @viewport_proximity_change=self.visibility>
+            <Text x={self.small ? 28px : 52px} y={self.small ? 76px : 118px}
+                width={self.small ? 85% : 48%} height=76px
+                style={font: "Georgia", font_size: {self.small ? 36px : 58px}, fill: rgb(228, 231, 229)}
+                text="A little rain."/>
+            <Text x={self.small ? 28px : 52px} y={self.small ? 132px : 188px}
+                width={self.small ? 85% : 48%} height=76px
+                style={font: "Georgia", font_size: {self.small ? 36px : 58px}, fill: rgb(228, 231, 229)}
+                text="A passing light."/>
+            <Text class="copy" x={self.small ? 28px : 54px} y={self.small ? 240px : 310px}
+                width={self.small ? 80% : 42%} height=66px
+                text="Small moments, made tangible. A quiet surface for the things that matter."/>
+            <Button id=foreground_button x={self.small ? 28px : 54px} y={self.small ? 340px : 408px}
+                width=170px height=42px label={self.clicks == 0 ? "Stay a moment  →" : "Still here  /  " + self.clicks}
+                color=rgb(26, 33, 36) hover_color=rgb(40, 51, 55) corner_radius=8
+                style={font: "Arial", font_size: 13px, fill: rgb(220, 228, 228), align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center}
+                @button_click=self.click/>
+            <Text class="micro" x={self.small ? 28px : 54px} y={(self.panel_height - 40)px}
+                width=80% height=16px text="01 / WATER ON DARK GLASS"/>
+            <LightFrame width=100% height=100%>
+                if self.mode != 1 {
+                    <WetPane id=water width=100% height=100% time={self.water_time} speed={self.speed}
+                        rain_frequency={self.rain_frequency} wetness={self.wetness} drop_scale={self.drop_scale} seed={self.seed}
+                        roughness={self.roughness} strength={self.strength}
+                        quiet={self.quiet} half_resolution={self.half_resolution} identity={self.mode == 2}>
+                        <Rectangle width=100% height=100% fill=rgb(5, 7, 8)/>
+                    </WetPane>
+                } else {
+                    <Rectangle id=plain width=100% height=100% fill=rgb(5, 7, 8)/>
+                }
+                <LightSource x={(self.light_x)px} y={(self.panel_height * 0.35)px} anchor=50%
+                    width=640px height=1px rotate=-65deg z=260px radius=2400px intensity=3.0 enabled={self.light_kind < 2}
+                    shape={self.light_kind == 0 ? LightShape::Strip : LightShape::Point} color=rgb(209, 228, 242)/>
+                <LightSource x={(self.cyan_x)px} y={(self.cyan_y)px} anchor=50%
+                    width=1px height=1px z=220px radius=1200px intensity=4.0 enabled={self.light_kind == 3}
+                    shape=LightShape::Point color=rgb(0, 255, 255)/>
+                <LightSource x={(self.magenta_x)px} y={(self.magenta_y)px} anchor=50%
+                    width=1px height=1px z=220px radius=1200px intensity=4.0 enabled={self.light_kind == 3}
+                    shape=LightShape::Point color=rgb(255, 0, 255)/>
+                <LightSource x={(self.yellow_x)px} y={(self.yellow_y)px} anchor=50%
+                    width=1px height=1px z=220px radius=1200px intensity=4.0 enabled={self.light_kind == 3}
+                    shape=LightShape::Point color=rgb(255, 255, 0)/>
+            </LightFrame>
+        </Frame>
+        <Group width=100% height={self.small ? 136px : 40px}>
+            <Button class="control" id=pause width={self.small ? 48% : 23.5%} label={self.playing ? "Pause" : "Play"} @button_click=self.pause/>
+            <Button class="control" id=comparison x={self.small ? 52% : 25.5%} width={self.small ? 48% : 23.5%}
+                label={self.mode == 0 ? "View: water" : (self.mode == 1 ? "View: plain black" : "View: identity filter")} @button_click=self.comparison/>
+            <Button class="control" id=motion x={self.small ? 0% : 51%} y={self.small ? 48px : 0px} width={self.small ? 48% : 23.5%}
+                label={self.motion == 0 ? "Motion: both" : (self.motion == 1 ? "Motion: water" : "Motion: light")} @button_click=self.motion_mode/>
+            <Button class="control" id=light x={self.small ? 52% : 76.5%} y={self.small ? 48px : 0px} width={self.small ? 48% : 23.5%}
+                label={self.light_kind == 0 ? "Light: strip" : (self.light_kind == 1 ? "Light: point" : (self.light_kind == 2 ? "Light: off" : "Light: CMY points"))} @button_click=self.light_mode/>
+        </Group>
+        <Group width=100% height=40px>
+            <Button class="control" id=quality width=48% label={self.half_resolution ? "Quality: half resolution" : "Quality: full resolution"} @button_click=self.quality/>
+            <Button class="control" id=quiet x=52% width=48% label={self.quiet ? "Copy space: quiet" : "Copy space: textured"} @button_click=self.copy_space/>
+        </Group>
+        <Group width=100% height=188px>
+            <Text class="micro" width=48% height=18px text="WETNESS"/>
+            <Slider class="slider" id=wetness width=48% y=24px value=bind:wetness min=0.0 max=1.0 step=0.01/>
+            <Text class="micro" x=52% anchor_x=0% width=48% height=18px text={"DROP SCALE / " + self.drop_scale + "×"}/>
+            <Slider class="slider" id=drop_scale x=52% width=48% y=24px value=bind:drop_scale min=0.3 max=4.0 step=0.05/>
+            <Text class="micro" width=48% y=68px height=18px text="ROUGHNESS"/>
+            <Slider class="slider" id=roughness width=48% y=92px value=bind:roughness min=0.08 max=0.8 step=0.01/>
+            <Text class="micro" x=52% anchor_x=0% width=48% y=68px height=18px text="HIGHLIGHT STRENGTH"/>
+            <Slider class="slider" id=strength x=52% width=48% y=92px value=bind:strength min=0.0 max=2.0 step=0.01/>
+            <Text class="micro" width=48% y=136px height=18px text={"RAIN FREQUENCY / " + self.rain_frequency + "×"}/>
+            <Slider class="slider" id=rain_frequency width=48% y=160px value=bind:rain_frequency min=0.0 max=12.0 step=0.25/>
+            <Text class="micro" x=52% anchor_x=0% width=48% y=136px height=18px text="LIGHT / SCRUB TO HOLD"/>
+            <Slider class="slider" id=light_phase x=52% width=48% y=160px value=bind:light_phase min=0.0 max=1.0 step=0.001 @slider_change=self.scrub/>
+        </Group>
+        <Button class="control" id=reset width=200px label="Reset rain" @button_click=self.reset/>
+        <Text class="copy" width=100% height=64px text="New drops land across the glass and pool together. Rain frequency changes arrivals without speeding their descent."/>
+        <Group width=100% height=720px>
+            <Text class="micro" y=50% width=100% height=40px text="SCROLL BACK / THE RAIN RESUMES FROM ITS HELD POSE"/>
+        </Group>
+    </Stacker>
+</Scroller>
+<Rectangle width=100% height=100% fill=rgb(15, 19, 21)/>
+
+@settings {
+    @mount: mount
+    @tick: animate
+    .eyebrow { style: { font: "Arial", font_size: 11px, fill: rgb(160, 175, 180) } }
+    .copy { style: { font: "Arial", font_size: 15px, fill: rgb(145, 163, 169) } }
+    .micro { style: { font: "Arial", font_size: 10px, fill: rgb(103, 126, 135) } }
+    .control {
+        height: 40px anchor_x: 0% anchor_y: 0%
+        color: rgb(25, 32, 36) hover_color: rgb(37, 48, 53) corner_radius: 7
+        style: { font: "Arial", font_size: 12px, fill: rgb(199, 214, 219), align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center }
+    }
+    .slider { height: 24px anchor_x: 0% accent: rgb(143, 182, 198) background: rgb(33, 45, 51) corner_radius: 12 }
+}
