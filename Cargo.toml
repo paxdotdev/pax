@@ -8,9 +8,9 @@ publish = false
 [workspace]
 resolver = "2"
 members = [
+    "examples/increment-cube",
     "examples/led-oscilloscope",
     "examples/calculator",
-    "examples/increment",
     "examples/ink-and-light",
     "examples/liquid-glass",
     "examples/living-quilt",
@@ -243,12 +243,16 @@ opt-level = 0
 [profile.dev.package.native-navigation]
 opt-level = 0
 
+[profile.dev.package.increment-cube]
+opt-level = 0
+
 [profile.release]
 lto = true
 opt-level = "z" 
 codegen-units = 1  
 
 [dev-dependencies]
+increment-cube = { path = "examples/increment-cube", default-features = false }
 flashy = { path = "examples/fixtures/flashy", default-features = false }
 cuboid-router = { path = "examples/fixtures/cuboid-router", default-features = false }
 text-bodies = { path = "examples/fixtures/text-bodies", default-features = false }
@@ -280,7 +284,7 @@ game-of-life = { path = "examples/fixtures/game-of-life", default-features = fal
 glow-buttons = { path = "examples/fixtures/glow-buttons", default-features = false }
 group-compositing = { path = "examples/fixtures/group-compositing", default-features = false }
 gyro-helper = { path = "examples/fixtures/gyro-helper", default-features = false }
-increment = { path = "examples/increment", default-features = false }
+increment = { path = "examples/fixtures/increment", default-features = false }
 ink-and-light = { path = "examples/ink-and-light", default-features = false }
 liquid-glass = { path = "examples/liquid-glass", default-features = false }
 living-quilt = { path = "examples/living-quilt", default-features = false }
@@ -520,3 +524,11 @@ path = "examples/fixtures/native-text-style.rs"
 [[example]]
 name = "native-navigation"
 path = "examples/fixtures/native-navigation.rs"
+
+[[example]]
+name = "increment"
+path = "examples/fixtures/increment.rs"
+
+[[example]]
+name = "increment-cube"
+path = "examples/increment-cube.rs"

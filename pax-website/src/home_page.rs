@@ -517,24 +517,12 @@ impl HomePage {
                 code: code.into(),
             });
         }
-        let mut authoring_sources = section_sources(
-            "src/authoring_section.pax",
-            include_str!("authoring_section.pax"),
-            "src/authoring_section.rs",
-            include_str!("authoring_section.rs"),
+        self.authoring_sources.set(
+            increment_cube::sources()
+                .into_iter()
+                .filter(|source| matches!(source.label.as_str(), "increment.pax" | "lib.rs"))
+                .collect(),
         );
-        authoring_sources.extend(section_sources(
-            "src/shared_definition_demo.pax",
-            include_str!("shared_definition_demo.pax"),
-            "src/shared_definition_demo.rs",
-            include_str!("shared_definition_demo.rs"),
-        ));
-        authoring_sources.push(ExampleSource {
-            label: "src/relationship_preview.pax".into(),
-            language: "pax".into(),
-            code: include_str!("relationship_preview.pax").into(),
-        });
-        self.authoring_sources.set(authoring_sources);
         self.runtime_sources.set(runtime_sources);
         self.feature_gallery_sources.set(vec![
             ExampleSource {
@@ -624,7 +612,7 @@ mod content_tests {
             .collect();
         assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
         assert!(page.contains("open=bind:self.authoring_source_open"));
-        assert!(page.contains("drawer_open=bind:self.authoring_source_open"));
+        assert!(page.contains("source_open=bind:self.authoring_source_open"));
     }
 
     #[test]

@@ -346,6 +346,9 @@ For example, ExampleHost's source tabs bind to their own host's
 hosts keep independent selections. They do not need a local store for this
 direct parent/child connection. Callers can deliberately bind multiple hosts
 to the same selection property when synchronized selection is wanted.
+Changing the selected source resets the code pane to its top-left corner, so a
+previous file's scroll offset cannot hide the new file. Changing the Solarized
+theme or selecting the already-active tab preserves the current scroll position.
 
 ExampleHost's VIEW SOURCE tab attaches to the drawer's leading edge. Its white,
 stroke-free shape has semibold black lettering. VIEW SOURCE has a convex,

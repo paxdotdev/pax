@@ -3325,7 +3325,7 @@ mod tests {
     #[test]
     fn increment_static_manifest_contains_expected_core_items() {
         assert_static_manifest_contains_expected_items(
-            "../examples/increment",
+            "../examples/fixtures/increment",
             BuildManifestOptions::default(),
             &[
                 "crate::Example",
@@ -3356,7 +3356,7 @@ mod tests {
     #[test]
     fn increment_static_manifest_contains_expected_designtime_items() {
         assert_static_manifest_contains_expected_items(
-            "../examples/increment",
+            "../examples/fixtures/increment",
             BuildManifestOptions {
                 is_designtime: true,
             },

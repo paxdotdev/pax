@@ -368,6 +368,9 @@ pub struct ExampleSourceViewer {
     pub show_close_tab: Property<bool>,
     pub _title_height: Property<f64>,
     pub _active_source_markup: Property<String>,
+    // Scroll belongs to the displayed file, not the source-tab strip.
+    pub _code_scroll_x: Property<f64>,
+    pub _code_scroll_y: Property<f64>,
 }
 
 impl Default for ExampleSourceViewer {
@@ -381,15 +384,25 @@ impl Default for ExampleSourceViewer {
             show_close_tab: Property::new(true),
             _title_height: Property::default(),
             _active_source_markup: Property::default(),
+            _code_scroll_x: Property::default(),
+            _code_scroll_y: Property::default(),
         }
     }
 }
 
 impl ExampleSourceViewer {
-    pub fn on_mount(&mut self, _ctx: &NodeContext) {
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
         let sources = self.sources.local();
         let light = self.source_light_mode.local();
         let selected = self.selected_source.local();
+        ctx.subscribe(
+            &[selected.untyped()],
+            source_selection_effect(
+                selected.clone(),
+                self._code_scroll_x.local(),
+                self._code_scroll_y.local(),
+            ),
+        );
         let deps = [sources.untyped(), light.untyped(), selected.untyped()];
         self._active_source_markup
             .replace_with(LocalProperty::computed(
@@ -421,6 +434,23 @@ impl ExampleSourceViewer {
 
     pub fn toggle_theme(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
         self.source_light_mode.set(!self.source_light_mode.get());
+    }
+}
+
+fn source_selection_effect(
+    selected: LocalProperty<usize>,
+    scroll_x: LocalProperty<f64>,
+    scroll_y: LocalProperty<f64>,
+) -> impl Fn() {
+    let previous = std::cell::Cell::new(selected.get());
+    move || {
+        // A shorter file can otherwise open entirely outside the code viewport.
+        // Theme changes and reselecting the same tab should preserve the reader's place.
+        let current = selected.get();
+        if previous.replace(current) != current {
+            scroll_x.set_if_neq(0.0);
+            scroll_y.set_if_neq(0.0);
+        }
     }
 }
 
@@ -513,6 +543,63 @@ pub struct ExampleSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bound_source_selection_resets_both_scroll_axes_but_not_theme_changes() {
+        use pax_engine::api::properties::{drain_effects, register_effect_property, PropertyGraph};
+        let graph = PropertyGraph::new(|| {});
+        let _entered = graph.enter();
+        let selected = Property::new(0_usize);
+        let inline = ExampleSourceViewer {
+            selected_source: selected.clone(),
+            ..Default::default()
+        };
+        let expanded = ExampleSourceViewer {
+            selected_source: selected.clone(),
+            ..Default::default()
+        };
+        let viewers = [&inline, &expanded];
+        let effects: Vec<_> = viewers
+            .iter()
+            .map(|viewer| {
+                let effect = LocalProperty::computed(
+                    source_selection_effect(
+                        viewer.selected_source.local(),
+                        viewer._code_scroll_x.local(),
+                        viewer._code_scroll_y.local(),
+                    ),
+                    &[viewer.selected_source.untyped()],
+                );
+                register_effect_property(&effect);
+                effect
+            })
+            .collect();
+        drain_effects(16);
+        for next in [1, 0, 1] {
+            for viewer in viewers {
+                viewer._code_scroll_x.set(900.0);
+                viewer._code_scroll_y.set(4000.0);
+            }
+            inline.selected_source.set(next);
+            graph.import();
+            drain_effects(16);
+            assert_eq!(selected.get(), next);
+            assert_eq!(expanded.selected_source.get(), next);
+            for viewer in viewers {
+                assert_eq!(viewer._code_scroll_x.get(), 0.0);
+                assert_eq!(viewer._code_scroll_y.get(), 0.0);
+            }
+        }
+        inline._code_scroll_x.set(123.0);
+        inline._code_scroll_y.set(456.0);
+        inline.source_light_mode.set(false);
+        selected.set(1);
+        graph.import();
+        drain_effects(16);
+        assert_eq!(inline._code_scroll_x.get(), 123.0);
+        assert_eq!(inline._code_scroll_y.get(), 456.0);
+        drop(effects);
+    }
 
     fn settled_host() -> ExampleHost {
         let host = ExampleHost::default();

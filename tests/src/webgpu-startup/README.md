@@ -4,9 +4,9 @@ Build and serve Increment, a small 2D scene that works on both renderers, then
 generate an opt-in test page:
 
 ```sh
-pax-cli run --path examples/increment --target web --port 8093
+pax-cli run --path examples/fixtures/increment --target web --port 8093
 # In another terminal, after the build finishes:
-python3 tests/src/webgpu-startup/prepare.py examples/increment/.pax/build/debug/web
+python3 tests/src/webgpu-startup/prepare.py examples/fixtures/increment/.pax/build/debug/web
 ```
 
 Open `/gpu-startup-test.html?pax_renderer=gpu&gpu_test=real`.

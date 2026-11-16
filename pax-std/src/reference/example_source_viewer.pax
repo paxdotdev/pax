@@ -78,7 +78,8 @@
     // viewport starts below that lane so the two native scrollers stay separate.
     <Group x=0px y={(Math::max(34, self._title_height) + 76)px} width=100%
         height={100% - (Math::max(34, self._title_height) + 76)px}>
-        <Scroller y=12px width=100% height={100% - 12px} autosize=true autosize_x=true autosize_y=true>
+        <Scroller y=12px width=100% height={100% - 12px} autosize=true autosize_x=true autosize_y=true
+            scroll_pos_x=bind:self._code_scroll_x scroll_pos_y=bind:self._code_scroll_y>
             <Text class="viewer_code" x=14px y=14px markdown=true wrap=false selectable=true>{self._active_source_markup}</Text>
         </Scroller>
         <Rectangle fill={ExampleSourceViewer::source_background(self.source_light_mode)} corner_radius=0 width=100% height=100%/>

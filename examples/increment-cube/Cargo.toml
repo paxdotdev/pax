@@ -1,16 +1,17 @@
 [package]
 publish = false
-name = "increment"
+name = "increment-cube"
 version = "0.39.1"
 edition = "2021"
-default-run = "increment"
+default-run = "increment-cube"
 
 [package.metadata.pax]
-title = "Increment"
-icon = "assets/app-icon.png"
+title = "Increment Cube"
 
 [dependencies]
-pax-kit = { version = "0.39.1", path="../../pax-kit" }
+rand = "0.8.5"
+getrandom = { version = "0.2.15", features = ["js"] }
+pax-kit = { version = "0.39.1", path = "../../pax-kit", features = ["3d"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -21,6 +22,6 @@ standalone = ["pax-kit/host"]
 designtime = ["pax-kit/designtime"]
 
 [[bin]]
-name = "increment"
+name = "increment-cube"
 path = "src/main.rs"
 required-features = ["standalone"]

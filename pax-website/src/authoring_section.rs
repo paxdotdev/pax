@@ -1,4 +1,5 @@
-use crate::{SharedDefinitionDemo, SiteTheme};
+use crate::SiteTheme;
+use increment_cube::IncrementCube;
 use pax_kit::*;
 
 #[pax]
@@ -7,12 +8,23 @@ pub struct AuthoringSection {
     pub content_height: Property<f64>,
     pub _height_bound: Property<bool>,
     pub compact: Property<bool>,
+    pub sources: Property<Vec<ExampleSource>>,
+    pub selected_source: Property<usize>,
+    pub source_light: Property<bool>,
+    pub source_open: Property<bool>,
+    pub demo_open: Property<bool>,
+    pub cube_count: Property<u64>,
 }
 
 impl AuthoringSection {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
         self._height_bound.set(false);
+        self.demo_open.set(true);
         crate::section_layout::bind_compact(ctx, &self.compact, 900.0);
+    }
+
+    pub fn expand_source(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
+        self.source_open.set(true);
     }
 
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {

@@ -43,10 +43,10 @@ def load_registry() -> dict:
         name = entry["name"]
         if not name or any(char not in "abcdefghijklmnopqrstuvwxyz0123456789-" for char in name):
             raise ValueError(f"invalid example name: {name!r}")
-        expected = PurePosixPath("examples", name)
+        expected = (PurePosixPath("examples", name), PurePosixPath("examples", "fixtures", name))
         source = PurePosixPath(entry["source"])
-        if source != expected:
-            raise ValueError(f"{name}: source must be {expected}")
+        if source not in expected:
+            raise ValueError(f"{name}: source must be one of {expected}")
         if not (ROOT / source).is_dir():
             raise ValueError(f"{name}: source directory does not exist")
         for field in ("description", "caveats"):

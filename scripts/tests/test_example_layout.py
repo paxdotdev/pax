@@ -7,14 +7,36 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("sync_docs", ROOT / "scripts/sync-docs-examples.py")
 sync_docs = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sync_docs)
+bundle_spec = importlib.util.spec_from_file_location("sync_cli", ROOT / "scripts/sync-cli-examples.py")
+sync_cli = importlib.util.module_from_spec(bundle_spec)
+bundle_spec.loader.exec_module(sync_cli)
 
 
 class ExampleLayoutTests(unittest.TestCase):
+    def test_starter_registry_accepts_fixtures_but_rejects_unrelated_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            registry = root / "registry.toml"
+            for source in ["examples/counter", "examples/fixtures/counter", "../counter"]:
+                if not source.startswith(".."):
+                    (root / source).mkdir(parents=True)
+                registry.write_text(
+                    'default = "counter"\n[[examples]]\nname = "counter"\n'
+                    f'source = "{source}"\ndescription = "Counter"\ncaveats = "Minimal"\n'
+                )
+                with patch.object(sync_cli, "ROOT", root), patch.object(sync_cli, "REGISTRY", registry):
+                    if source.startswith(".."):
+                        with self.assertRaisesRegex(ValueError, "source must"):
+                            sync_cli.load_registry()
+                    else:
+                        self.assertEqual(sync_cli.load_registry()["examples"][0]["source"], source)
+
     def test_repository_helpers_resolve_the_monorepo_cli(self):
         for parent in [ROOT / "examples", ROOT / "examples/fixtures"]:
             for helper in parent.glob("*/pax"):

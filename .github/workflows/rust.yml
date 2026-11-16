@@ -95,8 +95,8 @@ jobs:
       if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER') }}
 
       with:
-        path: examples/increment/.pax/build
-        key: ${{ runner.os }}-pax-build-${{ hashFiles('examples/increment/**') }}
+        path: examples/fixtures/increment/.pax/build
+        key: ${{ runner.os }}-pax-build-${{ hashFiles('examples/fixtures/increment/**') }}
 
     - name: Build Increment example
       if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER') }}
@@ -104,7 +104,7 @@ jobs:
       env:
         RUSTFLAGS: "-C debuginfo=0"
       run: |
-        pushd examples/increment
+        pushd examples/fixtures/increment
         sccache --start-server
         cargo run -p pax-cli -- build --path . --target web --release
         sccache --show-stats
@@ -122,7 +122,7 @@ jobs:
       if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER') }}
       run: |
         BUCKET_NAME="staging.pax.dev/build/${{ github.event.pull_request.number }}"
-        aws s3 cp --recursive /home/runner/work/pax/pax/examples/increment/.pax/build/release/web s3://$BUCKET_NAME --acl public-read
+        aws s3 cp --recursive /home/runner/work/pax/pax/examples/fixtures/increment/.pax/build/release/web s3://$BUCKET_NAME --acl public-read
 
     - name: Invalidate CloudFront
       if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER') }}

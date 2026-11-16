@@ -1032,7 +1032,7 @@ mod tests {
         let workspace_root = local_pax_workspace_root().expect("test should run in Pax workspace");
 
         assert!(auto_libdev_mode_for_project(
-            &workspace_root.join("examples/increment")
+            &workspace_root.join("examples/fixtures/increment")
         ));
         assert!(auto_libdev_mode_for_project(
             &workspace_root.join("examples/fixtures/starter-project")

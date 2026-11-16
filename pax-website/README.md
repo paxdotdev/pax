@@ -464,19 +464,49 @@ browser-history entry.
 Content and visual design history are archived in
 [PAX-869](https://linear.app/paxdev/issue/PAX-869).
 
-## Shared-definition section
+## Increment Cube and language section
 
 `AuthoringSection` is the mounted “A declarative language for interactive graphics”
-section, with “Fluent in UI” as its smaller subheading. It explains the
-markup/expression language and the boundary between declarative UI and Rust
-application logic. Its View Source panel includes the language demonstration;
-calculator sources live with the demos section instead.
+section, with “Fluent in UI” as its smaller subheading. Its dedicated cube
+viewer contains only `increment.pax` and `lib.rs`, selected from the canonical
+example's source list. Compact inline and expanded presentations share the
+cube selection; the desktop drawer starts open. Source changes reset the code
+pane's horizontal and vertical offsets, so the new file opens at its beginning.
+The section's full-width background uses the site's near-black ink with a purely
+diffuse matte material. It receives SiteShell's stationary strip and pointer
+lights, with no specular glint. This backdrop belongs to `AuthoringSection`,
+not the reusable cube; CPU rendering retains the base ink color.
 
-`SharedDefinitionDemo` pairs the actual `relationship_preview.pax` source
-(embedded with `include_str!`) with a live instance of that component. The 25%
-and 75% buttons change one state value, updating both the label and bar; they do
-not simulate source editing or an agent interaction. The panels stack below
-900px. No animation clock or additional dependency is introduced.
+Calculator sources remain with the demos section's separate View Source panel;
+the cube viewer shares the page's Solarized theme.
+
+`IncrementCube` mounts the canonical `examples/increment-cube` component.
+Clicking or tapping the cube accumulates
+randomized three-axis turns and settles one second after the latest activation.
+The six faces start with 1–6, showing 6; the first activation advances to 7.
+Each new count lands square-on on a different face, replacing the smallest
+and retaining the latest six values. Press/release feedback
+compresses then briefly expands the cube. There is no separate roll button.
+A metallic gold Pax banner says CLICK on desktop and TAP on mobile.
+At rest it matches the settled cube's width, with a thick flat white border
+and white Black-weight text. Placement follows the component's own container:
+alongside when wider than tall, otherwise above with its tip pointing down. The website gives
+the pair 300px of height above the compact code viewer, or 480px beside the
+desktop drawer.
+The sign sits 41 design pixels from the cube horizontally or 45.5 vertically,
+before their shared fit scale. Its tip anchors a repeating squash-and-stretch
+jump away from that baseline, following a quadratic arc. The first roll fades
+the sign over 360ms while the cube slides into its container's center, using
+the same opacity to reduce its offset. The sign stays hidden and the cube
+centered across responsive remounts.
+Spatial composition and material lighting require WGPU; CPU uses a flat counter.
+The shared translucent fill has a custom diffuse/specular material, with no
+shader filters, imported settings, or local lights: this embed uses SiteShell's
+existing global lighting. Motion is always enabled; a component-level tick
+handler skips updates once both the roll and hint finish. The example has no
+viewport proximity listener; its hint and active rolls continue offscreen.
+Compact layouts stack below 900px; an explicit
+source expansion owns the full-screen sheet independently of the desktop drawer.
 
 ## Hero lettering
 

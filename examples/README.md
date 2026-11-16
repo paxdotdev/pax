@@ -11,7 +11,7 @@ example target.
 | [Paxflix](paxflix) | App composition, nested scrolling, and runtime themes |
 | [Living Quilt](living-quilt) | Expressive composition and interaction |
 | [Ink & Light](ink-and-light) | A responsive postcard with local assets and Rust interaction |
-| [Increment](increment) | A minimal template-to-Rust interaction |
+| [Increment Cube](increment-cube) | A translucent six-face counter with randomized wind-up motion |
 | [Pax Logo](pax-logo) | The default CLI starter: radiant logo choreography, disable toggle, slider, and replay |
 | [Liquid Glass](liquid-glass) | Apple native materials and the fallback on other targets |
 | [Materials](materials) | Lighting and material composition |

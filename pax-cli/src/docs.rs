@@ -877,7 +877,7 @@ mod tests {
         }
         assert_eq!(
             find_example_entry(&examples, "increment").unwrap().path,
-            "examples/increment"
+            "examples/fixtures/increment"
         );
     }
 
@@ -891,7 +891,7 @@ mod tests {
                 skip_examples
             );
             for relative in [
-                "examples/increment/src/lib.pax",
+                "examples/fixtures/increment/src/lib.pax",
                 "examples/fixtures/demo/src/lib.pax",
                 "examples/fixtures/demo/assets/image.png",
             ] {

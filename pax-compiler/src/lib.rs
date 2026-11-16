@@ -1722,7 +1722,7 @@ mod tests {
 
     #[test]
     fn collects_object_font_source_from_static_manifest() {
-        let manifest = static_analysis::build_manifest(Path::new("../examples/increment"))
+        let manifest = static_analysis::build_manifest(Path::new("../examples/fixtures/increment"))
             .expect("increment manifest should build");
         let collected = collect_web_font_sources(&manifest);
 

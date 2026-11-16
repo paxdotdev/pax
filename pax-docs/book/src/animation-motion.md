@@ -400,6 +400,79 @@ do not start structural `@in`/`@out` transitions or retain unmounted nodes.
 See [viewport proximity](scrolling-viewports.md#observe-viewport-proximity) for
 the runnable `viewport-proximity` example, sampling limits, and handler code.
 
+### Wind up a roll
+
+**Increment Cube** uses one count and a finite Rust motion controller to spin a
+translucent cube. Click or tap the cube itself. Each activation adds one full
+pending turn per axis, then aligns to the selected face, and increases the current
+speed. Directions are randomized when starting from rest. It always
+settles one second after the most recent activation, with the new count upright
+on a different face, square-on to the orthographic camera.
+
+The faces start with 1–6, showing 6 toward the viewer. The first activation
+advances to 7; each new value replaces the smallest, retaining the last six
+counts on different faces. Pressing compresses the cube; releasing
+expands it briefly before returning to normal. Mouse and touch cancellation
+relax the scale without incrementing. The example has no separate button or
+keyboard activation control.
+
+Captured mouse/touch sequences recognize the poke across moving faces; movement
+beyond 12 window pixels cancels activation. This avoids requiring the same leaf
+face under the pointer at both press and release, as ordinary `@click` does.
+
+```sh
+pax-cli run --path examples/increment-cube --target web
+```
+
+The template's `if @gpu` branch contains the Cuboid. Its `else` supplies a flat
+CPU counter with the same press/release feedback. The Cuboid shares one solid
+translucent fill and a custom diffuse/specular material across its faces; each
+`CuboidFace` contains a live count label. Geometry, material, typography, and
+rotation/scale bindings live in the same file's `@settings` block.
+That block also binds `@tick: tick`; the Rust handler returns immediately when
+the cube is idle and its hint has faded,
+avoiding motion calculations and property writes.
+
+Before the first roll, a gold instruction flag squashes against a fixed tip
+anchor, stretches as it leaps away, and follows a quadratic return arc. The
+perpendicular scale is reciprocal, preserving area. The jump axis follows the
+component's container: horizontal beside the cube, vertical above it. The first
+activation eases the flag's group opacity to zero over 360ms. Its white border
+and native label fade together. Multiplying the cube's position offset by that
+same opacity slides it into the container's center without another animation
+state. The count keeps the flag hidden and cube centered across remounts.
+
+Only front-facing labels show ink. Rear labels stay mounted at zero opacity,
+preserving capture while avoiding overlapping numbers through the cube.
+
+Rust samples cubic ease-outs from the current angles to unwrapped targets;
+a new click retains pending turns and direction while restarting the deadline.
+Whole turns vary the path without changing the selected face's final pose.
+Tick dispatch continues at rest, but the Rust guard skips motion updates once
+the hint has faded.
+There is no viewport proximity listener: the hint and active rolls continue
+while mounted, including offscreen.
+Motion is always enabled on GPU; this example does not read an
+operating-system motion preference. The art's `Group` uses
+`LayoutRole::Breakout` so rotating bounds do not expand the surrounding stack.
+
+The cube uses orthographic projection and the optional `3d` feature. Spatial
+composition and material lighting require WGPU. There are no gradients, shader
+filters, imported settings, or local lights: the website embed responds to the
+host's global lighting, while the standalone wrapper supplies ambient light.
+Translucent paint does not refract the backdrop, and native text retains the
+[compositor's coverage limits](compositing-effects.md#coverage-has-limits).
+See [Cuboids with live face content](layout-responsiveness.md#cuboids-with-live-face-content)
+for the spatial composition. The original minimal Increment remains available
+under `examples/fixtures/increment` and as the `increment` CLI starter.
+
+<pax-example
+  path="increment-cube"
+  title="Increment Cube"
+  height="540"
+  files="src/increment.pax,src/lib.rs,src/motion.rs,src/input.rs,src/lib.pax">
+</pax-example>
+
 ## Enter and exit transitions
 
 Use `@in` and `@out` for motion tied to an instance entering or leaving the

@@ -51,7 +51,7 @@ to package production web output without designtime. Full macOS/iOS App Store
 delivery is not yet qualified.
 From this repository, `cargo run -p increment` or `cargo run --example increment`
 runs the native macOS example; `-p` selects the narrower dependency graph.
-Use `pax-cli run --path examples/increment --target web` for browser development.
+Use `pax-cli run --path examples/fixtures/increment --target web` for browser development.
 
 
 ## Source example

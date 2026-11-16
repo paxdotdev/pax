@@ -738,21 +738,21 @@ ordinary release build for the shipping comparison.
 
 ## Inspect an update in a working example
 
-The repository's `examples/increment` app has a useful pair of behaviors:
+The repository's `examples/fixtures/increment` app has a useful pair of behaviors:
 clicking its rounded rectangle changes the count and starts a rotation, while
 a `@pre_render` handler continuously changes the rectangle's color.
 
 From a Pax repository checkout, start it with:
 
 ```sh
-pax-cli run --path examples/increment --target web
+pax-cli run --path examples/fixtures/increment --target web
 ```
 
 With that session running, use another terminal in the same checkout:
 
 ```sh
-pax-cli dev inspect tree --path examples/increment --max-depth 3
-pax-cli dev logs --path examples/increment --limit 50
+pax-cli dev inspect tree --path examples/fixtures/increment --max-depth 3
+pax-cli dev logs --path examples/fixtures/increment --limit 50
 ```
 
 The tree shows the running instances behind the template. The log command

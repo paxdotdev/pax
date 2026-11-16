@@ -327,8 +327,8 @@ restricts selection to that project, including when the path is `.`. For
 example, from a repository checkout:
 
 ```sh
-pax-cli dev status --path examples/increment
-pax-cli dev look --path examples/increment
+pax-cli dev status --path examples/fixtures/increment
+pax-cli dev look --path examples/fixtures/increment
 ```
 
 Project selection uses the active session recorded under that project's
@@ -569,7 +569,7 @@ or browse its fixture index. Run one from the repository root with:
 ```sh
 cargo run --example increment       # direct native execution on macOS
 cargo run -p increment              # build just this example's dependency graph
-pax-cli run --path examples/increment --target web
+pax-cli run --path examples/fixtures/increment --target web
 pax-cli run --path examples/fixtures/auto-sized-containers --target web
 pax-cli docs examples auto-sized-containers
 ```

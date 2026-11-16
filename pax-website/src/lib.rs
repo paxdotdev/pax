@@ -58,8 +58,6 @@ mod section_layout;
 #[cfg(feature = "app")]
 mod scroll_story;
 #[cfg(feature = "app")]
-pub mod shared_definition_demo;
-#[cfg(feature = "app")]
 pub mod site_logo;
 pub mod site_header;
 #[cfg(feature = "app")]
@@ -107,8 +105,6 @@ pub use route_pages::{CalculatorPage, NotFoundPage, PaxflixPage, PlaygroundPage}
 pub use runtime_section::RuntimeSection;
 #[cfg(feature = "app")]
 pub use framed_study::FramedStudy;
-#[cfg(feature = "app")]
-pub use shared_definition_demo::{RelationshipPreview, SharedDefinitionDemo};
 #[cfg(feature = "app")]
 pub use site_logo::SiteLogo;
 pub use site_header::SiteHeader;
