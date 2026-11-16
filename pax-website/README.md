@@ -472,10 +472,6 @@ viewer contains only `increment.pax` and `lib.rs`, selected from the canonical
 example's source list. Compact inline and expanded presentations share the
 cube selection; the desktop drawer starts open. Source changes reset the code
 pane's horizontal and vertical offsets, so the new file opens at its beginning.
-The section's full-width background uses the site's near-black ink with a purely
-diffuse matte material. It receives SiteShell's stationary strip and pointer
-lights, with no specular glint. This backdrop belongs to `AuthoringSection`,
-not the reusable cube; CPU rendering retains the base ink color.
 
 Calculator sources remain with the demos section's separate View Source panel;
 the cube viewer shares the page's Solarized theme.
