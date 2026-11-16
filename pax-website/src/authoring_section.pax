@@ -1,39 +1,72 @@
-<Group width=100% height=100%>
+<LightFrame width=100% height=100% @viewport_proximity_change=self.visibility>
     <ImportSettings><SiteTheme /></ImportSettings>
-    <Stacker id=authoring_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=48px>
-        <Stacker width={self.compact ? 100% : 82%} autosize=true gutter=24px>
-            ///#h2
-            <Text class="editorial_title" width=100%>A declarative language for interactive graphics</Text>
-            <Text class="editorial_lead" width=100%>Pax combines HTML-like markup with spreadsheet-like expressions—a powerful, expressive, and fun way to build user interfaces.</Text>
-        </Stacker>
+    ///#ignore
+    if self.visible && @gpu {
+        <Group width=0px height=0px layout_role=LayoutRole::Breakout @tick=self.animate/>
+    }
+    <LightSource x={(self.cyan_x)px} y={(self.cyan_y)px} anchor=50% width=1px height=1px
+        z={(self.light_depth)px} radius={(self.light_radius)px} intensity=4 color=rgb(0, 255, 255)/>
+    <LightSource x={(self.magenta_x)px} y={(self.magenta_y)px} anchor=50% width=1px height=1px
+        z={(self.light_depth)px} radius={(self.light_radius)px} intensity=4 color=rgb(255, 0, 255)/>
+    <LightSource x={(self.yellow_x)px} y={(self.yellow_y)px} anchor=50% width=1px height=1px
+        z={(self.light_depth)px} radius={(self.light_radius)px} intensity=4 color=rgb(255, 255, 0)/>
+    <Stacker id=authoring_content width=100% autosize=true gutter=0px>
+        <Group id=authoring_intro width=100% autosize=true @viewport_proximity_change=self.intro_visibility>
+            <Stacker class="authoring_copy" autosize=true gutter=24px>
+                ///#h2
+                <Text class="editorial_title" width=100%>A declarative language for interactive graphics</Text>
+                <Text class="editorial_lead" width=100%>Pax combines HTML-like markup with spreadsheet-like expressions—a powerful, expressive, and fun way to build user interfaces.</Text>
+            </Stacker>
+            // Capture only the dark surface: native copy stays selectable above it.
+            if @gpu {
+                <WetPane width=100% height=100% time={self.intro_time} seed=17 half_resolution=true
+                    quiet=true layout_role=LayoutRole::Breakout>
+                    <Rectangle class="site_ink" width=100% height=100%/>
+                </WetPane>
+            }
+        </Group>
         ///#ignore
-        <Stacker width=100% autosize=true gutter=20px>
+        <Stacker id=cube_stage width=100% autosize=true gutter=0px>
             if self.compact {
-                <IncrementCube width=100% height=300px count=bind:self.cube_count/>
+                <IncrementCube width=100% height=360px count=bind:self.cube_count/>
                 <ExampleSourceViewer width=100% height=330px title="Increment Cube" sources={self.sources} selected_source=bind:self.selected_source
                     source_light_mode=bind:self.source_light open=true show_close_tab=false/>
                 <Button class="site_button_outline_label" width=100% height=44px color={SiteTheme::ink()} hover_color=rgb(38, 38, 36)
                     corner_radius=0 outline={paint: {SiteTheme::rule()}, width: 1px} @button_click=self.expand_source>Expand source</Button>
             } else {
-                <ExampleHost width=100% height=480px title="Increment Cube" sources={self.sources} selected_source=bind:self.selected_source
+                <ExampleHost width=100% height=520px title="Increment Cube" sources={self.sources} selected_source=bind:self.selected_source
                     source_light_mode=bind:self.source_light drawer_open=bind:self.demo_open>
                     <IncrementCube width=100% height=100% count=bind:self.cube_count/>
                 </ExampleHost>
             }
         </Stacker>
-        <Stacker width={self.compact ? 100% : 82%} autosize=true gutter=24px>
-            ///#h3
-            <Text class="editorial_subtitle" width=100%>Fluent in UI</Text>
-            <Text class="editorial_body" width=100% markdown=true>Declarative `.pax` files sit alongside Rust. Describe your interface in Pax; write your application logic with the full power of Rust.</Text>
-            <Text class="editorial_lead" width=100%>Whether you're building a business application, a mobile app, an interactive art project, data visualizations, or a game—if it can be expressed in pixels, it can be built in Pax.</Text>
-            <Text class="editorial_body" width=100% markdown=true>Want to see how it works? Open any **View Source** tab to see how that section was built, or explore the [website's source on GitHub](https://github.com/paxdotdev/pax/tree/main/pax-website).</Text>
-        </Stacker>
+        <Group id=authoring_outro width=100% autosize=true @viewport_proximity_change=self.outro_visibility>
+            <Stacker class="authoring_copy" autosize=true gutter=24px>
+                ///#h3
+                <Text class="editorial_subtitle" width=100%>Fluent in UI</Text>
+                <Text class="editorial_body" width=100% markdown=true>Declarative `.pax` files sit alongside Rust. Describe your interface in Pax; write your application logic with the full power of Rust.</Text>
+                <Text class="editorial_lead" width=100%>Whether you're building a business application, a mobile app, an interactive art project, data visualizations, or a game—if it can be expressed in pixels, it can be built in Pax.</Text>
+                <Text class="editorial_body" width=100% markdown=true>Want to see how it works? Open any **View Source** tab to see how that section was built, or explore the [website's source on GitHub](https://github.com/paxdotdev/pax/tree/main/pax-website).</Text>
+            </Stacker>
+            if @gpu {
+                <WetPane width=100% height=100% time={self.outro_time} seed=41 half_resolution=true
+                    quiet=true layout_role=LayoutRole::Breakout>
+                    <Rectangle class="site_ink" width=100% height=100%/>
+                </WetPane>
+            }
+        </Group>
     </Stacker>
     <Rectangle class="site_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 48px) : 88%} height=1px/>
     <Rectangle class="site_ink" width=100% height=100%/>
-</Group>
+</LightFrame>
 
 @settings {
     @mount: handle_mount
     @pre_render: handle_pre_render
+    .authoring_copy {
+        x: {self.compact ? 24px : 6%}
+        anchor_x: 0%
+        width: {self.compact ? (100% - 48px) : 72.16%}
+        padding_y: {self.compact ? 56px : 80px}
+    }
 }

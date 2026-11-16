@@ -19,6 +19,7 @@ mod tests;
 /// frame instance has its own lexical lighting identity.
 #[pax]
 #[engine_import_path("pax_engine")]
+#[pax_document(children)]
 #[primitive("pax_std::drawing::lighting::LightFrameInstance")]
 pub struct LightFrame {}
 

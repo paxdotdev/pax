@@ -124,6 +124,21 @@ compact layouts.
 creative mission, and MIT / Apache-2.0 license. The closing CTA links to setup and
 examples, followed by docs, GitHub, blog, community, and platform support.
 
+The language section has three edge-to-edge bands: a wet-glass introduction,
+the live Increment Cube/source stage, and wet glass behind “Fluent in UI.” Copy
+retains the page gutters. Desktop opens the cube's source drawer by default;
+compact layouts stack the cube and inline source with an expand action.
+The two backgrounds reuse `rain-pane::WetPane` at half resolution, capturing
+only a dark Rectangle, not the selectable native copy. Three broad cyan,
+magenta, and yellow point lights sweep the shared `LightFrame` at different
+rates. Their radius follows the section's extent and their height broadens the
+reflection footprint. The light frame prevents these lights from spilling into
+neighboring sections; the site's existing pointer light can still enter it.
+The lighting clock holds offscreen, and each water clock advances only while
+its own band is visible. No hidden-tab catch-up is performed. Water and animated
+lighting require the GPU backend; other renderers retain the plain dark surface.
+System reduced-motion handling remains pending PAX-1048, as in the rain fixture.
+
 The opening sequence uses the outer native scroller as a shared clock.
 `scroll_story.rs` maps its offset into overlapping chapter-local clocks for the
 hero, the Paxflix showcase, and the toolkit examples. Paxflix's clock includes the

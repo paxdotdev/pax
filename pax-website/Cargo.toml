@@ -27,10 +27,11 @@ social_image_alt = "Pax logo"
 [features]
 default = ["app"]
 # Embedded headers share the component source without demo cartridges or filters.
-app = ["dep:led-oscilloscope", "dep:calculator", "dep:paxflix", "dep:increment-cube", "pax-kit/shaders"]
+app = ["dep:led-oscilloscope", "dep:calculator", "dep:paxflix", "dep:increment-cube", "dep:rain-pane", "pax-kit/shaders"]
 standalone = ["app", "pax-kit/host"]
 
 [dependencies]
+rain-pane = { version = "0.39.1", path = "../examples/fixtures/rain-pane", default-features = false, optional = true }
 increment-cube = { version = "0.39.1", path = "../examples/increment-cube", default-features = false, optional = true }
 led-oscilloscope = { version = "0.39.1", path = "../examples/led-oscilloscope", default-features = false, optional = true }
 pax-kit = { version = "0.39.1", path = "../pax-kit" }

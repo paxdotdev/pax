@@ -1103,8 +1103,11 @@ This is a source-only Rust declaration, not a reactive Pax setting. It asks the
 extractor to visit each authored child once, in source order, without following
 the component's internal template. Use it only when that reading order represents
 the component's content; it would be incorrect for a component that conditionally
-selects unrelated alternatives. `Stacker`, `Scroller`, and `ExampleHost` use this
-contract. Without it, unresolved runtime projection produces a build diagnostic.
+selects unrelated alternatives. `Stacker`, `Scroller`, `LightFrame`, and
+`ExampleHost` use this contract. In particular, wrapping copy in a lighting scope
+does not remove it from the extracted document. Without a contract, unresolved
+runtime projection produces a build diagnostic; template-less primitives omit
+their children.
 
 The standard library also owns the `text`, `link`, `mask`, and `settings`
 contracts. `text` reads the component's declared scalar content receiver (or
