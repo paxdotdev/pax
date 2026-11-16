@@ -1,0 +1,11 @@
+if line_alpha > 0.01 {
+    <Group width=100% height=100% opacity={line_alpha} _raycastable=false>
+        for train in trains key train.id {
+            <Group x={(train.x)px} y={(train.y)px} anchor=50% width={(train_width)px} height={(train_height)px} rotate={(train.angle)deg} _raycastable=false>
+                <Rectangle x=70% y=50% width=12% height=40% fill=rgb(255, 255, 250) _raycastable=false/>
+                <Rectangle width=100% height=100% corner_radius=4 fill={train.color} stroke={paint: {selected_train == train.id ? rgb(36, 53, 43) : rgb(255, 255, 250)}, width: {(stroke_width)px}} _raycastable=false/>
+            </Group>
+        }
+    </Group>
+}
+@settings { @mount: mount }

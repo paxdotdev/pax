@@ -1,0 +1,162 @@
+<Router>
+    <Route path="/" width=0px height=0px _raycastable=false>
+        <AtlasRoute/>
+    </Route>
+    <Route path="/line/:slug" width=0px height=0px _raycastable=false>
+        <AtlasRoute slug={route.params.slug}/>
+    </Route>
+    <Route default=true width=0px height=0px _raycastable=false>
+        <AtlasRoute/>
+    </Route>
+</Router>
+
+<DynamicIslandSpacer inset=bind:safe_top/>
+<DynamicIslandSpacer edge=SafeAreaEdge::Bottom y=100% inset=bind:safe_bottom/>
+<DynamicIslandSpacer edge=SafeAreaEdge::Left inset=bind:safe_left/>
+<DynamicIslandSpacer edge=SafeAreaEdge::Right x=100% inset=bind:safe_right/>
+
+<Group anchor=0% x={(safe_left)px} y={(safe_top)px} width={100% - (safe_left + safe_right)px} height={100% - (safe_top + safe_bottom)px}>
+    if search_open {
+        <Group anchor_x=50% x=50% y=80px width={(Math::min(480, canvas_width - 32))px} height={(Math::min(480, @viewport.height - 100))px}>
+            <Button class="control" anchor_x=100% x={100% - 12px} y=12px width=44px @button_click=self.dismiss>×</Button>
+            <Text x=20px y=24px width={100% - 80px} height=28px style={font: {family: "Arial", weight: 700}, font_size: 18px, fill: rgb(36, 53, 43)}>Find a station</Text>
+            <Textbox x=20px y=66px width={100% - 40px} height=44px text=bind:search_query placeholder="Name or station code" focus_on_mount=true
+                style={font: "Arial", font_size: 15px, fill: rgb(36, 53, 43)} background=rgb(252, 252, 249)/>
+            <Scroller x=20px y=120px width={100% - 40px} height={100% - 136px} scroll_height=352px>
+                for (hit, i) in search_results key hit.id {
+                    <StationChoice y={(i * 44)px} width=100% height=44px hit={hit} selected=bind:station_choice/>
+                }
+            </Scroller>
+            <Rectangle width=100% height=100% corner_radius=12 fill=rgb(255, 255, 250) stroke={paint: rgb(194, 201, 188), width: 1px}/>
+        </Group>
+    }
+    if choice_count > 0 {
+        <Group x=16px y={(header + 24)px} width=260px height={(72 + choice_count * 44)px}>
+            <Button class="control" x=204px y=12px width=40px @button_click=self.dismiss>×</Button>
+            <Text x=16px y=24px width=180px height=28px style={font: "Arial", font_size: 14px, fill: rgb(36, 53, 43)}>Choose a line</Text>
+            for (line, i) in choices {
+                <LineChoice x=12px y={(60 + i * 44)px} width=236px height=44px line={line} selected=bind:selected/>
+            }
+            <Rectangle width=100% height=100% corner_radius=10 fill=rgb(255, 255, 250) stroke={paint: rgb(194, 201, 188), width: 1px}/>
+        </Group>
+    }
+    if selected_train >= 0 {
+        <Group anchor=[100%, 100%] x={100% - 16px} y={100% - 46px} width={(Math::min(354, canvas_width - 32))px} height=268px>
+            <Button class="control" x={100% - 52px} y=12px width=40px @button_click=self.dismiss>×</Button>
+            <Text x=22px y=22px width={100% - 82px} height=30px style={font: {family: "Arial", weight: 700}, font_size: 20px, fill: rgb(31, 47, 40)}>{detail_title}</Text>
+            <Text x=22px y=68px width={100% - 44px} height=180px style={font: "Arial", font_size: 14px, fill: rgb(67, 79, 70)}>{detail_body}</Text>
+            <Rectangle x=0px y=0px width=5px height=100% fill={detail_color}/>
+            <Rectangle width=100% height=100% corner_radius=12 fill=rgb(255, 255, 250) stroke={paint: rgb(194, 201, 188), width: 1px}/>
+        </Group>
+    }
+
+    <Group anchor=[100%, 100%] x={100% - 16px} y={100% - 46px} width=156px height=46px>
+        <Button class="control" x=0px width=46px @button_click=self.zoom_out>−</Button>
+        <Button class="control" x=52px width=46px @button_click=self.zoom_in>+</Button>
+        <Button class="control" x=104px width=52px @button_click=self.fit>Fit</Button>
+    </Group>
+
+    if compact_height || body_width < 600 {
+        <Group anchor=[0%, 100%] x=16px y={100% - 46px} width=220px height=46px>
+            if compact_height {
+                <Button class="control" width=88px @button_click=self.pause>{paused ? "Play" : "Pause"}</Button>
+            }
+            <Button class="control" x={compact_height ? 96px : 0px} width=100px @button_click=self.motion>{reduced_motion ? "Motion off" : "Motion on"}</Button>
+        </Group>
+    }
+    <Group anchor=0% width=100% height={(header)px}>
+        if !compact_height {
+            <Text x=20px y=12px width={body_width < 600 ? (body_width - 124)px : 450px} height=42px
+                style={font: {family: "Arial", weight: 700}, font_size: {body_width < 600 ? 26px : 30px}, fill: rgb(31, 47, 40)}>{title}</Text>
+            <Text x=21px y=54px width={100% - 42px} height=22px style={font: "Arial", font_size: 12px, fill: rgb(102, 113, 101)}>{subtitle}</Text>
+            <Group anchor=[100%, 0%] x={100% - 16px} y=17px width={body_width < 600 ? 88px : 322px} height=44px>
+                <Button class="control" x=0px width=88px @button_click=self.pause>{paused ? "▶  Play" : "Ⅱ  Pause"}</Button>
+                if body_width >= 600 {
+                    <Button class="control" x=96px width=68px @button_click=self.speed_up>{speed == 6 ? "6×" : "1×"}</Button>
+                    <Button class="control" x=172px width=150px @button_click=self.motion>{reduced_motion ? "Motion off" : "Motion on"}</Button>
+                }
+            </Group>
+        }
+        <Group anchor=0% x=20px y={compact_height ? 12px : (body_width < 600 ? 88px : 78px)} width={100% - 40px} height=44px>
+            if selected > 0 {
+                <Button class="control" x=0px width=112px @button_click=self.back>← Main map</Button>
+            }
+            <Dropdown x={selected > 0 ? 120px : 0px} width={body_width < 600 ? (selected > 0 ? 100% - 120px : 62%) : (body_width < 800 ? 144px : 220px)} height=44px selected_id=bind:selected options={options}
+                background=rgb(252, 252, 249) stroke={paint: rgb(198, 205, 192), width: 1px} corner_radius=6
+                style={font: "Arial", font_size: 14px, fill: rgb(36, 53, 43)}/>
+            if body_width >= 600 {
+                <Dropdown x={(selected > 0 ? 120px : 0px) + (body_width < 800 ? 156px : 236px)} width={body_width < 800 ? 156px : 240px} height=44px selected_id=bind:train_choice options={train_options}
+                    background=rgb(252, 252, 249) stroke={paint: rgb(198, 205, 192), width: 1px} corner_radius=6
+                    style={font: "Arial", font_size: 13px, fill: rgb(36, 53, 43)}/>
+                <Button class="control" x={(selected > 0 ? 120px : 0px) + (body_width < 800 ? 324px : 492px)} width={body_width < 800 ? 96px : 116px} @button_click=self.open_search>Find station</Button>
+            } else if selected == 0 {
+                <Text anchor_x=100% x=100% width=32% height=44px style={font: {family: "Arial", weight: 600}, font_size: 10px, fill: rgb(115, 126, 110), align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center}>SIMULATION</Text>
+            }
+        </Group>
+        if body_width < 600 {
+            <Dropdown x=20px y=144px width={100% - 140px} height=44px selected_id=bind:train_choice options={train_options}
+                background=rgb(252, 252, 249) stroke={paint: rgb(198, 205, 192), width: 1px} corner_radius=6
+                style={font: "Arial", font_size: 13px, fill: rgb(36, 53, 43)}/>
+            <Button class="control" anchor_x=100% x={100% - 20px} y=144px width=90px @button_click=self.open_search>Find</Button>
+        }
+        <Rectangle width=100% height={(header)px} fill=rgb(252, 252, 249)/>
+    </Group>
+
+    if sidebar > 0 {
+        <Group x=0px y={(header + 24)px} width={(sidebar)px} height={100% - (header + 60)px}>
+            <Text x=24px y=0px width=190px height=24px style={font: {family: "Arial", weight: 700}, font_size: 11px, fill: rgb(116, 128, 111)}>EXPLORE THE NETWORK</Text>
+            <Scroller x=16px y=35px width={100% - 32px} height={100% - 35px} scroll_height=616px>
+                for line in lines key line.id {
+                    <LineChoice x=0px y={(line.id * 44)px} width=100% height=44px line={line} selected=bind:selected/>
+                }
+            </Scroller>
+        </Group>
+    }
+
+    <Text anchor=[0%, 100%] x=20px y={100% - 6px} width={100% - 40px} height=22px style={font: "Arial", font_size: 11px, fill: rgb(103, 114, 100)}>{status}</Text>
+
+    <Scroller id=atlas_view anchor=0% x={(sidebar)px} y={(header + 18)px} width={(canvas_width)px} height={(canvas_height)px}
+        scroll_width={(Math::max(canvas_width, sheet_width * view_scale))px} scroll_height={(Math::max(canvas_height, sheet_height * view_scale))px}
+        scroll_pos_x=bind:scroll_x scroll_pos_y=bind:scroll_y>
+        <Group id=atlas_sheet anchor=0% x={(Math::max(0, (canvas_width - sheet_width * view_scale) / 2))px} y={(Math::max(0, (canvas_height - sheet_height * view_scale) / 2))px}
+            width={(sheet_width)px} height={(sheet_height)px} scale={(view_scale * 100)%}>
+            <AtlasSurface width=100% height=100% selected=bind:selected selected_train=bind:selected_train view_scale={view_scale} choices=bind:choices/>
+            for line in lines key line.id {
+                <RouteStations width=100% height=100% line={line}/>
+            }
+            for line in lines key line.id {
+                <RouteTrains width=100% height=100% line={line} selected_train={selected_train}/>
+            }
+            if selected == 0 {
+                <Path width=100% height=100% elements={interchange_elements} fill=TRANSPARENT _raycastable=false
+                    stroke={paint: rgb(255, 255, 253), width: 35px, cap: StrokeCap::Round, join: StrokeJoin::Round}/>
+                <Path width=100% height=100% elements={interchange_elements} fill=TRANSPARENT _raycastable=false
+                    stroke={paint: rgb(63, 69, 69), width: 38px, cap: StrokeCap::Round, join: StrokeJoin::Round}/>
+            }
+            for line in lines key line.id {
+                <RoutePaths width=100% height=100% line={line}/>
+            }
+            if selected == 0 {
+                <Path width=100% height=100% elements={transfer_elements} fill=TRANSPARENT _raycastable=false
+                    stroke={paint: rgb(90, 97, 99), width: 3px}/>
+            }
+            <Rectangle width=100% height=100% fill=rgb(252, 252, 249) _raycastable=false/>
+        </Group>
+    </Scroller>
+    <Rectangle width=100% height=100% fill=rgb(252, 252, 249)/>
+</Group>
+
+@settings {
+    @mount: mount
+    @tick: frame
+    @key_down: keyboard
+    .control {
+        anchor: 0%
+        height: 44px
+        color: rgb(252, 252, 249)
+        hover_color: rgb(229, 234, 227)
+        corner_radius: 6
+        outline: {paint: rgb(198, 205, 192), width: 1px}
+        style: {font: "Arial", font_size: 14px, fill: rgb(36, 53, 43), align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center}
+    }
+}

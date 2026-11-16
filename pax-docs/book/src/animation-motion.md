@@ -688,6 +688,14 @@ For handwriting or a drawn-line reveal, animate `draw_start` and
 [Scrolling](scrolling-viewports.md) owns scroll positions and viewports.
 Animation supplies the changing value.
 
+The [Tokyo Metro example](https://github.com/paxproject/pax/tree/dev/examples/tokyo-metro)
+morphs a transit schematic into straight lines and closed pill-shaped loops.
+Its Rust geometry model interpolates matching cubic control points and uses
+the resulting curves for both Path drawing and train positions. This is
+application-owned geometry interpolation: `PathElement` values themselves
+switch discretely. Run `pax-cli run --path examples/tokyo-metro --target web`
+to explore the shared geometry and explicit motion controls.
+
 Choose motion that preserves the interface's meaning when paused or
 skipped. Keep long decorative sequences user-driven, and provide an
 application setting that can select a stable final state or a shorter

@@ -1,0 +1,24 @@
+if line_alpha > 0.01 {
+    <Group width=100% height=100% opacity={line_alpha} _raycastable=false>
+        for station in stations key station.id {
+            <Group width=100% height=100% _raycastable=false>
+                if station.show_label {
+                    <Text x={(station.label_x)px} y={(station.label_y)px} width={(station.label_width)px} height={(station.label_height)px} selectable=false wrap={isolated} _raycastable=false
+                        style={font: {station.font}, font_size: {(station.font_size)px}, fill: rgb(31, 36, 40)}>{station.label}</Text>
+                    if station.note != "" {
+                        <Text x={(station.note_x)px} y={(station.note_y)px} width={(station.note_width)px} height={(station.note_height)px} selectable=false wrap=true _raycastable=false
+                            style={font: "Arial", font_size: {(station.note_font_size)px}, fill: rgb(104, 112, 111)}>{station.note}</Text>
+                    }
+                }
+                <Group x={(station.x)px} y={(station.y)px} anchor=50% width={(26 * station.badge_scale)px} height={(36 * station.badge_scale)px} _raycastable=false>
+                    if station.show_code {
+                        <Text x=0px y={(2 * station.badge_scale)px} width=100% height=100% selectable=false wrap=false _raycastable=false
+                            style={font: {family: "Arial", weight: 700}, font_size: {(13 * station.badge_scale)px}, fill: rgb(30, 35, 39), align_horizontal: TextAlignHorizontal::Center}>{station.badge}</Text>
+                    }
+                    <Rectangle width=100% height=100% corner_radius={(6 * station.badge_scale)} fill=rgb(255, 255, 253) stroke={paint: {station.color}, width: {(2.8 * station.badge_scale)px}} _raycastable=false/>
+                </Group>
+            </Group>
+        }
+    </Group>
+}
+@settings { @mount: mount }

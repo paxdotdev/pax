@@ -12,6 +12,7 @@ members = [
     "examples/calculator",
     "examples/increment",
     "examples/ink-and-light",
+    "examples/tokyo-metro",
     "examples/liquid-glass",
     "examples/living-quilt",
     "examples/materials",
@@ -103,6 +104,9 @@ opt-level = 0
 opt-level = 0
 
 [profile.dev.package.ink-and-light]
+opt-level = 0
+
+[profile.dev.package.tokyo-metro]
 opt-level = 0
 
 [profile.dev.package.liquid-glass]
@@ -267,6 +271,7 @@ group-compositing = { path = "examples/fixtures/group-compositing", default-feat
 gyro-helper = { path = "examples/fixtures/gyro-helper", default-features = false }
 increment = { path = "examples/increment", default-features = false }
 ink-and-light = { path = "examples/ink-and-light", default-features = false }
+tokyo-metro = { path = "examples/tokyo-metro", default-features = false }
 liquid-glass = { path = "examples/liquid-glass", default-features = false }
 living-quilt = { path = "examples/living-quilt", default-features = false }
 marionette = { path = "examples/fixtures/marionette", default-features = false }
@@ -493,3 +498,7 @@ path = "examples/fixtures/cuboid-router.rs"
 [[example]]
 name = "light-space"
 path = "examples/fixtures/light-space.rs"
+
+[[example]]
+name = "tokyo-metro"
+path = "examples/tokyo-metro.rs"
