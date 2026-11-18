@@ -245,7 +245,9 @@ surface use the same boundary. Content edits, local movement, resizing, and
 clip changes still invalidate affected drawings. Flat lighting follows the
 surface's world transform without baking that transform into every drawing.
 Camera-controlled or spatial placement, detached captures, and presentation flights keep
-the conservative world-dependent path. This paint isolation applies only where
+world-dependent placement notifications so drawing can resume after a viewport jump.
+Template components and control-flow wrappers subscribe to world placement only
+when their own canvas coordinates are requested. This paint isolation applies only where
 the runtime allocates a separate surface.
 
 Ordinary affine native Text and Frame clips also retain placement in their nearest Scroller's

@@ -52,14 +52,13 @@
             if @gpu {
                 <Group width=100% height=100% @mount=self.enable_motion @tick=self.tick>
                     if self.visible && self.face_opacity > 0 {
-                        for pair in self.signals {
-                            <Group x={(pair.x)px} y={(pair.y)px} width={(pair.span)px} height=5px
-                                anchor=50% rotate={(pair.angle)deg}>
-                                <Ellipse x=0% class="signal"/>
-                                <Ellipse x=100% class="signal"/>
-                                <StripLight x=50% y=50% width=100% height=1px anchor=50% z=6px
-                                    radius={(23.0 * self.board_scale / 100.0)px} intensity=7.5 color=rgb(172, 255, 108)/>
-                            </Group>
+                        for signal in self.signals {
+                            <Ellipse x={(signal.x)px} y={(signal.y)px} z=2px width={signal.active ? 5px : 0px} height={signal.active ? 5px : 0px} anchor=50%
+                                fill={paint: BLACK, material: {signal.material}}/>
+                            if signal.casts_light {
+                                <LightSource enabled={signal.active} x={(signal.x)px} y={(signal.y)px} width=1px height=1px anchor=50% z=6px
+                                    radius={(23.0 * self.board_scale / 100.0)px} intensity=9.0 color={signal.color}/>
+                            }
                         }
                     }
                 </Group>
@@ -109,10 +108,6 @@
         width: {(self.board_width)px}  height: {(self.board_height)px}
         scale: {(self.board_scale)%}
         rotate_y: {@gpu ? (self.rotation_y)deg : 0deg}
-    }
-    .signal {
-        y: 50%  z: 2px  anchor: 50%  width: 5px  height: 5px
-        fill: {paint: BLACK, material: {Material::emissive(rgb(210, 245, 174), 1.0)}}
     }
     .metal { fill: {paint: rgb(119, 126, 122), material: {ambient: 0.55, diffuse: 0.23, specular: 0.22, metallic: 0.45, roughness: 0.35}} }
     .back_print {

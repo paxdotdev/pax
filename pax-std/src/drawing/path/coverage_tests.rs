@@ -68,8 +68,18 @@ fn paint_changes_retain_path_coverage_until_its_shape_changes() {
     let context = Rc::new(crate::test_support::runtime_context());
     context.enable_work_profiling();
     let path = PathInstance::instantiate(args());
+    use crate::core::text::{Text, TextInstance};
+    let mut text_args = args();
+    text_args.properties_scope = PropertiesScopeInit::None;
+    text_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+        Some(Rc::new(RefCell::new(Text::default().to_pax_any())))
+    }));
     let mut root_args = args();
-    root_args.component_template = Some(RefCell::new(vec![path.clone(), path.clone()]));
+    root_args.component_template = Some(RefCell::new(vec![
+        path.clone(),
+        path.clone(),
+        TextInstance::instantiate(text_args),
+    ]));
     let root = ExpandedNode::initialize_root(ComponentInstance::instantiate(root_args), &context);
     let settle = || {
         root.recurse_update(&context);
@@ -112,6 +122,7 @@ fn paint_changes_retain_path_coverage_until_its_shape_changes() {
     );
     assert!(context.occlusion_stats().records_updated > before);
     assert!(context.is_canvas_node_dirty(&a.id));
+    context.take_native_messages();
     geometry_calls(
         &|| {
             a.with_properties_unwrapped(|p: &mut Path| {
@@ -122,6 +133,11 @@ fn paint_changes_retain_path_coverage_until_its_shape_changes() {
         false,
     );
     assert!((path.resolve_coverage_opacity(a) - 0.4).abs() < 1e-6);
+    let native_id = nodes[2].id.to_u32();
+    assert!(context.take_native_messages().iter().any(|message| matches!(
+        message, pax_message::NativeMessage::NativeMaskUpdate(mask) if mask.id == native_id
+            && mask.entries.iter().any(|entry| entry.opacity.is_some_and(|v| (v - 0.4).abs() < 1e-6))
+    )), "a nested opacity edit must reach the native mask through retained paint");
 
     geometry_calls(
         &|| {

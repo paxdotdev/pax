@@ -146,7 +146,7 @@ in `ModularitySection`, separate from these background treatments. At widths of
 1,000px and above, its copy and circuit board share a row, with the board on the
 right. Below that breakpoint the board sits centered beneath the copy. The section's
 ExampleHost lists the wrapper, board, package, pin, and logo templates/Rust sources,
-plus the board layout and motion modules.
+plus the board layout, motion, and signal-routing modules.
 Its `CircuitBoard` illustration assembles six named packages from reusable
 `CircuitPackage` and `CircuitPin` templates. The packages form a reduced tree of
 the illustration's own template: `CircuitBoard` → `For` (chips) → `CircuitPackage`,
@@ -181,9 +181,13 @@ ejected from the canonical `pax-std/src/drawing/pax_logo/pax-logo.svg`; its lett
 is cut out to reveal the PCB, and the logo adds no animation or alpha mask.
 The board's sixteen traces connect pin pads, including three parallel runs from the
 left-edge connector into CircuitBoard's inputs. The connector aligns with the
-root package and has two banks of three soldered through-board leads. Four small
-signal accents move only while
-the board is visible. Board and signal clocks skip pauses of a second or longer
+root package and has two banks of three soldered through-board leads. The top,
+middle, and bottom Ethernet pins emit staggered cyan, magenta, and yellow pulses.
+The short input traces run at about 153 board pixels per second. At each package, a
+pulse keeps its color and takes a randomly chosen connected output until it
+reaches a leaf. Eight to ten pulses travel at once. Alternate pulses cast a
+23-board-pixel-radius light onto the copper. Board and signal clocks pause
+offscreen and skip pauses of a second or longer
 instead of catching up after a hidden-tab pause. Below 600 logical pixels of
 available board width, the PCB and column spacing narrow while preserving the
 same four-row arrangement. CPU rendering uses

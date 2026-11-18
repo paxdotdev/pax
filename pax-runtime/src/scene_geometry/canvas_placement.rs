@@ -114,19 +114,33 @@ impl ExpandedNode {
                 "canvas local placement",
             ));
 
-        // Unsupported placements keep their existing dependencies. The cutoff
-        // prevents world-pose propagation from reaching paint listeners while
-        // the independently composed local chart is valid.
+        // Paint and clip listeners must hear a world change even when their surface
+        // has not drawn yet. Template components and control-flow wrappers have no
+        // paint of their own. Install their same cutoff only if someone reads it.
+        let instance = self.instance_node.borrow();
+        let flags = instance.base().flags();
+        let wrapper = flags.layer == crate::api::Layer::DontCare
+            && (flags.is_component || flags.is_slot || flags.invisible_to_slot);
+        drop(instance);
         let local = self.canvas_local_placement.clone();
         let world = self.presentation_transform_and_bounds.clone();
-        let deps = [local.untyped(), world.untyped()];
-        let fallback =
-            LocalProperty::<Option<TransformAndBounds<NodeLocal, Window>>>::computed_with_cutoff_and_name(
+        let make_fallback = move || {
+            let local = local.clone();
+            let world = world.clone();
+            let deps = [local.untyped(), world.untyped()];
+            LocalProperty::computed_with_cutoff_and_name(
                 move || local.get().tab.is_none().then(|| world.get()),
                 &deps,
                 |old, new| old.is_none() && new.is_none(),
                 "canvas world fallback",
-            );
+            )
+        };
+        let fallback = if wrapper {
+            LocalProperty::default()
+        } else {
+            make_fallback()
+        };
+        let deferred = std::cell::Cell::new(wrapper);
         let local = self.canvas_local_placement.clone();
         let context = Rc::downgrade(ctx);
         let node = Rc::downgrade(self);
@@ -137,6 +151,9 @@ impl ExpandedNode {
         self.canvas_transform_and_bounds
             .replace_with(LocalProperty::computed(
                 move || {
+                    if deferred.replace(false) {
+                        fallback.replace_with(make_fallback());
+                    }
                     if let Some(tab) = local.get().tab {
                         return tab;
                     }
@@ -144,6 +161,8 @@ impl ExpandedNode {
                     let (Some(ctx), Some(node)) = (context.upgrade(), node.upgrade()) else {
                         return tab;
                     };
+                    let _span =
+                        ctx.profile_node_work(node.id.to_u32(), "canvas world placement read");
                     TransformAndBounds {
                         transform: pax_runtime_api::math::Transform2::new(
                             ctx.world_to_canvas_transform_for_node(&node).as_coeffs(),

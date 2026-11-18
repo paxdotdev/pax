@@ -1709,6 +1709,9 @@ impl InstanceNode for SolidSurface {
     ) -> std::fmt::Result {
         f.debug_struct("SolidSurface").finish()
     }
+    fn occlusion_is_mesh_silhouette(&self) -> bool {
+        true
+    }
     fn resolve_convex_mesh(
         &self,
         node: &ExpandedNode,
@@ -1837,6 +1840,7 @@ fn solid_camera_picking_native_masks_and_scroll_charts_agree() {
             );
             // Force an initial mask delivery even if it matches an earlier state.
             native.native_mask_hash.set(u64::MAX);
+            ctx.mark_node_occlusion_dirty(solid.id.to_u32());
             ctx.mark_node_occlusion_dirty(native.id.to_u32());
             let messages = engine.tick();
             let ctx = &engine.runtime_context;

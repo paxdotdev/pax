@@ -99,6 +99,7 @@ impl WgpuRenderer<'_> {
     }
 
     pub(super) fn try_draw_opaque_spatial_scene(&mut self) -> bool {
+        let preparation = self.work_span_start();
         #[cfg(test)]
         if self.force_ordered_spatial {
             return false;
@@ -263,6 +264,7 @@ impl WgpuRenderer<'_> {
         draws.extend(nodes);
         self.render_backend.clear_solid_depth();
         self.spatial.opaque_depth_active = true;
+        self.finish_work_span("opaque depth preparation", preparation);
         self.draw_retained_nodes(&draws);
         self.spatial.opaque_depth_active = false;
         true

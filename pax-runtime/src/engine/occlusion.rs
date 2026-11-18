@@ -710,8 +710,8 @@ pub(crate) fn update_node_occlusion_observed(
                     *state.canvas_counts.entry(old.layer).or_default() -= 1;
                 }
             }
-            refresh_record_path(record, &node);
-            record.opacity = borrow!(node.instance_node).resolve_coverage_opacity(&node);
+            refresh_record_path(record, &node, Some(&geometry));
+            record.opacity = coverage_opacity(&node);
             record.coverage_bounds =
                 occlusion_bounds(&node, record, &geometry, ctx, &mut canvas_mappings);
             ctx.set_occlusion_bounds(id, geometry.layer, record.coverage_bounds);
@@ -1917,6 +1917,18 @@ fn update_indexed_mask(id: u32, ctx: &RuntimeContext, state: &mut OcclusionState
     );
 }
 
+fn coverage_opacity(node: &ExpandedNode) -> f64 {
+    let alpha = node.local_coverage_alpha.get().or_else(|| {
+        let alpha = borrow!(node.instance_node).local_coverage_alpha(node);
+        node.local_coverage_alpha.set(alpha);
+        alpha
+    });
+    match alpha {
+        Some(alpha) => (alpha * node.computed_opacity.get()).clamp(0., 1.),
+        None => borrow!(node.instance_node).resolve_coverage_opacity(node),
+    }
+}
+
 fn cached_local_occlusion_path(node: &ExpandedNode) -> Option<Option<Rc<BezPath>>> {
     let instance = borrow!(node.instance_node);
     (instance.local_occlusion_path_is_retained()
@@ -1924,16 +1936,28 @@ fn cached_local_occlusion_path(node: &ExpandedNode) -> Option<Option<Rc<BezPath>
     .then(|| node.local_occlusion_geometry.get().0)
 }
 
-fn refresh_record_path(record: &mut OcclusionRecord, node: &ExpandedNode) {
+#[cfg_attr(not(feature = "3d"), allow(unused_variables))]
+fn refresh_record_path(
+    record: &mut OcclusionRecord,
+    node: &ExpandedNode,
+    prepared: Option<&PreparedCanvasGeometry>,
+) {
     #[cfg(feature = "3d")]
     {
         let instance = borrow!(node.instance_node);
         record.mesh_path = None;
         if instance.occlusion_is_mesh_silhouette() {
-            if let Some(mesh) = instance
-                .resolve_convex_mesh(node)
-                .and_then(|s| node.project_convex_mesh(&s))
-            {
+            // Records use pre-scroll coordinates. Prepared perspective projections
+            // already include ancestor scrolling, while orthographic ones do not.
+            let projected = prepared
+                .filter(|_| !node.has_perspective_camera())
+                .and_then(|geometry| geometry.projected_solid.clone())
+                .or_else(|| {
+                    instance
+                        .resolve_convex_mesh(node)
+                        .and_then(|solid| node.project_convex_mesh(&solid))
+                });
+            if let Some(mesh) = projected {
                 if let Some(bounds) = mesh.conservative_coverage_bounds() {
                     record.path = None;
                     record.local_path = None;
@@ -2611,8 +2635,8 @@ fn update_node_occlusion_recursive(
     match layer {
         Layer::Canvas => {
             let record = state.records.get_mut(&node.id.to_u32()).unwrap();
-            refresh_record_path(record, node);
-            record.opacity = borrow!(node.instance_node).resolve_coverage_opacity(node);
+            refresh_record_path(record, node, None);
+            record.opacity = coverage_opacity(node);
         }
         Layer::Native | Layer::NativeNonOccluding => {}
         Layer::DontCare => {}

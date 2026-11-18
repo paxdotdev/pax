@@ -304,10 +304,41 @@ fn canvas_order_only_change_does_not_invalidate_local_paint() {
     assert!(!f.any_dirty());
 }
 
+#[test]
+fn first_canvas_query_on_a_component_observes_earlier_and_later_motion() {
+    let mut f = Fixture::new(1, true);
+    let root = f.engine.root_expanded_node.as_ref().unwrap().clone();
+    let placement = root.canvas_transform_and_bounds.clone();
+    let deps = [placement.untyped()];
+    let sample = LocalProperty::computed(move || placement.get(), &deps);
+    for offset in [17., 43., 6.] {
+        root.get_common_properties()
+            .borrow()
+            .x
+            .set(Some(Size::Pixels(offset.into())));
+        f.settle();
+        let transform = kurbo::Affine::from(sample.get().transform);
+        assert_eq!(transform.as_coeffs()[4], offset);
+    }
+}
+
 #[cfg(feature = "3d")]
 #[test]
 fn entering_and_leaving_spatial_placement_restores_conservative_drawing() {
     let mut f = Fixture::new(3, true);
+    // This observer keeps the original slot across both chart changes.
+    let tab = f.cards[0].canvas_transform_and_bounds.clone();
+    let deps = [tab.untyped()];
+    let reads = Rc::new(std::cell::Cell::new(0));
+    let observed = reads.clone();
+    let sample = LocalProperty::computed(
+        move || {
+            observed.set(observed.get() + 1);
+            tab.get()
+        },
+        &deps,
+    );
+    sample.get();
     f.outer
         .get_common_properties()
         .borrow()
@@ -316,12 +347,26 @@ fn entering_and_leaving_spatial_placement_restores_conservative_drawing() {
     f.settle();
     assert!(f.any_dirty());
     assert!(!f.cards[0].has_surface_local_canvas_placement());
+    let mut previous = sample.get();
+    for x in [14, 26] {
+        f.cards[0]
+            .get_common_properties()
+            .borrow()
+            .x
+            .set(Some(Size::Pixels(x.into())));
+        f.settle();
+        let current = sample.get();
+        assert_ne!(current, previous);
+        previous = current;
+    }
     f.outer
         .get_common_properties()
         .borrow()
         .rotate_x
         .set(Some(Rotation::Degrees(0.into())));
     f.settle();
+    sample.get();
+    let before_host_motion = reads.get();
     f.clear();
     f.outer
         .get_common_properties()
@@ -330,5 +375,7 @@ fn entering_and_leaving_spatial_placement_restores_conservative_drawing() {
         .set(Some(Size::Pixels(33.into())));
     f.settle();
     assert!(f.cards[0].has_surface_local_canvas_placement());
+    sample.get();
+    assert_eq!(reads.get(), before_host_motion);
     assert!(!f.any_dirty());
 }

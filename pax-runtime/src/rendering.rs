@@ -826,8 +826,20 @@ pub trait InstanceNode {
         }
     }
 
-    fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
-        expanded_node.computed_opacity.get()
+    /// Supplies the placement-independent paint alpha of a native coverage path.
+    /// The runtime retains a supplied value per expanded node and multiplies it
+    /// by current inherited opacity. On changes to contributing paint inputs,
+    /// including nested properties, call `ExpandedNode::invalidate_coverage_opacity`
+    /// or, for shape changes, `RuntimeContext::mark_node_occlusion_dirty`.
+    /// Return `None` to use the live `resolve_coverage_opacity` hook.
+    fn local_coverage_alpha(&self, _node: &ExpandedNode) -> Option<f64> {
+        None
+    }
+
+    fn resolve_coverage_opacity(&self, node: &ExpandedNode) -> f64 {
+        let opacity = node.computed_opacity.get();
+        self.local_coverage_alpha(node)
+            .map_or(opacity, |alpha| (alpha * opacity).clamp(0.0, 1.0))
     }
 
     /// Whether a property can change local or source-backed clip geometry.

@@ -454,7 +454,7 @@ pub(crate) fn watch_appearance(
             } else {
                 // Alpha/painted-mask changes still refresh native compositing.
                 // Its ordinary listener preserves the retained local outline.
-                node.occlusion_listener.invalidate();
+                node.invalidate_coverage_opacity();
             }
         })
     };

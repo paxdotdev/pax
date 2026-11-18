@@ -1313,6 +1313,21 @@ impl<'w> WgpuRenderer<'w> {
         }
     }
 
+    fn work_span_start(&self) -> Option<web_time::Instant> {
+        self.work_observer.as_ref().map(|_| web_time::Instant::now())
+    }
+
+    fn finish_work_span(&self, operation: &'static str, start: Option<web_time::Instant>) {
+        if let (Some(observer), Some(start)) = (&self.work_observer, start) {
+            observer(pax_runtime_api::RenderWorkObservation {
+                operation,
+                count: 1,
+                cpu_ms: start.elapsed().as_secs_f64() * 1000.0,
+                ..Default::default()
+            });
+        }
+    }
+
     pub fn clear(&mut self) {
         self.scene_dirty = true;
         self.render_backend.clear();
@@ -1527,9 +1542,11 @@ impl<'w> WgpuRenderer<'w> {
             return;
         }
         self.render_backend.ensure_frame_cleared();
+        let preparation = self.work_span_start();
         self.ensure_vector_resources_for_immediate_scene();
         self.transform_arena.flush_to_gpu(&mut self.render_backend);
         self.clip_arena.flush_to_gpu(&mut self.render_backend);
+        self.finish_work_span("retained resource preparation", preparation);
         self.resource_churn_stats.retained_nodes_considered += self.sorted_nodes.len() as u64;
         // Each retained renderer represents one physical surface tile. Cull retained nodes against
         // that tile-local viewport before batching so newly revealed tiles do not replay the full
@@ -1571,6 +1588,7 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     fn draw_retained_nodes(&mut self, node_ids: &[u32]) {
+        let preparation = self.work_span_start();
         let viewport_bounds = self.viewport_bounds();
         let mut current_clip_stack: Vec<u32> = Vec::new();
         let mut current_batch: Vec<RetainedDraw<'_>> = Vec::new();
@@ -1671,7 +1689,10 @@ impl<'w> WgpuRenderer<'w> {
                 );
             }
         }
+        self.finish_work_span("retained draw preparation", preparation);
+        let encoding = self.work_span_start();
         self.render_backend.draw_retained_segments(segments);
+        self.finish_work_span("retained command encoding", encoding);
     }
 
     /// Updates group presentation without changing a node's paint or image resources.

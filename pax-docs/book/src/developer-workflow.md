@@ -209,6 +209,14 @@ reuse; and lighting invalidations with their affected nodes. Lighting reasons
 that physical tile; it does not mean those pixels were drawn. A node can occur
 on several tiles, so these counts are renderer occurrences, not unique elements.
 The report's `nodes` table resolves these IDs to template coordinates.
+The `canvas world placement read` scope identifies nodes that pulled their
+world-space canvas placement. Within `surface encode`, compare `retained
+resource preparation` (vector resources and transform/clip uploads), `opaque
+depth preparation` (successful opaque depth planning and parameter setup),
+`retained draw preparation` (visibility and draw runs), and `retained command
+encoding` (recording those runs on the CPU). Each row counts invocations, which
+can occur several times per surface. The enclosing time includes these spans.
+
 With `3d`, `opaque depth draws` counts planar draws using hardware depth and
 `opaque depth parameter bytes` counts their small retained uniform uploads.
 `ordered depth: …` identifies the first visible draw that requires the ordered
@@ -252,6 +260,13 @@ scroll-container presentation before attributing a stall to mask evaluation.
 lasting at least 0.5 ms in the latest pass, with CPU wall time and an Engine node
 ID for **Inspect node**. It is opt-in diagnostic work, excludes full rebuilds,
 and is already included in the `.records` phase; do not add it again.
+
+During transform-only motion, Rectangle, Ellipse, Line, and Path reuse their
+local fill and stroke coverage alpha while native masks apply the current
+inherited opacity. In a 3D scene, incremental coverage also shares the prepared
+orthographic solid projection with rendering. Perspective silhouettes still
+account separately for ancestor scrolling. Rotation can change which solids
+overlap a native element even when all of them belong to the same component.
 
 For runtime-level occlusion measurements, `OcclusionStats::masks_evaluated`
 counts mask queries after both structural rebuilds and incremental updates;

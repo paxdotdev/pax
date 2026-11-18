@@ -57,7 +57,14 @@ pub fn dimensions(compact: bool) -> Point {
     }
 }
 
-pub fn build(compact: bool) -> (Vec<Chip>, Vec<Vec<Point>>) {
+#[derive(Clone, Debug, Default)]
+pub struct Wiring {
+    pub ethernet: [usize; 3],
+    pub destination: Vec<usize>,
+    pub outputs: Vec<Vec<usize>>,
+}
+
+pub fn build(compact: bool) -> (Vec<Chip>, Vec<Vec<Point>>, Wiring) {
     let (left, right) = if compact {
         (200.0, 470.0)
     } else {
@@ -105,6 +112,10 @@ pub fn build(compact: bool) -> (Vec<Chip>, Vec<Vec<Point>>) {
         (4, 1.0, vec![0, 1, 2], 5, 1.0, vec![0, 1, 2]),
     ];
     let mut routes = Vec::new();
+    let mut wiring = Wiring {
+        outputs: vec![Vec::new(); chips.len()],
+        ..Default::default()
+    };
     for (edge, (parent, side_a, indices_a, child, side_b, indices_b)) in
         edges.into_iter().enumerate()
     {
@@ -130,14 +141,20 @@ pub fn build(compact: bool) -> (Vec<Chip>, Vec<Vec<Point>>) {
         let mut centerline = vec![start];
         centerline.extend(middle);
         centerline.push(end);
-        routes.extend(bundle(a, b, &chamfer(centerline)));
+        for copper in bundle(a, b, &chamfer(centerline)) {
+            wiring.outputs[parent].push(routes.len());
+            wiring.destination.push(child);
+            routes.push(copper);
+        }
     }
     // The connector's outer pin bank faces the root's inputs directly. Matching
     // pad pitch leaves three short parallel runs without unnecessary fan-outs.
     for (i, pad) in chips[0].pins(-1.0, &[0, 1, 2]).pins.into_iter().enumerate() {
+        wiring.ethernet[i] = routes.len();
+        wiring.destination.push(0);
         routes.push(vec![(44.0, 77.0 + i as f64 * 23.0), pad]);
     }
-    (chips, routes)
+    (chips, routes, wiring)
 }
 
 fn add(a: Point, b: Point) -> Point {
@@ -247,7 +264,7 @@ mod tests {
     #[test]
     fn layouts_keep_traces_octilinear_and_on_board() {
         for compact in [false, true] {
-            let (_, routes) = build(compact);
+            let (_, routes, _) = build(compact);
             let (w, h) = dimensions(compact);
             assert_eq!(routes.len(), 16);
             for route in routes {
@@ -284,7 +301,7 @@ mod tests {
     #[test]
     fn two_columns_fold_the_pin_child_above_its_parent() {
         for compact in [false, true] {
-            let (chips, routes) = build(compact);
+            let (chips, routes, _) = build(compact);
             for (parent, child) in [(0, 1), (1, 2), (2, 3), (2, 4)] {
                 assert!(chips[child].center.1 > chips[parent].center.1);
             }
@@ -308,7 +325,7 @@ mod tests {
     #[test]
     fn copper_clears_package_bodies() {
         for compact in [false, true] {
-            let (chips, routes) = build(compact);
+            let (chips, routes, _) = build(compact);
             for route in routes {
                 for segment in route.windows(2) {
                     // Clip the segment against each expanded package rectangle.
@@ -347,7 +364,7 @@ mod tests {
     #[test]
     fn copper_does_not_touch_unrelated_pin_pads() {
         for compact in [false, true] {
-            let (chips, routes) = build(compact);
+            let (chips, routes, _) = build(compact);
             for chip in &chips {
                 for side in [-1.0, 1.0] {
                     let indices: Vec<_> = (0..chip.pins_per_side).collect();

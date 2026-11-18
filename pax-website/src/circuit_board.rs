@@ -2,10 +2,13 @@ use crate::circuit_logo::CircuitLogo;
 use crate::circuit_package::CircuitPackage;
 use crate::circuit_pin::CircuitPin;
 use pax_kit::*;
+use rand::Rng;
 #[path = "circuit_layout.rs"]
 mod layout;
 #[path = "circuit_motion.rs"]
 mod motion;
+#[path = "circuit_traffic.rs"]
+mod traffic;
 
 #[pax]
 pub struct CircuitChip {
@@ -24,11 +27,13 @@ pub struct CircuitTrace {
 }
 
 #[pax]
-pub struct CircuitSignalPair {
+pub struct CircuitSignal {
+    pub active: bool,
     pub x: f64,
     pub y: f64,
-    pub span: f64,
-    pub angle: f64,
+    pub color: Color,
+    pub material: Material,
+    pub casts_light: bool,
 }
 
 /// A retained hardware illustration; signal accents never rebuild its geometry.
@@ -41,7 +46,7 @@ pub struct CircuitBoard {
     pub board_scale: Property<f64>,
     pub chips: Property<Vec<CircuitChip>>,
     pub traces: Property<Vec<CircuitTrace>>,
-    pub signals: Property<Vec<CircuitSignalPair>>,
+    pub signals: Property<Vec<CircuitSignal>>,
     pub visible: Property<bool>,
     pub rotation_y: Property<f64>,
     pub face_opacity: Property<f64>,
@@ -50,9 +55,13 @@ pub struct CircuitBoard {
     #[pax(rust)]
     pub motion_enabled: bool,
     #[pax(rust)]
-    pub signal_routes: Vec<[Vec<(f64, f64)>; 2]>,
+    pub wiring: layout::Wiring,
     #[pax(rust)]
-    pub phase: f64,
+    pub tracks: Vec<traffic::Track>,
+    #[pax(rust)]
+    pub traffic: traffic::Traffic,
+    #[pax(rust)]
+    pub emitters: [Material; 3],
     #[pax(rust)]
     pub last_ms: f64,
     #[pax(rust)]
@@ -83,7 +92,7 @@ impl CircuitBoard {
         self.compact.set(compact);
         self.board_width.set(bw);
         self.board_height.set(bh);
-        let (chips, routes) = layout::build(compact);
+        let (chips, routes, wiring) = layout::build(compact);
         let chips = chips
             .into_iter()
             .map(|chip| CircuitChip {
@@ -96,20 +105,20 @@ impl CircuitBoard {
                 pins_per_side: chip.pins_per_side,
             })
             .collect();
-        // Each pair travels down the same copper bundle and shares one short strip light.
-        self.signal_routes = [[0, 2], [3, 5], [8, 9], [10, 12]]
-            .map(|pair| pair.map(|i| routes[i].clone()))
-            .to_vec();
         self.traces.set(
             routes
-                .into_iter()
+                .iter()
                 .map(|points| CircuitTrace {
-                    elements: path(&points),
+                    elements: path(points),
                 })
                 .collect(),
         );
+        self.wiring = wiring;
+        self.tracks = routes.into_iter().map(traffic::Track::new).collect();
+        self.emitters =
+            ["76F8FF", "FF82EA", "FFF475"].map(|rgb| Material::emissive(Color::from_hex(rgb), 1.1));
         self.chips.set(chips);
-        self.update_signals();
+        self.update_signals(0);
     }
 
     pub fn visibility(&mut self, ctx: &NodeContext, event: Event<ViewportProximityChange>) {
@@ -129,8 +138,7 @@ impl CircuitBoard {
         }
         self.motion.advance(dt);
         self.publish_pose();
-        self.phase = (self.phase + dt / 3250.0) % 1.0;
-        self.update_signals();
+        self.update_signals(dt as u64);
     }
 
     fn publish_pose(&mut self) {
@@ -236,24 +244,27 @@ impl CircuitBoard {
         }
     }
 
-    fn update_signals(&mut self) {
-        self.signals.set(
-            self.signal_routes
-                .iter()
-                .enumerate()
-                .map(|(i, [a, b])| {
-                    let phase = (self.phase + i as f64 / self.signal_routes.len() as f64) % 1.0;
-                    let (ax, ay) = along(a, phase);
-                    let (bx, by) = along(b, phase);
-                    CircuitSignalPair {
-                        x: (ax + bx) / 2.0,
-                        y: (ay + by) / 2.0,
-                        span: (bx - ax).hypot(by - ay),
-                        angle: (by - ay).atan2(bx - ax).to_degrees(),
-                    }
-                })
-                .collect(),
-        );
+    fn update_signals(&mut self, dt: u64) {
+        self.traffic
+            .advance(dt, &self.wiring, &self.tracks, |count| {
+                rand::thread_rng().gen_range(0..count)
+            });
+        // Reuse the same ten paint nodes and five lights across emissions.
+        let mut signals: Vec<_> = (0..traffic::PACKET_SLOTS)
+            .map(|slot| CircuitSignal {
+                casts_light: slot % 2 == 0,
+                ..Default::default()
+            })
+            .collect();
+        for packet in &self.traffic.packets {
+            let channel = packet.id % 3;
+            let signal = &mut signals[packet.id % traffic::PACKET_SLOTS];
+            (signal.x, signal.y) = self.tracks[packet.route].point(self.traffic.progress(packet));
+            signal.active = true;
+            signal.color = [Color::CYAN, Color::FUCHSIA, Color::YELLOW][channel].clone();
+            signal.material = self.emitters[channel].clone();
+        }
+        self.signals.set(signals);
     }
 }
 
@@ -269,22 +280,4 @@ fn path(points: &[(f64, f64)]) -> Vec<PathElement> {
         ));
     }
     elements
-}
-
-fn along(points: &[(f64, f64)], phase: f64) -> (f64, f64) {
-    let length = |a: (f64, f64), b: (f64, f64)| (b.0 - a.0).hypot(b.1 - a.1);
-    let total: f64 = points.windows(2).map(|p| length(p[0], p[1])).sum();
-    let mut remaining = total * phase;
-    for p in points.windows(2) {
-        let segment = length(p[0], p[1]);
-        if segment > 0.0 && remaining <= segment {
-            let t = remaining / segment;
-            return (
-                p[0].0 + (p[1].0 - p[0].0) * t,
-                p[0].1 + (p[1].1 - p[0].1) * t,
-            );
-        }
-        remaining -= segment;
-    }
-    points.last().copied().unwrap_or_default()
 }

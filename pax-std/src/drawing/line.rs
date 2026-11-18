@@ -161,13 +161,10 @@ impl InstanceNode for LineInstance {
         })
     }
 
-    fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
-        expanded_node.with_properties_unwrapped(|properties: &mut Line| {
-            let stroke = properties.stroke.local().get();
-            (crate::common::appearance_coverage_alpha(&[], &stroke)
-                * expanded_node.computed_opacity.get())
-            .clamp(0.0, 1.0)
-        })
+    fn local_coverage_alpha(&self, node: &ExpandedNode) -> Option<f64> {
+        Some(node.with_properties_unwrapped(|p: &mut Line| {
+            crate::common::appearance_coverage_alpha(&[], &p.stroke.local().get())
+        }))
     }
 
     fn local_occlusion_path_is_retained(&self) -> bool {

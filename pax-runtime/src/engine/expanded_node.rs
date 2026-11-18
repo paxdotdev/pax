@@ -379,6 +379,7 @@ pub struct ExpandedNode {
         LocalProperty<crate::scene_geometry::presentation::ClipGeometry>,
     pub(crate) world_clip_geometry:
         LocalProperty<crate::scene_geometry::presentation::ClipGeometry>,
+    pub(crate) local_coverage_alpha: Cell<Option<f64>>,
     pub(crate) local_occlusion_geometry:
         LocalProperty<crate::scene_geometry::presentation::ClipGeometry>,
     /// Camera-projected geometry used by paint, native presentation and input.
@@ -1341,6 +1342,7 @@ impl ExpandedNode {
             transform_and_bounds,
             scroll_state: LocalProperty::default(),
             local_clip_geometry: LocalProperty::default(),
+            local_coverage_alpha: Cell::new(None),
             local_occlusion_geometry: LocalProperty::default(),
             world_clip_geometry: LocalProperty::default(),
             presentation_transform_and_bounds,
@@ -2986,7 +2988,16 @@ impl ExpandedNode {
         ));
     }
 
+    /// Refreshes native coverage after a paint alpha change that preserves its outline.
+    /// Use `RuntimeContext::mark_node_occlusion_dirty` if the covered shape also changes.
+    pub fn invalidate_coverage_opacity(&self) {
+        self.local_coverage_alpha.set(None);
+        self.occlusion_listener.invalidate();
+    }
+
     fn bind_occlusion_listener(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
+        // A settings rebind can replace paint property handles on the same occurrence.
+        self.local_coverage_alpha.set(None);
         #[cfg(feature = "3d")]
         self.bind_retained_motion(ctx);
         self.bind_presentation_inputs(ctx);

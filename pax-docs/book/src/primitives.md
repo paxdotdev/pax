@@ -228,6 +228,23 @@ active stroke's width, cap, and join. Changes to those inputs, path elements,
 smoothing, or layout bounds rebuild the outline. Partial-alpha changes still
 refresh native compositing even when the local outline stays the same.
 
+An `InstanceNode` can also supply the local paint alpha used for native
+occlusion. A primitive whose ink always has 40% opacity can return a constant.
+
+```rust
+fn local_coverage_alpha(&self, _node: &ExpandedNode) -> Option<f64> {
+    Some(0.4)
+}
+```
+
+Pax retains this value per expanded occurrence and applies the current
+inherited opacity when updating native coverage. For reactive paint, call
+`node.invalidate_coverage_opacity()` from the paint watcher whenever the local
+alpha changes. If the edit also changes the outline, one call to
+`RuntimeContext::mark_node_occlusion_dirty` refreshes both. The default
+`None` keeps the live `resolve_coverage_opacity` hook available for
+view-dependent coverage.
+
 ### Retained paint geometry
 
 For local **paint** geometry, the separate opt-in is:

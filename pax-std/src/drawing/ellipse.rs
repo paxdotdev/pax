@@ -138,14 +138,10 @@ impl InstanceNode for EllipseInstance {
         })
     }
 
-    fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
-        expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
-            (crate::common::appearance_coverage_alpha(
-                &properties.fill.local().get(),
-                &properties.stroke.local().get(),
-            ) * expanded_node.computed_opacity.get())
-            .clamp(0.0, 1.0)
-        })
+    fn local_coverage_alpha(&self, node: &ExpandedNode) -> Option<f64> {
+        Some(node.with_properties_unwrapped(|p: &mut Ellipse| {
+            crate::common::appearance_coverage_alpha(&p.fill.local().get(), &p.stroke.local().get())
+        }))
     }
 
     fn local_occlusion_path_is_retained(&self) -> bool {

@@ -397,6 +397,7 @@ impl HomePage {
         for (label, code) in [
             ("src/circuit_layout.rs", include_str!("circuit_layout.rs")),
             ("src/circuit_motion.rs", include_str!("circuit_motion.rs")),
+            ("src/circuit_traffic.rs", include_str!("circuit_traffic.rs")),
         ] {
             modularity_sources.push(ExampleSource {
                 label: label.into(),

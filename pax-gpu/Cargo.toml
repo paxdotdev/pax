@@ -19,6 +19,7 @@ lyon = "1.0.1"
 winit = "0.27.5"
 web-sys = { version = "0.3.64", features = ["HtmlCanvasElement", "CssStyleDeclaration", "Event", "EventInit"] }
 js-sys = "0.3.64"
+web-time = "1.1.0"
 wasm-bindgen-futures = "0.4.38"
 
 [features]

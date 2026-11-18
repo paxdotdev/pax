@@ -293,6 +293,8 @@ fn surface_motion_reuses_opted_in_local_paint_but_not_custom_world_hooks() {
         local: bool,
         calls: Cell<usize>,
         extent: Cell<f64>,
+        alpha: Cell<f64>,
+        alpha_reads: Cell<u32>,
     }
     impl InstanceNode for PaintProbe {
         fn instantiate(_: InstantiationArgs) -> Rc<Self> {
@@ -310,6 +312,12 @@ fn surface_motion_reuses_opted_in_local_paint_but_not_custom_world_hooks() {
         }
         fn canvas_geometry_is_local(&self) -> bool {
             self.local
+        }
+        fn local_coverage_alpha(&self, _: &ExpandedNode) -> Option<f64> {
+            self.local.then(|| {
+                self.alpha_reads.set(self.alpha_reads.get() + 1);
+                self.alpha.get()
+            })
         }
         fn prepare_canvas_geometry(
             &self,
@@ -342,6 +350,8 @@ fn surface_motion_reuses_opted_in_local_paint_but_not_custom_world_hooks() {
             local,
             calls: Cell::new(0),
             extent: Cell::new(40.),
+            alpha: Cell::new(0.5),
+            alpha_reads: Cell::new(0),
         })
     };
     let local = make(true);
@@ -353,6 +363,7 @@ fn surface_motion_reuses_opted_in_local_paint_but_not_custom_world_hooks() {
     let scroller = root.children.get()[0].children.get()[0].clone();
     let children = scroller.children.get();
     let calls = (local.calls.get(), custom.calls.get());
+    let initial_alpha_reads = local.alpha_reads.get();
     for x in [2., 13., -8.] {
         scroller
             .get_common_properties()
@@ -370,11 +381,31 @@ fn surface_motion_reuses_opted_in_local_paint_but_not_custom_world_hooks() {
         custom.calls.get() > calls.1,
         "custom world-dependent hooks retain their contract"
     );
+    // A canvas redraw can be caused by placement or lighting alone.
+    ctx.mark_canvas_node_dirty(children[0].id);
+    ctx.mark_node_occlusion_placement_dirty(children[0].id.to_u32());
+    settle(&root, &ctx);
+    assert_eq!(local.alpha_reads.get(), initial_alpha_reads);
+    scroller
+        .get_common_properties()
+        .borrow()
+        .opacity
+        .set(Some(0.5.into()));
+    settle(&root, &ctx);
+    let effective =
+        |i: usize| ctx.occlusion_state.borrow().records[&children[i].id.to_u32()].opacity;
+    assert_eq!(effective(0), 0.25);
+    assert_eq!(effective(2), 0.5);
+    local.alpha.set(0.75);
     let before = ctx.canvas_geometry_for_node(&children[0]);
     local.extent.set(90.);
     ctx.mark_canvas_node_dirty(children[0].id);
     let after = ctx.canvas_geometry_for_node(&children[0]);
     assert_eq!(after.local.local_bounds.unwrap().width(), 90.);
+    ctx.mark_node_occlusion_dirty(children[0].id.to_u32());
+    settle(&root, &ctx);
+    assert_eq!(effective(0), 0.375);
+    assert_eq!(effective(1), 0.25);
     assert_ne!(before.coverage_bounds, after.coverage_bounds);
     assert_eq!(
         ctx.canvas_geometry_for_node(&children[1])

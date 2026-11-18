@@ -1566,6 +1566,7 @@ impl RuntimeContext {
     pub fn mark_node_occlusion_dirty(&self, id: u32) {
         if let Some(node) = self.get_expanded_node_by_eid(ExpandedNodeIdentifier(id)) {
             node.local_occlusion_geometry.invalidate();
+            node.local_coverage_alpha.set(None);
         }
         self.mark_node_occlusion_placement_dirty(id);
     }
