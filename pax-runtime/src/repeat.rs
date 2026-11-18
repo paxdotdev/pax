@@ -1369,6 +1369,10 @@ impl ToPaxValue for RepeatItem {
 }
 
 impl InstanceNode for RepeatInstance {
+    fn supports_retained_motion(&self) -> bool {
+        true
+    }
+
     fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
         false
     }

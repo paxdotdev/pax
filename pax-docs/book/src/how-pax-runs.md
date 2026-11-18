@@ -207,6 +207,25 @@ composes new world matrices without reevaluating descendant flow measurement or
 rebuilding their local spatial matrices. Moving bounds update spatial-index cells
 only when their grid membership changes; exact query bounds stay current.
 
+In builds with the `3d` feature, the standard Rectangle, Ellipse, Line, Path,
+Ellipsoid, and opaque Cuboid body also separate content effects from inherited
+movement. A local pose change schedules its affected subtree once at the settled
+geometry boundary. Moving a parent therefore preserves unchanged local paint
+geometry and avoids rerunning each child's paint-content effect. Components and
+control-flow nodes use the same placement notification path; no author-specified
+grouping is needed. Local content edits and resizing still invalidate their
+respective caches.
+
+This is CPU-side invalidation and cache reuse, not a retained GPU subtree.
+Current world geometry, draw placement, and native occlusion masks still update
+before rendering. Native controls, detached sources, and custom primitives keep
+their existing dependencies unless explicitly supported. Custom primitives opt
+in through `InstanceNode::supports_retained_motion`, using
+`ExpandedNode::canvas_placement_dependencies` while retaining all paint and shape
+inputs; world-dependent content hooks must keep the conservative default.
+Property invalidation and required world-space preparation can still scale with
+the number of descendants. No mask from an earlier pose is reused for a new pose.
+
 Ordinary affine canvas content inside an allocated Scroller surface also keeps
 its paint placement in that surface's local coordinates. Moving or rotating the
 whole surface does not re-record unchanged Rectangle, Ellipse, Line, Path, or

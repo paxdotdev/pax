@@ -4,6 +4,9 @@ pub mod ellipsoid;
 pub use ellipsoid::*;
 #[cfg(feature = "3d")]
 pub mod cuboid;
+#[cfg(feature = "3d")]
+#[doc(hidden)]
+pub mod cuboid_mesh;
 pub mod ellipse;
 pub mod handwriter;
 pub mod lighting;

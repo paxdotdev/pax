@@ -363,6 +363,14 @@ impl InstanceNode for MaskInstance {
         !Self::alpha_settings(node).0
     }
 
+    #[cfg(feature = "3d")]
+    fn opaque_mesh_content_dependencies(
+        &self,
+        node: &ExpandedNode,
+    ) -> Vec<pax_runtime_api::properties::UntypedProperty> {
+        node.with_properties_unwrapped(|p: &mut Mask| vec![p.alpha.local().untyped()])
+    }
+
     fn plan_startup(
         &self,
         node: &ExpandedNode,

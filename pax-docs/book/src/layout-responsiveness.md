@@ -745,6 +745,12 @@ zero; depth percentages are not supported.
 ```
 
 `fill` paints every face, using the existing layered fill/material model.
+On the GPU, one opaque solid fill and positive dimensions use a single retained
+mesh with sharp face normals. The mesh geometry is shared; rotation updates its
+pose. Gradients, layered or translucent fills, alpha-masked content, collapsed
+dimensions, and CPU rendering retain the rectangular-face path. Changes to these
+properties switch paths automatically without remounting authored face content.
+
 `fill=[]` leaves just authored content. `CuboidFace` places a live subtree on
 the chosen side of its nearest owning Cuboid. Contents are clipped to a
 projected rectangular face aperture. Changing the side, dimensions, or pose

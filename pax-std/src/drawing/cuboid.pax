@@ -1,13 +1,17 @@
 slot()
-for face in self._faces {
-    <Rectangle
-        x={(face.x)px} y={(face.y)px}
-        anchor_x=50% anchor_y=50%
-        width={(face.width)px} height={(face.height)px}
-        translate_z={(face.z)px}
-        rotate_x={(face.rotate_x)deg} rotate_y={(face.rotate_y)deg}
-        fill={self.fill}
-    />
+if @gpu && self._mesh {
+    <CuboidMesh width=100% height=100% depth={self.depth} fill={self.fill}/>
+} else {
+    for face in self._faces {
+        <Rectangle
+            x={(face.x)px} y={(face.y)px}
+            anchor_x=50% anchor_y=50%
+            width={(face.width)px} height={(face.height)px}
+            translate_z={(face.z)px}
+            rotate_x={(face.rotate_x)deg} rotate_y={(face.rotate_y)deg}
+            fill={self.fill}
+        />
+    }
 }
 
 @settings {

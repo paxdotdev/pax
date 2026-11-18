@@ -2563,9 +2563,11 @@ mod tests {
                     .iter()
                     .all(|row| row.work.calls == 2 && row.identity.is_some()));
                 assert!(report.reactive_totals.evaluations() > 0);
-                assert_eq!(report.scopes.len(), 1);
-                assert_eq!(report.scopes[0].1, "test operation");
-                assert_eq!(report.scopes[0].2.calls, 1);
+                let scope = report.scopes.iter().find(|row| row.1 == "test operation").unwrap();
+                assert_eq!(scope.2.calls, 1);
+                assert!(report.scopes.iter().all(|row| {
+                    matches!(row.1, "test operation" | "retained motion propagation")
+                }));
                 assert!(engine.runtime_context.begin_work_profile());
                 let empty = engine.runtime_context.take_work_profile().unwrap();
                 assert!(empty.lifecycle.is_empty());

@@ -6766,8 +6766,20 @@ fn planar_lighting_shares_a_world_frame_across_canvas_draws() {
 #[test]
 #[ignore = "requires a macOS Metal device"]
 fn opaque_ellipsoid_intersection_matches_mesh_depth_and_reuses_topology() {
+    assert_opaque_mesh_intersection_and_retention(pax_runtime_api::mesh3::ConvexMesh::sphere(64, 32));
+}
+
+#[cfg(feature = "3d")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn opaque_cuboid_intersection_matches_mesh_depth_and_reuses_topology() {
+    assert_opaque_mesh_intersection_and_retention(pax_runtime_api::mesh3::ConvexMesh::cube());
+}
+
+#[cfg(feature = "3d")]
+fn assert_opaque_mesh_intersection_and_retention(mesh: std::rc::Rc<pax_runtime_api::mesh3::ConvexMesh>) {
     use pax_runtime_api::{
-        mesh3::{ConvexMesh, OpaqueMeshDraw},
+        mesh3::OpaqueMeshDraw,
         DepthPlane,
     };
     let layer = MetalLayer::new();
@@ -6782,7 +6794,6 @@ fn opaque_ellipsoid_intersection_matches_mesh_depth_and_reuses_topology() {
     backend.surface_config.usage.remove(TextureUsages::COPY_SRC);
     let device = backend.device.clone();
     let mut renderer = WgpuRenderer::new(backend);
-    let mesh = ConvexMesh::sphere(64, 32);
     let plane = DepthPlane {
         presentation_layer: 0,
         coefficients: [0.25, 0., -16.],

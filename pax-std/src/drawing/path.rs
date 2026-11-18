@@ -99,6 +99,9 @@ pub struct PathInstance {
 }
 
 impl InstanceNode for PathInstance {
+    fn supports_retained_motion(&self) -> bool {
+        true
+    }
     fn geometry_is_scroller_local(&self) -> bool {
         true
     }
@@ -158,7 +161,6 @@ impl InstanceNode for PathInstance {
             }
         });
 
-        let tab = expanded_node.canvas_transform_and_bounds.clone();
         let (elements, stroke, fill, smoothing, draw_start, draw_end) = expanded_node
             .with_properties_unwrapped(|properties: &mut Path| {
                 (
@@ -173,9 +175,8 @@ impl InstanceNode for PathInstance {
 
         let appearance =
             crate::common::watch_appearance(expanded_node, context, fill.clone(), stroke.clone());
-        let deps = &[
+        let mut deps = vec![
             appearance.untyped(),
-            tab.untyped(),
             elements.untyped(),
             stroke.untyped(),
             fill.untyped(),
@@ -185,6 +186,7 @@ impl InstanceNode for PathInstance {
             expanded_node.computed_opacity.untyped(),
             expanded_node.computed_opacity_scopes.untyped(),
         ];
+        deps.extend(expanded_node.canvas_placement_dependencies());
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
 
@@ -201,7 +203,7 @@ impl InstanceNode for PathInstance {
                     cloned_context
                         .set_canvas_dirty(cloned_expanded_node.occlusion.get().render_layer_id)
                 },
-                deps,
+                &deps,
             ));
     }
 

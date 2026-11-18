@@ -39,6 +39,9 @@ pub struct EllipseInstance {
 }
 
 impl InstanceNode for EllipseInstance {
+    fn supports_retained_motion(&self) -> bool {
+        true
+    }
     fn geometry_is_scroller_local(&self) -> bool {
         true
     }
@@ -74,21 +77,20 @@ impl InstanceNode for EllipseInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
-        let tab = expanded_node.canvas_transform_and_bounds.clone();
         let (stroke, fill) = expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
             (properties.stroke.local(), properties.fill.local())
         });
 
         let appearance =
             crate::common::watch_appearance(expanded_node, context, fill.clone(), stroke.clone());
-        let deps = &[
+        let mut deps = vec![
             appearance.untyped(),
-            tab.untyped(),
             stroke.untyped(),
             fill.untyped(),
             expanded_node.computed_opacity.untyped(),
             expanded_node.computed_opacity_scopes.untyped(),
         ];
+        deps.extend(expanded_node.canvas_placement_dependencies());
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
 
@@ -101,7 +103,7 @@ impl InstanceNode for EllipseInstance {
                     cloned_context
                         .set_canvas_dirty(cloned_expanded_node.occlusion.get().render_layer_id)
                 },
-                deps,
+                &deps,
             ));
     }
 

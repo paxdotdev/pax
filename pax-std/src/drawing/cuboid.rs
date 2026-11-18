@@ -1,5 +1,6 @@
+use super::cuboid_mesh::CuboidMesh;
 use crate::*;
-use pax_engine::api::{Depth, Fill, LocalProperty, Property, Store};
+use pax_engine::api::{Color, Depth, Fill, LocalProperty, Paint, Property, Store};
 use pax_engine::pax;
 use pax_runtime::api::NodeContext;
 
@@ -12,8 +13,10 @@ use pax_runtime::api::NodeContext;
 /// faces. Face content keeps its mounted identity when the solid rotates.
 ///
 /// Uses the experimental GPU spatial compositor, including its native-layer
-/// restrictions. The current view is orthographic; materials retain the current
-/// renderer's material model with the position and oriented normal of each face.
+/// restrictions. On GPU, a single opaque solid fill uses one retained mesh with
+/// sharp face normals. Layered paints, gradients, translucent fills, alpha-masked
+/// content, and collapsed dimensions retain the rectangular-face rendering path.
+/// Authored face content stays mounted when the body changes rendering strategy.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[file("drawing/cuboid.pax")]
@@ -26,6 +29,7 @@ pub struct Cuboid {
     pub fill: Property<Vec<Fill>>,
     // Reactive face geometry, shared with the authored face containers.
     pub _faces: Property<Vec<CuboidSurface>>,
+    pub _mesh: Property<bool>,
 }
 
 impl Default for Cuboid {
@@ -34,6 +38,7 @@ impl Default for Cuboid {
             depth: Property::new(Depth::from(100.0)),
             fill: Property::new(vec![Fill::default()]),
             _faces: Default::default(),
+            _mesh: Default::default(),
         }
     }
 }
@@ -98,6 +103,43 @@ impl Store for CuboidGeometry {}
 
 impl Cuboid {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
+        let fill = self.fill.local();
+        let target = self._mesh.local();
+        let depth = self.depth.local();
+        let bounds = ctx.bounds_self.clone();
+        let allowed = ctx
+            .expanded_node
+            .upgrade()
+            .unwrap()
+            .opaque_mesh_content_allowed();
+        let deps = [fill.untyped()];
+        // Rebind when the stack is replaced; nested paints/opacity are independent
+        // DAG properties, so editing a layer in place must also switch paths.
+        let rebind = move || {
+            let layers = fill.get();
+            let mut deps = vec![depth.untyped(), bounds.untyped(), allowed.untyped()];
+            for layer in &layers {
+                deps.extend([
+                    layer.paint.local().untyped(),
+                    layer.opacity.local().untyped(),
+                ]);
+            }
+            let (depth, bounds, allowed) = (depth.clone(), bounds.clone(), allowed.clone());
+            target.replace_with(LocalProperty::computed_with_cutoff(
+                move || {
+                    let (w, h) = bounds.get();
+                    allowed.get()
+                        && [w, h, depth.get().to_float()]
+                            .iter()
+                            .all(|v| v.is_finite() && *v > 0.)
+                        && mesh_fill(&layers).is_some()
+                },
+                &deps,
+                bool::eq,
+            ));
+        };
+        rebind();
+        ctx.subscribe(&deps, rebind);
         let geometry = CuboidGeometry {
             bounds: ctx.bounds_self.clone(),
             depth: self.depth.local(),
@@ -287,5 +329,16 @@ mod tests {
             assert!(transform(&front).is_affine());
             assert!(transform(&side).is_affine());
         }
+    }
+}
+
+// Only this paint contract can be represented by the opaque mesh renderer.
+pub(super) fn mesh_fill(fills: &[Fill]) -> Option<Color> {
+    if fills.len() != 1 || fills[0].opacity.local().get().to_float_0_1() != 1. {
+        return None;
+    }
+    match fills[0].paint.local().get() {
+        Paint::Solid(color) if color.to_rgba_0_1()[3] == 1. => Some(color),
+        _ => None,
     }
 }

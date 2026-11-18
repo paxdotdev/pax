@@ -47,6 +47,10 @@ enum SlotProjection {
 }
 
 impl InstanceNode for SlotInstance {
+    fn supports_retained_motion(&self) -> bool {
+        true
+    }
+
     fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
         false
     }

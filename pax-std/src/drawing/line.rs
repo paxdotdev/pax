@@ -41,6 +41,9 @@ pub struct LineInstance {
 }
 
 impl InstanceNode for LineInstance {
+    fn supports_retained_motion(&self) -> bool {
+        true
+    }
     fn geometry_is_scroller_local(&self) -> bool {
         true
     }
@@ -72,7 +75,6 @@ impl InstanceNode for LineInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
-        let tab = expanded_node.canvas_transform_and_bounds.clone();
         let (x1, y1, x2, y2, stroke) =
             expanded_node.with_properties_unwrapped(|properties: &mut Line| {
                 (
@@ -90,9 +92,8 @@ impl InstanceNode for LineInstance {
             LocalProperty::new(Vec::new()),
             stroke.clone(),
         );
-        let deps = &[
+        let mut deps = vec![
             appearance.untyped(),
-            tab.untyped(),
             x1.untyped(),
             y1.untyped(),
             x2.untyped(),
@@ -101,6 +102,7 @@ impl InstanceNode for LineInstance {
             expanded_node.computed_opacity.untyped(),
             expanded_node.computed_opacity_scopes.untyped(),
         ];
+        deps.extend(expanded_node.canvas_placement_dependencies());
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
 
@@ -113,7 +115,7 @@ impl InstanceNode for LineInstance {
                     cloned_context
                         .set_canvas_dirty(cloned_expanded_node.occlusion.get().render_layer_id)
                 },
-                deps,
+                &deps,
             ));
     }
 

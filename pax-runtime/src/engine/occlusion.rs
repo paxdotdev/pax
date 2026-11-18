@@ -451,6 +451,10 @@ impl RuntimeContext {
     /// node changes are likewise insufficient evidence for removing surfaces.
     /// Call after property effects have settled, as in the engine tick path.
     pub fn layer_allows_scroller_surface_culling(&self, layer: usize) -> bool {
+        #[cfg(feature = "3d")]
+        if !self.retained_motion.borrow().dirty.is_empty() {
+            return false;
+        }
         let state = self.occlusion_state.borrow();
         !state.structural
             && state.dirty.is_empty()
@@ -469,6 +473,10 @@ pub(crate) fn update_node_occlusion_observed(
     ctx: &RuntimeContext,
     completed: &mut dyn FnMut(&'static str),
 ) {
+    // Direct callers may enter after draining effects without preparing paint.
+    // Consume pose notifications before borrowing the coverage records they dirty.
+    #[cfg(feature = "3d")]
+    ctx.flush_retained_motion();
     let mut state_guard = ctx.occlusion_state.borrow_mut();
     let state = &mut *state_guard;
     state.stats.passes += 1;

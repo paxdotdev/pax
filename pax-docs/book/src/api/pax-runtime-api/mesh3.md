@@ -22,6 +22,12 @@ convexity; arbitrary concave triangle soups must not use this contract.
 Projects the actual mesh surface, clipping before division. Supplying a
 viewport also bounds a canvas chart whose projective horizon crosses it.
 
+##### `cube`
+<pre><code class="api-signature language-rust ignore">pub fn cube() -&gt; Rc&lt;Self&gt;</code></pre>
+
+Unit cube spanning -1 to +1 on every axis. Each face owns its vertices
+so lighting retains sharp outward normals instead of smoothing corners.
+
 ##### `posed`
 <pre><code class="api-signature language-rust ignore">pub fn posed(self: &amp;Rc&lt;Self&gt;, transform: [f64; 16]) -&gt; Option&lt;Rc&lt;<a href="../../api/pax-runtime-api/mesh3.md#posedconvexmesh">PosedConvexMesh</a>&gt;&gt;</code></pre>
 

@@ -16,6 +16,8 @@ pub(crate) enum PlacementDependency {
     Local(u32, TransformAndBounds<NodeLocal, Window>),
     #[cfg(feature = "3d")]
     World(crate::SpatialGeometry),
+    #[cfg(feature = "3d")]
+    Deferred((f64, f64)),
     #[cfg(not(feature = "3d"))]
     World(TransformAndBounds<NodeLocal, Window>),
 }
@@ -45,7 +47,15 @@ impl ExpandedNode {
         let world = self.presentation_geometry.clone();
         #[cfg(not(feature = "3d"))]
         let world = self.presentation_transform_and_bounds.clone();
-        let deps = [local.untyped(), world.untyped(), eligible.untyped()];
+        #[cfg(feature = "3d")]
+        let deferred = self.motion_retained.get();
+        #[cfg(not(feature = "3d"))]
+        let deferred = false;
+        let bounds = self.layout_bounds.clone();
+        let mut deps = vec![local.untyped(), eligible.untyped(), bounds.untyped()];
+        if !deferred {
+            deps.push(world.untyped());
+        }
         LocalProperty::computed_with_cutoff(
             move || {
                 if eligible.get() {
@@ -53,6 +63,10 @@ impl ExpandedNode {
                     if let Some((owner, tab)) = local.owner.zip(local.tab) {
                         return PlacementDependency::Local(owner, tab);
                     }
+                }
+                #[cfg(feature = "3d")]
+                if deferred {
+                    return PlacementDependency::Deferred(bounds.get());
                 }
                 PlacementDependency::World(world.get())
             },

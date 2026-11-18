@@ -99,6 +99,14 @@ fn polygon_path(points: &[[f64; 2]]) -> kurbo::BezPath {
     p
 }
 impl InstanceNode for EllipsoidInstance {
+    fn supports_retained_motion(&self) -> bool {
+        true
+    }
+    fn canvas_geometry_is_local(&self) -> bool {
+        // The default local paint bound is unbounded; the posed volume is
+        // resolved independently for each current world-space record.
+        true
+    }
     fn supports_alpha_source_render(&self) -> bool {
         true
     }
@@ -143,16 +151,14 @@ impl InstanceNode for EllipsoidInstance {
             }]),
             LocalProperty::new(Vec::new()),
         );
-        let deps = [
+        let mut deps = vec![
             depth.untyped(),
             color.untyped(),
             appearance.untyped(),
-            node.spatial_geometry().untyped(),
-            node.presentation_geometry().untyped(),
-            node.transform_and_bounds.untyped(),
             node.computed_opacity.untyped(),
             node.computed_opacity_scopes.untyped(),
         ];
+        deps.extend(node.canvas_placement_dependencies());
         let n = node.clone();
         let ctx = context.clone();
         node.changed_listener.replace_with(LocalProperty::computed(

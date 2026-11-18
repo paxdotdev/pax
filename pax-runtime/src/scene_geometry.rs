@@ -11,6 +11,8 @@ pub(crate) mod canvas_placement;
 pub(crate) mod input;
 pub(crate) mod native_placement;
 pub(crate) mod presentation;
+#[cfg(feature = "3d")]
+pub(crate) mod retained_motion;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, pax_message::serde::Serialize)]
 #[serde(crate = "pax_message::serde")]

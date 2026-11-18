@@ -87,6 +87,9 @@ fn watch_corner_radii(
 }
 
 impl InstanceNode for RectangleInstance {
+    fn supports_retained_motion(&self) -> bool {
+        true
+    }
     fn geometry_is_scroller_local(&self) -> bool {
         true
     }
@@ -119,7 +122,6 @@ impl InstanceNode for RectangleInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
-        let tab = expanded_node.canvas_transform_and_bounds.clone();
         let (corner_radius, stroke, fill) =
             expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
                 (
@@ -132,16 +134,16 @@ impl InstanceNode for RectangleInstance {
         let appearance =
             crate::common::watch_appearance(expanded_node, context, fill.clone(), stroke.clone());
         let radii = watch_corner_radii(expanded_node, context, corner_radius.clone());
-        let deps = &[
+        let mut deps = vec![
             appearance.untyped(),
             radii.untyped(),
-            tab.untyped(),
             corner_radius.untyped(),
             stroke.untyped(),
             fill.untyped(),
             expanded_node.computed_opacity.untyped(),
             expanded_node.computed_opacity_scopes.untyped(),
         ];
+        deps.extend(expanded_node.canvas_placement_dependencies());
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
 
@@ -155,7 +157,7 @@ impl InstanceNode for RectangleInstance {
                     cloned_context
                         .set_canvas_dirty(cloned_expanded_node.occlusion.get().render_layer_id)
                 },
-                deps,
+                &deps,
             ));
     }
 

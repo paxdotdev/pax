@@ -1050,6 +1050,16 @@ fn opaque_solid_sources_are_independent_of_consumer_alpha_masks() {
         solid.resolve_convex_mesh(&content).is_none(),
         "soft-masked solid content remains unsupported"
     );
+    // Eligibility is an inherited DAG value: a mask mode change reaches content,
+    // while the detached source stays eligible in its independent capture.
+    mask.with_properties_unwrapped(|p: &mut Mask| p.alpha.local().set(false));
+    context.drain_node_effects();
+    assert!(content.permits_opaque_mesh_content());
+    assert!(source.permits_opaque_mesh_content());
+    mask.with_properties_unwrapped(|p: &mut Mask| p.alpha.local().set(true));
+    context.drain_node_effects();
+    assert!(!content.permits_opaque_mesh_content());
+    assert!(source.permits_opaque_mesh_content());
     context.clear_canvas_node_dirty(&source.id);
     let mut renderer = RecordingRenderer {
         capture_enabled: true,

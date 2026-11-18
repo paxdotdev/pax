@@ -412,6 +412,14 @@ pub struct ExpandedNode {
     /// Unprojected geometry retained independently of presentation and scrolling.
     #[cfg(feature = "3d")]
     pub(crate) spatial_geometry: LocalProperty<crate::SpatialGeometry>,
+    #[cfg(feature = "3d")]
+    pub(crate) local_spatial_geometry: LocalProperty<crate::SpatialGeometry>,
+    #[cfg(feature = "3d")]
+    pub(crate) motion_listener: LocalProperty<()>,
+    #[cfg(feature = "3d")]
+    pub(crate) motion_retained: Cell<bool>,
+    #[cfg(feature = "3d")]
+    opaque_mesh_content_allowed: LocalProperty<bool>,
     /// Engine-owned subtree hull used by container measurement.
     pub subtree_layout_hull: LocalProperty<LayoutHull>,
     /// Optional container-assigned virtual wrapper frame applied before this node's own layout.
@@ -959,6 +967,9 @@ impl ExpandedNode {
             "a mask cannot borrow a mounted scene node"
         );
         self.render_source_owner.set(Some(owner.id));
+        #[cfg(feature = "3d")]
+        self.bind_opaque_mesh_content();
+        self.bind_occlusion_listener(context);
         self.recurse_mount(context);
     }
 
@@ -1351,6 +1362,14 @@ impl ExpandedNode {
             layout_bounds: LocalProperty::new((100.0, 100.0)),
             #[cfg(feature = "3d")]
             spatial_geometry,
+            #[cfg(feature = "3d")]
+            local_spatial_geometry: Default::default(),
+            #[cfg(feature = "3d")]
+            motion_listener: Default::default(),
+            #[cfg(feature = "3d")]
+            motion_retained: Cell::new(false),
+            #[cfg(feature = "3d")]
+            opaque_mesh_content_allowed: LocalProperty::new(true),
             subtree_layout_hull: LocalProperty::new(LayoutHull::default()),
             container_frame: LocalProperty::new(None),
             computed_opacity: LocalProperty::new(1.0),
@@ -2596,6 +2615,8 @@ impl ExpandedNode {
         self.parent_binding_rebuilds
             .set(self.parent_binding_rebuilds.get() + 1);
         let render_parent = borrow!(self.render_parent).upgrade();
+        #[cfg(feature = "3d")]
+        self.bind_opaque_mesh_content();
         if self.instance_node.borrow().is_overlay() || self.move_in_flight.get() {
             let context = Rc::downgrade(ctx);
             let id = self.id;
@@ -2819,6 +2840,8 @@ impl ExpandedNode {
                 },
                 &deps,
             );
+            self.local_spatial_geometry.replace_with(local_geometry);
+            let local_geometry = self.local_spatial_geometry.clone();
             let deps = [parent_geometry.untyped(), local_geometry.untyped()];
             let target_geometry = LocalProperty::computed(
                 move || parent_geometry.get().append_geometry(local_geometry.get()),
@@ -2964,6 +2987,8 @@ impl ExpandedNode {
     }
 
     fn bind_occlusion_listener(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
+        #[cfg(feature = "3d")]
+        self.bind_retained_motion(ctx);
         self.bind_presentation_inputs(ctx);
         self.bind_input_listener(ctx);
         let wheel_events = self.get_common_properties().borrow().wheel_events.clone();
@@ -4576,6 +4601,21 @@ impl ExpandedNode {
         }
     }
 
+    /// Drawing placement inputs for primitives opting into retained motion.
+    /// Content effects still observe paint, shape and opacity. The runtime
+    /// independently schedules pose-only replay without invalidating local paint.
+    pub fn canvas_placement_dependencies(&self) -> Vec<pax_runtime_api::properties::UntypedProperty> {
+        #[cfg(feature = "3d")]
+        if self.motion_retained.get() {
+            return vec![self.layout_bounds.untyped(), self.canvas_local_placement.untyped()];
+        }
+        vec![
+            self.canvas_transform_and_bounds.untyped(),
+            #[cfg(feature = "3d")]
+            self.presentation_geometry.untyped(),
+        ]
+    }
+
     pub fn get_common_properties(&self) -> Rc<RefCell<CommonProperties>> {
         Rc::clone(&*borrow!(self.common_properties))
     }
@@ -4589,26 +4629,49 @@ impl ExpandedNode {
     /// Whether the ancestor composition supports opaque convex mesh content.
     #[cfg(feature = "3d")]
     pub fn permits_opaque_mesh_content(&self) -> bool {
-        let mut parent = self.render_parent_node();
-        while let Some(node) = parent {
-            // A detached source is resolved independently of the consuming mask
-            // and its ancestors. Masks inside that source still constrain content.
-            if self.render_source_owner.get() == Some(node.id) {
-                break;
-            }
-            let instance = borrow!(node.instance_node);
-            if !instance.permits_opaque_mesh_content(&node) {
-                return false;
-            }
-            #[cfg(feature = "shaders")]
-            if instance.shader_effect(&node).is_some() {
-                // Shader output is a planar image. Ancestor alpha masks apply to
-                // that image; only constraints inside the capture affect its mesh.
-                break;
-            }
-            parent = node.render_parent_node();
+        self.opaque_mesh_content_allowed.get()
+    }
+
+    /// Reactive ancestor eligibility, independent of placement changes. Components
+    /// can use this to switch rendering strategies when a mask changes mode.
+    #[cfg(feature = "3d")]
+    pub fn opaque_mesh_content_allowed(&self) -> LocalProperty<bool> {
+        self.opaque_mesh_content_allowed.clone()
+    }
+
+    #[cfg(feature = "3d")]
+    fn bind_opaque_mesh_content(&self) {
+        let Some(parent) = self
+            .render_parent_node()
+            .filter(|p| self.render_source_owner.get() != Some(p.id))
+        else {
+            self.opaque_mesh_content_allowed
+                .replace_with(LocalProperty::new(true));
+            return;
+        };
+        let instance = parent.instance_node.borrow().clone();
+        let mut deps = instance.opaque_mesh_content_dependencies(&parent);
+        // Captures resolve internal depth before ancestor masks apply to their
+        // flattened output. Detached mask sources likewise start a fresh scope.
+        #[cfg(feature = "shaders")]
+        let capture = instance.shader_effect(&parent).is_some();
+        #[cfg(not(feature = "shaders"))]
+        let capture = false;
+        let inherited = parent.opaque_mesh_content_allowed.clone();
+        if !capture {
+            deps.push(inherited.untyped());
         }
-        true
+        let parent = Rc::downgrade(&parent);
+        self.opaque_mesh_content_allowed
+            .replace_with(LocalProperty::computed_with_cutoff(
+                move || {
+                    parent.upgrade().is_none_or(|parent| {
+                        instance.permits_opaque_mesh_content(&parent) && (capture || inherited.get())
+                    })
+                },
+                &deps,
+                bool::eq,
+            ));
     }
 
     fn clear_projected_membership_index(&self) {

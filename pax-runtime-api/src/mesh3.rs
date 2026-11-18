@@ -32,6 +32,46 @@ pub struct ConvexMesh {
 }
 
 impl ConvexMesh {
+    /// Unit cube spanning -1 to +1 on every axis. Each face owns its vertices
+    /// so lighting retains sharp outward normals instead of smoothing corners.
+    pub fn cube() -> Rc<Self> {
+        let mut vertices = Vec::with_capacity(24);
+        let mut indices = Vec::with_capacity(36);
+        for (normal, u, v) in [
+            ([0., 0., 1.], [1., 0., 0.], [0., 1., 0.]),
+            ([0., 0., -1.], [-1., 0., 0.], [0., 1., 0.]),
+            ([1., 0., 0.], [0., 0., -1.], [0., 1., 0.]),
+            ([-1., 0., 0.], [0., 0., 1.], [0., 1., 0.]),
+            ([0., 1., 0.], [1., 0., 0.], [0., 0., -1.]),
+            ([0., -1., 0.], [1., 0., 0.], [0., 0., 1.]),
+        ] {
+            let base = vertices.len() as u32;
+            for (x, y) in [(-1., -1.), (1., -1.), (1., 1.), (-1., 1.)] {
+                vertices.push(MeshVertex {
+                    position: std::array::from_fn(|i| normal[i] + x * u[i] + y * v[i]),
+                    normal,
+                    uv: [(x + 1.) / 2., (y + 1.) / 2.],
+                });
+            }
+            indices.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
+        }
+        let mut edges = Vec::new();
+        for triangle in indices.chunks_exact(3) {
+            for i in 0..3 {
+                let (a, b) = (triangle[i], triangle[(i + 1) % 3]);
+                edges.push([a.min(b), a.max(b)]);
+            }
+        }
+        edges.sort_unstable();
+        edges.dedup();
+        Rc::new(Self {
+            vertices,
+            indices,
+            surface_vertices: (0..24).collect(),
+            edges,
+        })
+    }
+
     /// Unit sphere centered at the origin. Ellipsoids scale this shared topology.
     pub fn sphere(longitudes: usize, latitudes: usize) -> Rc<Self> {
         let longitudes = longitudes.clamp(8, 256);
@@ -268,6 +308,46 @@ mod tests {
         [
             1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.,
         ]
+    }
+
+    #[test]
+    fn cube_faces_have_sharp_outward_normals_and_exact_volume_coverage() {
+        let mesh = ConvexMesh::cube();
+        assert_eq!(mesh.vertices().len(), 24);
+        assert_eq!(mesh.indices().len(), 36);
+        for tri in mesh.indices().chunks_exact(3) {
+            let [a, b, c] = <[u32; 3]>::try_from(tri)
+                .unwrap()
+                .map(|i: u32| mesh.vertices()[i as usize]);
+            let u: [f32; 3] = std::array::from_fn(|i| b.position[i] - a.position[i]);
+            let v: [f32; 3] = std::array::from_fn(|i| c.position[i] - a.position[i]);
+            let n = [
+                u[1] * v[2] - u[2] * v[1],
+                u[2] * v[0] - u[0] * v[2],
+                u[0] * v[1] - u[1] * v[0],
+            ];
+            assert!((0..3).map(|i| n[i] * a.normal[i]).sum::<f32>() > 0.);
+            assert_eq!(a.normal, b.normal);
+            assert_eq!(a.normal, c.normal);
+        }
+        let mut matrix = identity();
+        matrix[0] = -2.; // Reflections must retain coverage, independently of winding.
+        matrix[5] = 3.;
+        matrix[10] = 4.;
+        let pose = mesh.posed(matrix).unwrap();
+        assert_eq!(pose.depth_at(0., 0.), Some(4.));
+        assert_eq!(pose.depth_at(2.1, 0.), None);
+        assert_eq!(
+            pose.coverage_in_front(DepthPlane {
+                coefficients: [0., 0., 5.],
+                ..Default::default()
+            }),
+            Vec::<[f64; 2]>::new()
+        );
+        assert_eq!(
+            pose.silhouette(),
+            vec![[-2., -3.], [2., -3.], [2., 3.], [-2., 3.]]
+        );
     }
 
     #[test]

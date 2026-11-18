@@ -32,6 +32,9 @@ pub struct ComponentInstance {
 // }
 
 impl InstanceNode for ComponentInstance {
+    fn supports_retained_motion(&self) -> bool {
+        true
+    }
     fn geometry_is_scroller_local(&self) -> bool {
         true
     }

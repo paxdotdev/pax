@@ -43,6 +43,11 @@ impl RuntimeContext {
             self.scene_geometry.borrow_mut().input.stats.startup_queries += 1;
             return None;
         }
+        #[cfg(feature = "3d")]
+        if !self.retained_motion.borrow().dirty.is_empty() {
+            self.scene_geometry.borrow_mut().input.stats.pending_queries += 1;
+            return None;
+        }
         if self.occlusion_dirty.get()
             || !self.scene_geometry.borrow().is_settled()
             || pax_runtime_api::properties::has_pending_effects()

@@ -410,6 +410,9 @@ includes a **Mask study** with rotation, feather, opacity, and unmount controls.
 This enables solids as sources, not alpha-masked solid content: placing an
 Ellipsoid in the mask's first child remains unsupported. CPU rendering omits
 Ellipsoids. Shader containers inside detached sources remain unsupported.
+`Cuboid` preserves its existing paint behavior by using rectangular faces for
+alpha-masked content; eligible opaque bodies use a retained mesh elsewhere. See
+[Cuboids with live face content](layout-responsiveness.md#cuboids-with-live-face-content).
 
 On WGPU, paint, layer opacity, and stroke-reveal changes reuse retained geometry. A
 changing reveal redraws the source texture with GPU draw-range parameters; it

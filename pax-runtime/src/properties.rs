@@ -141,6 +141,8 @@ pub struct RuntimeContext {
     dirty_canvas_nodes: RefCell<HashSet<ExpandedNodeIdentifier>>,
     canvas_node_orders: RefCell<HashMap<usize, HashMap<u32, i32>>>,
     scene_geometry: RefCell<crate::scene_geometry::SceneGeometry>,
+    #[cfg(feature = "3d")]
+    pub(crate) retained_motion: RefCell<crate::scene_geometry::retained_motion::RetainedMotion>,
     #[cfg(test)]
     input_query_unindexed: Cell<bool>,
     pub(crate) viewport_proximity: RefCell<crate::viewport_proximity::ViewportProximityState>,
@@ -312,6 +314,8 @@ impl RuntimeContext {
             dirty_canvas_nodes: Default::default(),
             canvas_node_orders: Default::default(),
             scene_geometry: Default::default(),
+            #[cfg(feature = "3d")]
+            retained_motion: Default::default(),
             #[cfg(test)]
             input_query_unindexed: Default::default(),
             viewport_proximity: Default::default(),
@@ -383,6 +387,8 @@ impl RuntimeContext {
             dirty_canvas_nodes: Default::default(),
             canvas_node_orders: Default::default(),
             scene_geometry: Default::default(),
+            #[cfg(feature = "3d")]
+            retained_motion: Default::default(),
             #[cfg(test)]
             input_query_unindexed: Default::default(),
             viewport_proximity: Default::default(),
@@ -454,6 +460,8 @@ impl RuntimeContext {
             dirty_canvas_nodes: Default::default(),
             canvas_node_orders: Default::default(),
             scene_geometry: Default::default(),
+            #[cfg(feature = "3d")]
+            retained_motion: Default::default(),
             #[cfg(test)]
             input_query_unindexed: Default::default(),
             viewport_proximity: Default::default(),
@@ -548,6 +556,8 @@ impl RuntimeContext {
         // Render work belongs to a mounted instance. A stale ID otherwise makes
         // every filtered traversal fall back to the whole tree indefinitely.
         borrow_mut!(self.dirty_canvas_nodes).remove(&node.id);
+        #[cfg(feature = "3d")]
+        self.retained_motion.borrow_mut().dirty.remove(&node.id);
         for orders in self.canvas_node_orders.borrow_mut().values_mut() {
             orders.remove(&node.id.to_u32());
         }
@@ -1646,6 +1656,11 @@ impl RuntimeContext {
             return;
         };
         borrow_mut!(self.scene_geometry).invalidate_content(id.to_u32());
+        self.mark_canvas_placement_dirty(&node);
+    }
+
+    pub(crate) fn mark_canvas_placement_dirty(&self, node: &ExpandedNode) {
+        let id = node.id;
         let owner = node
             .render_source_owner()
             .and_then(|id| self.get_expanded_node_by_eid(id));
@@ -2387,6 +2402,8 @@ impl RuntimeContext {
 
     /// Prepare geometry dirtied by scene changes. Surface replay alone does not invalidate it.
     pub fn prepare_scene_geometry(&self) {
+        #[cfg(feature = "3d")]
+        self.flush_retained_motion();
         let dirty = borrow_mut!(self.scene_geometry).take_dirty();
         for id in dirty {
             // A primitive may have requested another pending record while preparing.

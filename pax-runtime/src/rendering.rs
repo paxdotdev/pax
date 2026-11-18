@@ -480,6 +480,26 @@ pub trait InstanceNode {
         true
     }
 
+    /// Properties that can change `permits_opaque_mesh_content` without reparenting.
+    #[cfg(feature = "3d")]
+    fn opaque_mesh_content_dependencies(
+        &self,
+        _node: &ExpandedNode,
+    ) -> Vec<pax_runtime_api::properties::UntypedProperty> {
+        Vec::new()
+    }
+
+    /// Whether placement-only changes may bypass this primitive's content effects.
+    ///
+    /// Opt-in primitives must use `ExpandedNode::canvas_placement_dependencies`
+    /// for drawing placement, and retain all content/appearance dependencies.
+    /// Their local shape hooks must not change with ancestor pose. Runtime batches
+    /// placement invalidation before geometry preparation; native consumers and
+    /// detached captures keep the conservative path. This is not GPU instancing.
+    fn supports_retained_motion(&self) -> bool {
+        false
+    }
+
     /// Whether paint geometry can be retained across world-placement changes.
     ///
     /// Opting in promises that `prepare_canvas_geometry` depends only on local

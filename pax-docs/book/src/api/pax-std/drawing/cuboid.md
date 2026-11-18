@@ -13,8 +13,10 @@ receive `fill`; add [`CuboidFace`] children to place live content on individual
 faces. Face content keeps its mounted identity when the solid rotates.
 
 Uses the experimental GPU spatial compositor, including its native-layer
-restrictions. The current view is orthographic; materials retain the current
-renderer's material model with the position and oriented normal of each face.
+restrictions. On GPU, a single opaque solid fill uses one retained mesh with
+sharp face normals. Layered paints, gradients, translucent fills, alpha-masked
+content, and collapsed dimensions retain the rectangular-face rendering path.
+Authored face content stays mounted when the body changes rendering strategy.
 
 #### Properties
 ##### `depth`
