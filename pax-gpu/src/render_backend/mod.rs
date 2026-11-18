@@ -2555,10 +2555,6 @@ impl<'w> RenderBackend<'w> {
         self.enqueue_command_buffer(encoder.finish());
     }
 
-    pub(crate) fn source_domain_fits(&self, margin: f32) -> bool {
-        self.source_domain_geometry(margin).is_some()
-    }
-
     pub(crate) fn source_domain_geometry(
         &self,
         margin: f32,
@@ -2585,16 +2581,6 @@ impl<'w> RenderBackend<'w> {
         globals.origin = [-gutter[0] / dpr[0], -gutter[1] / dpr[1]];
         globals.resolution = [width as f32 / dpr[0], height as f32 / dpr[1]];
         Some((globals, [width, height]))
-    }
-
-    pub(crate) fn source_domain_bounds(&self, margin: f32) -> Option<ScissorRect> {
-        self.source_domain_geometry(margin)
-            .map(|(globals, _)| ScissorRect {
-                min_x: globals.origin[0],
-                min_y: globals.origin[1],
-                max_x: globals.origin[0] + globals.resolution[0],
-                max_y: globals.origin[1] + globals.resolution[1],
-            })
     }
 
     pub(crate) fn begin_source_domain(&mut self, margin: f32) -> bool {

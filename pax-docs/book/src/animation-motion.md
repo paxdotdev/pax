@@ -409,9 +409,10 @@ speed. Directions are randomized when starting from rest. It always
 settles one second after the most recent activation, with the new count upright
 on a different face, square-on to the orthographic camera.
 
-The faces start with 1–6, showing 6 toward the viewer. The first activation
-advances to 7; each new value replaces the smallest, retaining the last six
-counts on different faces. Pressing compresses the cube; releasing
+The faces start with 1–6, showing 1 toward the viewer. The first activation
+advances to 2; the cube rolls through the preprinted values without replacing
+them. From 7 onward, each new value replaces the smallest, retaining the last
+six counts on different faces. Pressing compresses the cube; releasing
 expands it briefly before returning to normal. Mouse and touch cancellation
 relax the scale without incrementing. The example has no separate button or
 keyboard activation control.
@@ -437,9 +438,10 @@ Before the first roll, a gold instruction flag squashes against a fixed tip
 anchor, stretches as it leaps away, and follows a quadratic return arc. The
 perpendicular scale is reciprocal, preserving area. The jump axis follows the
 component's container: horizontal beside the cube, vertical above it. The first
-activation eases the flag's group opacity to zero over 360ms. Its white border
-and native label fade together. Multiplying the cube's position offset by that
-same opacity slides it into the container's center without another animation
+activation eases the flag's group opacity to zero over 360ms. The unoutlined
+gold arrow, its short gold `Radiance` fan, and its black native label fade
+together; the label is a sibling outside the shader capture. Multiplying the
+cube's position offset by that same opacity slides it into the container's center without another animation
 state. The count keeps the flag hidden and cube centered across remounts.
 
 Only front-facing labels show ink. Rear labels stay mounted at zero opacity,
@@ -457,9 +459,11 @@ operating-system motion preference. The art's `Group` uses
 `LayoutRole::Breakout` so rotating bounds do not expand the surrounding stack.
 
 The cube uses orthographic projection and the optional `3d` feature. Spatial
-composition and material lighting require WGPU. There are no gradients, shader
-filters, imported settings, or local lights: the website embed responds to the
-host's global lighting, while the standalone wrapper supplies ambient light.
+composition and material lighting require WGPU. The flag additionally uses the
+`shaders` feature for [Radiance](compositing-effects.md#radiance); CPU renders
+its plain gold shape and black label. There are no gradients, imported settings,
+or local scene lights: the website embed responds to the host's lighting,
+while the standalone wrapper supplies ambient light.
 Translucent paint does not refract the backdrop, and native text retains the
 [compositor's coverage limits](compositing-effects.md#coverage-has-limits).
 See [Cuboids with live face content](layout-responsiveness.md#cuboids-with-live-face-content)

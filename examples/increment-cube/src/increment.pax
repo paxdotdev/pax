@@ -1,13 +1,16 @@
 if self.hint_opacity > 0 {
     <Group id=hint>
         <Text id=hint_label>{@mobile ? "TAP" : "CLICK"}</Text>
-        <Path id=hint_flag/>
+        <Radiance id=hint_radiance>
+            <Path id=hint_flag/>
+        </Radiance>
     </Group>
 }
 
 if @gpu {
     <Group id=stage class="cube_position">
         <Cuboid id=cube
+            @mouse_over=self.hover @mouse_out=self.leave
             @mouse_down=self.down @mouse_up=self.up @mouse_move=self.mouse_move @mouse_cancel=self.mouse_cancel
             @touch_start=self.touch_start @touch_end=self.touch_end @touch_move=self.touch_move @touch_cancel=self.touch_cancel>
             for face in self.faces {
@@ -19,6 +22,7 @@ if @gpu {
     </Group>
 } else {
     <Group id=fallback class="cube_position"
+        @mouse_over=self.hover @mouse_out=self.leave
         @mouse_down=self.down @mouse_up=self.up @mouse_move=self.mouse_move @mouse_cancel=self.mouse_cancel
         @touch_start=self.touch_start @touch_end=self.touch_end @touch_move=self.touch_move @touch_cancel=self.touch_cancel>
         <Text class="count">{self.count}</Text>
@@ -51,19 +55,27 @@ if @gpu {
         style: {
             font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Black)
             font_size: 32px
-            fill: WHITE
+            fill: BLACK
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
         }
     }
+    #hint_radiance {
+        width: 100%  height: 100%
+        foreground: rgb(210, 153, 43)
+        light_color: rgb(210, 153, 43)
+        light_x: {self.horizontal ? 58 : 105}
+        light_y: {self.horizontal ? 30 : 22}
+        light_depth: 240
+        brightness: 1.8
+        reach: 36
+        falloff: 1.6
+        transmission: 0
+        polish: 0
+    }
     #hint_flag {
-        x: 4px  y: 4px
-        width: {100% - 8px}  height: {100% - 8px}
-        fill: {
-            paint: rgb(210, 153, 43)
-            material: { ambient: 1, diffuse: 0.4, specular: 1, roughness: 0.24, metallic: 0.88 }
-        }
-        stroke: { paint: WHITE, width: 8px }
+        width: 100%  height: 100%
+        fill: rgb(210, 153, 43)
         elements: {[
             PathElement::Point(0%, 0%),
             PathElement::Line,

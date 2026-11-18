@@ -1080,6 +1080,13 @@ parameters change. This is a rendering optimization, not deferred component
 mounting; reactive updates and the sampling support of nearby effects remain
 active.
 
+Sampling domains are isolated per effect: an animated sibling's padding does not
+invalidate an unchanged source capture elsewhere on the tile. Nested effects
+include their ancestors' sampling needs, and detached alpha masks include the
+needs of the effects that actually consume them. This preserves off-tile samples
+without making every capture pay for the largest unrelated effect. Changes to an
+effect's own source, sampling domain, or dependencies still require recapture.
+
 Recapturing an unchanged subtree for a new scroll tile is rendering work, not
 a scene edit. It redraws the required canvas descendants without invalidating
 their settled layout or geometry, including through nested shader containers.
@@ -1334,9 +1341,9 @@ This is continuous light dispersion; there is no particle emission API or
 simulation. The full-resolution source is never displaced, and the glass
 samples the same colored field for transmission. The vertical polished sheen
 retains `light_color`. The prism resamples the existing projection in the
-composite pass; it adds no ray marches or passes. Its capture outset reserves
-416 local pixels while active (376 when neutral), so light movement and
-positive dispersion changes do not change capture capacity. This remains a
+composite pass; it adds no ray marches or passes. Active dispersion adds up to
+36 local pixels of capture padding, proportional to `prism_dispersion`.
+Zero saturation disables that extra padding. This remains a
 stylized approximation rather than physically calibrated spectral transport.
 
 The `logo-radiance` fixture enables this experiment only in light mode, with
@@ -1348,8 +1355,12 @@ Setting transmission and polish to zero restores solid source coverage while
 retaining exterior rays. Glass transmission concerns this captured light
 field; it does not refract arbitrary scene content behind the container or
 change source alpha. The two-pass effect uses a half-resolution projection and
-a full-resolution source composite, with a bounded 376-pixel outset (416 with
-prism dispersion) covering its tuning range. Scaling an enclosing Group scales the whole treatment.
+a full-resolution source composite. Capture padding follows `reach` (clamped to
+0–360 local pixels), plus a 16-pixel filtering/refraction guard and any active
+prism dispersion. A restrained `reach=36` preset therefore reserves 52 pixels
+without dispersion, rather than the full tuning range. Moving the light or
+changing brightness does not resize this envelope; changing reach or dispersion
+can. Scaling an enclosing Group scales the whole treatment.
 
 Projection quality remains fixed at 96 evenly spaced stencil samples per
 half-resolution pixel. Transparent samples skip attenuation calculations, and

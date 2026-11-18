@@ -1,9 +1,10 @@
-use crate::{site_shell::LogoNavigation, GlassAction, RotatingHeadline, SiteLogo, SiteTheme};
+use crate::{site_shell::LogoNavigation, GetStarted, GlassAction, RotatingHeadline, SiteLogo, SiteTheme};
 use pax_kit::*;
 
 #[pax]
 #[file("hero_section.pax")]
 pub struct HeroSection {
+    pub get_started_height: Property<f64>,
     pub content_height: Property<f64>,
     pub _height_bound: Property<bool>,
     pub compact: Property<bool>,
@@ -30,6 +31,8 @@ pub struct HeroSection {
     pub _startup_quiet_ms: Property<f64>,
     pub _startup_deadline_ms: Property<f64>,
     pub _logo_started: Property<bool>,
+    pub _logo_was_docked: Property<bool>,
+    pub _logo_return_pending: Property<bool>,
     pub scroll_y: Property<f64>,
     pub exit_progress: Property<f64>,
 }
@@ -84,6 +87,7 @@ impl HeroSection {
         let now = ctx.elapsed_time_millis() as f64;
         let elapsed = (now - self._last_ms.get()).max(0.0);
         self._last_ms.set(now);
+        self.update_logo_return(ctx, now);
         if !self._logo_started.get() {
             // Start on a settled run of frames, after expensive tree/layout work,
             // instead of advancing the reveal in steps during blocked frames.
@@ -120,9 +124,53 @@ impl HeroSection {
     }
 
     pub fn replay_logo(&mut self, ctx: &NodeContext, _: Event<Click>) {
+        self._logo_return_pending.set(false);
         self.playhead_ms.set(0.0);
         self._logo_started.set(true);
         self._light_last_ms.set(ctx.elapsed_time_millis() as f64);
+    }
+
+    fn update_logo_return(&mut self, ctx: &NodeContext, now: f64) {
+        let docked = self.logo_docked.get();
+        let was_docked = self._logo_was_docked.get();
+        let pending = self._logo_return_pending.get();
+        if docked == was_docked && !pending {
+            return;
+        }
+        let hidden = ctx
+            .with_store(|nav: &mut LogoNavigation| nav.hidden.get())
+            .unwrap_or(false);
+        let action = logo_return_action(
+            was_docked,
+            docked,
+            hidden,
+            pending,
+            self.portal_departure.get(),
+        );
+        self._logo_was_docked.set_if_neq(docked);
+        match action {
+            LogoReturnAction::Stage => {
+                // Bring the initial pose home before unfurling, so none of the
+                // reveal is spent offscreen during the reverse portal trip.
+                self._logo_return_pending.set(true);
+                self.playhead_ms.set(0.0);
+                self._light_last_ms.set(now);
+            }
+            LogoReturnAction::Replay => {
+                self._logo_return_pending.set(false);
+                self.playhead_ms.set(0.0);
+                self._logo_started.set(true);
+                self._light_last_ms.set(now);
+            }
+            LogoReturnAction::Cancel => {
+                // A reversal or source drawer interruption must not launch a
+                // new intro while the logo is leaving for the navigation.
+                self._logo_return_pending.set(false);
+                self.playhead_ms.set(2100.0);
+                self._light_last_ms.set(now);
+            }
+            LogoReturnAction::None => {}
+        }
     }
 
     fn bind_layout(&self, ctx: &NodeContext) {
@@ -223,6 +271,36 @@ fn should_dock(home_top: f64, nav_bottom: f64, docked: bool) -> bool {
         && home_top <= nav_bottom + if docked { 24.0 } else { 0.0 }
 }
 
+#[derive(Debug, PartialEq)]
+enum LogoReturnAction {
+    None,
+    Stage,
+    Replay,
+    Cancel,
+}
+
+fn logo_return_action(
+    was_docked: bool,
+    docked: bool,
+    hidden: bool,
+    pending: bool,
+    departure: f64,
+) -> LogoReturnAction {
+    if hidden || docked {
+        if pending {
+            LogoReturnAction::Cancel
+        } else {
+            LogoReturnAction::None
+        }
+    } else if was_docked {
+        LogoReturnAction::Stage
+    } else if pending && departure <= 0.0 {
+        LogoReturnAction::Replay
+    } else {
+        LogoReturnAction::None
+    }
+}
+
 #[cfg(test)]
 mod portal_tests {
     use super::*;
@@ -235,5 +313,27 @@ mod portal_tests {
         assert!(should_dock(home_top - 32.0, boundary, false));
         assert!(should_dock(home_top - 16.0, boundary, true));
         assert!(!should_dock(home_top, boundary, true));
+    }
+
+    #[test]
+    fn hero_return_stages_then_replays_once_at_home() {
+        use LogoReturnAction::*;
+        assert_eq!(logo_return_action(false, false, false, false, 0.0), None);
+        assert_eq!(logo_return_action(true, false, false, false, 1.0), Stage);
+        assert_eq!(logo_return_action(false, false, false, true, 0.4), None);
+        assert_eq!(logo_return_action(false, false, false, true, 0.0), Replay);
+        assert_eq!(logo_return_action(false, false, false, false, 0.0), None);
+    }
+
+    #[test]
+    fn nav_departures_and_source_inspection_do_not_replay_the_logo() {
+        use LogoReturnAction::*;
+        assert_eq!(logo_return_action(false, true, false, false, 0.0), None);
+        assert_eq!(logo_return_action(true, true, false, false, 1.0), None);
+        assert_eq!(logo_return_action(true, false, true, false, 0.0), None);
+        assert_eq!(logo_return_action(false, true, false, true, 0.3), Cancel);
+        assert_eq!(logo_return_action(false, false, true, true, 0.0), Cancel);
+        assert!(include_str!("hero_section.pax").contains("!self._logo_return_pending"));
+        assert!(include_str!("site_shell.pax").contains("progress=1 click_to_replay=false"));
     }
 }

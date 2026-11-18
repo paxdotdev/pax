@@ -11,7 +11,7 @@ title = "Increment Cube"
 [dependencies]
 rand = "0.8.5"
 getrandom = { version = "0.2.15", features = ["js"] }
-pax-kit = { version = "0.39.1", path = "../../pax-kit", features = ["3d"] }
+pax-kit = { version = "0.39.1", path = "../../pax-kit", features = ["3d", "shaders"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

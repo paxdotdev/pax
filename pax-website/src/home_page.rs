@@ -12,7 +12,6 @@ pub struct HomePage {
     pub runtime_span: Property<f64>,
     pub hero_exit: Property<f64>,
     pub runtime_progress: Property<f64>,
-    pub framework_progress: Property<f64>,
     pub hero_source_open: Property<bool>,
     pub source_overlay_open: Property<bool>,
     pub source_sheets_mounted: Property<usize>,
@@ -26,8 +25,8 @@ pub struct HomePage {
     pub authoring_source_selected: Property<usize>,
     pub authoring_height: Property<f64>,
     pub authoring_sources: Property<Vec<ExampleSource>>,
-    pub framework_source_open: Property<bool>,
-    pub framework_source_selected: Property<usize>,
+    pub modularity_source_open: Property<bool>,
+    pub modularity_source_selected: Property<usize>,
     pub gallery_source_open: Property<bool>,
     pub gallery_source_selected: Property<usize>,
     pub open_source_source_open: Property<bool>,
@@ -35,13 +34,13 @@ pub struct HomePage {
     pub resource_source_open: Property<bool>,
     pub resource_source_selected: Property<usize>,
     pub hero_height: Property<f64>,
-    pub framework_height: Property<f64>,
+    pub modularity_height: Property<f64>,
     pub runtime_height: Property<f64>,
     pub gallery_height: Property<f64>,
     pub open_source_height: Property<f64>,
     pub resource_height: Property<f64>,
     pub hero_sources: Property<Vec<ExampleSource>>,
-    pub framework_sources: Property<Vec<ExampleSource>>,
+    pub modularity_sources: Property<Vec<ExampleSource>>,
     pub runtime_sources: Property<Vec<ExampleSource>>,
     pub feature_gallery_sources: Property<Vec<ExampleSource>>,
     pub open_source_sources: Property<Vec<ExampleSource>>,
@@ -54,24 +53,19 @@ impl HomePage {
         let scroll = self.scroll_y.local();
         let hero = self.hero_height.local();
         let runtime = self.runtime_height.local();
-        let framework = self.framework_height.local();
         let authoring = self.authoring_height.local();
-        let gallery = self.gallery_height.local();
         let deps = [
             viewport.untyped(),
             scroll.untyped(),
             hero.untyped(),
             runtime.untyped(),
-            framework.untyped(),
             authoring.untyped(),
-            gallery.untyped(),
         ];
         let hero_span = self.hero_span.local();
         let authoring_span = self.authoring_span.local();
         let runtime_span = self.runtime_span.local();
         let hero_exit = self.hero_exit.local();
         let runtime_progress = self.runtime_progress.local();
-        let framework_progress = self.framework_progress.local();
         let update_story = move || {
             let story = crate::scroll_story::OpeningStory::sample(
                 scroll.get(),
@@ -85,18 +79,6 @@ impl HomePage {
             runtime_span.set_if_neq(story.runtime_span);
             hero_exit.set_if_neq(story.hero_exit);
             runtime_progress.set_if_neq(story.runtime_progress);
-            // Match the fixed section footprints in home_page.pax, not the
-            // transformed device bounds. Motion must not change scroll extent.
-            let framework_top = story.hero_span
-                + story.authoring_span
-                + story.runtime_span
-                + gallery.get().max(760.0);
-            framework_progress.set_if_neq(crate::scroll_story::section_progress(
-                scroll.get(),
-                viewport.get().1,
-                framework_top,
-                framework.get().max(400.0),
-            ));
         };
         update_story();
         ctx.subscribe(&deps, update_story);
@@ -109,7 +91,7 @@ impl HomePage {
             self.hero_source_open.local(),
             self.runtime_source_open.local(),
             self.authoring_source_open.local(),
-            self.framework_source_open.local(),
+            self.modularity_source_open.local(),
             self.gallery_source_open.local(),
             self.open_source_source_open.local(),
             self.resource_source_open.local(),
@@ -131,6 +113,7 @@ impl HomePage {
             "src/hero_section.rs",
             include_str!("hero_section.rs"),
         );
+        hero_sources.extend(get_started_sources());
         hero_sources.push(ExampleSource {
             label: "src/home_page.pax".into(),
             language: "pax".into(),
@@ -292,144 +275,101 @@ impl HomePage {
             });
         }
         self.open_source_sources.set(open_source_sources);
-        self.resource_sources.set(section_sources(
+        let mut resource_sources = section_sources(
             "src/resource_section.pax",
             include_str!("resource_section.pax"),
             "src/resource_section.rs",
             include_str!("resource_section.rs"),
-        ));
-        let mut calculator_sources = section_sources(
-            "src/calculator_preview.pax",
-            include_str!("calculator_preview.pax"),
-            "src/calculator_preview.rs",
-            include_str!("calculator_preview.rs"),
         );
-        calculator_sources.extend(section_sources(
-            "src/calculator_page.pax",
-            include_str!("calculator_page.pax"),
-            "src/route_pages.rs",
-            include_str!("route_pages.rs"),
-        ));
-        calculator_sources.extend(section_sources(
-            "calculator/src/lib.pax",
-            include_str!("../../examples/calculator/src/lib.pax"),
-            "calculator/src/lib.rs",
-            include_str!("../../examples/calculator/src/lib.rs"),
-        ));
-        calculator_sources.extend(section_sources(
-            "calculator/src/key.pax",
-            include_str!("../../examples/calculator/src/key.pax"),
-            "calculator/src/key.rs",
-            include_str!("../../examples/calculator/src/key.rs"),
-        ));
-        for (label, code) in [
-            (
-                "calculator/src/model.rs",
-                include_str!("../../examples/calculator/src/model.rs"),
-            ),
-            (
-                "calculator/src/expression.rs",
-                include_str!("../../examples/calculator/src/expression.rs"),
-            ),
-            (
-                "calculator/src/graph.rs",
-                include_str!("../../examples/calculator/src/graph.rs"),
-            ),
-            (
-                "calculator/src/layout.rs",
-                include_str!("../../examples/calculator/src/layout.rs"),
-            ),
-        ] {
-            calculator_sources.push(ExampleSource {
-                label: label.into(),
-                language: "rust".into(),
-                code: code.into(),
-            });
-        }
-        self.framework_sources.set(section_sources(
+        resource_sources.extend(get_started_sources());
+        resource_sources.extend(section_sources(
             "framework_section.pax",
             include_str!("framework_section.pax"),
             "framework_section.rs",
             include_str!("framework_section.rs"),
         ));
-        self.framework_sources.update(|files| {
-            files.extend(calculator_sources);
-            files.extend(section_sources(
-                "src/framed_study.pax",
-                include_str!("framed_study.pax"),
-                "src/framed_study.rs",
-                include_str!("framed_study.rs"),
-            ));
-            for (label, code) in [
-                (
-                    "led-oscilloscope/lib.pax",
-                    include_str!("../../examples/led-oscilloscope/src/lib.pax"),
-                ),
-                (
-                    "led-oscilloscope/lib.rs",
-                    include_str!("../../examples/led-oscilloscope/src/lib.rs"),
-                ),
-                (
-                    "led-oscilloscope/knob.pax",
-                    include_str!("../../examples/led-oscilloscope/src/knob.pax"),
-                ),
-                (
-                    "led-oscilloscope/knob.rs",
-                    include_str!("../../examples/led-oscilloscope/src/knob.rs"),
-                ),
-                (
-                    "led-oscilloscope/display.rs",
-                    include_str!("../../examples/led-oscilloscope/src/display.rs"),
-                ),
-                (
-                    "led-oscilloscope/message_editor.pax",
-                    include_str!("../../examples/led-oscilloscope/src/message_editor.pax"),
-                ),
-                (
-                    "led-oscilloscope/message_editor.rs",
-                    include_str!("../../examples/led-oscilloscope/src/message_editor.rs"),
-                ),
-                (
-                    "led-oscilloscope/signature_pad.pax",
-                    include_str!("../../examples/led-oscilloscope/src/signature_pad.pax"),
-                ),
-                (
-                    "led-oscilloscope/signature_pad.rs",
-                    include_str!("../../examples/led-oscilloscope/src/signature_pad.rs"),
-                ),
-                (
-                    "led-oscilloscope/ink.rs",
-                    include_str!("../../examples/led-oscilloscope/src/ink.rs"),
-                ),
-                (
-                    "led-oscilloscope/font.rs",
-                    include_str!("../../examples/led-oscilloscope/src/font.rs"),
-                ),
-                (
-                    "led-oscilloscope/geometry.rs",
-                    include_str!("../../examples/led-oscilloscope/src/geometry.rs"),
-                ),
-                (
-                    "led-oscilloscope/led_glow.rs",
-                    include_str!("../../examples/led-oscilloscope/src/led_glow.rs"),
-                ),
-                (
-                    "led-oscilloscope/foreground.rs",
-                    include_str!("../../examples/led-oscilloscope/src/foreground.rs"),
-                ),
-            ] {
-                files.push(ExampleSource {
-                    label: label.into(),
-                    code: code.into(),
-                    language: if label.ends_with(".rs") {
-                        "rust"
-                    } else {
-                        "pax"
-                    }
-                    .into(),
-                });
-            }
-        });
+        resource_sources.extend(section_sources(
+            "src/framed_study.pax",
+            include_str!("framed_study.pax"),
+            "src/framed_study.rs",
+            include_str!("framed_study.rs"),
+        ));
+        for (label, code) in [
+            (
+                "led-oscilloscope/lib.pax",
+                include_str!("../../examples/led-oscilloscope/src/lib.pax"),
+            ),
+            (
+                "led-oscilloscope/lib.rs",
+                include_str!("../../examples/led-oscilloscope/src/lib.rs"),
+            ),
+            (
+                "led-oscilloscope/knob.pax",
+                include_str!("../../examples/led-oscilloscope/src/knob.pax"),
+            ),
+            (
+                "led-oscilloscope/knob.rs",
+                include_str!("../../examples/led-oscilloscope/src/knob.rs"),
+            ),
+            (
+                "led-oscilloscope/display.rs",
+                include_str!("../../examples/led-oscilloscope/src/display.rs"),
+            ),
+            (
+                "led-oscilloscope/message_editor.pax",
+                include_str!("../../examples/led-oscilloscope/src/message_editor.pax"),
+            ),
+            (
+                "led-oscilloscope/message_editor.rs",
+                include_str!("../../examples/led-oscilloscope/src/message_editor.rs"),
+            ),
+            (
+                "led-oscilloscope/signature_pad.pax",
+                include_str!("../../examples/led-oscilloscope/src/signature_pad.pax"),
+            ),
+            (
+                "led-oscilloscope/signature_pad.rs",
+                include_str!("../../examples/led-oscilloscope/src/signature_pad.rs"),
+            ),
+            (
+                "led-oscilloscope/ink.rs",
+                include_str!("../../examples/led-oscilloscope/src/ink.rs"),
+            ),
+            (
+                "led-oscilloscope/font.rs",
+                include_str!("../../examples/led-oscilloscope/src/font.rs"),
+            ),
+            (
+                "led-oscilloscope/geometry.rs",
+                include_str!("../../examples/led-oscilloscope/src/geometry.rs"),
+            ),
+            (
+                "led-oscilloscope/led_glow.rs",
+                include_str!("../../examples/led-oscilloscope/src/led_glow.rs"),
+            ),
+            (
+                "led-oscilloscope/foreground.rs",
+                include_str!("../../examples/led-oscilloscope/src/foreground.rs"),
+            ),
+        ] {
+            resource_sources.push(ExampleSource {
+                label: label.into(),
+                code: code.into(),
+                language: if label.ends_with(".rs") {
+                    "rust"
+                } else {
+                    "pax"
+                }
+                .into(),
+            });
+        }
+        self.resource_sources.set(resource_sources);
+        self.modularity_sources.set(section_sources(
+            "src/modularity_section.pax",
+            include_str!("modularity_section.pax"),
+            "src/modularity_section.rs",
+            include_str!("modularity_section.rs"),
+        ));
         let mut runtime_sources = section_sources(
             "runtime_section.pax",
             include_str!("runtime_section.pax"),
@@ -569,6 +509,21 @@ impl HomePage {
     }
 }
 
+fn get_started_sources() -> Vec<ExampleSource> {
+    let mut sources = section_sources(
+        "src/get_started.pax",
+        include_str!("get_started.pax"),
+        "src/get_started.rs",
+        include_str!("get_started.rs"),
+    );
+    sources.push(ExampleSource {
+        label: "src/ai_prompt.rs".into(),
+        language: "rust".into(),
+        code: include_str!("ai_prompt.rs").into(),
+    });
+    sources
+}
+
 fn section_sources(
     pax_label: &str,
     pax_code: &str,
@@ -599,7 +554,7 @@ mod content_tests {
             "<AuthoringSection",
             "<RuntimeSection",
             "<FeatureGallery",
-            "<FrameworkSection",
+            "<ModularitySection",
             "<OpenSourceSection",
             "<ResourceSection",
         ];
@@ -613,14 +568,29 @@ mod content_tests {
         assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
         assert!(page.contains("open=bind:self.authoring_source_open"));
         assert!(page.contains("source_open=bind:self.authoring_source_open"));
+        // Keep the circuit-board integration with its copy after the toolkit,
+        // including when the separately developed visual is merged.
+        assert!(!include_str!("authoring_section.pax").contains("<ModularitySection"));
+        assert!(!page.contains("<FrameworkSection"));
+    }
+
+    #[test]
+    fn oscilloscope_follows_the_get_started_actions_and_precedes_the_footer() {
+        let resources = include_str!("resource_section.pax");
+        assert_eq!(resources.matches("<FrameworkSection").count(), 1);
+        let scope = resources.find("<FrameworkSection").unwrap();
+        assert!(resources.find("Browse examples →").unwrap() < scope);
+        assert!(scope < resources.find("[Docs](https://docs.pax.dev/)").unwrap());
+        assert!(resources.find("<GetStarted").unwrap() < scope);
     }
 
     #[test]
     fn install_is_in_the_hero_and_removed_copy_stays_removed() {
         let hero = include_str!("hero_section.pax");
         let footer = include_str!("resource_section.pax");
-        assert!(hero.contains("cargo install pax-cli"));
-        assert!(!footer.contains("cargo install pax-cli"));
+        assert_eq!(hero.matches("<GetStarted").count(), 1);
+        assert_eq!(footer.matches("<GetStarted").count(), 1);
+        assert!(include_str!("get_started.pax").contains("cargo install pax-cli"));
         assert!(hero.contains("iPadOS"));
         assert!(hero.contains("Other targets are in beta."));
         assert!(!hero.contains("This website was built in Pax"));

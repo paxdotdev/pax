@@ -3986,7 +3986,7 @@ fn shader_effect_off_tile_and_cached_sources_skip_capture_setup() {
         renderer.set_viewport(320., 192., [dpr, dpr]);
         let mut previous_offset = None;
         for (frame, (offset, entries)) in
-            [(500., 0), (500., 0), (0., 1), (0., 1), (500., 1), (0., 2)]
+            [(500., 0), (500., 0), (0., 2), (0., 2), (500., 2), (0., 4)]
                 .into_iter()
                 .enumerate()
         {
@@ -4035,6 +4035,220 @@ fn shader_effect_off_tile_and_cached_sources_skip_capture_setup() {
             }
             if offset != 0. {
                 assert!(!renderer.alpha_source_has_working_storage());
+            }
+        }
+    }
+}
+
+#[cfg(feature = "shaders")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shader_effect_sibling_padding_does_not_invalidate_sources_or_masks() {
+    use pax_runtime_api::{ShaderEffect, ShaderInput, ShaderPass, ShaderProgram};
+    static PROGRAM: ShaderProgram = ShaderProgram {
+        label: "isolated capture domains",
+        passes: &[ShaderPass {
+            label: "identity.wgsl",
+            source: "fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p); }",
+            parameters: &[],
+            inputs: [ShaderInput::Subtree; 2],
+            downsample: 1,
+        }],
+    };
+    for dpr in [1., 2.] {
+        let layer = MetalLayer::new();
+        let mut backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, (240. * dpr) as u32, (96. * dpr) as u32, [dpr, dpr]),
+            )
+        })
+        .unwrap();
+        if dpr == 2. {
+            backend.staging_belt = ordered_uploads::OrderedUploads::queued(
+                backend.device.clone(),
+                backend.queue.clone(),
+                4096,
+            );
+        }
+        let device = backend.device.clone();
+        let mut renderer = WgpuRenderer::new(backend);
+        renderer.set_viewport(240., 96., [dpr, dpr]);
+        let fixed = ShaderEffect {
+            lighting: None,
+            program: &PROGRAM,
+            parameters: vec![vec![]],
+            outset: 4.,
+        };
+        let moving = ShaderEffect {
+            outset: 64.,
+            ..fixed.clone()
+        };
+        for (frame, scale) in [1., 1.5, 0.75, 1.25].into_iter().enumerate() {
+            renderer.begin_shader_effect(
+                1,
+                1,
+                &fixed,
+                Transform2D::identity(),
+                (64., 64.),
+                &[],
+                &[2],
+            );
+            if frame == 0 {
+                renderer.begin_node(2, 0, 0);
+                renderer.save();
+                renderer.begin_alpha_source(Transform2D::identity(), 1.);
+                renderer.begin_node(3, 0, 0);
+                renderer.fill_path(
+                    rect(8., 8., 32., 32.),
+                    Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+                );
+                renderer.end_node(3);
+                renderer.end_alpha_source();
+                renderer.fill_path(
+                    rect(0., 0., 64., 64.),
+                    Fill::Solid(Color::rgba(0., 1., 0., 1.)),
+                );
+                renderer.restore();
+                renderer.end_node(2);
+            }
+            renderer.end_shader_effect();
+            let transform = Transform2D::from_array([scale, 0., 0., 1. / scale, 160., 16.]);
+            renderer.begin_shader_effect(10, 10, &moving, transform, (24., 24.), &[], &[11]);
+            renderer.begin_node(11, 0, 0);
+            renderer.save();
+            renderer.transform(transform);
+            renderer.fill_path(
+                rect(0., 0., 24., 24.),
+                Fill::Solid(Color::rgba(1., 0., 0., 1.)),
+            );
+            renderer.restore();
+            renderer.end_node(11);
+            renderer.end_shader_effect();
+            renderer.request_screenshot_capture(frame as u32);
+            renderer.flush();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            let pixels = renderer.take_screenshot_capture(frame as u32).unwrap();
+            assert_pixel(
+                &pixels,
+                (24. * dpr) as usize,
+                (24. * dpr) as usize,
+                [0, 255, 0, 255],
+            );
+            assert_pixel(
+                &pixels,
+                (168. * dpr) as usize,
+                (24. * dpr) as usize,
+                [255, 0, 0, 255],
+            );
+            let stats = renderer.take_resource_churn_stats();
+            assert_eq!(stats.alpha_source_renders, u64::from(frame == 0));
+            assert_eq!(stats.alpha_source_cache_hits, u64::from(frame != 0));
+            assert_eq!(stats.effect_source_renders, if frame == 0 { 2 } else { 1 });
+            assert_eq!(stats.effect_source_cache_hits, u64::from(frame != 0));
+            assert_eq!(stats.effect_passes, if frame == 0 { 2 } else { 1 });
+        }
+    }
+}
+
+#[cfg(feature = "shaders")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shader_effect_nested_sampling_domains_include_ancestor_and_mask_halos() {
+    use pax_runtime_api::{
+        ShaderEffect, ShaderInput, ShaderParameter, ShaderParameterType, ShaderPass, ShaderProgram,
+        ShaderValue,
+    };
+    static PROGRAM: ShaderProgram = ShaderProgram {
+        label: "nested displacement domains",
+        passes: &[ShaderPass {
+            label: "shift.wgsl",
+            source: "fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p - vec2<f32>(parameters.shift,0.0)); }",
+            parameters: &[ShaderParameter { name: "shift", ty: ShaderParameterType::Float }],
+            inputs: [ShaderInput::Subtree; 2], downsample: 1,
+        }],
+    };
+    for dpr in [1., 2.] {
+        let mut whole: Option<(u32, Vec<u8>)> = None;
+        for (width, offset) in [(128., 0.), (64., 0.), (64., 64.)] {
+            let layer = MetalLayer::new();
+            let backend = pollster::block_on(unsafe {
+                RenderBackend::to_core_animation_layer(
+                    layer.0.cast(),
+                    RenderConfig::new(true, (width * dpr) as u32, (32. * dpr) as u32, [dpr, dpr]),
+                )
+            })
+            .unwrap();
+            let device = backend.device.clone();
+            let mut renderer = WgpuRenderer::new(backend);
+            renderer.set_viewport(width, 32., [dpr, dpr]);
+            renderer.save();
+            renderer.transform(Transform2D::translation(-offset, 0.));
+            for (id, shift, child) in [(1, 80., 2), (2, 16., 3)] {
+                let effect = ShaderEffect {
+                    lighting: None,
+                    program: &PROGRAM,
+                    parameters: vec![vec![ShaderValue::Float(shift)]],
+                    outset: shift as f64,
+                };
+                renderer.begin_shader_effect(
+                    id,
+                    id as i32,
+                    &effect,
+                    Transform2D::identity(),
+                    (128., 32.),
+                    &[],
+                    &[child],
+                );
+            }
+            renderer.begin_node(3, 0, 0);
+            renderer.save();
+            renderer.begin_alpha_source(Transform2D::identity(), 1.);
+            renderer.begin_node(4, 0, 0);
+            renderer.fill_path(
+                rect(-84., 8., 160., 16.),
+                Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+            );
+            renderer.end_node(4);
+            renderer.end_alpha_source();
+            renderer.fill_path(
+                rect(-200., -100., 512., 232.),
+                Fill::Solid(Color::rgba(1., 0., 0., 1.)),
+            );
+            renderer.restore();
+            renderer.end_node(3);
+            renderer.end_shader_effect();
+            renderer.end_shader_effect();
+            renderer.restore();
+            renderer.request_screenshot_capture(0);
+            renderer.flush();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            let pixels = renderer.take_screenshot_capture(0).unwrap();
+            assert_pixel(
+                &pixels,
+                (24. * dpr) as usize,
+                (16. * dpr) as usize,
+                [255, 0, 0, 255],
+            );
+            if let Some((whole_width, ref rgba)) = whole {
+                // Verify off-tile sample availability across the entire flat
+                // interior, including the tile seam. Feather edge quality is
+                // independent of the ancestor-halo dependency being tested here.
+                for y in (12. * dpr) as u32..(20. * dpr) as u32 {
+                    for x in (20. * dpr) as u32..pixels.width {
+                        let src = ((y * whole_width + x + (offset * dpr) as u32) * 4) as usize;
+                        let dst = ((y * pixels.width + x) * 4) as usize;
+                        for c in 0..4 {
+                            assert!(
+                                pixels.rgba[dst + c].abs_diff(rgba[src + c]) <= 2,
+                                "nested tiled capture differs at {x},{y}, channel {c}, DPR {dpr}, tile {offset}: {} vs {}",
+                                pixels.rgba[dst + c], rgba[src + c]
+                            );
+                        }
+                    }
+                }
+            } else {
+                whole = Some((pixels.width, pixels.rgba));
             }
         }
     }

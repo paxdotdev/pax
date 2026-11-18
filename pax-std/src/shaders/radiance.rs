@@ -38,6 +38,7 @@ pub struct Radiance {
     /// Light intensity, 0–6. Defaults to 2.20; zero bypasses rays and glass shading.
     pub brightness: Property<f64>,
     /// Maximum projected distance, 0–360 local pixels. Defaults to 190.
+    /// Capture padding follows this distance; a smaller reach reduces shaded area.
     pub reach: Property<f64>,
     /// Distance attenuation exponent, 0.5–4. Defaults to 1.
     pub falloff: Property<f64>,
@@ -148,6 +149,12 @@ static PROGRAM: ShaderProgram = ShaderProgram {
 impl Radiance {
     fn recipe(&self) -> ShaderEffect {
         let rgba = |c: Color| ShaderValue::Vec4(c.to_rgba_0_1().map(|v| v as f32));
+        let reach = self.reach.get().clamp(0., 360.);
+        let dispersion = if self.prism_saturation.get() > 0. {
+            self.prism_dispersion.get().clamp(0., 1.)
+        } else {
+            0.
+        };
         let values = vec![
             rgba(self.foreground.get()),
             rgba(self.background.get()),
@@ -159,7 +166,7 @@ impl Radiance {
                 600.,
             ]),
             ShaderValue::Float(self.brightness.get().clamp(0., 6.) as f32),
-            ShaderValue::Float(self.reach.get().clamp(0., 360.) as f32),
+            ShaderValue::Float(reach as f32),
             ShaderValue::Float(self.falloff.get().clamp(0.5, 4.) as f32),
             ShaderValue::Float(self.transmission.get().clamp(0., 0.5) as f32),
             ShaderValue::Float(self.polish.get().clamp(0., 1.) as f32),
@@ -172,14 +179,38 @@ impl Radiance {
             lighting: None,
             program: &PROGRAM,
             parameters: vec![values.clone(), values],
-            // Reserve the tuning envelope so light motion never reallocates capture bounds.
-            outset: if self.prism_dispersion.get() > 0. && self.prism_saturation.get() > 0. {
-                416.
-            } else {
-                376.
-            },
+            // Ray travel plus prism separation and filtering/refraction support.
+            // Light position/intensity never change this envelope; restrained
+            // presets need not reserve the maximum 360px tuning range.
+            outset: reach + 36. * dispersion + 16.,
         }
     }
 }
 
 effect_instance!(RadianceInstance, Radiance);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn padding_tracks_reach_and_dispersion_not_light_motion() {
+        let effect = Radiance::default();
+        assert_eq!(effect.recipe().outset, 206.);
+        effect.reach.set(36.);
+        assert_eq!(effect.recipe().outset, 52.);
+        effect.light_x.set(-900.);
+        effect.light_y.set(1200.);
+        effect.light_depth.set(900.);
+        effect.brightness.set(6.);
+        assert_eq!(effect.recipe().outset, 52.);
+        effect.prism_dispersion.set(0.5);
+        assert_eq!(effect.recipe().outset, 70.);
+        effect.prism_saturation.set(0.);
+        assert_eq!(effect.recipe().outset, 52.);
+        effect.reach.set(1000.);
+        effect.prism_dispersion.set(2.);
+        effect.prism_saturation.set(1.);
+        assert_eq!(effect.recipe().outset, 412.);
+    }
+}

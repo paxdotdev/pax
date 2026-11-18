@@ -56,18 +56,29 @@ pub struct History {
 
 impl History {
     pub fn new(count: u64) -> Self {
-        Self {
-            numbers: std::array::from_fn(|i| count.checked_sub(i as u64)),
+        let count = count.max(1);
+        let mut numbers = if count <= 6 {
+            [1, 2, 3, 4, 5, 6].map(Some)
+        } else {
+            std::array::from_fn(|i| Some(count - i as u64))
+        };
+        // A responsive remount resets the pose, so keep the current count in front.
+        if count <= 6 {
+            numbers.swap(0, count as usize - 1);
         }
+        Self { numbers }
     }
 
-    pub fn record(&mut self, count: u64, choice: usize) -> usize {
-        let empty: Vec<_> = (0..6).filter(|&i| self.numbers[i].is_none()).collect();
-        let face = if empty.is_empty() {
-            (0..6).min_by_key(|&i| self.numbers[i]).unwrap()
-        } else {
-            empty[choice % empty.len()]
-        };
+    pub fn record(&mut self, count: u64) -> usize {
+        // The first six values are already printed; roll to them without repainting.
+        if let Some(face) = self
+            .numbers
+            .iter()
+            .position(|&number| number == Some(count))
+        {
+            return face;
+        }
+        let face = (0..6).min_by_key(|&i| self.numbers[i]).unwrap();
         self.numbers[face] = Some(count);
         face
     }
@@ -163,12 +174,12 @@ mod tests {
 
     #[test]
     fn history_uses_distinct_faces_then_replaces_only_the_oldest() {
-        for initial_count in [0, 6, 100] {
+        for initial_count in [1, 2, 5, 6, 100] {
             let mut history = History::new(initial_count);
             let mut previous = 0;
             for count in initial_count + 1..=initial_count + 100 {
                 let before = history.numbers;
-                let face = history.record(count, (count * 7) as usize);
+                let face = history.record(count);
                 assert_ne!(face, previous);
                 for i in 0..6 {
                     if i != face {
@@ -179,16 +190,41 @@ mod tests {
                 values.sort();
                 assert_eq!(
                     values,
-                    (count.saturating_sub(5)..=count).collect::<Vec<_>>()
+                    (count.max(6) - 5..=count.max(6)).collect::<Vec<_>>()
                 );
                 previous = face;
             }
         }
-        assert_ne!(History::new(0).record(1, 0), History::new(0).record(1, 1));
         assert_eq!(
             History::new(100).numbers,
             [100, 99, 98, 97, 96, 95].map(Some)
         );
+    }
+
+    #[test]
+    fn prefilled_die_starts_at_one_and_reuses_two_through_six() {
+        let mut history = History::new(1);
+        let initial = [1, 2, 3, 4, 5, 6].map(Some);
+        assert_eq!(history.numbers, initial);
+        for count in 2..=6 {
+            let face = history.record(count);
+            assert_eq!(history.numbers[face], Some(count));
+            assert_eq!(history.numbers, initial);
+        }
+        assert_eq!(history.record(7), 0);
+        assert_eq!(history.numbers, [7, 2, 3, 4, 5, 6].map(Some));
+    }
+
+    #[test]
+    fn remounts_show_the_current_count_without_losing_prefilled_faces() {
+        for count in [0, 1, 2, 3, 4, 5, 6, 7, 100, u64::MAX] {
+            let history = History::new(count);
+            assert_eq!(history.numbers[0], Some(count.max(1)));
+            let mut values = history.numbers;
+            values.sort();
+            let newest = count.max(6);
+            assert_eq!(values, std::array::from_fn(|i| Some(newest - 5 + i as u64)));
+        }
     }
 
     #[test]

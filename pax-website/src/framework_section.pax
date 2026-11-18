@@ -2,7 +2,7 @@
     <ImportSettings>
         <SiteTheme />
     </ImportSettings>
-    <Stacker id=framework_content x=50% y=40px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=48px>
+    <Stacker id=framework_content width=100% autosize=true gutter=0px>
         ///#ignore
         <Group width=100% height={(self.scope_height)px}>
             <FramedStudy width=100% height={(self.scope_height)px} content_height=bind:self.scope_height
@@ -18,12 +18,7 @@
                 }
             </FramedStudy>
         </Group>
-        ///#ignore
-        <CalculatorPreview width=100% height={(self.calculator_height)px} content_height=bind:self.calculator_height
-            compact=true live={!self.compact}/>
     </Stacker>
-    <Rectangle class="site_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 40px) : 88%} height=1px/>
-    <Rectangle class="site_ink" width=100% height=100%/>
 </Group>
 
 @settings {

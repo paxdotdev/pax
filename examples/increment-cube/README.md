@@ -1,17 +1,19 @@
 # Increment Cube
 
-The cube starts with 1–6 on its faces, showing 6 toward the viewer. Click or tap
-to roll to 7 and beyond. Each face keeps one of the last six counts: the smallest
-value is replaced on each roll.
+The cube starts with 1–6 on its faces, showing 1 toward the viewer. Click or tap
+to advance to 2, then through the remaining preprinted values. From 7 onward,
+each new count replaces the smallest value, retaining the last six counts.
 The new value lands upright, square-on to the orthographic camera. Additional
 clicks add one full pending turn per axis, then align to the selected face,
 and increase speed. Directions are randomized when starting from rest; the cube
 always settles one second after the last click.
 
-A metallic gold Pax banner invites desktop users to “CLICK” and mobile users
+A gold Pax banner invites desktop users to “CLICK” and mobile users
 to “TAP” (`@mobile`, independent of window size). The flag matches the settled
-cube's resting width, with a thick flat white border and white Black-weight
-lettering (the heaviest supported weight). It sits alongside the cube when
+cube's resting width, with no outline and black Black-weight
+lettering (the heaviest supported weight). A short gold `Radiance` fan surrounds
+the solid gold arrow on GPU; the native label stays outside the shader capture.
+It sits alongside the cube when
 the component's own container is wider than it is tall;
 otherwise it sits above, pointing down with upright text. The pair fits that
 container together, independently of viewport orientation. Its resting gap is
@@ -26,9 +28,11 @@ fades the whole sign over 360ms, then unmounts it so invisible content cannot
 intercept input. The cube's offset multiplies that same opacity, sliding it
 into the container's center during the fade without a second animation state.
 Responsive remounts keep the sign hidden and cube centered. Both renderers
-animate the hint. GPU materials respond to the host's lights; CPU
-rendering retains the gold base paint and white border.
+animate the hint. CPU rendering retains the plain gold arrow and black label
+without the Radiance effect.
 
+Hovering the cube shows a pointing-hand cursor, including the CPU fallback;
+the surrounding stage and instruction banner retain their ordinary cursor.
 Pressing compresses the cube. Releasing makes it expand briefly and return to
 normal; cancellation relaxes it without incrementing. Mouse and touch share
 this feedback. There is no separate button or keyboard activation control.
@@ -51,9 +55,10 @@ handler returns immediately after the hint has faded and the cube is at rest.
 contains face history, interrupted-roll math, and the hint's bounce with tests.
 
 The cube uses the `3d` feature, a solid translucent paint, and a custom material
-with subdued ambient and stronger diffuse/specular response. There are no
-shader filters, gradients, or component-owned lights. The website provides its
-existing global lights; the standalone wrapper supplies only ambient light.
+with subdued ambient and stronger diffuse/specular response. The hint uses the
+`shaders` feature for `Radiance`, with matching gold source and light colors.
+There are no gradients or component-owned scene lights. The website supplies
+the cube's lighting; the standalone wrapper supplies only ambient light.
 Native face text participates in the spatial compositor, with its existing
 transparency/coverage limitations; this is surface translucency, not refraction.
 Back-facing labels remain mounted but transparent, keeping rear numbers from

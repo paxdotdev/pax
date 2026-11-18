@@ -47,6 +47,11 @@ Type: `PropertyGraph`
 
 Owner-thread bridge for application properties.
 
+##### `clipboard`
+Type: `RefCell`<[`Clipboard`](../../../api/pax-runtime-api/clipboard.md#clipboard)>
+
+Per-engine platform clipboard access, installed by the chassis.
+
 ##### `layer_count`
 Type: `Cell`<`usize`>
 

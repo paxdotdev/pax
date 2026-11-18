@@ -121,6 +121,8 @@ pub struct RuntimeContext {
     /// Owner-thread bridge for application properties.
     pub property_graph: pax_runtime_api::PropertyGraph,
     messages: RefCell<Vec<NativeMessage>>,
+    /// Per-engine platform clipboard access, installed by the chassis.
+    pub clipboard: RefCell<pax_runtime_api::Clipboard>,
     globals: RefCell<Globals>,
     root_expanded_node: RefCell<Weak<ExpandedNode>>,
     #[cfg(feature = "designtime")]
@@ -295,6 +297,7 @@ impl RuntimeContext {
             replaying_startup_input: Default::default(),
             application,
             messages: RefCell::new(Vec::new()),
+            clipboard: Default::default(),
             globals: RefCell::new(globals),
             root_expanded_node: RefCell::new(Weak::new()),
             node_cache: RefCell::new(NodeCache::new()),
@@ -363,6 +366,7 @@ impl RuntimeContext {
             replaying_startup_input: Default::default(),
             application,
             messages: RefCell::new(Vec::new()),
+            clipboard: Default::default(),
             globals: RefCell::new(globals),
             root_expanded_node: RefCell::new(Weak::new()),
             userland_frame_instance_node: RefCell::new(Some(userland)),
@@ -434,6 +438,7 @@ impl RuntimeContext {
             wheel_regions: Default::default(),
             application,
             messages: RefCell::new(Vec::new()),
+            clipboard: Default::default(),
             globals: RefCell::new(globals),
             root_expanded_node: RefCell::new(Weak::new()),
             userland_frame_instance_node: RefCell::new(None),

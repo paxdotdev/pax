@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 
-use crate::SiteTheme;
+use crate::{FrameworkSection, GetStarted, SiteTheme};
 use pax_kit::*;
 
 const COMPACT_BREAKPOINT_PX: f64 = 1000.0;
@@ -10,6 +10,8 @@ const COMPACT_BREAKPOINT_PX: f64 = 1000.0;
 pub struct ResourceSection {
     pub compact: Property<bool>,
     pub content_height: Property<f64>,
+    pub get_started_height: Property<f64>,
+    pub oscilloscope_height: Property<f64>,
     pub _height_bound: Property<bool>,
 }
 

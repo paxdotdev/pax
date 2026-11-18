@@ -40,6 +40,7 @@ use_RefCell!();
 mod browser_surface_policy;
 mod image_loading;
 mod installed_surfaces;
+mod clipboard;
 mod loading;
 mod surface_metrics;
 mod surface_scheduling;
@@ -442,6 +443,7 @@ impl PaxChassisWeb {
         engine
             .runtime_context
             .edit_globals(|globals| globals.renderer_is_gpu = renderer.is_gpu());
+        *engine.runtime_context.clipboard.borrow_mut() = clipboard::adapter();
         if hold {
             engine.hold_presentation();
         }
@@ -528,6 +530,7 @@ impl PaxChassisWeb {
         engine
             .runtime_context
             .edit_globals(|globals| globals.renderer_is_gpu = renderer.is_gpu());
+        *engine.runtime_context.clipboard.borrow_mut() = clipboard::adapter();
         if hold {
             engine.hold_presentation();
         }

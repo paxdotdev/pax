@@ -153,6 +153,49 @@ commit. Exact commit timing belongs to the platform control, so test it on
 the targets you ship. Forms, two-way bindings, and focus are covered in
 [Native Controls](accessibility-native-controls.md).
 
+### Copy text to the clipboard
+
+Call `ctx.write_clipboard_text` from a user activation handler. The request
+starts immediately; its callback reports the platform's actual result on a
+later UI turn. Returning `Ok(())` only means the request was accepted. Keep
+success feedback in the callback rather than showing “Copied” on click.
+
+For a component with `title: Property<String>` and `copy_status: Property<String>`:
+
+```rust
+pub fn copy_title(&mut self, ctx: &NodeContext, _event: Event<ButtonClick>) {
+    let status = self.copy_status.clone();
+    let request = ctx.write_clipboard_text(&self.title.get(), move |result| {
+        status.set(match result {
+            Ok(()) => "Copied".into(),
+            Err(error) => format!("Couldn't copy: {error}"),
+        });
+    });
+    if let Err(error) = request {
+        self.copy_status.set(format!("Couldn't start copying: {error}"));
+    }
+}
+```
+
+Bind it with `<Button label="Copy title" @button_click=self.copy_title />`.
+Completion belongs to the context node's mount lifetime: unmounting suppresses
+the callback, but cannot undo a clipboard write already started. The API only
+writes plain text; it never reads the user's clipboard.
+
+The web chassis supports this API in both debug and release builds. It uses
+the browser's [Clipboard API](https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText),
+which requires HTTPS (or a trustworthy localhost origin) and may require a
+user gesture or permission. Call directly from the handler, not after awaiting
+other work. Embedded documents may also be restricted by Permissions Policy.
+Denied access is reported as `ClipboardError::NotAllowed`; unavailable APIs
+as `Unsupported`; other platform failures as `Failed`. Offer selectable text
+as a fallback rather than assuming copying always works.
+
+The shared API is available on all targets, but native macOS, iOS/iPadOS,
+Android, Windows, and Linux do not yet install clipboard adapters and return
+`ClipboardError::Unsupported`. Custom chassis install a per-engine `Clipboard`
+adapter; they must start the request inline and reply once on success or failure.
+
 ## Choose the binding's scope
 
 An inline binding belongs to the element where it is written. In the Advance

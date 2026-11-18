@@ -141,102 +141,61 @@ impl WgpuRenderer<'_> {
         if self.source_captures.is_empty() {
             return active;
         }
-        // A common surface-local domain lets nested alpha results compose without resampling.
-        // Sum feather supports along dependencies, including source-side nested masks.
-        fn margin(renderer: &WgpuRenderer<'_>, owner: u32, visiting: &mut HashSet<u32>) -> f32 {
-            if !visiting.insert(owner) {
-                return 0.0;
-            }
-            let own = renderer
-                .source_captures
-                .get(&owner)
-                .map_or(0.0, |s| 3.0 * s.feather);
-            let child = renderer
-                .source_dependencies(owner)
-                .into_iter()
-                .map(|id| margin(renderer, id, visiting))
-                .fold(0.0, f32::max);
-            visiting.remove(&owner);
-            own + child
-        }
-        let mut visited = HashSet::new();
-        let mut gutter = 0.0f32;
-        for owner in active_masks {
-            if !self.source_captures.contains_key(owner) {
-                continue;
-            }
-            let required = margin(self, *owner, &mut HashSet::new());
-            #[cfg(feature = "shaders")]
-            let required = self.effect_margin() + required;
-            if self.render_backend.source_domain_fits(required) {
-                gutter = gutter.max(required);
-            } else {
-                log::error!("alpha source {owner} exceeds GPU texture limits; hiding its content");
-                self.render_backend.alpha_masks.set_empty(*owner);
-                visited.insert(*owner);
-            }
-        }
-        // Classify before entering the source domain: even its stencil is a
-        // tile-sized allocation. Include the complete shared feather/effect gutter.
-        let Some(domain) = self.render_backend.source_domain_bounds(gutter) else {
-            // Even the minimum guard texel can exceed the limit on a maximum-size tile.
-            // Fail closed, just as for an oversized feather domain above.
-            for owner in active_masks {
-                if self.source_captures.contains_key(owner) {
-                    self.render_backend.alpha_masks.set_empty(*owner);
+        fn request_margin(
+            renderer: &WgpuRenderer<'_>,
+            owner: u32,
+            consumer_margin: f32,
+            margins: &mut HashMap<u32, f32>,
+            visiting: &mut HashSet<u32>,
+        ) {
+            let Some(source) = renderer.source_captures.get(&owner) else {
+                return;
+            };
+            assert!(visiting.insert(owner), "alpha-source dependency cycle");
+            let required = consumer_margin + 3.0 * source.feather;
+            if margins.get(&owner).is_none_or(|old| *old < required) {
+                margins.insert(owner, required);
+                for dependency in renderer.source_dependencies(owner) {
+                    request_margin(renderer, dependency, required, margins, visiting);
                 }
             }
-            return active;
-        };
-        let domain = Box2D {
-            min: point(domain.min_x, domain.min_y),
-            max: point(domain.max_x, domain.max_y),
-        };
-        let mut source_bounds = HashMap::new();
-        for owner in active_masks {
-            let Some(source) = self.source_captures.get(owner) else {
-                continue;
-            };
-            if visited.contains(owner) {
-                continue;
-            }
-            let bounds = source
-                .nodes
-                .iter()
-                .filter_map(|id| self.scene.get(id))
-                .map(|node| node.bounds())
-                .filter(|bounds| boxes_intersect(bounds, &domain))
-                .reduce(|a, b| a.union(&b));
-            if let Some(bounds) = bounds {
-                source_bounds.insert(*owner, bounds);
-            } else {
-                self.render_backend.alpha_masks.set_empty(*owner);
-                visited.insert(*owner);
+            visiting.remove(&owner);
+        }
+        #[allow(unused_mut)] // Shader consumers can extend the mask's sampling domain.
+        let mut consumers: HashMap<u32, f32> = active_masks.iter().map(|id| (*id, 0.)).collect();
+        #[cfg(feature = "shaders")]
+        {
+            let effects = self.effect_margins();
+            // Only consumers inside an effect need that effect's sampling halo.
+            // Detached sources receive demand through the dependency walk below.
+            for (id, node) in &self.scene {
+                let Some(effect) = self.effect_nodes.get(id) else {
+                    continue;
+                };
+                for clip in node.clip_stack() {
+                    if let ClipReference::Alpha { owner } = clip {
+                        let margin = consumers.entry(*owner).or_default();
+                        *margin = (*margin).max(effects[effect]);
+                    }
+                }
             }
         }
-        if source_bounds.is_empty() {
-            return active;
+        let mut margins = HashMap::new();
+        for (owner, required) in consumers {
+            request_margin(self, owner, required, &mut margins, &mut HashSet::new());
         }
-        assert!(self.render_backend.begin_source_domain(gutter));
-        self.ensure_vector_resources_for_immediate_scene();
+        let mut visited = HashSet::new();
         let mut visiting = HashSet::new();
         for owner in active_masks {
-            self.render_alpha_source(
-                *owner,
-                &source_bounds,
-                &mut visited,
-                &mut visiting,
-                &mut active,
-            );
+            self.render_alpha_source(*owner, &margins, &mut visited, &mut visiting, &mut active);
         }
-        self.render_backend.end_source_domain();
         active
     }
 
     fn render_alpha_source(
         &mut self,
         owner: u32,
-        source_bounds: &HashMap<u32, Box2D>,
+        margins: &HashMap<u32, f32>,
         visited: &mut HashSet<u32>,
         visiting: &mut HashSet<u32>,
         active: &mut HashSet<CaptureKey>,
@@ -246,12 +205,38 @@ impl WgpuRenderer<'_> {
         }
         assert!(visiting.insert(owner), "alpha-source dependency cycle");
         for dependency in self.source_dependencies(owner) {
-            self.render_alpha_source(dependency, source_bounds, visited, visiting, active);
+            self.render_alpha_source(dependency, margins, visited, visiting, active);
         }
         visiting.remove(&owner);
         let source = &self.source_captures[&owner];
         let feather = source.feather;
         let parent = source.parent;
+        let margin = margins[&owner];
+        let Some((globals, _)) = self.render_backend.source_domain_geometry(margin) else {
+            log::error!("alpha source {owner} exceeds GPU texture limits; hiding its content");
+            self.render_backend.alpha_masks.set_empty(owner);
+            visited.insert(owner);
+            return;
+        };
+        let domain = Box2D::new(
+            point(globals.origin[0], globals.origin[1]),
+            point(
+                globals.origin[0] + globals.resolution[0],
+                globals.origin[1] + globals.resolution[1],
+            ),
+        );
+        let bounds = source
+            .nodes
+            .iter()
+            .filter_map(|id| self.scene.get(id))
+            .map(|node| node.bounds())
+            .filter(|bounds| boxes_intersect(bounds, &domain))
+            .reduce(|a, b| a.union(&b));
+        let Some(bounds) = bounds else {
+            self.render_backend.alpha_masks.set_empty(owner);
+            visited.insert(owner);
+            return;
+        };
         let mut nodes: Vec<_> = source
             .nodes
             .iter()
@@ -260,7 +245,7 @@ impl WgpuRenderer<'_> {
         nodes.sort_unstable();
         let nodes: Vec<_> = nodes.into_iter().map(|(_, id)| id).collect();
         let mut hash = DefaultHasher::new();
-        bytemuck::bytes_of(&self.render_backend.globals).hash(&mut hash);
+        bytemuck::bytes_of(&globals).hash(&mut hash);
         for id in &nodes {
             self.hash_capture_content(*id, &mut hash);
             for scope in self.opacity_scopes.get(id).into_iter().flatten() {
@@ -269,14 +254,27 @@ impl WgpuRenderer<'_> {
             }
         }
         let content_signature = hash.finish();
+        feather.to_bits().hash(&mut hash);
+        self.render_backend
+            .alpha_masks
+            .signature(parent)
+            .hash(&mut hash);
+        let output_signature = hash.finish();
         let key = CaptureKey::Alpha(owner);
         active.insert(key);
-        if !self
+        let cached = self
             .render_backend
-            .capture_is_cached(key, content_signature)
-        {
-            let domain = self.viewport_bounds();
-            let bounds = source_bounds[&owner];
+            .capture_is_cached(key, content_signature);
+        if cached && self.render_backend.alpha_masks.signature(Some(owner)) == output_signature {
+            self.retain_capture_scene(key, &nodes, active);
+            self.resource_churn_stats.alpha_source_cache_hits += 1;
+            self.observe_work(Some(owner), "alpha source reuse", 1, 0);
+            visited.insert(owner);
+            return;
+        }
+        assert!(self.render_backend.begin_source_domain(margin));
+        self.ensure_vector_resources_for_immediate_scene();
+        if !cached {
             let bounds = ScissorRect {
                 min_x: (bounds.min.x - 1.0).max(domain.min.x),
                 min_y: (bounds.min.y - 1.0).max(domain.min.y),
@@ -285,6 +283,7 @@ impl WgpuRenderer<'_> {
             };
             if !self.render_backend.begin_bounded_capture(bounds) {
                 self.render_backend.alpha_masks.set_empty(owner);
+                self.render_backend.end_source_domain();
                 visited.insert(owner);
                 return;
             }
@@ -298,13 +297,9 @@ impl WgpuRenderer<'_> {
             self.resource_churn_stats.alpha_source_cache_hits += 1;
             self.observe_work(Some(owner), "alpha source reuse", 1, 0);
         }
-        feather.to_bits().hash(&mut hash);
         self.render_backend
-            .alpha_masks
-            .signature(parent)
-            .hash(&mut hash);
-        self.render_backend
-            .render_captured_alpha(owner, hash.finish(), key, feather, parent);
+            .render_captured_alpha(owner, output_signature, key, feather, parent);
+        self.render_backend.end_source_domain();
         visited.insert(owner);
     }
 }

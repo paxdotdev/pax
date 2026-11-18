@@ -1,7 +1,12 @@
 # Build with Pax
 
-Pax is a language-first GUI framework for Rust. Use this guide when helping
-someone create or modify a Pax application.
+Pax combines HTML-like markup with spreadsheet-like expressions and Rust
+application logic. Use this guide with Codex, Claude Code, or another coding
+agent to turn an idea into a running Pax application.
+
+Start with a small, working web app. Read the documentation shipped with the
+installed CLI, use real Pax components, and inspect the result in a browser.
+This guide is also available as [raw Markdown](/ai.md).
 
 Work through the released `pax-cli` and the application project. Do not assume
 the Pax framework monorepo is cloned, and do not clone it unless the user is
@@ -24,7 +29,7 @@ Pax web project. Start with read-only checks:
   current Pax Getting Started guide.
 
 Use the current platform instructions at
-<https://docs.pax.dev/getting-started/>. Do not guess at substitute packages or
+<https://docs.pax.dev/getting-started.html>. Do not guess at substitute packages or
 unsupported shortcuts when an official setup path exists.
 
 If anything is missing or misconfigured, act as a setup doctor:
@@ -34,14 +39,14 @@ If anything is missing or misconfigured, act as a setup doctor:
 2. Prepare one consolidated, platform-specific installation and configuration
    worklist. Include only missing prerequisites, list the exact commands and
    expected effects, and identify any elevated permissions or external tools.
-3. Present that single worklist and ask for confirmation once.
-4. After confirmation, execute the approved work as one batch. Return to the
-   user sooner only for an unexpected blocker or a genuinely new decision that
-   was not covered by the approval.
+3. Present the worklist and obtain any approval required by the user and the
+   agent's permission settings. Do not bypass those settings.
+4. Execute the approved steps. Return to the user for an unexpected blocker or
+   a genuinely new decision not covered by the approval.
 5. Verify the resulting versions and rerun the command that exposed the problem.
 
-Do not make the user approve each ordinary installer step separately. Do not
-continue application work while the toolchain is known to be broken.
+Batch setup decisions where the agent's permissions allow it. Verify the
+toolchain before proceeding with application work.
 
 The usual web setup includes Rust, the `wasm32-unknown-unknown` target,
 `wasm-pack`, and the Pax CLI:
@@ -74,7 +79,7 @@ If no project exists, create one with the released CLI:
 ```sh
 pax-cli create my-app
 cd my-app
-pax-cli run
+pax-cli run --target web
 ```
 
 Choose an appropriate project name from the user's request instead of using
@@ -109,18 +114,21 @@ Pax is pre-1.0 and has limited external training data. Use the documentation
 and examples bundled with the installed CLI as the source of truth:
 
 ```sh
-pax-cli docs list
-pax-cli docs open "Getting Started"
-pax-cli docs open "Template Language & Structure"
-pax-cli docs open "Data Binding & Expressions"
-pax-cli docs open "Event Handling & Rust Logic"
+pax-cli docs
+pax-cli docs open getting-started
+pax-cli docs open template-language
+pax-cli docs open data-binding-expressions
+pax-cli docs open event-handling-rust
 pax-cli docs search <query>
 pax-cli docs examples --list
 pax-cli docs examples <example-name>
 ```
 
 Prefer adapting a current working example over extrapolating unfamiliar syntax
-from another GUI framework.
+from another GUI framework. The installed CLI's docs and examples are a
+version-matched snapshot; online docs may describe a newer release. Check
+`pax-cli --version` and command `--help` when instructions differ. Do not silently
+switch to an unreleased framework checkout to obtain a missing feature.
 
 Important Pax-specific rules include:
 
@@ -129,6 +137,8 @@ Important Pax-specific rules include:
 - Units are first-class values, including `px`, `%`, `deg`, and `rad`.
   Expressions such as `{100% - 25px}` are valid and useful for responsive
   layout.
+- Percentage positions also imply a percentage anchor: `x=50%` centers an
+  element. Set `anchor_x=0%` explicitly to position its left edge halfway across.
 - Use percentage sizing where appropriate so the interface responds across
   window and device sizes.
 - Keep application media in `assets/`. Use `public/` only for web responses that
@@ -138,16 +148,16 @@ Important Pax-specific rules include:
 
 Keep `pax-cli run` active in a dedicated terminal while iterating. The debug
 default is `--hot-reload=pax`: `.pax` edits update the mounted application,
-while Rust edits require rebuilding and restarting by default.
-
-On web and macOS, opt into application-logic reload when its build latency is
-appropriate:
+while Rust edits require rebuilding and restarting. Reload the browser after
+rebuilding a web app. Inline templates in `.rs` files also need a rebuild.
 
 ```sh
-pax-cli run --hot-reload=pax
+pax-cli run --target web --hot-reload=pax
 ```
 
-iOS and iPadOS require rebuilding and relaunching after Rust logic changes.
+The supported reload modes are `pax` and `off`. `all` is a legacy alias for
+`pax`; `logic` is retired. Release builds disable hot reload. See
+[Developer Workflow & Tools](https://docs.pax.dev/developer-workflow.html#hot-reloading).
 
 Use the developer tools to observe the application rather than inferring its
 behavior from source alone:
@@ -169,13 +179,17 @@ faithful to the requested direction.
 
 ## Current Target Boundaries
 
-Pax applications currently target web browsers through WebAssembly, macOS,
-iOS, and iPadOS. The web install, create, and run workflow is supported on
-macOS, Debian/Ubuntu Linux, and Windows. Apple application targets require a
-supported macOS workstation and Xcode.
+Start with the web target unless the user requests another platform. The web
+install/create/run workflow supports macOS, Debian/Ubuntu Linux, and Windows.
+Native macOS, iOS, and iPadOS builds require macOS and full Xcode.
 
-Do not present planned Linux, Windows, Android, JavaScript, or Python application
-support as shipping today.
+Android is experimental; native Windows and Linux hosts are alpha, with
+narrower control support and specific GPU requirements. Check the installed
+version and the [target guide](https://docs.pax.dev/targets-build-deploy.html)
+before promising a capability. GPU and CPU rendering do not have feature
+parity: features such as 3D and lighting require a GPU-backed renderer.
+Rust is the application-logic language; do not promise JavaScript or Python
+application authoring.
 
 ## Verify Before Handoff
 

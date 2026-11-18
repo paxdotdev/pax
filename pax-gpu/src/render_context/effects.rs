@@ -23,12 +23,6 @@ pub(super) struct EffectNode {
     pub(super) clip_stack: Vec<ClipReference>,
 }
 
-struct EffectDomain {
-    globals: crate::render_backend::data::GpuGlobals,
-    margin: f32,
-    active: bool,
-}
-
 impl WgpuRenderer<'_> {
     #[cfg(test)]
     pub(crate) fn effect_source_domain_entries(&self) -> u64 {
@@ -191,37 +185,44 @@ impl WgpuRenderer<'_> {
             * std::f64::consts::SQRT_2) as f32
     }
 
-    pub(super) fn effect_margin(&self) -> f32 {
-        fn margin(renderer: &WgpuRenderer<'_>, id: u32, visiting: &mut HashSet<u32>) -> f32 {
+    pub(super) fn effect_margins(&self) -> HashMap<u32, f32> {
+        fn margin(
+            renderer: &WgpuRenderer<'_>,
+            id: u32,
+            margins: &mut HashMap<u32, f32>,
+            visiting: &mut HashSet<u32>,
+        ) -> f32 {
+            if let Some(value) = margins.get(&id) {
+                return *value;
+            }
             assert!(visiting.insert(id), "shader effect dependency cycle");
-            let effect = &renderer.effect_captures[&id];
-            let own = renderer.effect_support(id);
-            let child = effect
-                .children
-                .iter()
-                .filter(|id| renderer.effect_captures.contains_key(id))
-                .map(|id| margin(renderer, *id, visiting))
-                .fold(0., f32::max);
+            // An inner effect must supply its parent's off-tile samples, but an
+            // unrelated sibling must not alter this capture's coordinate domain.
+            let parent = renderer
+                .effect_nodes
+                .get(&id)
+                .map_or(0., |parent| margin(renderer, *parent, margins, visiting));
+            let value = parent + renderer.effect_support(id);
             visiting.remove(&id);
-            own + child
+            margins.insert(id, value);
+            value
         }
-        let support = self
-            .effect_captures
-            .keys()
-            .map(|id| margin(self, *id, &mut HashSet::new()))
-            .fold(0., f32::max);
-        if self.effect_captures.is_empty() {
-            0.0
-        } else {
-            support
-                + 16.0
-                    / self
-                        .render_backend
-                        .globals
-                        .dpr
-                        .into_iter()
-                        .fold(f32::INFINITY, f32::min)
+        let mut margins = HashMap::new();
+        for id in self.effect_captures.keys() {
+            margin(self, *id, &mut margins, &mut HashSet::new());
         }
+        // One coarse texel of guard space, on the same physical grid on every tile.
+        let guard = 16.0
+            / self
+                .render_backend
+                .globals
+                .dpr
+                .into_iter()
+                .fold(f32::INFINITY, f32::min);
+        for value in margins.values_mut() {
+            *value += guard;
+        }
+        margins
     }
 
     pub(super) fn render_effects(&mut self) -> HashSet<CaptureKey> {
@@ -229,27 +230,11 @@ impl WgpuRenderer<'_> {
         if self.effect_captures.is_empty() {
             return active;
         }
-        // Reserve a complete coarse texel beyond filter support, then align each capture to
-        // a shared physical grid. Adjacent tiles must not independently stretch a coarse pass.
-        let margin = self.effect_margin();
-        let (globals, _) = self
-            .render_backend
-            .source_domain_geometry(margin)
-            .expect("shader effect sampling support exceeds GPU texture limits");
-        // Culling and cache signatures use the same padded coordinates as capture, but
-        // do not allocate/clear attachments. A cache miss activates the domain lazily.
-        let mut domain = EffectDomain {
-            globals,
-            margin,
-            active: false,
-        };
+        let margins = self.effect_margins();
         let mut visited = HashSet::new();
         let ids: Vec<_> = self.effect_captures.keys().copied().collect();
         for id in ids {
-            self.render_effect(id, &mut visited, &mut active, &mut domain);
-        }
-        if domain.active {
-            self.render_backend.end_source_domain();
+            self.render_effect(id, &mut visited, &mut active, &margins);
         }
         active
     }
@@ -259,7 +244,7 @@ impl WgpuRenderer<'_> {
         id: u32,
         visited: &mut HashSet<u32>,
         active: &mut HashSet<CaptureKey>,
-        domain: &mut EffectDomain,
+        margins: &HashMap<u32, f32>,
     ) {
         if !visited.insert(id) {
             return;
@@ -267,7 +252,7 @@ impl WgpuRenderer<'_> {
         let children = self.effect_captures[&id].children.clone();
         for child in &children {
             if self.effect_captures.contains_key(child) {
-                self.render_effect(*child, visited, active, domain);
+                self.render_effect(*child, visited, active, margins);
             }
         }
         let capture = &self.effect_captures[&id];
@@ -298,7 +283,11 @@ impl WgpuRenderer<'_> {
             node.bounds = bounds;
             node.visible = false;
         }
-        let globals = domain.globals;
+        let margin = margins[&id];
+        let (globals, _) = self
+            .render_backend
+            .source_domain_geometry(margin)
+            .expect("shader effect sampling support exceeds GPU texture limits");
         let viewport = Box2D::new(
             point(globals.origin[0], globals.origin[1]),
             point(
@@ -387,11 +376,8 @@ impl WgpuRenderer<'_> {
         let key = CaptureKey::EffectSource(id);
         active.insert(key);
         if !self.render_backend.capture_is_cached(key, source_signature) {
-            if !domain.active {
-                assert!(self.render_backend.begin_source_domain(domain.margin));
-                domain.active = true;
-                self.ensure_vector_resources_for_immediate_scene();
-            }
+            assert!(self.render_backend.begin_source_domain(margin));
+            self.ensure_vector_resources_for_immediate_scene();
             // Keep the aligned sampling rectangle, but render its source into
             // bounded attachments instead of clearing the entire padded tile.
             assert!(self.render_backend.begin_bounded_capture(bounds));
@@ -403,6 +389,7 @@ impl WgpuRenderer<'_> {
             let height = ((bounds.max_y - bounds.min_y) * dpr[1]).round() as u32;
             self.render_backend
                 .end_capture_rect(key, source_signature, (x, y, width, height));
+            self.render_backend.end_source_domain();
             self.resource_churn_stats.effect_source_renders += 1;
             self.observe_work(Some(id), "effect source raster", 1, source_pixels);
         } else {

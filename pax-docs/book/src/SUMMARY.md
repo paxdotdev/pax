@@ -27,6 +27,7 @@
     - [application_shutdown](api/pax-runtime-api/application_shutdown.md)
     - [async_runtime](api/pax-runtime-api/async_runtime.md)
     - [camera](api/pax-runtime-api/camera.md)
+    - [clipboard](api/pax-runtime-api/clipboard.md)
     - [color](api/pax-runtime-api/color.md)
     - [cursor](api/pax-runtime-api/cursor.md)
     - [drawing](api/pax-runtime-api/drawing.md)

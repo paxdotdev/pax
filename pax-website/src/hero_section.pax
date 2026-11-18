@@ -1,5 +1,5 @@
 ///#ignore
-if self._logo_started && self.logo_visible && self.portal_departure < 1.0 && (self.playhead_ms < 1440.0 || (@gpu && self.radiance_enabled)) {
+if self._logo_started && !self._logo_return_pending && self.logo_visible && self.portal_departure < 1.0 && (self.playhead_ms < 1440.0 || (@gpu && self.radiance_enabled)) {
     <Group width=0px height=0px @tick=self.advance_logo/>
 }
 <Group width=100% height=100%>
@@ -35,24 +35,10 @@ if self._logo_started && self.logo_visible && self.portal_departure < 1.0 && (se
                 <GlassAction width=100% height=100% label="Get Started" url="https://docs.pax.dev/getting-started/" opal=true/>
                 <GlassAction width=100% height=100% label="GitHub" url="https://github.com/paxdotdev/pax" github=true/>
             </Stacker>
-            <Group width=100% autosize=true autosize_x=false autosize_y=true>
-                <Stacker width=100% autosize=true padding_x=18px padding_y=16px>
-                    <Text class="hero_command" width=100% selectable=true markdown=false>{r"cargo install pax-cli
-pax-cli create my-app
-cd my-app && pax-cli run"}</Text>
-                </Stacker>
-                <Rectangle width=100% height=100% layout_role=LayoutRole::Breakout corner_radius=12 fill={
-                    paint: {SiteTheme::surface()}
-                    material: {Material::unlit()}
-                } 
-                    stroke={
-                        paint: {SiteTheme::rule()}
-                        width: 1px
-                        material: {Material::unlit()}
-                    }/>
-            </Group>
+            <GetStarted width=100% height={(self.get_started_height)px} ai=false
+                content_height=bind:self.get_started_height/>
             <Text width=100% style={
-                font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
+                font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
                 font_size: {self.compact ? 12px : 14px}
                 fill: {SiteTheme::muted()}
             }>* Native Android, Windows, and Linux support is currently experimental. Other targets are in beta.</Text>
@@ -70,19 +56,6 @@ cd my-app && pax-cli run"}</Text>
             font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
             font_size: {self.compact ? 16px : 18px}
             fill: {SiteTheme::muted()}
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-        }
-    }
-    .hero_command {
-        style: TextStyle {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "assets/fonts/IBMPlexMono-Regular.ttf",
-                FontStyle::Normal,
-                FontWeight::Normal)
-            font_size: 14.95px
-            fill: {SiteTheme::paper()}
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
         }

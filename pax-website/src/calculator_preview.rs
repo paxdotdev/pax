@@ -96,8 +96,6 @@ mod tests {
         }
         assert_eq!(template.matches("url=\"/calculator/\"").count(), 5);
         assert!(template.contains("#front_phone"));
-        let demos = include_str!("framework_section.pax");
-        assert!(demos.contains("compact=true live={!self.compact}"));
     }
 
     #[test]

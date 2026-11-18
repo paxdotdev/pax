@@ -1,7 +1,6 @@
-use crate::SiteTheme;
+use crate::{LanguageBackdrop, SiteTheme};
 use increment_cube::IncrementCube;
 use pax_kit::*;
-use rain_pane::WetPane;
 
 #[pax]
 #[file("authoring_section.pax")]
@@ -15,22 +14,6 @@ pub struct AuthoringSection {
     pub source_open: Property<bool>,
     pub demo_open: Property<bool>,
     pub cube_count: Property<u64>,
-    pub visible: Property<bool>,
-    pub intro_visible: Property<bool>,
-    pub outro_visible: Property<bool>,
-    pub light_time: Property<f64>,
-    pub intro_time: Property<f64>,
-    pub outro_time: Property<f64>,
-    pub cyan_x: Property<f64>,
-    pub cyan_y: Property<f64>,
-    pub magenta_x: Property<f64>,
-    pub magenta_y: Property<f64>,
-    pub yellow_x: Property<f64>,
-    pub yellow_y: Property<f64>,
-    pub light_radius: Property<f64>,
-    pub light_depth: Property<f64>,
-    #[pax(rust)]
-    pub last_ms: f64,
 }
 
 impl AuthoringSection {
@@ -38,40 +21,6 @@ impl AuthoringSection {
         self._height_bound.set(false);
         self.demo_open.set(true);
         crate::section_layout::bind_compact(ctx, &self.compact, 900.0);
-        self.last_ms = ctx.elapsed_time_millis() as f64;
-        for (target, light, axis) in [
-            (&self.cyan_x, 0, 0),
-            (&self.cyan_y, 0, 1),
-            (&self.magenta_x, 1, 0),
-            (&self.magenta_y, 1, 1),
-            (&self.yellow_x, 2, 0),
-            (&self.yellow_y, 2, 1),
-        ] {
-            let time = self.light_time.local();
-            let bounds = ctx.bounds_self.clone();
-            let deps = [time.untyped(), bounds.untyped()];
-            target.replace_with(LocalProperty::computed(
-                move || searchlight_pose(time.get(), light, bounds.get())[axis],
-                &deps,
-            ));
-        }
-        for (target, depth) in [(&self.light_radius, false), (&self.light_depth, true)] {
-            let bounds = ctx.bounds_self.clone();
-            let deps = [bounds.untyped()];
-            target.replace_with(LocalProperty::computed(
-                move || {
-                    let extent = bounds.get().0.max(bounds.get().1);
-                    if depth {
-                        // Height broadens the specular footprint; radius alone
-                        // only changes attenuation and cannot fill the dark gaps.
-                        (extent * 0.40).clamp(480.0, 1000.0)
-                    } else {
-                        (extent * 1.8).max(1800.0)
-                    }
-                },
-                &deps,
-            ));
-        }
     }
 
     pub fn expand_source(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
@@ -89,88 +38,24 @@ impl AuthoringSection {
                 ));
         }
     }
-
-    pub fn visibility(&mut self, ctx: &NodeContext, event: Event<ViewportProximityChange>) {
-        self.visible.set_if_neq(event.current.is_in_viewport());
-        self.last_ms = ctx.elapsed_time_millis() as f64;
-    }
-
-    pub fn intro_visibility(&mut self, _: &NodeContext, event: Event<ViewportProximityChange>) {
-        self.intro_visible
-            .set_if_neq(event.current.is_in_viewport());
-    }
-
-    pub fn outro_visibility(&mut self, _: &NodeContext, event: Event<ViewportProximityChange>) {
-        self.outro_visible
-            .set_if_neq(event.current.is_in_viewport());
-    }
-
-    pub fn animate(&mut self, ctx: &NodeContext) {
-        let now = ctx.elapsed_time_millis() as f64;
-        let elapsed = now - self.last_ms;
-        self.last_ms = now;
-        // Hold through hidden-tab pauses instead of advancing a backlog on return.
-        if !self.visible.get() || !(0.0..100.0).contains(&elapsed) {
-            return;
-        }
-        let dt = elapsed / 1000.0;
-        self.light_time.set(self.light_time.get() + dt);
-        // Keep offscreen water uniforms stable even while the cube remains visible.
-        if self.intro_visible.get() {
-            self.intro_time.set(self.intro_time.get() + dt);
-        }
-        if self.outro_visible.get() {
-            self.outro_time.set(self.outro_time.get() + dt);
-        }
-    }
-}
-
-// Staggered, smooth search sweeps: each light visits the three bands without
-// all three repeatedly converging at the same point or reversing together.
-fn searchlight_pose(seconds: f64, light: usize, bounds: (f64, f64)) -> [f64; 2] {
-    let phase = light as f64 * std::f64::consts::TAU / 3.0;
-    let angle = seconds * std::f64::consts::TAU / [37.0, 43.0, 49.0][light];
-    [
-        bounds.0 * (0.5 + 0.40 * (angle + phase).cos()),
-        bounds.1 * (0.5 + 0.36 * (angle * 1.37 + phase).sin()),
-    ]
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
-    fn searchlights_stay_in_the_trio_and_cover_both_copy_bands() {
-        for bounds in [(390.0, 1750.0), (1440.0, 1200.0), (2400.0, 1100.0)] {
-            for light in 0..3 {
-                let mut low: f64 = 1.0;
-                let mut high: f64 = 0.0;
-                for frame in 0..6000 {
-                    let [x, y] = searchlight_pose(frame as f64 / 60.0, light, bounds);
-                    assert!((0.09 * bounds.0..=0.91 * bounds.0).contains(&x));
-                    assert!((0.13 * bounds.1..=0.87 * bounds.1).contains(&y));
-                    low = low.min(y / bounds.1);
-                    high = high.max(y / bounds.1);
-                }
-                assert!(low < 0.15 && high > 0.85);
-            }
-        }
-    }
-
-    #[test]
-    fn searchlight_motion_is_continuous_and_resizes_proportionally() {
-        for light in 0..3 {
-            for frame in 0..6000 {
-                let t = frame as f64 / 60.0;
-                let a = searchlight_pose(t, light, (1440.0, 1200.0));
-                let b = searchlight_pose(t + 1.0 / 60.0, light, (1440.0, 1200.0));
-                let doubled = searchlight_pose(t, light, (2880.0, 2400.0));
-                for axis in 0..2 {
-                    assert!((b[axis] - a[axis]).abs() < 2.0);
-                    assert_eq!(doubled[axis], a[axis] * 2.0);
-                }
-            }
-        }
+    fn painterly_backdrop_stops_before_the_cube_stage() {
+        let template = include_str!("authoring_section.pax");
+        assert_eq!(template.matches("<LanguageBackdrop").count(), 1);
+        assert!(!template.contains("<WetPane"));
+        assert!(!template.contains("Fluent in UI"));
+        let intro = template.find("id=authoring_intro").unwrap();
+        let intro_end = intro + template[intro..].find("</Group>").unwrap();
+        let backdrop = template.find("<LanguageBackdrop").unwrap();
+        let cube = template.find("id=cube_stage").unwrap();
+        assert!(intro < backdrop && backdrop < intro_end && intro_end < cube);
+        assert!(template[backdrop..intro_end].contains("layout_role=LayoutRole::Breakout"));
+        assert!(template.contains("<Rectangle class=\"site_ink\" width=100% height=100%/>"));
+        assert!(template.contains("<ExampleHost"));
+        assert!(template.contains("<ExampleSourceViewer"));
     }
 }

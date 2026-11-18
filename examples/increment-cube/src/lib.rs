@@ -46,7 +46,7 @@ pub struct IncrementCube {
 impl IncrementCube {
     pub fn mount(&mut self, ctx: &NodeContext) {
         // Preserve later counts when a responsive layout remounts the cube.
-        self.count.set_if_neq(self.count.get().max(6));
+        self.count.set_if_neq(self.count.get().max(1));
         let count = self.count.clone();
         let deps = [count.untyped()];
         self.count_font_size.replace_with(LocalProperty::computed(
@@ -58,7 +58,7 @@ impl IncrementCube {
         self.hint_jump.set(0.0);
         self.hint_stretch.set(1.0);
         self.hint_opacity
-            .set(if self.count.get() == 6 { 1.0 } else { 0.0 });
+            .set(if self.count.get() == 1 { 1.0 } else { 0.0 });
         self.history = motion::History::new(self.count.get());
         self.publish_faces();
         let bounds = ctx.bounds_self.clone();
@@ -92,7 +92,7 @@ impl IncrementCube {
             return;
         };
         self.count.set(count);
-        if count == 7 {
+        if count == 2 {
             self.hint_opacity.local().ease_to(
                 0.0,
                 Duration::Milliseconds(360.into()),
@@ -100,7 +100,7 @@ impl IncrementCube {
             );
         }
         let mut rng = rand::thread_rng();
-        let face = self.history.record(count, rng.gen());
+        let face = self.history.record(count);
         self.publish_faces();
         let turns = std::array::from_fn(|_| if rng.gen() { 1 } else { -1 });
         self.motion
@@ -157,6 +157,14 @@ impl IncrementCube {
             })
             .collect(),
         );
+    }
+
+    pub fn hover(&mut self, ctx: &NodeContext, _: Event<MouseOver>) {
+        ctx.set_cursor(cursor::CursorStyle::Pointer);
+    }
+
+    pub fn leave(&mut self, ctx: &NodeContext, _: Event<MouseOut>) {
+        ctx.set_cursor(cursor::CursorStyle::Auto);
     }
 
     pub fn down(&mut self, _: &NodeContext, event: Event<MouseDown>) {

@@ -265,6 +265,18 @@ ignored. This neither performs validation nor dismisses the keyboard.
 
 Attach a dependency subscription whose callback runs when any dependency dirties.
 
+##### `write_clipboard_text`
+<pre><code class="api-signature language-rust ignore">pub fn write_clipboard_text(&amp;self, text: &amp;str, callback: impl FnOnce(Result&lt;(), <a href="../../../api/pax-runtime-api/clipboard.md#clipboarderror">ClipboardError</a>&gt;) + &#39;static) -&gt; Result&lt;(), <a href="../../../api/pax-runtime-api/async_runtime.md#asyncerror">AsyncError</a>&gt;</code></pre>
+
+Write plain text to the system clipboard, starting immediately so browser
+user activation is preserved. Call from a click/tap or button handler.
+
+`Ok(())` means the request was accepted, not that copying succeeded.
+The callback receives the actual result on a later UI turn, and is
+suppressed if this context node unmounts. A started write cannot be undone.
+Web requires a secure context and browser permission/user activation.
+Chassis without an adapter report [`ClipboardError::Unsupported`].
+
 ##### `app_root`
 <pre><code class="api-signature language-rust ignore">pub fn app_root(&amp;self) -&gt; Result&lt;<a href="../../../api/internal/pax-runtime/node_query.md#noderef">NodeRef</a>, <a href="../../../api/internal/pax-runtime/node_query.md#nodeerror">NodeError</a>&gt;</code></pre>
 

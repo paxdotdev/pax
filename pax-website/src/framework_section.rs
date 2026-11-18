@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 
-use crate::{CalculatorPreview, FramedStudy, SiteTheme};
+use crate::{FramedStudy, SiteTheme};
 use led_oscilloscope::LedOscilloscope;
 use pax_kit::*;
 
@@ -11,7 +11,6 @@ pub struct FrameworkSection {
     pub _height_bound: Property<bool>,
     pub compact: Property<bool>,
     pub scope_height: Property<f64>,
-    pub calculator_height: Property<f64>,
     pub scene_progress: Property<f64>,
 }
 
@@ -23,11 +22,13 @@ impl FrameworkSection {
 
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         if !self._height_bound.get() {
-            self._height_bound.set(crate::section_layout::bind_height(
-                ctx,
-                "framework_content",
-                &self.content_height,
-            ));
+            self._height_bound
+                .set(crate::section_layout::bind_height_with_padding(
+                    ctx,
+                    "framework_content",
+                    &self.content_height,
+                    &Property::new(0.0),
+                ));
         }
     }
 }

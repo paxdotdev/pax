@@ -33,6 +33,13 @@ command is:
 cargo run -p pax-cli -- run --path pax-website --target web --libdev
 ```
 
+Keep this debug session running for visual iteration: `.pax` edits hot-reload
+by default (`--hot-reload=pax`), including changes to existing layout and effect
+components. Rust logic or new component types require a rebuild and restart.
+Use release previews for performance checks, not routine template iteration:
+release builds disable hot reload. The extracted reader HTML is also a build-time
+snapshot; rebuild to refresh it after changing copy.
+
 For an optimized web build without serving or publishing:
 
 ```sh
@@ -111,32 +118,42 @@ The page opens with the two-line heading “Build creative/native/portable/eye-c
 user interfaces,” followed by “From a single Rust codebase,” the platform statement,
 and the install snippet. Experimental native
 Android/Windows/Linux targets and beta status are intentional launch messaging;
-check the release's target availability before publishing. The install commands
-appear only in the hero, not again in the closing CTA.
+check the release's target availability before publishing. The shared CLI-first
+snippet appears in both the hero and closing CTA, with AI onboarding in a
+secondary tab.
 
 “A declarative language for interactive graphics” follows the hero, pairing a real
 template with its live result and explaining the Rust/Pax boundary. Paxflix's
 full-width fanout comes next, without a second runtime manifesto. The toolkit
-carousel and its GPU/CPU qualification precede the live desktop oscilloscope and,
-beneath it, a centered phone-framed calculator. Both demos use linked captures on
-compact layouts.
+carousel precedes the reusable-component section. The live desktop oscilloscope
+now follows the Get started CTA and uses a linked capture on compact layouts;
+the calculator is no longer embedded on the homepage.
 “A love letter to the pixel” pairs the acrostic with the project's influences,
 creative mission, and MIT / Apache-2.0 license. The closing CTA links to setup and
-examples, followed by docs, GitHub, blog, community, and platform support.
+examples, followed by the oscilloscope, then docs, GitHub, blog, community, and platform support.
 
-The language section has three edge-to-edge bands: a wet-glass introduction,
-the live Increment Cube/source stage, and wet glass behind “Fluent in UI.” Copy
-retains the page gutters. Desktop opens the cube's source drawer by default;
+The language introduction has an edge-to-edge `LanguageBackdrop`: six CMY
+circles filtered with the hero's Signac impression
+treatment, composited at 16% opacity over ink. Its phase is fixed, so this
+background has no animation clock. Both source and output are clipped to the
+introduction, ending flush with the top of the example container. The cube stage
+has the plain ink background; the source viewer remains opaque.
+Copy retains the page gutters. Desktop opens the cube's source drawer by default;
 compact layouts stack the cube and inline source with an expand action.
-The two backgrounds reuse `rain-pane::WetPane` at half resolution, capturing
-only a dark Rectangle, not the selectable native copy. Three broad cyan,
-magenta, and yellow point lights sweep the shared `LightFrame` at different
+“Plug, Extend, and Play” follows “Simple meets powerful,” introducing reactive composition
+and linking to the standard library and component-authoring guide. Its copy lives
+in `ModularitySection`, separate from these background treatments.
+“Fluent in UI” and Paxflix live together in `RuntimeSection`, over a single
+continuous `rain-pane::WetPane` at half resolution. It captures only a dark
+Rectangle, never the selectable copy or live app. Three broad cyan,
+magenta, and yellow point lights sweep this shared `LightFrame` at different
 rates. Their radius follows the section's extent and their height broadens the
 reflection footprint. The light frame prevents these lights from spilling into
 neighboring sections; the site's existing pointer light can still enter it.
-The lighting clock holds offscreen, and each water clock advances only while
-its own band is visible. No hidden-tab catch-up is performed. Water and animated
-lighting require the GPU backend; other renderers retain the plain dark surface.
+The rain and lights share one clock that holds while the panel is offscreen.
+No hidden-tab catch-up is performed. Water and animated lighting require the
+GPU backend; other renderers retain the plain dark surface. The impression
+filter similarly falls back to unfiltered, low-opacity circles on the CPU.
 System reduced-motion handling remains pending PAX-1048, as in the rain fixture.
 
 The opening sequence uses the outer native scroller as a shared clock.
@@ -184,7 +201,11 @@ If the compact home already overlaps the future nav, departure waits for 32px of
 scroll. Animated transforms leave the reserved home and section layout unchanged.
 
 The shell retains its 64px/80px responsive nav and safe-area insets. Pages without
-a hero show the static `NavLogo`. The hero logo replays on click; the nav twin
+a hero show the static `NavLogo`. The hero logo replays on click and on a scroll
+return from the nav. A return holds the intro's initial pose during the portal
+trip, then replays the full unfurl and lighting sequence once the hero home is
+reached. Departures into the nav and source-drawer hiding do not trigger the
+intro; reversing an unfinished return cancels it. The nav twin
 requests a scroll back to the top. The nav twin uses the completed logo and the
 same slow 12-second Radiance sweep as the hero, without replaying its intro.
 It samples the runtime clock independently of the offscreen hero's paused
@@ -339,6 +360,29 @@ and `/oscilloscope` as `server_owned_prefixes`.
 Navigating to these paths loads a server document instead of a Pax client route.
 The `/blog/*` Router placeholder must not be restored. `build.rs` generates
 `public/ai/index.html` from `public/ai.md` only when its contents change.
+The Markdown is the canonical AI onboarding guide. Its HTML version uses
+semantic headings, links, lists, and code blocks, works without JavaScript,
+and links to the raw `/ai.md` source. Keep commands and target caveats aligned
+with the version-matched CLI documentation; do not duplicate a separate guide
+in the website component.
+
+The hero and bottom Get started section use the same compact `GetStarted`
+component. Both default to the CLI commands; a secondary **With AI** tab shows
+one read-only, selectable prompt, with inset clipboard and Open in Codex actions.
+The clipboard control shows a tooltip on hover or while touched. Each instance
+draws one of 25 credential-free app ideas on mount; resizing, scrolling, and
+switching tabs preserve the choice. **Another idea** never repeats the current
+preset. `ai_prompt.rs` owns the briefs and exact prompt used by both actions.
+The bottom section also links to `/ai/` in the live page and reader article.
+
+Copy uses the shared `NodeContext::write_clipboard_text` API for either tab and only
+reports success after confirmation. Browser-denied writes leave the prompt
+selectable. Open in Codex uses the documented
+`codex://threads/new?prompt=…` deep link to prefill a draft, never auto-send it
+or select a local project directory. It requires the installed Codex app;
+Copy prompt is also usable with Claude Code and other agents. The handoff
+points to the production guide, so deploy `/ai/` and `/ai.md` with the website
+before using the new onboarding flow publicly.
 
 To check the separate blog locally, follow its setup instructions, start the
 website, and use the website's printed port:
@@ -398,32 +442,31 @@ The captures use `NativeImage` and live in `assets/paxflix/`; their README recor
 their native/browser origins and regeneration commands. Device switching is not
 implemented in this version.
 
-## Calculator showcase
+## Homepage composition and standalone calculator
 
-The demos section shows a single upright phone beneath the oscilloscope and before
-the acrostic. At the section's 900px desktop breakpoint, its screen mounts the canonical
-`Calculator` with `embedded=true` and `disable_keyboard=true`. The virtual phone
-supplies 48px top and 20px bottom safe-area insets so the island and home indicator
-do not cover controls. The 390×844 logical phone stage scales to the available
-width (capped at 312px wide), without resizing the calculator's logical viewport.
-The live app has no enclosing link: its keys and graph can be used in place.
+The homepage flows from the hero to the declarative-language introduction, cube,
+and **Fluent in UI**, followed directly by Paxflix as its implicit demonstration.
+**Simple meets powerful** and the feature carousel precede **Plug, Extend, and Play**.
+`ModularitySection` owns the modularity copy and the circuit-board visual's integration
+location; it is a standalone section, not part of `AuthoringSection`. Keep the board
+with that copy when integrating PAX-1080.
+The mission/acrostic section follows modularity. **Get started** contains the
+shared CLI-first tabbed snippet and guide actions, then the oscilloscope, then
+the footer links.
 
-Below that breakpoint the phone becomes a tappable `NativeImage` capture.
-The section, not the narrow phone stage, selects whether
-the calculator is live. `CalculatorPreview.compact` chooses the single-phone
-layout independently of `live`; its optional fanout still supports captured window
-and tablet wings. Scrolling retains the desktop calculator session; switching to
-the screenshot layout unmounts it, so returning to desktop starts a fresh session.
-
-The compact preview, optional captured wings, and full-screen action open `/calculator/`.
-Like `/paxflix/`, this is a generated document entry with server-owned navigation:
+The calculator no longer mounts on the homepage or contributes source tabs to
+its drawers. Its existing `/calculator/` URL remains available. Like `/paxflix/`,
+this is a generated document entry with server-owned navigation:
 one live example, no homepage tree, and safe-area-aware full-screen layout with a
 Back to Pax link. Each new demo session starts with fresh calculator state.
-The demos section's View Source includes the preview and calculator full-screen wrapper;
-application logic remains in the canonical `examples/calculator` Cargo dependency.
+Application logic remains in the canonical `examples/calculator` Cargo dependency.
 Capture provenance and refresh commands live in `assets/calculator/README.md`.
 
 ## Linked creative example
+
+The oscilloscope fills the Get started content gutter below the CTA actions and
+above the footer. It remains live at desktop widths; compact layouts use the linked
+screenshot. The Get started source drawer includes its wrapper and application sources.
 
 `/oscilloscope/` is a generated document entry, with the same server-owned
 navigation policy as the other examples. It mounts only the oscilloscope,
@@ -432,10 +475,10 @@ lives in `assets/playground/`; that directory's README describes how to refresh 
 Space Game is no longer included in the website's routes, assets, or Cargo
 dependencies; its canonical standalone fixture remains in `examples/fixtures/space-game`.
 
-All three live examples still share the website's Wasm bundle. Screenshot-only
+All three routed examples still share the website's Wasm bundle. Screenshot-only
 presentation on compact layouts removes their homepage node trees, timers, nested
 scrollers, and rendering work; it does **not** split the initial download.
-Desktop Paxflix, the calculator, and the oscilloscope retain one live instance each. Independent example
+Desktop Paxflix and the oscilloscope retain one live homepage instance each. Independent example
 bundles would be a separate packaging improvement. Returning to the homepage
 does not retain the abandoned example's application state, except where the
 browser itself restores a document from its back/forward cache.
@@ -482,25 +525,28 @@ Content and visual design history are archived in
 ## Increment Cube and language section
 
 `AuthoringSection` is the mounted “A declarative language for interactive graphics”
-section, with “Fluent in UI” as its smaller subheading. Its dedicated cube
+introduction and cube stage. “Fluent in UI” follows in `RuntimeSection`, sharing
+its rain background with Paxflix. The dedicated cube
 viewer contains only `increment.pax` and `lib.rs`, selected from the canonical
 example's source list. Compact inline and expanded presentations share the
 cube selection; the desktop drawer starts open. Source changes reset the code
 pane's horizontal and vertical offsets, so the new file opens at its beginning.
 
-Calculator sources remain with the demos section's separate View Source panel;
+Oscilloscope sources live in the Get started section's View Source panel;
 the cube viewer shares the page's Solarized theme.
 
 `IncrementCube` mounts the canonical `examples/increment-cube` component.
 Clicking or tapping the cube accumulates
 randomized three-axis turns and settles one second after the latest activation.
-The six faces start with 1–6, showing 6; the first activation advances to 7.
-Each new count lands square-on on a different face, replacing the smallest
-and retaining the latest six values. Press/release feedback
+The six faces start with 1–6, showing 1; the first activation advances to 2.
+Each new count lands square-on on a different face. After rolling through the
+preprinted values, 7 onward replaces the smallest and retains the latest six
+values. Press/release feedback
 compresses then briefly expands the cube. There is no separate roll button.
-A metallic gold Pax banner says CLICK on desktop and TAP on mobile.
-At rest it matches the settled cube's width, with a thick flat white border
-and white Black-weight text. Placement follows the component's own container:
+A gold Pax banner says CLICK on desktop and TAP on mobile.
+At rest it matches the settled cube's width, with no outline, black Black-weight
+text, and a short gold Radiance fan on GPU. The native label stays outside the
+shader capture. Placement follows the component's own container:
 alongside when wider than tall, otherwise above with its tip pointing down. The website gives
 the pair 300px of height above the compact code viewer, or 480px beside the
 desktop drawer.
@@ -511,10 +557,10 @@ the sign over 360ms while the cube slides into its container's center, using
 the same opacity to reduce its offset. The sign stays hidden and the cube
 centered across responsive remounts.
 Spatial composition and material lighting require WGPU; CPU uses a flat counter.
-The shared translucent fill has a custom diffuse/specular material, with no
-shader filters, imported settings, or local lights: this embed uses SiteShell's
-existing global lighting. Motion is always enabled; a component-level tick
-handler skips updates once both the roll and hint finish. The example has no
+The shared translucent cube fill has a custom diffuse/specular material, with no
+cube shader filters, imported settings, or local scene lights. The arrow's
+Radiance treatment falls back to plain gold on CPU. Motion is always enabled;
+a component-level tick handler skips updates once both the roll and hint finish. The example has no
 viewport proximity listener; its hint and active rolls continue offscreen.
 Compact layouts stack below 900px; an explicit
 source expansion owns the full-screen sheet independently of the desktop drawer.
@@ -586,7 +632,7 @@ normal Text nodes determine the paragraph's position.
 
 ## Free and open source / kinetic acrostic
 
-`OpenSourceSection` follows the oscilloscope/calculator demos and precedes the final CTA.
+`OpenSourceSection` follows the modularity section and precedes the final CTA.
 It connects Pax's free-and-open-source identity with the project's
 creative mission; the MIT / Apache-2.0 license and inline GitHub link live here rather than repeating in the
 footer. The footer links to platform support and notes that APIs and capabilities evolve.

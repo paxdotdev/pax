@@ -27,16 +27,24 @@ social_image_alt = "Pax logo"
 [features]
 default = ["app"]
 # Embedded headers share the component source without demo cartridges or filters.
-app = ["dep:led-oscilloscope", "dep:calculator", "dep:paxflix", "dep:increment-cube", "dep:rain-pane", "pax-kit/shaders"]
+app = ["dep:led-oscilloscope", "dep:calculator", "dep:paxflix", "dep:increment-cube", "dep:rain-pane", "dep:rand", "dep:percent-encoding", "pax-kit/shaders"]
 standalone = ["app", "pax-kit/host"]
 
 [dependencies]
+rand = { version = "0.8", optional = true }
+percent-encoding = { version = "2", optional = true }
 rain-pane = { version = "0.39.1", path = "../examples/fixtures/rain-pane", default-features = false, optional = true }
 increment-cube = { version = "0.39.1", path = "../examples/increment-cube", default-features = false, optional = true }
 led-oscilloscope = { version = "0.39.1", path = "../examples/led-oscilloscope", default-features = false, optional = true }
 pax-kit = { version = "0.39.1", path = "../pax-kit" }
 calculator = { version = "0.39.1", path = "../examples/calculator", default-features = false, optional = true }
 paxflix = { version = "0.39.1", path = "../examples/paxflix", default-features = false, optional = true }
+
+[build-dependencies]
+pulldown-cmark = "0.13"
+
+[dev-dependencies]
+pulldown-cmark = "0.13"
 
 [target.'cfg(target_vendor = "apple")'.dependencies]
 # backtrace 0.3.76 needs dyld bindings removed from iOS in libc 0.2.190.

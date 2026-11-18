@@ -15,6 +15,7 @@ provide the browsing ontology used by the generated API docs.
 - [animation](animation.md)
 - [camera](camera.md)
 - [color](color.md)
+- [clipboard](clipboard.md)
 - [cursor](cursor.md)
 - [drawing](drawing.md)
 - [events](events.md)

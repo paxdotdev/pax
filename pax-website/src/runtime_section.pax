@@ -1,15 +1,45 @@
-<Group width=100% height=100%>
+<LightFrame width=100% height=100% @viewport_proximity_change=self.visibility>
     <ImportSettings><SiteTheme /></ImportSettings>
-    <Stacker id=runtime_content x=50% y=48px width={self.compact ? (100% - 48px) : 88%} autosize=true>
+    ///#ignore
+    if self.visible && @gpu {
+        <Group width=0px height=0px layout_role=LayoutRole::Breakout @tick=self.animate/>
+    }
+    <LightSource x={(self.cyan_x)px} y={(self.cyan_y)px} anchor=50% width=1px height=1px
+        z={(self.light_depth)px} radius={(self.light_radius)px} intensity=4 color=rgb(0, 255, 255)/>
+    <LightSource x={(self.magenta_x)px} y={(self.magenta_y)px} anchor=50% width=1px height=1px
+        z={(self.light_depth)px} radius={(self.light_radius)px} intensity=4 color=rgb(255, 0, 255)/>
+    <LightSource x={(self.yellow_x)px} y={(self.yellow_y)px} anchor=50% width=1px height=1px
+        z={(self.light_depth)px} radius={(self.light_radius)px} intensity=4 color=rgb(255, 255, 0)/>
+    <Stacker id=runtime_content width=100% autosize=true gutter=0px>
+        <Stacker class="fluent_copy" autosize=true gutter=24px>
+            ///#h3
+            <Text class="editorial_subtitle" width=100%>Fluent in UI</Text>
+            <Text class="editorial_body" width=100% markdown=true>Declarative `.pax` files sit alongside Rust. Describe your interface in Pax; write your application logic with the full power of Rust.</Text>
+            <Text class="editorial_lead" width=100%>Whether you're building a business application, a mobile app, an interactive art project, data visualizations, or a game—if it can be expressed in pixels, it can be built in Pax.</Text>
+            <Text class="editorial_body" width=100% markdown=true>Want to see how it works? Open any **View Source** tab to see how that section was built, or explore the [website's source on GitHub](https://github.com/paxdotdev/pax/tree/main/pax-website).</Text>
+        </Stacker>
         ///#ignore
-        <PaxflixShowcase width=100% height={(self.showcase_height)px} content_height=bind:self.showcase_height
-            compact={self.compact} scene_progress={self.scene_progress}/>
+        <PaxflixShowcase x=50% width={self.compact ? (100% - 48px) : 88%} height={(self.showcase_height)px}
+            content_height=bind:self.showcase_height compact={self.compact} scene_progress={self.scene_progress}/>
     </Stacker>
     <Rectangle class="site_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 48px) : 88%} height=1px/>
+    // One continuous wet surface, behind both the copy and the live app.
+    if @gpu {
+        <WetPane width=100% height=100% time={self.light_time} seed=41 half_resolution=true quiet=true>
+            <Rectangle class="site_ink" width=100% height=100%/>
+        </WetPane>
+    }
     <Rectangle class="site_ink" width=100% height=100%/>
-</Group>
+</LightFrame>
 
 @settings {
     @mount: handle_mount
     @pre_render: handle_pre_render
+    .fluent_copy {
+        x: {self.compact ? 24px : 6%}
+        anchor_x: 0%
+        width: {self.compact ? (100% - 48px) : 72.16%}
+        padding_y: {self.compact ? 56px : 80px}
+        gutter: 24px
+    }
 }

@@ -1,0 +1,131 @@
+<ImportSettings><SiteTheme /></ImportSettings>
+<Stacker id=cta_content width=100% autosize=true gutter=8px>
+    ///#ignore
+    <Group width=100% height=28px>
+        <Button class="cta_tab" width=62px height=28px label="CLI"
+            color={self.ai ? TRANSPARENT : SiteTheme::surface()}
+            style={
+                font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::SemiBold)
+                font_size: 12px
+                fill: {self.ai ? SiteTheme::muted() : SiteTheme::paper()}
+                align_horizontal: TextAlignHorizontal::Center
+                align_vertical: TextAlignVertical::Center
+            }
+            @button_click=self.select_cli/>
+        <Button class="cta_tab" x=68px width=82px height=28px label="With AI"
+            color={self.ai ? SiteTheme::surface() : TRANSPARENT}
+            style={
+                font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::SemiBold)
+                font_size: 12px
+                fill: {self.ai ? SiteTheme::paper() : SiteTheme::muted()}
+                align_horizontal: TextAlignHorizontal::Center
+                align_vertical: TextAlignVertical::Center
+            }
+            @button_click=self.select_ai/>
+        <Rectangle x={self.ai ? 84px : 18px} y=100% width={self.ai ? 50px : 26px} height=1px
+            fill={SiteTheme::paper()} _raycastable=false/>
+    </Group>
+    <Group width=100% autosize=true autosize_x=false autosize_y=true>
+        // Actions float inside the card; the prompt reserves its own top row.
+        ///#ignore
+        <Group x={100% - 12px} y=12px anchor_x=100% width={self.ai ? 178px : 34px} height=32px
+            layout_role=LayoutRole::Breakout>
+            if self.copy_tip {
+                <Group x=100% y=-8px anchor_y=100% width=148px height=30px layout_role=LayoutRole::Breakout _raycastable=false>
+                    <Text width=100% height=100% selectable=false style={
+                        font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Medium)
+                        font_size: 12px
+                        fill: {SiteTheme::paper()}
+                        align_horizontal: TextAlignHorizontal::Center
+                        align_vertical: TextAlignVertical::Center
+                    }>Copy to Clipboard</Text>
+                    <Rectangle width=100% height=100% corner_radius=5 fill=rgb(48, 48, 46)/>
+                </Group>
+            }
+            <Group x=100% width=34px height=32px>
+                <NativeImage x=50% y=50% width=17px height=17px url="assets/branding/clipboard.svg"
+                    fit=ImageFit::Fit _raycastable=false/>
+                <Button class="cta_action" width=100% height=100% label="Copy to Clipboard"
+                    style={fill: TRANSPARENT, font_size: 1px} @button_click=self.copy
+                    @mouse_over=self.show_copy_tip @mouse_out=self.hide_copy_tip
+                    @touch_start=self.touch_copy_tip @touch_end=self.end_copy_touch/>
+            </Group>
+            if self.ai {
+                <Button class="cta_action" width=136px height=32px label="Open in Codex" @button_click=self.open_codex/>
+            }
+        </Group>
+        <Stacker width=100% autosize=true padding_x=18px padding_y=16px gutter=0px>
+            if self.ai {
+                <Group width=100% height=38px/>
+                <Text class="cta_snippet" width=100% selectable=true markdown=false text={self.prompt}/>
+            } else {
+                <Text class="cta_snippet" width={100% - 38px} selectable=true markdown=false>{r"cargo install pax-cli
+pax-cli create my-app
+cd my-app && pax-cli run"}</Text>
+            }
+        </Stacker>
+        <Rectangle width=100% height=100% layout_role=LayoutRole::Breakout corner_radius=12
+            fill={paint: {SiteTheme::surface()}, material: {Material::unlit()}}
+            stroke={paint: {SiteTheme::rule()}, width: 1px, material: {Material::unlit()}}/>
+    </Group>
+    ///#ignore
+    if self.ai {
+        <Stacker width=100% autosize=true gutter=4px>
+            <Button class="cta_tab" width=116px height=28px label="Another idea" color=TRANSPARENT
+                @button_click=self.another_idea/>
+            <Text class="cta_note" width=100%>Paste into Codex, Claude Code, or another coding agent. Open in Codex requires the app.</Text>
+        </Stacker>
+    }
+    ///#ignore
+    if self.status != "" {
+        <Text class="cta_note" width=100% text={self.status}/>
+    }
+</Stacker>
+
+@settings {
+    @mount: mount
+    @pre_render: measure
+    .cta_tab {
+        hover_color: rgb(38, 38, 36)
+        corner_radius: 5
+        outline: {width: 0px}
+        style: TextStyle {
+            font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::SemiBold)
+            font_size: 12px
+            fill: {SiteTheme::muted()}
+            align_horizontal: TextAlignHorizontal::Center
+            align_vertical: TextAlignVertical::Center
+        }
+    }
+    .cta_action {
+        color: rgb(40, 40, 38)
+        hover_color: rgb(54, 54, 50)
+        corner_radius: 6
+        outline: {paint: {SiteTheme::rule()}, width: 1px}
+        style: TextStyle {
+            font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::SemiBold)
+            font_size: 12px
+            fill: {SiteTheme::paper()}
+            align_horizontal: TextAlignHorizontal::Center
+            align_vertical: TextAlignVertical::Center
+        }
+    }
+    .cta_snippet {
+        style: TextStyle {
+            font: Font::Web("IBM Plex Mono", "assets/fonts/IBMPlexMono-Regular.ttf", FontStyle::Normal, FontWeight::Normal)
+            font_size: {self.compact ? 13px : 14.95px}
+            fill: {SiteTheme::paper()}
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .cta_note {
+        style: TextStyle {
+            font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
+            font_size: 12px
+            fill: {SiteTheme::muted()}
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+}

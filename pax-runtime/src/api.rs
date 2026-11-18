@@ -221,6 +221,24 @@ impl NodeContext {
         }
     }
 
+    /// Write plain text to the system clipboard, starting immediately so browser
+    /// user activation is preserved. Call from a click/tap or button handler.
+    ///
+    /// `Ok(())` means the request was accepted, not that copying succeeded.
+    /// The callback receives the actual result on a later UI turn, and is
+    /// suppressed if this context node unmounts. A started write cannot be undone.
+    /// Web requires a secure context and browser permission/user activation.
+    /// Chassis without an adapter report [`ClipboardError::Unsupported`].
+    pub fn write_clipboard_text(
+        &self,
+        text: &str,
+        callback: impl FnOnce(Result<(), ClipboardError>) + 'static,
+    ) -> Result<(), AsyncError> {
+        let scope = self.async_scope()?;
+        let clipboard = self.runtime_context.clipboard.borrow().clone();
+        clipboard.write_text(&scope, text.to_owned(), callback)
+    }
+
     /// Ask the chassis to navigate to a URL.
     ///
     /// On web targets, same-origin navigation in the current tab can be handled

@@ -1,5 +1,7 @@
 <Group width=100% height=100%>
-    <ImportSettings><SiteTheme /></ImportSettings>
+    <ImportSettings>
+        <SiteTheme />
+    </ImportSettings>
     <Stacker id=footer_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=40px>
         <Stacker width={self.compact ? 100% : 74%} autosize=true gutter=24px>
             ///#h2
@@ -7,6 +9,8 @@
             <Text class="editorial_lead" width=100%>Start with a running project, change something, and make it yours.</Text>
             <Text class="editorial_body" width=100%>The getting-started guide walks you through workstation setup, creating your first project, and running it.</Text>
         </Stacker>
+        <GetStarted width=100% height={(self.get_started_height)px} ai=false
+            content_height=bind:self.get_started_height/>
         <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=16px
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
             sizes={self.compact ? [] : [Some(320px), Some(220px)]}>
@@ -16,11 +20,22 @@
             </Link>
             <Link width=100% height=52px url="https://github.com/paxdotdev/pax/tree/main/examples" target=Target::New>
                 <Text class="site_button_outline_label" width=100% height=100%>Browse examples →</Text>
-                <Rectangle width=100% height=100% corner_radius=6 fill={SiteTheme::surface()} stroke={paint: {SiteTheme::rule()}, width: 1px}/>
+                <Rectangle width=100% height=100% corner_radius=6 fill={SiteTheme::surface()} stroke={
+                    paint: {SiteTheme::rule()}
+                    width: 1px
+                }/>
             </Link>
         </Stacker>
+        <Text class="editorial_note" width=100% markdown=true
+            text="Using a coding agent? [Read the AI getting-started guide](/ai/) for setup, examples, and a working feedback loop."/>
+        ///#ignore
+        <FrameworkSection width=100% height={(self.oscilloscope_height)px}
+            content_height=bind:self.oscilloscope_height/>
         <Rectangle class="site_rule" width=100% height=1px/>
-        <Text class="editorial_body" width=100% markdown=true>[Docs](https://docs.pax.dev/) · [GitHub](https://github.com/paxdotdev/pax) · [Blog](/blog/) · [Community](https://discord.com/invite/Eq8KWAUc6b) · [Platform support](https://docs.pax.dev/targets-build-deploy.html)</Text>
+        <Text class="editorial_body" width=100% markdown=true
+            text={"[Docs](https://docs.pax.dev/) · [GitHub](https://github.com/paxdotdev/pax) · [Blog]("
+                + (@target.web ? "/blog/" : "https://pax.dev/blog/")
+                + ") · [Community](https://discord.com/invite/Eq8KWAUc6b) · [Platform support](https://docs.pax.dev/targets-build-deploy.html)"}/>
         <Text class="editorial_note" width={self.compact ? 100% : 74%}>Pax is in active development. APIs and capabilities continue to evolve; check platform support for the targets and features your project needs.</Text>
     </Stacker>
     <Rectangle class="site_rule" x=50% y=0px width={self.compact ? (100% - 48px) : 88%} height=1px/>

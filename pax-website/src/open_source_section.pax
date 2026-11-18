@@ -9,7 +9,7 @@
             <Stacker width=100% autosize=true gutter=24px>
                 ///#h2
                 <Text class="editorial_title" width=100%>A love letter to the pixel</Text>
-                <Text class="editorial_lead" width=100%>Pax's grammar, compiler, and rendering engine were designed from scratch to empower your imagination.</Text>
+                <Text class="editorial_lead" width=100%>Pax's grammar, compiler, and rendering engine were designed to empower your imagination.</Text>
                 <Text class="editorial_body" width=100%>Pax borrows its design from prior art spanning from HTML, to Visual Basic, to Flash, to React, to XAML, to Delphi, to the Nintendo Entertainment System. From this melting pot of the past, Pax draws its arrow towards the future.</Text>
                 <Text class="editorial_body" width=100%>Pax's goal is twofold: to empower more of humanity to create software, and to unlock the screen as a medium for art.</Text>
                 <Text class="editorial_body" width=100% markdown=true>Pax is free and open source. MIT / Apache-2.0 licensed, available on [GitHub](https://github.com/paxdotdev/pax).</Text>

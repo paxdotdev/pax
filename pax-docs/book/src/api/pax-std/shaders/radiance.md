@@ -59,6 +59,7 @@ Light intensity, 0–6. Defaults to 2.20; zero bypasses rays and glass shading.
 Type: `Property`<`f64`>
 
 Maximum projected distance, 0–360 local pixels. Defaults to 190.
+Capture padding follows this distance; a smaller reach reduces shaded area.
 
 ##### `falloff`
 Type: `Property`<`f64`>
