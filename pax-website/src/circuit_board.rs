@@ -1,3 +1,4 @@
+use crate::circuit_logo::CircuitLogo;
 use crate::circuit_package::CircuitPackage;
 use crate::circuit_pin::CircuitPin;
 use pax_kit::*;

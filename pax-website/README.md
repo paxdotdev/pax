@@ -142,7 +142,11 @@ Copy retains the page gutters. Desktop opens the cube's source drawer by default
 compact layouts stack the cube and inline source with an expand action.
 “Plug, Extend, and Play” follows “Simple meets powerful,” introducing reactive composition
 and linking to the standard library and component-authoring guide. Its copy lives
-in `ModularitySection`, separate from these background treatments.
+in `ModularitySection`, separate from these background treatments. At widths of
+1,000px and above, its copy and circuit board share a row, with the board on the
+right. Below that breakpoint the board sits centered beneath the copy. The section's
+ExampleHost lists the wrapper, board, package, pin, and logo templates/Rust sources,
+plus the board layout and motion modules.
 Its `CircuitBoard` illustration assembles six named packages from reusable
 `CircuitPackage` and `CircuitPin` templates. The packages form a reduced tree of
 the illustration's own template: `CircuitBoard` → `For` (chips) → `CircuitPackage`,
@@ -150,7 +154,9 @@ which branches to `Text` and `For` (pins) → `CircuitPin`. Every package has le
 on its left and right sides: three per side on most packages, five on
 `CircuitPackage` to give its branches separate pin banks. Both layouts use four
 physical rows: `CircuitBoard`, `For`, `CircuitPackage` / `CircuitPin`, and
-sibling `Text` / `For`. `CircuitPin` deliberately sits above its parent `For`
+sibling `Text` / `For`. CircuitPin sits slightly above CircuitPackage, aligning
+its lower-left pad with the normal through the nearby copper bend.
+`CircuitPin` deliberately sits above its parent `For`
 to reclaim the otherwise empty last row; the trace still shows their relationship.
 The packages align in two sparse columns: `CircuitBoard`, the first `For`,
 `CircuitPackage`, and `Text` on the left; the final `For` and `CircuitPin` on the
@@ -169,7 +175,11 @@ turns (one stage-width of travel is one revolution). On release or cancellation,
 it eases to the nearest equivalent idle endpoint in 450–850 ms, then rocks inward
 again. Re-grabbing interrupts that return at its current pose. Touch input waits
 for horizontal intent; vertical gestures remain available for page scrolling.
-Its sixteen traces connect pin pads, including three parallel runs from the
+A still Pax logo fills the upper-right clearing above CircuitPin, using the same
+copper paint and material as the traces. `CircuitLogo` contains four filled paths
+ejected from the canonical `pax-std/src/drawing/pax_logo/pax-logo.svg`; its lettering
+is cut out to reveal the PCB, and the logo adds no animation or alpha mask.
+The board's sixteen traces connect pin pads, including three parallel runs from the
 left-edge connector into CircuitBoard's inputs. The connector aligns with the
 root package and has two banks of three soldered through-board leads. Four small
 signal accents move only while

@@ -12,7 +12,7 @@ pub struct ModularitySection {
 impl ModularitySection {
     pub fn mount(&mut self, ctx: &NodeContext) {
         self._height_bound.set(false);
-        crate::section_layout::bind_compact(ctx, &self.compact, 900.0);
+        crate::section_layout::bind_compact(ctx, &self.compact, 1000.0);
     }
 
     pub fn measure(&mut self, ctx: &NodeContext) {

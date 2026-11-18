@@ -53,6 +53,9 @@
                     }
                 </Group>
             }
+            <CircuitLogo x={self.compact ? 518px : 548px} y=167px anchor=50%
+                width=200px height=99.78px z={@gpu ? 0.5px : 0px}
+                fill={paint: rgb(140, 114, 63), material: {ambient: 0.65, diffuse: 0.12, specular: 0.08, metallic: 0.35, roughness: 0.6}}/>
             for trace in self.traces {
                 <Path width=100% height=100% z={@gpu ? 0.5px : 0px} elements={trace.elements} fill=[]
                     stroke={paint: rgb(140, 114, 63), width: 1.6px, material: {ambient: 0.65, diffuse: 0.12, specular: 0.08, metallic: 0.35, roughness: 0.6}}/>

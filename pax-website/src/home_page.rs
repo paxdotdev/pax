@@ -364,12 +364,47 @@ impl HomePage {
             });
         }
         self.resource_sources.set(resource_sources);
-        self.modularity_sources.set(section_sources(
+        let mut modularity_sources = section_sources(
             "src/modularity_section.pax",
             include_str!("modularity_section.pax"),
             "src/modularity_section.rs",
             include_str!("modularity_section.rs"),
+        );
+        modularity_sources.extend(section_sources(
+            "src/circuit_board.pax",
+            include_str!("circuit_board.pax"),
+            "src/circuit_board.rs",
+            include_str!("circuit_board.rs"),
         ));
+        modularity_sources.extend(section_sources(
+            "src/circuit_package.pax",
+            include_str!("circuit_package.pax"),
+            "src/circuit_package.rs",
+            include_str!("circuit_package.rs"),
+        ));
+        modularity_sources.extend(section_sources(
+            "src/circuit_pin.pax",
+            include_str!("circuit_pin.pax"),
+            "src/circuit_pin.rs",
+            include_str!("circuit_pin.rs"),
+        ));
+        modularity_sources.extend(section_sources(
+            "src/circuit_logo.pax",
+            include_str!("circuit_logo.pax"),
+            "src/circuit_logo.rs",
+            include_str!("circuit_logo.rs"),
+        ));
+        for (label, code) in [
+            ("src/circuit_layout.rs", include_str!("circuit_layout.rs")),
+            ("src/circuit_motion.rs", include_str!("circuit_motion.rs")),
+        ] {
+            modularity_sources.push(ExampleSource {
+                label: label.into(),
+                language: "rust".into(),
+                code: code.into(),
+            });
+        }
+        self.modularity_sources.set(modularity_sources);
         let mut runtime_sources = section_sources(
             "runtime_section.pax",
             include_str!("runtime_section.pax"),

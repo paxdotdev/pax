@@ -65,13 +65,15 @@ pub fn build(compact: bool) -> (Vec<Chip>, Vec<Vec<Point>>) {
     };
     // CircuitPin folds above its For to reclaim the last row while keeping
     // the two columns and the other parent-child relationships easy to follow.
+    // Bottom-left pad lies on the normal through the adjacent copper bend.
+    let pin_y = if compact { 347.75 } else { 337.75 };
     let positions = [
         (left, 100.0, 180.0, 82.0),
         (left, 215.0, 96.0, 82.0),
         (left, 350.0, 200.0, 128.0),
         (left, 495.0, 110.0, 82.0),
         (right, 495.0, 96.0, 82.0),
-        (right, 350.0, 166.0, 82.0),
+        (right, pin_y, 166.0, 82.0),
     ];
     let chips: Vec<_> = positions
         .into_iter()
@@ -282,12 +284,18 @@ mod tests {
     #[test]
     fn two_columns_fold_the_pin_child_above_its_parent() {
         for compact in [false, true] {
-            let (chips, _) = build(compact);
+            let (chips, routes) = build(compact);
             for (parent, child) in [(0, 1), (1, 2), (2, 3), (2, 4)] {
                 assert!(chips[child].center.1 > chips[parent].center.1);
             }
             assert_eq!(chips[3].center.1, chips[4].center.1);
-            assert_eq!(chips[2].center.1, chips[5].center.1);
+            let bend = routes[9].windows(2).find(|p| {
+                let d = sub(p[1], p[0]);
+                d.0 > 0.0 && d.1 > 0.0
+            }).unwrap();
+            let midpoint = mul(add(bend[0], bend[1]), 0.5);
+            let pin = chips[5].pins(-1.0, &[2]).pins[0];
+            assert!(dot(sub(pin, midpoint), unit(sub(bend[1], bend[0]))).abs() < 1e-8);
             assert!(chips[5].center.1 < chips[4].center.1);
             for (parent, child) in [(0, 1), (1, 2), (4, 5)] {
                 assert_eq!(chips[parent].center.0, chips[child].center.0);

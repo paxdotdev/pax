@@ -15,6 +15,8 @@ pub mod calculator_preview;
 #[cfg(feature = "app")]
 pub mod circuit_board;
 #[cfg(feature = "app")]
+mod circuit_logo;
+#[cfg(feature = "app")]
 mod circuit_package;
 #[cfg(feature = "app")]
 mod circuit_pin;
