@@ -25,6 +25,9 @@ pub struct MeshVertex {
 pub struct ConvexMesh {
     vertices: Vec<MeshVertex>,
     indices: Vec<u32>,
+    // UV seams may duplicate positions, but a triangle corner need not be
+    // revisited for every incident face when computing surface bounds/hulls.
+    surface_vertices: Vec<u32>,
     edges: Vec<[u32; 2]>,
 }
 
@@ -74,9 +77,13 @@ impl ConvexMesh {
         }
         edges.sort_unstable();
         edges.dedup();
+        let mut surface_vertices = indices.clone();
+        surface_vertices.sort_unstable();
+        surface_vertices.dedup();
         Rc::new(Self {
             vertices,
             indices,
+            surface_vertices,
             edges,
         })
     }

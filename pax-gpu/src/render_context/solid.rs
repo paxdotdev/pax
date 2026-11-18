@@ -1,5 +1,5 @@
-//! Opaque convex volumes resolve mutual depth on GPU. Planar paint keeps its
-//! ordered compositor and receives the complement of each solid's front coverage.
+//! Opaque convex volumes resolve mutual depth on GPU. The mixed-paint fallback
+//! gives ordered planar paint the complement of each solid's front coverage.
 use super::*;
 use crate::render_backend::solid;
 use pax_runtime_api::math::{Generic, Transform3};
@@ -33,7 +33,8 @@ impl RetainedSolid {
         {
             value.to_bits().hash(hash);
         }
-        self.projection_viewport.map(|r| [r.x0, r.y0, r.x1, r.y1].map(f64::to_bits))
+        self.projection_viewport
+            .map(|r| [r.x0, r.y0, r.x1, r.y1].map(f64::to_bits))
             .hash(hash);
         self.pose.projection.clips_depth().hash(hash);
         bytemuck::bytes_of(&self.color.rgba).hash(hash);
@@ -117,12 +118,14 @@ impl WgpuRenderer<'_> {
         let capture = capture || self.effect_nodes.contains_key(&pending.id);
         // Captures can sample outside this tile (feather/filter halos). Keep the
         // source mesh's full clipped projection until the capture domain is known.
-        let projection_viewport = (!capture).then(|| kurbo::Rect::new(
-            viewport.min.x as f64,
-            viewport.min.y as f64,
-            viewport.max.x as f64,
-            viewport.max.y as f64,
-        ));
+        let projection_viewport = (!capture).then(|| {
+            kurbo::Rect::new(
+                viewport.min.x as f64,
+                viewport.min.y as f64,
+                viewport.max.x as f64,
+                viewport.max.y as f64,
+            )
+        });
         // Paint-only updates reuse coverage, but camera clipping and the tile
         // viewport are part of the pose identity even if world geometry is fixed.
         let retained_pose = self.scene.get(&pending.id).and_then(|node| match node {
@@ -135,8 +138,8 @@ impl WgpuRenderer<'_> {
             }
             _ => None,
         });
-        let pose = retained_pose
-            .unwrap_or_else(|| draw.mesh.projected(projection, projection_viewport));
+        let pose =
+            retained_pose.unwrap_or_else(|| draw.mesh.projected(projection, projection_viewport));
         let bounds = bounds_of(&pose.silhouette());
         pending.kind = PendingNodeKind::Solid(RetainedSolid {
             pose,
@@ -153,34 +156,8 @@ impl WgpuRenderer<'_> {
         });
     }
 
-    pub(super) fn prepare_and_draw_solids(&mut self) {
-        self.spatial.solid_clips.clear();
-        let solids: Vec<_> = self
-            .sorted_nodes
-            .iter()
-            .filter(|(_, id)| self.belongs_to_draw_domain(*id))
-            .filter_map(|(_, id)| matches!(&self.scene[id], RetainedNode::Solid(_)).then_some(*id))
-            .collect();
-        let mut min = f64::INFINITY;
-        let mut max = f64::NEG_INFINITY;
-        for id in &solids {
-            let RetainedNode::Solid(s) = &self.scene[id] else {
-                unreachable!()
-            };
-            for p in s.pose.triangles().flatten() {
-                min = min.min(p[2]);
-                max = max.max(p[2]);
-            }
-        }
-        // One frame-wide mapping keeps the hardware depth comparison meaningful
-        // between separately retained meshes; padding avoids near/far clipping.
-        min -= 1.;
-        max += 1.;
-        if !min.is_finite() || !max.is_finite() {
-            min = -1.;
-            max = 1.;
-        }
-        for id in &solids {
+    pub(super) fn prepare_solid_resources(&mut self, solids: &[u32], min: f64, max: f64) {
+        for id in solids {
             let RetainedNode::Solid(s) = self.scene.get_mut(id).unwrap() else {
                 unreachable!()
             };
@@ -221,6 +198,36 @@ impl WgpuRenderer<'_> {
             }
             s.last_uniform = bytes.to_vec();
         }
+    }
+
+    pub(super) fn prepare_and_draw_solids(&mut self) {
+        self.spatial.solid_clips.clear();
+        let solids: Vec<_> = self
+            .sorted_nodes
+            .iter()
+            .filter(|(_, id)| self.belongs_to_draw_domain(*id))
+            .filter_map(|(_, id)| matches!(&self.scene[id], RetainedNode::Solid(_)).then_some(*id))
+            .collect();
+        let mut min = f64::INFINITY;
+        let mut max = f64::NEG_INFINITY;
+        for id in &solids {
+            let RetainedNode::Solid(s) = &self.scene[id] else {
+                unreachable!()
+            };
+            if let Some([low, high]) = s.pose.depth_bounds() {
+                min = min.min(low);
+                max = max.max(high);
+            }
+        }
+        // One frame-wide mapping keeps the hardware depth comparison meaningful
+        // between separately retained meshes; padding avoids near/far clipping.
+        min -= 1.;
+        max += 1.;
+        if !min.is_finite() || !max.is_finite() {
+            min = -1.;
+            max = 1.;
+        }
+        self.prepare_solid_resources(&solids, min, max);
         // All states in a fade use the same world-depth mapping and uniforms.
         let solids: Vec<_> = solids
             .into_iter()
@@ -273,12 +280,11 @@ impl WgpuRenderer<'_> {
                         && self.clip_arena.key_to_id.get(&key) == Some(&plan.clip_id)
                     {
                         keys.push(key);
-                        self.spatial.solid_clips
-                            .entry(id)
-                            .or_default()
-                            .push(ClipReference::Stencil {
+                        self.spatial.solid_clips.entry(id).or_default().push(
+                            ClipReference::Stencil {
                                 clip_id: plan.clip_id,
-                            });
+                            },
+                        );
                         self.resource_churn_stats.solid_clip_reuses += 1;
                         continue;
                     }
@@ -351,7 +357,8 @@ impl WgpuRenderer<'_> {
                         },
                     );
                     keys.push(key);
-                    self.spatial.solid_clips
+                    self.spatial
+                        .solid_clips
                         .entry(id)
                         .or_default()
                         .push(ClipReference::Stencil { clip_id });
@@ -359,13 +366,16 @@ impl WgpuRenderer<'_> {
             }
         }
         let stale: Vec<_> = self
-            .spatial.solid_clip_keys
+            .spatial
+            .solid_clip_keys
             .iter()
             .filter(|k| !keys.contains(k))
             .copied()
             .collect();
         self.clip_arena.release_keys(&stale);
-        self.spatial.solid_clip_plans.retain(|key, _| keys.contains(key));
+        self.spatial
+            .solid_clip_plans
+            .retain(|key, _| keys.contains(key));
         self.spatial.solid_clip_keys = keys;
         self.clip_arena.flush_to_gpu(&mut self.render_backend);
         if !solids.is_empty() {

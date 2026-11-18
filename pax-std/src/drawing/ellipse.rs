@@ -146,6 +146,10 @@ impl InstanceNode for EllipseInstance {
         true
     }
 
+    fn local_occlusion_path_is_placement_independent(&self) -> bool {
+        true
+    }
+
     fn resolve_local_occlusion_bounds(&self, node: &ExpandedNode) -> Option<kurbo::Rect> {
         self.resolve_local_occlusion_path(node)
             .map(|path| path.bounding_box())

@@ -1,4 +1,4 @@
-use crate::SiteTheme;
+use crate::{circuit_board::CircuitBoard, SiteTheme};
 use pax_kit::*;
 
 #[pax]

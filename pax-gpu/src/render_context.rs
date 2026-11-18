@@ -6,6 +6,8 @@ use effects::{EffectCapture, EffectNode, EffectRecording};
 mod lighting;
 mod opacity;
 #[cfg(feature = "3d")]
+mod opaque_depth;
+#[cfg(feature = "3d")]
 mod solid;
 mod source_capture;
 #[cfg(feature = "3d")]
@@ -199,6 +201,12 @@ pub struct ResourceChurnStats {
     pub solid_geometry_upload_bytes: u64,
     #[cfg(feature = "3d")]
     pub solid_uniform_updates: u64,
+    /// Opaque planar draws resolved by hardware depth instead of CPU fragments.
+    #[cfg(feature = "3d")]
+    pub opaque_depth_draws: u64,
+    /// Bytes uploaded for retained planar depth equations (16 per changed draw).
+    #[cfg(feature = "3d")]
+    pub opaque_depth_upload_bytes: u64,
     /// Solid/plane stencil plans rebuilt after geometric dependency changes.
     #[cfg(feature = "3d")]
     pub solid_clip_preparations: u64,
@@ -272,6 +280,8 @@ impl ResourceChurnStats {
         {
             self.solid_geometry_upload_bytes += other.solid_geometry_upload_bytes;
             self.solid_uniform_updates += other.solid_uniform_updates;
+            self.opaque_depth_draws += other.opaque_depth_draws;
+            self.opaque_depth_upload_bytes += other.opaque_depth_upload_bytes;
             self.solid_clip_preparations += other.solid_clip_preparations;
             self.solid_clip_reuses += other.solid_clip_reuses;
             self.spatial_fade_renders += other.spatial_fade_renders;
@@ -341,6 +351,7 @@ impl ResourceChurnStats {
         {
             stats.spatial_fade_renders = 0;
             stats.solid_clip_reuses = 0;
+            stats.opaque_depth_draws = 0;
             stats.spatial_fade_cache_hits = 0;
             stats.spatial_fade_overflows = 0;
         }
@@ -388,6 +399,8 @@ pub struct WgpuRenderer<'w> {
     coverage_chart: Option<pax_runtime_api::visibility::RelationChart>,
     #[cfg(feature = "3d")]
     spatial: capture_scene::SpatialComposition,
+    #[cfg(all(test, feature = "3d"))]
+    pub(crate) force_ordered_spatial: bool,
     #[cfg(feature = "3d")]
     capture_scenes:
         HashMap<crate::render_backend::capture::CaptureKey, capture_scene::SpatialComposition>,
@@ -904,6 +917,8 @@ impl<'w> WgpuRenderer<'w> {
             coverage_chart: None,
             #[cfg(feature = "3d")]
             spatial: Default::default(),
+            #[cfg(all(test, feature = "3d"))]
+            force_ordered_spatial: false,
             #[cfg(feature = "3d")]
             capture_scenes: HashMap::new(),
             source_nodes: HashMap::new(),
@@ -1494,7 +1509,10 @@ impl<'w> WgpuRenderer<'w> {
         });
         if self.should_use_vector_scene_batch() {
             #[cfg(feature = "3d")]
-            self.retire_capture_scenes(&HashSet::new());
+            {
+                self.spatial.opaque_depth.clear();
+                self.retire_capture_scenes(&HashSet::new());
+            }
             self.render_backend.retain_captures(&HashSet::new());
             self.resource_churn_stats.vector_batch_flushes += 1;
             self.flush_vector_scene_batch(defer_submit);
@@ -1614,6 +1632,15 @@ impl<'w> WgpuRenderer<'w> {
                         continue;
                     };
                     if !resource.is_drawable() {
+                        continue;
+                    }
+                    #[cfg(feature = "3d")]
+                    if self.spatial.opaque_depth_active {
+                        current_batch.push(RetainedDraw::OpaqueVector(
+                            resource,
+                            &self.spatial.opaque_depth[node_id],
+                        ));
+                        self.resource_churn_stats.opaque_depth_draws += 1;
                         continue;
                     }
                     current_batch.push(RetainedDraw::Vector(resource));
@@ -2051,6 +2078,8 @@ impl<'w> WgpuRenderer<'w> {
             PendingNodeKind::Vector(buffers) => {
                 let lighting_dependencies = LightingDependencies::from_ops(&buffers.ops);
                 let (bounds, _spatial_coverage) = compute_vector_node_extent(&buffers.ops);
+                #[cfg(feature = "3d")]
+                let projected_depth_range = opaque_depth::projected_depth_range(&buffers.ops);
                 if self.work_observer.is_some() {
                     self.observe_work(Some(node_id), "vector record", 1, 0);
                     if !matches!(previous, Some(RetainedNode::Vector(_))) {
@@ -2161,6 +2190,7 @@ impl<'w> WgpuRenderer<'w> {
                         #[cfg(feature = "3d")]
                         {
                             existing.spatial_coverage = _spatial_coverage;
+                            existing.projected_depth_range = projected_depth_range;
                         }
                         Some(RetainedNode::Vector(existing))
                     }
@@ -2189,6 +2219,8 @@ impl<'w> WgpuRenderer<'w> {
                             bounds,
                             #[cfg(feature = "3d")]
                             spatial_coverage: _spatial_coverage,
+                            #[cfg(feature = "3d")]
+                            projected_depth_range,
                             resource_dirty: VectorResourceDirty {
                                 geometry: true,
                                 primitives: true,
@@ -2229,6 +2261,8 @@ impl<'w> WgpuRenderer<'w> {
                             bounds,
                             #[cfg(feature = "3d")]
                             spatial_coverage: _spatial_coverage,
+                            #[cfg(feature = "3d")]
+                            projected_depth_range,
                             resource_dirty: VectorResourceDirty {
                                 geometry: true,
                                 primitives: true,
@@ -2347,6 +2381,10 @@ impl<'w> WgpuRenderer<'w> {
         #[cfg(feature = "3d")]
         {
             self.depth_planes.remove(&node_id);
+            self.spatial.opaque_depth.remove(&node_id);
+            for composition in self.capture_scenes.values_mut() {
+                composition.opaque_depth.remove(&node_id);
+            }
             self.coverage_nodes.remove(&node_id);
             if let Some(chart) = &self.coverage_chart {
                 chart.remove_node(node_id);
@@ -2803,6 +2841,8 @@ struct RetainedVectorNode {
     bounds: Box2D,
     #[cfg(feature = "3d")]
     spatial_coverage: Vec<[f64; 2]>,
+    #[cfg(feature = "3d")]
+    projected_depth_range: Option<[f64; 2]>,
     resource_dirty: VectorResourceDirty,
     geometry_signatures: Vec<u64>,
     fill_signature: u64,
@@ -2863,6 +2903,10 @@ fn record_retained_batch_stats(stats: &mut ResourceChurnStats, draws: &[Retained
             RetainedDraw::Vector(_) => {}
             #[cfg(feature = "3d")]
             RetainedDraw::Solid(_) => {}
+            #[cfg(feature = "3d")]
+            RetainedDraw::OpaqueVector(resource, _) => {
+                stats.retained_vector_draws += u64::from(resource.is_drawable());
+            }
             #[cfg(feature = "shaders")]
             RetainedDraw::Effect(_) => {}
             RetainedDraw::Image { .. } => stats.retained_image_draws += 1,

@@ -306,12 +306,16 @@ struct OcclusionRecord {
     clips_content: bool,
     before_children: bool,
     unclippable: bool,
-    // Exact coverage and clips remain in unscrolled world coordinates. Geometry
-    // preparation and the shared spatial index supply stable layer coordinates.
+    // Clips and custom coverage retain unscrolled world coordinates. Local
+    // coverage is mapped only after selection in the shared spatial index.
     clip: Option<Rc<BezPath>>,
     clip_transform: Affine,
     clips: Vec<u32>,
+    // Placement-independent primitives retain their original path. Exact
+    // projection happens only for native-mask candidates, in the current pose.
     path: Option<Rc<BezPath>>,
+    path_is_local: bool,
+    path_bounds: Option<Rect>,
     #[cfg(feature = "3d")]
     local_path: Option<Rc<BezPath>>,
     coverage_bounds: CoverageBounds,
@@ -571,6 +575,7 @@ pub(crate) fn update_node_occlusion_observed(
         ctx.prepare_scene_geometry();
         completed("occlusion.coverage.geometry");
         let ids: Vec<_> = state.records.keys().copied().collect();
+        let mut canvas_mappings = HashMap::new();
         for id in ids {
             let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) else {
                 state.records.remove(&id);
@@ -579,10 +584,11 @@ pub(crate) fn update_node_occlusion_observed(
             let record = state.records.get_mut(&id).unwrap();
             if record.layer != Layer::DontCare {
                 let geometry = ctx.canvas_geometry_for_node(&node);
-                if record.path.is_some() && record.opacity > f64::EPSILON {
+                if record.path_bounds.is_some() && record.opacity > f64::EPSILON {
                     *state.canvas_counts.entry(geometry.layer).or_default() += 1;
                 }
-                record.coverage_bounds = occlusion_bounds(&node, record, &geometry, ctx);
+                record.coverage_bounds =
+                    occlusion_bounds(&node, record, &geometry, ctx, &mut canvas_mappings);
                 ctx.set_occlusion_bounds(id, geometry.layer, record.coverage_bounds);
                 record.geometry = Some(geometry);
             }
@@ -654,6 +660,7 @@ pub(crate) fn update_node_occlusion_observed(
     completed("occlusion.coverage.clips");
     ctx.prepare_scene_geometry();
     completed("occlusion.coverage.geometry");
+    let mut canvas_mappings = HashMap::new();
     for id in dirty {
         let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) else {
             continue;
@@ -670,17 +677,14 @@ pub(crate) fn update_node_occlusion_observed(
                 if let Some(bounds) = record.coverage_bounds.query_rect() {
                     affected.extend(ctx.compositing_nodes_intersecting(old.layer, &[bounds], true));
                 }
-                if record.path.is_some() && record.opacity > f64::EPSILON {
+                if record.path_bounds.is_some() && record.opacity > f64::EPSILON {
                     *state.canvas_counts.entry(old.layer).or_default() -= 1;
                 }
             }
-            let path = resolve_record_path(&node)
-                .filter(|path| OcclusionBox::new_from_path(path).is_some());
-            retain_path(&mut record.path, path);
-            #[cfg(feature = "3d")]
-            retain_local_path(record, &node);
+            refresh_record_path(record, &node);
             record.opacity = borrow!(node.instance_node).resolve_coverage_opacity(&node);
-            record.coverage_bounds = occlusion_bounds(&node, record, &geometry, ctx);
+            record.coverage_bounds =
+                occlusion_bounds(&node, record, &geometry, ctx, &mut canvas_mappings);
             ctx.set_occlusion_bounds(id, geometry.layer, record.coverage_bounds);
             if let Some(bounds) = record.coverage_bounds.query_rect() {
                 affected.extend(ctx.compositing_nodes_intersecting(
@@ -688,7 +692,7 @@ pub(crate) fn update_node_occlusion_observed(
                     &[bounds],
                     true,
                 ));
-                if record.path.is_some() && record.opacity > f64::EPSILON {
+                if record.path_bounds.is_some() && record.opacity > f64::EPSILON {
                     *state.canvas_counts.entry(geometry.layer).or_default() += 1;
                 }
             }
@@ -1016,6 +1020,8 @@ fn try_reconcile_structure(
                     clip_transform: Affine::IDENTITY,
                     clips: clips.to_vec(),
                     path: None,
+                    path_is_local: false,
+                    path_bounds: None,
                     #[cfg(feature = "3d")]
                     local_path: None,
                     coverage_bounds: CoverageBounds::Empty,
@@ -1196,7 +1202,7 @@ fn try_reconcile_structure(
     }
     for record in std::mem::take(&mut state.removed) {
         include_old_overlaps(&record, ctx, affected);
-        if record.path.is_some() && record.opacity > f64::EPSILON {
+        if record.path_bounds.is_some() && record.opacity > f64::EPSILON {
             if let Some(geometry) = &record.geometry {
                 *state.canvas_counts.entry(geometry.layer).or_default() -= 1;
             }
@@ -1560,6 +1566,7 @@ fn occlusion_bounds(
     record: &OcclusionRecord,
     geometry: &PreparedCanvasGeometry,
     ctx: &RuntimeContext,
+    canvas_mappings: &mut HashMap<usize, Option<Affine>>,
 ) -> CoverageBounds {
     if record.layer != Layer::Canvas || node.is_render_source() {
         return CoverageBounds::Empty;
@@ -1571,11 +1578,11 @@ fn occlusion_bounds(
         }
         // Custom hooks remain conservative unless they explicitly supply bounds
         // and coverage invalidation. Their exact callback stays live in queries.
-        let bounds = if let Some(path) = cached_local_occlusion_path(node) {
-            let Some(path) = path else {
+        let bounds = if record.path_is_local {
+            let Some(bounds) = record.path_bounds else {
                 return CoverageBounds::Empty;
             };
-            Some(path.bounding_box())
+            Some(bounds)
         } else {
             borrow!(node.instance_node).resolve_local_occlusion_bounds(node)
         };
@@ -1599,18 +1606,27 @@ fn occlusion_bounds(
         }
         return CoverageBounds::conservative(projection.coverage(bounds, None));
     }
-    let Some(path) = &record.path else {
+    let Some(bounds) = record.path_bounds else {
         return CoverageBounds::Empty;
     };
+    if record.path_is_local {
+        return CoverageBounds::conservative(Some(
+            geometry.surface_transform.transform_rect_bbox(bounds),
+        ));
+    }
     // Use the same presented-to-canvas chart for every contributor. The canvas
     // owner's scroll cancels out, while independently scrolling descendants in
     // a shared canvas retain their actual displacement.
     CoverageBounds::conservative(
-        ctx.window_to_canvas_mapping(geometry.layer)
-            .and_then(|mapping| mapping.as_affine())
+        canvas_mappings
+            .entry(geometry.layer)
+            .or_insert_with(|| {
+                ctx.window_to_canvas_mapping(geometry.layer)
+                    .and_then(|mapping| mapping.as_affine())
+            })
             .map(|mapping| {
-                (mapping * ctx.presentation_scroll_transform_for_node(node) * path.as_ref().clone())
-                    .bounding_box()
+                (mapping * ctx.presentation_scroll_transform_for_node(node))
+                    .transform_rect_bbox(bounds)
             }),
     )
 }
@@ -1777,9 +1793,31 @@ fn update_indexed_mask(id: u32, ctx: &RuntimeContext, state: &mut OcclusionState
         {
             continue;
         }
+        #[allow(unused_mut)]
+        let mut mapping = if coverage.path_is_local {
+            let Some(projection) = occluder.presentation_projection() else {
+                continue;
+            };
+            if occluder.has_perspective_camera() {
+                Mapping::Projected(projection.post_mapping(transform.into()), None)
+            } else {
+                Mapping::Affine(
+                    transform
+                        * Affine::from(occluder.presentation_transform_and_bounds.get().transform),
+                )
+            }
+        } else {
+            Mapping::Affine(
+                transform
+                    * coverage.geometry.as_ref().map_or(Affine::IDENTITY, |g| {
+                        retained_pose_delta(&occluder, g.world_transform)
+                    }),
+            )
+        };
         let path = path.clone();
         #[cfg(feature = "3d")]
         let path = if let Some(solid) = &solid {
+            mapping = Mapping::Affine(transform);
             let (support, mut plane) = ctx.support_depth(&node);
             let [a, b, c] = plane.coefficients;
             let t = transform.as_coeffs();
@@ -1818,15 +1856,7 @@ fn update_indexed_mask(id: u32, ctx: &RuntimeContext, state: &mut OcclusionState
         let opacity = coverage.opacity;
         contributions.push(Contribution {
             owner: (candidate, occluder.mount_epoch.get()),
-            path: PathInput {
-                path,
-                mapping: Mapping::Affine(
-                    transform
-                        * coverage.geometry.as_ref().map_or(Affine::IDENTITY, |g| {
-                            retained_pose_delta(&occluder, g.world_transform)
-                        }),
-                ),
-            },
+            path: PathInput { path, mapping },
             clips: mask_clip_inputs(&coverage.clips, false, mixed, ctx, state)
                 .into_iter()
                 .filter(|((id, _), _)| !record.clips.contains(id))
@@ -1855,12 +1885,31 @@ fn cached_local_occlusion_path(node: &ExpandedNode) -> Option<Option<Rc<BezPath>
     .then(|| node.local_occlusion_geometry.get().0)
 }
 
-fn resolve_record_path(node: &ExpandedNode) -> Option<BezPath> {
+fn refresh_record_path(record: &mut OcclusionRecord, node: &ExpandedNode) {
+    let previous = record.path.clone();
     if let Some(local) = cached_local_occlusion_path(node) {
-        local.and_then(|path| Some(node.presentation_projection()?.project_path(&path, None)))
+        record.path_is_local = true;
+        record.path = local;
     } else {
-        borrow!(node.instance_node).resolve_occlusion_path(node)
+        record.path_is_local = false;
+        retain_path(
+            &mut record.path,
+            borrow!(node.instance_node).resolve_occlusion_path(node),
+        );
     }
+    let same_path = match (&previous, &record.path) {
+        (Some(a), Some(b)) => Rc::ptr_eq(a, b),
+        (None, None) => true,
+        _ => false,
+    };
+    if !same_path {
+        record.path_bounds = record.path.as_ref().and_then(|path| {
+            let bounds = path.bounding_box();
+            (!bounds.is_zero_area()).then_some(bounds)
+        });
+    }
+    #[cfg(feature = "3d")]
+    retain_local_path(record, node);
 }
 
 fn retain_path(slot: &mut Option<Rc<BezPath>>, value: Option<BezPath>) {
@@ -1882,8 +1931,8 @@ fn compact_path(path: BezPath) -> Rc<BezPath> {
 fn retain_local_path(record: &mut OcclusionRecord, node: &ExpandedNode) {
     let instance = borrow!(node.instance_node);
     if node.has_perspective_camera() && instance.local_occlusion_path_is_retained() {
-        if let Some(path) = cached_local_occlusion_path(node) {
-            record.local_path = path;
+        if record.path_is_local {
+            record.local_path = record.path.clone();
         } else {
             retain_path(
                 &mut record.local_path,
@@ -2328,6 +2377,8 @@ fn update_node_occlusion_recursive(
             clip_transform: Affine::from(node.presentation_transform_and_bounds.get().transform),
             clips: active_clip_ids.to_vec(),
             path: None,
+            path_is_local: false,
+            path_bounds: None,
             #[cfg(feature = "3d")]
             local_path: None,
             coverage_bounds: CoverageBounds::Empty,
@@ -2494,16 +2545,9 @@ fn update_node_occlusion_recursive(
 
     match layer {
         Layer::Canvas => {
-            #[cfg(feature = "3d")]
-            retain_local_path(state.records.get_mut(&node.id.to_u32()).unwrap(), node);
-            if let Some(coverage_path) = resolve_record_path(node) {
-                let record = state.records.get_mut(&node.id.to_u32()).unwrap();
-                retain_path(
-                    &mut record.path,
-                    OcclusionBox::new_from_path(&coverage_path).map(|_| coverage_path),
-                );
-                record.opacity = borrow!(node.instance_node).resolve_coverage_opacity(node);
-            }
+            let record = state.records.get_mut(&node.id.to_u32()).unwrap();
+            refresh_record_path(record, node);
+            record.opacity = borrow!(node.instance_node).resolve_coverage_opacity(node);
         }
         Layer::Native | Layer::NativeNonOccluding => {}
         Layer::DontCare => {}

@@ -7741,6 +7741,8 @@ fn shared_solid_relations_reuse_stencils_and_retire_tile_dependencies() {
     .unwrap();
     let device = backend.device.clone();
     let mut renderer = WgpuRenderer::new(backend);
+    // This test owns coverage/stencil fallback cache behavior.
+    renderer.force_ordered_spatial = true;
     let relations = Rc::new(RefCell::new(Relations::default()));
     let context = |node, support| CoverageContext {
         node: (node, 1),
@@ -8763,6 +8765,349 @@ fn retained_shared_vector_fill_updates_preserve_other_surfaces() {
                 _ => [255, 0, 0, 255],
             };
             assert_pixel(&capture, 16, 16, pixel);
+        }
+    }
+}
+
+#[cfg(feature = "3d")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn opaque_depth_matches_ordered_pixels_and_retains_parameters() {
+    use pax_runtime_api::{DepthPlane, OpacityScope};
+    let clip_path = || {
+        let mut p = Path::builder();
+        p.begin(point(4., 4.));
+        for [x, y] in [[60., 4.], [60., 44.], [36., 44.], [36., 36.], [4., 36.]] {
+            p.line_to(point(x, y));
+        }
+        p.close();
+        p.build()
+    };
+    let render = |ordered: bool, mirror: bool, backdrop_alpha: f32| {
+        let layer = MetalLayer::new();
+        let mut backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, 64, 48, [1., 1.]),
+            )
+        })
+        .unwrap();
+        // Exercise the browser upload transport, with several versions encoded
+        // before a single submit. No version may use a later frame's depth.
+        backend.staging_belt = OrderedUploads::queued(
+            backend.device.clone(),
+            backend.queue.clone(),
+            STAGING_BELT_CHUNK_SIZE,
+        );
+        if mirror {
+            backend.surface_config.usage.remove(TextureUsages::COPY_SRC);
+        }
+        let device = backend.device.clone();
+        let mut renderer = WgpuRenderer::new(backend);
+        renderer.force_ordered_spatial = ordered;
+        let mut commands = CommandBatch::default();
+        for frame in 0..9 {
+            for id in 1..=3 {
+                renderer.begin_node(id, id as i32, 0);
+                renderer.save();
+                renderer.clip(clip_path());
+                renderer.fill_path(
+                    rect(0., 0., 64., 48.),
+                    Fill::Solid(match id {
+                        1 => Color::rgba(0., 0., 0., backdrop_alpha),
+                        2 => Color::rgba(1., 0., 0., if frame == 2 { 0.5 } else { 1. }),
+                        _ => Color::rgba(0., if frame >= 3 { 1. } else { 0. }, 1., 1.),
+                    }),
+                );
+                renderer.restore();
+                renderer.end_node(id);
+                renderer.set_node_depth_plane(
+                    id,
+                    Some(DepthPlane {
+                        coefficients: match id {
+                            1 => [0., 0., if frame == 7 { 10. } else { -100. }],
+                            2 if frame < 4 || frame == 7 => [
+                                if frame == 1 { -1. } else { 1. },
+                                0.,
+                                if frame == 1 { 32. } else { -32. },
+                            ],
+                            _ => [0., 0., 0.],
+                        },
+                        backface: frame == 5,
+                        presentation_layer: 0,
+                    }),
+                );
+                let scopes = [OpacityScope {
+                    node_id: id,
+                    opacity: 0.75,
+                }];
+                renderer.set_node_opacity_scopes(id, if frame == 6 { &scopes } else { &[] });
+            }
+            renderer.request_screenshot_capture(frame);
+            renderer.flush_deferred();
+            commands.append(&mut renderer.take_pending_command_buffers());
+            let stats = renderer.take_resource_churn_stats();
+            let depth =
+                !ordered && frame != 2 && frame != 6 && !(frame == 7 && backdrop_alpha < 1.);
+            assert_eq!(
+                stats.opaque_depth_draws,
+                if ordered || frame == 6 || (frame == 7 && backdrop_alpha < 1.) {
+                    0
+                } else if frame == 2 {
+                    u64::from(backdrop_alpha == 1.)
+                } else if backdrop_alpha == 1. {
+                    3
+                } else {
+                    2
+                }
+            );
+            if depth {
+                assert_eq!(stats.spatial_fragments, u64::from(backdrop_alpha < 1.));
+                assert_eq!(stats.solid_clip_preparations, 0);
+                assert!(stats.opaque_depth_upload_bytes <= 3 * 32);
+            }
+            if frame == 1 {
+                assert_eq!(stats.vector_geometry_rebuilds, 0);
+                assert_eq!(stats.vector_resource_update_bytes, 0);
+                assert_eq!(stats.vector_resource_creates, 0);
+                if depth {
+                    assert!(stats.opaque_depth_upload_bytes > 0);
+                }
+            }
+            if frame == 3 {
+                assert_eq!(
+                    stats.vector_resource_creates, 0,
+                    "depth cache must not prevent in-place paint updates"
+                );
+                assert_eq!(stats.vector_resource_recreates, 0);
+            }
+        }
+        renderer.submit_command_buffers(commands);
+        renderer.complete_submitted_work();
+        renderer.present_deferred_frame();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        (0..9)
+            .map(|i| renderer.take_screenshot_capture(i).unwrap().rgba)
+            .collect::<Vec<_>>()
+    };
+    for backdrop_alpha in [1., 0.5] {
+        let oracle = render(true, false, backdrop_alpha);
+        for mirror in [false, true] {
+            let depth = render(false, mirror, backdrop_alpha);
+            for (frame, (actual, expected)) in depth.iter().zip(&oracle).enumerate() {
+                // Skip only the intersection's one-pixel AA band: depth coverage is
+                // per sample, whereas the painter introduces a tessellated stencil.
+                for y in 0..48 {
+                    for x in 0..64 {
+                        if (31..=32).contains(&x) {
+                            continue;
+                        }
+                        let i = (y * 64 + x) * 4;
+                        for c in 0..4 {
+                            assert!(
+                                actual[i + c].abs_diff(expected[i + c]) <= 2,
+                                "frame {frame}, mirror {mirror}, ({x},{y}), channel {c}: {} != {}",
+                                actual[i + c],
+                                expected[i + c]
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+#[cfg(feature = "3d")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn opaque_depth_preserves_rear_occlusion_with_edge_on_faces_and_tiles() {
+    use pax_runtime_api::math::{Generic, ProjectedPlane, Transform3, Vector3};
+    use pax_runtime_api::mesh3::{ConvexMesh, MeshProjection, OpaqueMeshDraw};
+    type M = Transform3<Generic>;
+    let translate = |x, y, z| M::translate(Vector3::new(x, y, z));
+    for dpr in [1., 2.] {
+        let layer = MetalLayer::new();
+        let mut backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, (128. * dpr) as u32, (96. * dpr) as u32, [dpr, dpr]),
+            )
+        })
+        .unwrap();
+        backend.staging_belt = OrderedUploads::queued(
+            backend.device.clone(),
+            backend.queue.clone(),
+            STAGING_BELT_CHUNK_SIZE,
+        );
+        let device = backend.device.clone();
+        let mut renderer = WgpuRenderer::new(backend);
+        renderer.set_viewport(128., 96., [dpr, dpr]);
+        let mesh = ConvexMesh::sphere(16, 8);
+        let mut frame = 0;
+        for origin in [0., 2048.] {
+            renderer.set_surface_transform(Transform2D::translation(0., -origin));
+            for scale in [0.83, 1.13] {
+                for degrees in [0., 20., 90., 179.999, 180., 200., 270., 360.] {
+                    let pose = translate(64.123, origin as f64 + 48.321, 600.)
+                        * M::rotate_y(f64::to_radians(degrees))
+                        * M::scale(Vector3::new(scale, scale, 1.));
+                    // The horizontal cuboid faces are edge-on at every Y angle.
+                    // Their screen-space inverse must not determine the depth range.
+                    for (id, local, w, h, color) in [
+                        (
+                            1,
+                            translate(-48., -32., 0.),
+                            96.,
+                            64.,
+                            Color::rgba(0., 0., 1., 1.),
+                        ),
+                        (
+                            2,
+                            translate(-48., -32., -12.),
+                            96.,
+                            64.,
+                            Color::rgba(0., 1., 0., 1.),
+                        ),
+                        (
+                            3,
+                            translate(-16., -8., 20.),
+                            32.,
+                            16.,
+                            Color::rgba(1., 0., 0., 1.),
+                        ),
+                        (
+                            4,
+                            translate(-48., -32., -12.) * M::rotate_x(std::f64::consts::FRAC_PI_2),
+                            96.,
+                            12.,
+                            Color::rgba(1., 0., 1., 1.),
+                        ),
+                        (
+                            5,
+                            translate(-48., 32., -12.) * M::rotate_x(std::f64::consts::FRAC_PI_2),
+                            96.,
+                            12.,
+                            Color::rgba(1., 0., 1., 1.),
+                        ),
+                    ] {
+                        let projection = ProjectedPlane::new(pose * local, false).unwrap();
+                        renderer.begin_node(id, id as i32, 0);
+                        renderer.set_node_depth_plane(id, projection.depth_plane());
+                        renderer.save();
+                        renderer.project(projection);
+                        renderer.fill_path(rect(0., 0., w, h), Fill::Solid(color));
+                        renderer.restore();
+                        renderer.end_node(id);
+                    }
+                    let bead =
+                        (pose * translate(-28., 0., -18.) * M::scale(Vector3::new(4., 4., 4.)))
+                            .coeffs();
+                    renderer.begin_node(6, 6, 0);
+                    renderer.draw_convex_mesh(
+                        &OpaqueMeshDraw {
+                            mesh: mesh.clone(),
+                            world: bead,
+                            surface: MeshProjection::new(bead, false).unwrap(),
+                            color: pax_runtime_api::Color::WHITE,
+                            material: pax_runtime_api::ResolvedMaterial::Unlit,
+                        },
+                        Color::rgba(1., 1., 1., 1.),
+                        crate::Material::unlit(),
+                    );
+                    renderer.end_node(6);
+                    renderer.request_screenshot_capture(frame);
+                    renderer.flush();
+                    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+                    let capture = renderer.take_screenshot_capture(frame).unwrap();
+                    let pixel = |x: f32, y: f32, color| {
+                        assert_pixel(&capture, (x * dpr) as usize, (y * dpr) as usize, color)
+                    };
+                    if degrees == 0. || degrees == 360. {
+                        pixel(64., 48., [255, 0, 0, 255]);
+                        pixel(64. - 28. * scale as f32, 48., [0, 0, 255, 255]);
+                    } else if degrees == 180. || degrees == 179.999 {
+                        pixel(64., 48., [0, 255, 0, 255]);
+                        pixel(64. + 28. * scale as f32, 48., [255, 255, 255, 255]);
+                    }
+                    let stats = renderer.take_resource_churn_stats();
+                    assert!(stats.opaque_depth_draws > 0);
+                    if frame > 0 {
+                        assert_eq!(stats.vector_geometry_rebuilds, 0);
+                        assert_eq!(stats.vector_resource_update_bytes, 0);
+                    }
+                    frame += 1;
+                }
+            }
+        }
+    }
+}
+
+#[cfg(feature = "3d")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn opaque_depth_keeps_translated_coplanar_decals_stable_during_rotation() {
+    use pax_runtime_api::math::{Generic, ProjectedPlane, Transform3, Vector3};
+    type M = Transform3<Generic>;
+    let translate = |x, y, z| M::translate(Vector3::new(x, y, z));
+    for dpr in [1., 2.] {
+        let layer = MetalLayer::new();
+        let backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, (128. * dpr) as u32, (96. * dpr) as u32, [dpr, dpr]),
+            )
+        })
+        .unwrap();
+        let device = backend.device.clone();
+        let mut renderer = WgpuRenderer::new(backend);
+        renderer.set_viewport(128., 96., [dpr, dpr]);
+        renderer.set_surface_transform(Transform2D::translation(0., -2048.));
+        for frame in 0..82 {
+            let angle = -20. + (frame % 41) as f64 + if frame >= 41 { 180. } else { 0. };
+            let pose = translate(64.123, 2096.321, 600.)
+                * M::rotate_y(angle.to_radians())
+                * M::scale(Vector3::new(0.83, 0.83, 1.));
+            for (id, x, y, z, w, h, color) in [
+                (1, -40., -28., -12., 80., 56., Color::rgba(0., 0., 1., 1.)),
+                (2, -40., -28., 0., 80., 56., Color::rgba(0., 0., 1., 1.)),
+                (3, -29.3, -17.7, 0., 12., 10., Color::rgba(1., 0., 0., 1.)),
+                (4, -35.2, -23.1, 0., 65., 3., Color::rgba(0., 1., 0., 1.)),
+            ] {
+                let projection = ProjectedPlane::new(pose * translate(x, y, z), false).unwrap();
+                renderer.begin_node(id, id as i32, 0);
+                renderer.set_node_depth_plane(id, projection.depth_plane());
+                renderer.save();
+                renderer.project(projection);
+                renderer.fill_path(rect(0., 0., w, h), Fill::Solid(color));
+                renderer.restore();
+                renderer.end_node(id);
+            }
+            renderer.request_screenshot_capture(frame);
+            renderer.flush();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            let capture = renderer.take_screenshot_capture(frame).unwrap();
+            for (x, y, front) in [
+                (-23.3, -12.7, [255, 0, 0, 255]),
+                (-2.7, -21.6, [0, 255, 0, 255]),
+            ] {
+                let m = pose.coeffs();
+                let px = ((m[0] * x + m[4] * y + m[12]) * dpr as f64) as usize;
+                let py = ((m[1] * x + m[5] * y + m[13] - 2048.) * dpr as f64) as usize;
+                assert_pixel(
+                    &capture,
+                    px,
+                    py,
+                    if frame < 41 { front } else { [0, 0, 255, 255] },
+                );
+            }
+            let stats = renderer.take_resource_churn_stats();
+            assert_eq!(stats.opaque_depth_draws, 4);
+            if frame > 0 {
+                assert_eq!(stats.vector_geometry_rebuilds, 0);
+                assert_eq!(stats.vector_resource_update_bytes, 0);
+            }
         }
     }
 }

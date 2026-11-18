@@ -209,6 +209,12 @@ reuse; and lighting invalidations with their affected nodes. Lighting reasons
 that physical tile; it does not mean those pixels were drawn. A node can occur
 on several tiles, so these counts are renderer occurrences, not unique elements.
 The report's `nodes` table resolves these IDs to template coordinates.
+With `3d`, `opaque depth draws` counts planar draws using hardware depth and
+`opaque depth parameter bytes` counts their small retained uniform uploads.
+`ordered depth: …` identifies the first visible draw that requires the ordered
+compositor in a composition (paint, image/effect, opacity scope, or alpha mask).
+`solid clip preparations` counts stencil plans rebuilt in that fallback.
+Native occlusion remains separate from these canvas counters.
 
 Named CPU scopes also separate path change listeners, local canvas and occlusion
 geometry, and path rendering. `surface encode` measures CPU command preparation;

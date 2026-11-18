@@ -433,6 +433,7 @@ fn local_coverage_cache_tracks_shape_inputs_and_occurrence_lifetimes() {
         }
     }
 
+    let mut uncached_masks = Vec::new();
     for cached in [false, true] {
         let shape = LocalProperty::new(0.);
         let dependency = shape.clone();
@@ -470,8 +471,12 @@ fn local_coverage_cache_tracks_shape_inputs_and_occurrence_lifetimes() {
         let children = parent.children.get();
         let a = children[0].clone();
         let b = children[1].clone();
+        let retained_path = ctx.occlusion_state.borrow().records[&a.id.to_u32()]
+            .path
+            .clone()
+            .unwrap();
         let before = shared.reads.borrow().clone();
-        for x in [2., 4., 6.] {
+        for (sample, x) in [2., 4., 6.].into_iter().enumerate() {
             a.get_common_properties()
                 .borrow()
                 .x
@@ -485,6 +490,20 @@ fn local_coverage_cache_tracks_shape_inputs_and_occurrence_lifetimes() {
                 ctx.occlusion_state.borrow().records[&a.id.to_u32()].opacity,
                 0.5
             );
+            let mask = children[2].native_mask_hash.get();
+            if cached {
+                assert_eq!(
+                    mask, uncached_masks[sample],
+                    "retained local masks match live world projection"
+                );
+                let state = ctx.occlusion_state.borrow();
+                let record = &state.records[&a.id.to_u32()];
+                assert!(record.path_is_local);
+                assert!(Rc::ptr_eq(record.path.as_ref().unwrap(), &retained_path));
+                assert_eq!(record.path_bounds, Some(Rect::new(0., 0., 40., 20.)));
+            } else {
+                uncached_masks.push(mask);
+            }
             assert_full_rebuild_matches(&root, &ctx);
         }
         if cached {

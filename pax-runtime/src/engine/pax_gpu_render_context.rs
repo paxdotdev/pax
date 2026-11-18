@@ -1344,6 +1344,12 @@ impl PaxGpuRenderer {
                             ("retained nodes considered", stats.retained_nodes_considered),
                             ("retained nodes visible", stats.retained_nodes_visible),
                             ("retained draws", stats.retained_draws),
+                            #[cfg(feature = "3d")]
+                            ("opaque depth draws", stats.opaque_depth_draws),
+                            #[cfg(feature = "3d")]
+                            ("opaque depth parameter bytes", stats.opaque_depth_upload_bytes),
+                            #[cfg(feature = "3d")]
+                            ("solid clip preparations", stats.solid_clip_preparations),
                         ] {
                             if count != 0 {
                                 observer(pax_runtime_api::RenderWorkObservation {
@@ -1497,12 +1503,14 @@ impl PaxGpuRenderer {
                 );
                 #[cfg(feature = "3d")]
                 let line = format!(
-                    "{line} spatial_fade_renders={} spatial_fade_cache_hits={} spatial_fade_overflows={} solid_clip_preparations={} solid_clip_reuses={}",
+                    "{line} spatial_fade_renders={} spatial_fade_cache_hits={} spatial_fade_overflows={} solid_clip_preparations={} solid_clip_reuses={} opaque_depth_draws={} opaque_depth_upload_bytes={}",
                     resource_stats.spatial_fade_renders,
                     resource_stats.spatial_fade_cache_hits,
                     resource_stats.spatial_fade_overflows,
                     resource_stats.solid_clip_preparations,
                     resource_stats.solid_clip_reuses,
+                    resource_stats.opaque_depth_draws,
+                    resource_stats.opaque_depth_upload_bytes,
                 );
                 log::trace!("{}", line);
                 #[cfg(not(target_arch = "wasm32"))]

@@ -113,6 +113,7 @@ pub struct ProjectedConvexMesh {
     clipped: Option<Vec<Triangle>>,
     unbounded: bool,
     silhouette: OnceCell<Vec<[f64; 2]>>,
+    bounds: OnceCell<Option<(Point, Point)>>,
 }
 
 impl ConvexMesh {
@@ -170,6 +171,7 @@ impl ConvexMesh {
             clipped,
             unbounded,
             silhouette: OnceCell::new(),
+            bounds: OnceCell::new(),
         })
     }
 }
@@ -195,6 +197,31 @@ impl PosedConvexMesh {
 }
 
 impl ProjectedConvexMesh {
+    fn surface_points(&self) -> impl Iterator<Item = Point> + '_ {
+        let indices = if self.clipped.is_none() {
+            self.mesh.surface_vertices.as_slice()
+        } else {
+            &[]
+        };
+        self.clipped
+            .iter()
+            .flat_map(|triangles| triangles.iter().flatten().copied())
+            .chain(indices.iter().map(|i| self.vertices[*i as usize]))
+    }
+
+    fn bounds(&self) -> Option<(Point, Point)> {
+        *self.bounds.get_or_init(|| {
+            let mut points = self.surface_points();
+            let first = points.next()?;
+            Some(points.fold((first, first), |(min, max), p| {
+                (
+                    std::array::from_fn(|i| min[i].min(p[i])),
+                    std::array::from_fn(|i| max[i].max(p[i])),
+                )
+            }))
+        })
+    }
+
     /// Computational clipping domain used when this surface was projected.
     /// Equal matrices alone do not imply equal clipped coverage.
     pub fn projection_viewport(&self) -> Option<Rect> {
@@ -216,7 +243,7 @@ impl ProjectedConvexMesh {
     /// because a clipped surface can leave openings within this envelope.
     pub fn silhouette(&self) -> Vec<[f64; 2]> {
         self.silhouette
-            .get_or_init(|| convex_hull(self.triangles().flatten().map(|p| [p[0], p[1]]).collect()))
+            .get_or_init(|| convex_hull(self.surface_points().map(|p| [p[0], p[1]]).collect()))
             .clone()
     }
 
@@ -225,13 +252,15 @@ impl ProjectedConvexMesh {
         if self.unbounded {
             return None;
         }
-        let mut points = self.triangles().flatten();
-        let Some(p) = points.next() else {
-            return Some(Rect::ZERO);
-        };
-        Some(points.fold(Rect::new(p[0], p[1], p[0], p[1]), |r, p| {
-            r.union_pt((p[0], p[1]))
+        Some(self.bounds().map_or(Rect::ZERO, |(min, max)| {
+            Rect::new(min[0], min[1], max[0], max[1])
         }))
+    }
+
+    /// Retained minimum and maximum z/w of the surviving surface vertices.
+    /// Empty surfaces return `None`; clipped surfaces exclude discarded vertices.
+    pub fn depth_bounds(&self) -> Option<[f64; 2]> {
+        self.bounds().map(|(min, max)| [min[2], max[2]])
     }
 
     /// Closest rendered triangle depth; camera-clipped caps are not invented.
@@ -342,6 +371,58 @@ fn clip(points: &[Point], plane: [f64; 4]) -> Vec<Point> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retained_bounds_and_hulls_match_surviving_triangles() {
+        let mut mesh = ConvexMesh::sphere(24, 12);
+        // Bounds must describe indexed surface geometry, even if a vertex is
+        // unused. This also guards the UV seam/pole vertices of sphere meshes.
+        let unused = super::super::MeshVertex {
+            position: [100., 100., 100.],
+            normal: [0., 0., 1.],
+            uv: [0., 0.],
+        };
+        Rc::get_mut(&mut mesh).unwrap().vertices.push(unused);
+        let identity = Transform3::<Generic>::identity().coeffs();
+        let affine = [
+            2., 0.2, 0.5, 0., 0.4, 3., -0.3, 0., 0.8, 0.1, 4., 0., 20., -7., 3., 1.,
+        ];
+        let perspective = [
+            2., 0., 0., 0., 0., 2., 0., 0., 0., 0., 1., 0.5, 0., 0., 0.5, 1.,
+        ];
+        for (matrix, camera_clip, viewport) in [
+            (identity, false, None),
+            (affine, false, None),
+            (identity, true, None),
+            (perspective, true, None),
+            (identity, false, Some(Rect::new(-0.25, -0.4, 0.7, 0.6))),
+            (identity, false, Some(Rect::new(4., 4., 5., 5.))),
+        ] {
+            let projected =
+                mesh.projected(MeshProjection::new(matrix, camera_clip).unwrap(), viewport);
+            let points: Vec<_> = projected.triangles().flatten().collect();
+            let expected_hull = convex_hull(points.iter().map(|p| [p[0], p[1]]).collect());
+            let expected_depth = points.first().map(|first| {
+                points.iter().fold([first[2], first[2]], |[lo, hi], p| {
+                    [lo.min(p[2]), hi.max(p[2])]
+                })
+            });
+            let expected_bounds = (!projected.unbounded).then(|| {
+                points.first().map_or(Rect::ZERO, |first| {
+                    points
+                        .iter()
+                        .fold(Rect::new(first[0], first[1], first[0], first[1]), |r, p| {
+                            r.union_pt((p[0], p[1]))
+                        })
+                })
+            });
+            for _ in 0..2 {
+                assert_eq!(projected.silhouette(), expected_hull);
+                assert_eq!(projected.depth_bounds(), expected_depth);
+                assert_eq!(projected.coverage_bounds(), expected_bounds);
+            }
+        }
+    }
 
     #[test]
     fn retained_projections_and_contours_are_bounded_and_follow_camera_clipping() {

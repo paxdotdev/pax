@@ -107,7 +107,7 @@ fn vs_main(
     out.path_progress = model.path_progress;
     out.local_position = p;
     out.camera_clip = projected_camera_clip(m, p);
-    out.clip_position = vec4<f32>(xy.x, -xy.y, 0.0, h.w);
+    out.clip_position = vec4<f32>(xy.x, -xy.y, vector_depth(h), h.w);
     return out;
 }
 
@@ -127,8 +127,7 @@ fn scene_transform(id: u32) -> Transform {
 }
 
 // Fragment shader
-@fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+fn shade_vector(in: VertexOutput) -> vec4<f32> {
     let grain_size = max(0.7, max(length(dpdx(in.local_position)), length(dpdy(in.local_position))));
 
     let primitive = scene_primitive(in.prim_id);

@@ -148,6 +148,18 @@ impl SpatialGeometry {
         Self::new(self.world_transform() * transform, bounds)
     }
 
+    pub(crate) fn append_geometry(self, local: Self) -> Self {
+        match local.transform {
+            RetainedTransform::Planar(transform) => self.append_local_2d(TransformAndBounds {
+                transform: transform.cast_spaces(),
+                bounds: local.bounds,
+            }),
+            RetainedTransform::Spatial(transform) => {
+                self.append_local(Transform3::new(transform.coeffs()), local.bounds)
+            }
+        }
+    }
+
     pub(crate) fn append_local_2d(self, local: TransformAndBounds<NodeLocal, NodeLocal>) -> Self {
         match self.transform {
             RetainedTransform::Planar(parent) => Self::from(TransformAndBounds {

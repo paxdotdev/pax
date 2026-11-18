@@ -15,6 +15,9 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use_RefCell!();
 
+#[path = "ellipsoid_tessellation.rs"]
+mod tessellation;
+
 /// An opaque ellipsoid with width × height × depth extents, centered on local Z=0.
 /// Requires `pax-kit/3d` and the GPU renderer. Ordinary transforms, hard clips,
 /// lighting, and depth-aware native-control occlusion apply to the complete volume.
@@ -53,15 +56,23 @@ impl Default for Ellipsoid {
         }
     }
 }
-thread_local! { static SPHERE: Rc<ConvexMesh> = ConvexMesh::sphere(64,32); }
+thread_local! {
+    static SPHERES: [std::cell::OnceCell<Rc<ConvexMesh>>; tessellation::SEGMENTS.len()] =
+        std::array::from_fn(|_| std::cell::OnceCell::new());
+}
 type Matrix = Transform3<Generic>;
+
+struct RetainedPose {
+    level: usize,
+    pose: Rc<PosedConvexMesh>,
+}
 
 pub struct EllipsoidInstance {
     base: BaseInstance,
     gpu: std::cell::Cell<bool>,
     // A template instance can serve several expanded nodes (for example in a
     // repeat). Each mounted solid owns its pose; unmount retires that entry.
-    poses: RefCell<HashMap<u32, Rc<PosedConvexMesh>>>,
+    poses: RefCell<HashMap<u32, RetainedPose>>,
 }
 
 fn supported(node: &ExpandedNode) -> bool {
@@ -190,15 +201,40 @@ impl InstanceNode for EllipsoidInstance {
         ]);
         let world = Matrix::new(node.spatial_geometry().get().world_transform().coeffs()) * local;
         let mut retained = self.poses.borrow_mut();
+        // Perspective clipping and detached sources can magnify coverage in a
+        // different chart. Preserve their existing resolution until that chart
+        // participates in the error bound, instead of guessing from layout size.
+        let level = if node.has_perspective_camera() || node.is_render_source() {
+            tessellation::FINEST
+        } else {
+            let presented = Matrix::new(
+                node.presentation_geometry()
+                    .get()
+                    .world_transform()
+                    .coeffs(),
+            ) * local;
+            tessellation::level(presented.coeffs(), retained.get(&id).map(|p| p.level))
+        };
         if let Some(pose) = retained
             .get(&id)
-            .filter(|pose| pose.transform == world.coeffs())
+            .filter(|p| p.level == level && p.pose.transform == world.coeffs())
         {
-            return Some(pose.clone());
+            return Some(pose.pose.clone());
         }
-        let pose = SPHERE.with(|mesh| mesh.posed(world.coeffs()));
+        let pose = SPHERES.with(|meshes| {
+            let segments = tessellation::SEGMENTS[level];
+            meshes[level]
+                .get_or_init(|| ConvexMesh::sphere(segments, segments / 2))
+                .posed(world.coeffs())
+        });
         if let Some(pose) = &pose {
-            retained.insert(id, pose.clone());
+            retained.insert(
+                id,
+                RetainedPose {
+                    level,
+                    pose: pose.clone(),
+                },
+            );
         } else {
             retained.remove(&id);
         }
@@ -217,7 +253,9 @@ impl InstanceNode for EllipsoidInstance {
         }
     }
     fn prepare_hit_shape(&self, node: &ExpandedNode) -> pax_runtime_api::HitShape {
-        self.resolve_convex_mesh(node).map(pax_runtime_api::HitShape::Mesh).unwrap_or_default()
+        self.resolve_convex_mesh(node)
+            .map(pax_runtime_api::HitShape::Mesh)
+            .unwrap_or_default()
     }
     fn render(&self, node: &ExpandedNode, ctx: &Rc<RuntimeContext>, rc: &mut dyn RenderContext) {
         if rc.alpha_source_layer().is_none() && !ctx.is_canvas_node_dirty(&node.id) {
@@ -242,7 +280,11 @@ impl InstanceNode for EllipsoidInstance {
                 return;
             };
             node.with_properties_unwrapped(|p: &mut Ellipsoid| {
-                rc.set_node_depth_plane(scope.layer_id, scope.node_id, ctx.depth_plane_in_presentation(node, None));
+                rc.set_node_depth_plane(
+                    scope.layer_id,
+                    scope.node_id,
+                    ctx.depth_plane_in_presentation(node, None),
+                );
                 rc.draw_convex_mesh(
                     scope.layer_id,
                     OpaqueMeshDraw {

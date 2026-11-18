@@ -45,3 +45,51 @@ the adjacent `OFL-IBMPlexMono.txt`. Sources and SHA-256 checksums:
 These three faces and their license total 416,956 bytes. The shared source viewer uses the bundled Manrope face for its chrome and
 JetBrains Mono for code. Its monospace assets live in
 [`pax-std/assets/pax-example-host-fonts/`](../../../pax-std/assets/pax-example-host-fonts/README.md).
+
+## Circuit Greek
+
+`CircuitGreek-Italic.ttf` is a 5,088-byte static subset of
+[Inter Italic](https://github.com/google/fonts/blob/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/inter/Inter-Italic%5Bopsz%2Cwght%5D.ttf),
+renamed to `Circuit Greek`. It uses the actual italic outlines at weight 400 and
+optical size 24 and contains
+the exact reverse-PCB inscription, including polytonic Greek accents. The
+website's IBM Plex Mono and Manrope assets do not cover the full phrase.
+The original Inter copyright and SIL Open Font License are preserved in
+`OFL-CircuitGreek.txt`. This asset is for the inscription, not arbitrary text.
+The pinned upstream font's SHA-256 is
+`acd98e64795781b2058f07b18475e0ecee2a0fe2b42a49e2f9e37d0d6bf66ce6`;
+the generated asset's is
+`7634ad3a9945be1cd5b65e8c7ead5f610526336ca549f103307de2526dc445a4`.
+
+To regenerate from the repository root with Python 3 and FontTools 4.60.1:
+
+```python
+from fontTools.ttLib import TTFont
+from fontTools.varLib.instancer import instantiateVariableFont
+from fontTools import subset
+from io import BytesIO
+from urllib.request import urlopen
+from hashlib import sha256
+
+text = "Πάντες ἄνθρωποι τοῦ εἰδέναι ὀρέγονται φύσει"
+source = ("https://raw.githubusercontent.com/google/fonts/"
+          "47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/inter/"
+          "Inter-Italic%5Bopsz%2Cwght%5D.ttf")
+data = urlopen(source).read()
+assert sha256(data).hexdigest() == "acd98e64795781b2058f07b18475e0ecee2a0fe2b42a49e2f9e37d0d6bf66ce6"
+font = TTFont(BytesIO(data), recalcTimestamp=False)
+font = instantiateVariableFont(font, {"wght": 400, "opsz": 24}, inplace=True)
+options = subset.Options()
+options.name_IDs = ["*"]
+options.name_languages = ["*"]
+subsetter = subset.Subsetter(options=options)
+subsetter.populate(text=text)
+subsetter.subset(font)
+names = {1: "Circuit Greek", 2: "Italic", 4: "Circuit Greek Italic",
+         6: "CircuitGreek-Italic", 16: "Circuit Greek", 17: "Italic"}
+for name in font["name"].names:
+    if name.nameID in names:
+        name.string = names[name.nameID].encode(name.getEncoding())
+assert set(map(ord, text)) <= font.getBestCmap().keys()
+font.save("pax-website/assets/fonts/CircuitGreek-Italic.ttf")
+```

@@ -1,5 +1,6 @@
-//! Projected flat-surface composition. A projected intersection can change paint order
-//! within one primitive, so sorting whole nodes (or writing opaque depth) is insufficient.
+//! Projected flat-surface composition. Opaque scenes use hardware depth. Mixed
+//! paint can change source-over order within one primitive, so whole-node sorting
+//! or depth writes alone are insufficient.
 //! Split surfaces at depth-equality lines, then paint fragments in source-over order.
 //! Uninterrupted translucent groups share one capture. Interleaved fades use the
 //! bounded presence-view compositor before entering this opaque scene painter.
@@ -96,11 +97,19 @@ impl WgpuRenderer<'_> {
             }
         }
         if domains.len() > 1 {
+            self.spatial.opaque_depth.clear();
             for (layer, nodes) in domains {
                 let key = CaptureKey::Presentation(self.spatial.namespace, layer);
                 active.insert(key);
                 self.draw_capture_scene(key, &nodes, active);
             }
+            return;
+        }
+        if self.try_draw_opaque_spatial_scene() {
+            return;
+        }
+        self.spatial.opaque_depth.clear();
+        if self.draw_separated_depth_bands(active) {
             return;
         }
         if !self.draw_spatial_fades(active) {
@@ -354,7 +363,14 @@ impl WgpuRenderer<'_> {
                     RetainedNode::Effect(node) => RetainedDraw::Effect(node.id),
                 };
                 let mut clips = node.clip_stack().to_vec();
-                clips.extend(self.spatial.solid_clips.get(id).into_iter().flatten().copied());
+                clips.extend(
+                    self.spatial
+                        .solid_clips
+                        .get(id)
+                        .into_iter()
+                        .flatten()
+                        .copied(),
+                );
                 if let Some(clip_id) = spatial_clip {
                     clips.push(ClipReference::Stencil { clip_id });
                 }
@@ -732,15 +748,18 @@ fn split_polygon(polygon: Polygon, mut line: [f64; 3]) -> (Option<Polygon>, Opti
     (Some(half(-1.0)), Some(half(1.0)))
 }
 
-fn unique_planes(planes: &[DepthPlane], viewport: &Polygon) -> (Vec<DepthPlane>, Vec<usize>) {
+pub(super) fn unique_planes(
+    planes: &[DepthPlane],
+    viewport: &Polygon,
+) -> (Vec<DepthPlane>, Vec<usize>) {
     let mut unique: Vec<DepthPlane> = Vec::new();
     let membership = planes
         .iter()
         .map(|plane| {
-            if let Some(index) = unique
-                .iter()
-                .position(|other| plane.presentation_layer == other.presentation_layer && plane.coincides_over(*other, viewport.iter().copied()))
-            {
+            if let Some(index) = unique.iter().position(|other| {
+                plane.presentation_layer == other.presentation_layer
+                    && plane.coincides_over(*other, viewport.iter().copied())
+            }) {
                 index
             } else {
                 unique.push(*plane);

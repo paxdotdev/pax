@@ -12,6 +12,8 @@ pub(crate) enum CaptureKey {
     #[cfg(feature = "3d")]
     Presentation(u64, u32),
     #[cfg(feature = "3d")]
+    DepthBand(u64, u32),
+    #[cfg(feature = "3d")]
     SpatialGroup(u64, u32),
     #[cfg(feature = "3d")]
     SpatialVisibility(u64, u64, u64),
@@ -31,6 +33,7 @@ impl CaptureKey {
             Self::Opacity(..) => false,
             #[cfg(feature = "3d")]
             Self::Presentation(..)
+            | Self::DepthBand(..)
             | Self::SpatialGroup(..)
             | Self::SpatialOpacity(..)
             | Self::SpatialVisibility(..) => false,

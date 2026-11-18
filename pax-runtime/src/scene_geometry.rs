@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
 
-use kurbo::{Affine, BezPath, Rect, Shape};
+use kurbo::{Affine, BezPath, Rect};
 
 #[cfg(test)]
 mod bench;
@@ -150,8 +150,8 @@ impl PreparedCanvasGeometry {
         // paint coverage, not the target's layout or viewport-intersection bounds.
         const TILE_CULL_BOUNDS_PAD: f64 = 64.0;
         let coverage_bounds = local.local_bounds.map(|bounds| {
-            (surface_transform * bounds.to_path(0.1))
-                .bounding_box()
+            surface_transform
+                .transform_rect_bbox(bounds)
                 .inflate(TILE_CULL_BOUNDS_PAD, TILE_CULL_BOUNDS_PAD)
         });
         Self {
@@ -314,16 +314,20 @@ impl SceneGeometry {
         });
         if changed {
             if let Some(old) = self.records.get(&id) {
-                if let Some(index) = self.native_layers.get_mut(&old.layer) {
-                    index.remove(id);
-                    if index.is_empty() {
-                        self.native_layers.remove(&old.layer);
+                if old.layer != geometry.layer || !geometry.is_native {
+                    if let Some(index) = self.native_layers.get_mut(&old.layer) {
+                        index.remove(id);
+                        if index.is_empty() {
+                            self.native_layers.remove(&old.layer);
+                        }
                     }
                 }
-                if let Some(index) = self.layers.get_mut(&old.layer) {
-                    index.remove(id);
-                    if index.is_empty() {
-                        self.layers.remove(&old.layer);
+                if old.layer != geometry.layer || !geometry.is_canvas {
+                    if let Some(index) = self.layers.get_mut(&old.layer) {
+                        index.remove(id);
+                        if index.is_empty() {
+                            self.layers.remove(&old.layer);
+                        }
                     }
                 }
             }
@@ -392,11 +396,14 @@ impl SceneGeometry {
         if self.occlusion_bounds.get(&id) == Some(&(layer, bounds)) {
             return;
         }
-        if let Some((old_layer, _)) = self.occlusion_bounds.remove(&id) {
-            if let Some(index) = self.occlusion_layers.get_mut(&old_layer) {
-                index.remove(id);
-                if index.is_empty() {
-                    self.occlusion_layers.remove(&old_layer);
+        if let Some(&(old_layer, _)) = self.occlusion_bounds.get(&id) {
+            if old_layer != layer || bounds == CoverageBounds::Empty {
+                self.occlusion_bounds.remove(&id);
+                if let Some(index) = self.occlusion_layers.get_mut(&old_layer) {
+                    index.remove(id);
+                    if index.is_empty() {
+                        self.occlusion_layers.remove(&old_layer);
+                    }
                 }
             }
         }
@@ -480,7 +487,7 @@ fn intersects(bounds: Option<Rect>, region: Rect) -> bool {
 // huge sparse scroll regions require enumerating every intervening cell.
 type Columns = BTreeMap<i64, BTreeMap<i64, HashSet<u32>>>;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 struct CellRange {
     level: u32,
     x0: i64,
@@ -531,8 +538,18 @@ impl SpatialIndex {
     }
 
     pub(crate) fn insert(&mut self, id: u32, bounds: Option<Rect>) {
+        let range = bounds.and_then(CellRange::for_bounds);
+        if let Some(old) = self.bounds.get_mut(&id) {
+            if old.and_then(CellRange::for_bounds) == range {
+                // Exact query bounds move every frame; grid membership usually
+                // does not. Keep cell storage and update only the retained rect.
+                *old = bounds;
+                return;
+            }
+            self.remove(id);
+        }
         self.bounds.insert(id, bounds);
-        let Some(range) = bounds.and_then(CellRange::for_bounds) else {
+        let Some(range) = range else {
             self.unbounded.insert(id);
             return;
         };
@@ -599,6 +616,32 @@ impl SpatialIndex {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn spatial_index_upserts_preserve_cells_and_retire_old_membership() {
+        let mut index = SpatialIndex::default();
+        index.insert(7, Some(Rect::new(10., 10., 30., 30.)));
+        let cell = &index.levels[&0][&0][&0] as *const HashSet<u32>;
+        index.insert(7, Some(Rect::new(40., 10., 60., 30.)));
+        assert_eq!(&index.levels[&0][&0][&0] as *const HashSet<u32>, cell);
+        assert_eq!(index.bounds[&7], Some(Rect::new(40., 10., 60., 30.)));
+        for bounds in [
+            Some(Rect::new(270., 10., 300., 30.)),
+            Some(Rect::new(0., 0., 800., 400.)),
+            None,
+            Some(Rect::new(-50., -50., -20., -20.)),
+        ] {
+            index.insert(7, bounds);
+            let mut expected = SpatialIndex::default();
+            expected.insert(7, bounds);
+            assert_eq!(index.levels, expected.levels);
+            assert_eq!(index.unbounded, expected.unbounded);
+        }
+        index.remove(7);
+        assert!(index.levels.is_empty());
+        assert!(index.unbounded.is_empty());
+        assert!(index.bounds.is_empty());
+    }
 
     #[test]
     fn occlusion_bounds_are_independent_of_paint_and_retire_with_membership() {

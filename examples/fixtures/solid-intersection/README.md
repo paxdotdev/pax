@@ -50,13 +50,22 @@ moving solids, and moving solids with panel UI at the same viewport and build
 mode. Phase durations measure CPU work, not GPU time or presented frames; see
 [the profiling guide](../../../pax-docs/book/src/developer-workflow.md#profile-a-web-scene).
 
-The solid uses a shared, immutable 64 × 32 sphere mesh. Width, height, depth, and
-pose transform that mesh; motion does not upload new vertex/index data. Each
+The solid uses shared, immutable sphere meshes, up to 64 × 32 segments. Small
+orthographic solids select lower detail using a conservative interpolation-error
+bound with hysteresis; perspective and detached sources retain maximum detail.
+See [opaque curved solids](../../../pax-docs/book/src/layout-responsiveness.md#opaque-curved-solids)
+for the threshold and limits. Pose changes reuse GPU mesh buffers while the
+detail level is unchanged; changing levels can select another shared mesh. Each
 immutable world pose retains up to four camera/chart projections, each with its
-silhouette. Native and GPU solid/plane coverage share a runtime-wide cache bounded
+silhouette and surface/depth bounds. Native and GPU solid/plane coverage share a runtime-wide cache bounded
 by 2,048 entries and 4 MiB, including all GPU tile charts. Paint-only updates reuse the pose; motion replaces it and
 removing the solid releases its contours. Hard
-projected clips and whole-group fades are supported. Exact spatial fades use up
+projected clips and whole-group fades are supported. Fully opaque solid-color
+canvas compositions use hardware depth for both planes and solids, avoiding
+CPU intersection fragments and solid/plane stencils. This fixture's translucent
+outside band, group fades, mask study, and filter study exercise the existing
+ordered compositor. Native masking and targeting keep their existing geometry
+path; hardware depth does not synchronize native and canvas publication. Exact spatial fades use up
 to eight scene views per composition domain in each canvas tile (one assembly
 needs two); source captures are separate domains. Overflow reports a
 warning and leaves intermediate GPU fades opaque, while zero remains hidden.

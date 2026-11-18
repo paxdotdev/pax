@@ -1,0 +1,119 @@
+<Group width=100% height=100% @viewport_proximity_change=self.visibility
+    @mouse_down=self.down @mouse_move=self.mouse_move @mouse_up=self.up @mouse_cancel=self.mouse_cancel
+    @touch_start=self.touch_start @touch_move=self.touch_move @touch_end=self.touch_end @touch_cancel=self.touch_cancel>
+    <LightFrame width=100% height=100%>
+        <Group id=board>
+            for chip in self.chips {
+                <CircuitPackage x={(chip.x)px} y={(chip.y)px} width={(chip.width)px} height={(chip.height)px}
+                    anchor=50% label={chip.label} reference={chip.reference} pins_per_side={chip.pins_per_side} face_opacity={self.face_opacity}/>
+            }
+            // The connector is an open folded shell, assembled from four slabs.
+            if @gpu {
+                <Group x=0px y=100px width=54px height=72px z=20px anchor=50%>
+                    <Cuboid x=50% y=50% width=54px height=72px depth=4px z=18px class="metal"/>
+                    <Cuboid x=50% y=3px width=54px height=6px depth=36px class="metal"/>
+                    <Cuboid x=50% y={100% - 3px} width=54px height=6px depth=36px class="metal"/>
+                    <Cuboid x=50% y=50% width=54px height=72px depth=4px z=-18px class="metal"/>
+                    <Cuboid x=50% y=50% width=38px height=45px depth=10px z=-4px fill=rgb(15, 19, 20)/>
+                    for i in 0..4 {
+                        <Rectangle x=50% y={22px + i * 9px} z=2px width=35px height=3px fill=rgb(182, 155, 91)/>
+                    }
+                </Group>
+            }
+            // Two three-pin banks anchor the connector through the PCB. Their
+            // elbows point into the shell; the same leads emerge on the rear.
+            for bank in 0..2 {
+                for pin in 0..3 {
+                    <CircuitPin x={(16 + bank * 28)px} y={(77 + pin * 23)px}
+                        width=18px height=36px anchor=50% rotate=90deg side=-1/>
+                }
+            }
+            // Header sockets and their metal contacts use face content, not per-hole solids.
+            for row in 0..2 {
+                <Group x={(self.board_width - 280)px} y={(22 + row * (self.board_height - 44))px} width=220px height=19px anchor_x=0% anchor_y=50%>
+                    for i in 0..10 {
+                        <Rectangle x={(11 + i * 22)px} y=50% width=7px height=7px z={@gpu ? 21px : 0px} fill=rgb(4, 10, 10)
+                            stroke={paint: rgb(138, 128, 96), width: 1px}/>
+                    }
+                    if @gpu {
+                        <Cuboid width=100% height=100% depth=18px z=11px fill={paint: rgb(18, 24, 24), material: {Material::matte()}}/>
+                    } else {
+                        <Rectangle width=100% height=100% fill=rgb(18, 24, 24)/>
+                    }
+                </Group>
+            }
+            if !self.compact {
+                <Text x=42px y=25px width=230px height=19px z={@gpu ? 1px : 0px} class="silkscreen">CIRCUITBOARD / TEMPLATE</Text>
+            }
+            <Text x=42px y={(self.board_height - 26)px} width=180px height=14px z={@gpu ? 1px : 0px} class="silkscreen">REACTIVE · REV 07</Text>
+            if @gpu {
+                <Group width=100% height=100% @mount=self.enable_motion @tick=self.tick>
+                    for signal in self.signals {
+                        <Ellipse x={(signal.x)px} y={(signal.y)px} width=5px height=5px z=2px fill=rgb(210, 241, 181)/>
+                    }
+                </Group>
+            }
+            for trace in self.traces {
+                <Path width=100% height=100% z={@gpu ? 0.5px : 0px} elements={trace.elements} fill=[]
+                    stroke={paint: rgb(140, 114, 63), width: 1.6px, material: {ambient: 0.65, diffuse: 0.12, specular: 0.08, metallic: 0.35, roughness: 0.6}}/>
+            }
+            for corner in 0..4 {
+                <Group x={(corner %% 2 == 0 ? 20 : self.board_width - 20)px}
+                    y={(corner < 2 ? 20 : self.board_height - 20)px} width=22px height=22px anchor=50%>
+                    <Ellipse x=50% y=50% width=12px height=12px z={@gpu ? 2px : 0px} fill=rgb(6, 18, 17)/>
+                    <Ellipse width=100% height=100% z={@gpu ? 1px : 0px} fill={paint: rgb(144, 117, 66), material: {ambient: 0.65, diffuse: 0.15, specular: 0.12, metallic: 0.45, roughness: 0.45}}/>
+                    if @gpu {
+                        <Group x=50% y=50% width=100% height=100% z=-13px rotate_y=180deg>
+                            <Ellipse x=50% y=50% width=12px height=12px z=1px fill=rgb(6, 18, 17)/>
+                            <Ellipse width=100% height=100% fill={paint: rgb(144, 117, 66), material: {ambient: 0.65, diffuse: 0.15, specular: 0.12, metallic: 0.45, roughness: 0.45}}/>
+                        </Group>
+                    }
+                </Group>
+            }
+            if @gpu {
+                <Cuboid width=100% height=100% depth=12px z=-6px
+                    fill={paint: rgb(13, 43, 35), material: {ambient: 0.5, diffuse: 0.12, specular: 0.035, roughness: 0.6}}>
+                    <CuboidFace side=CuboidSide::Back width=100% height=100%>
+                        <Text x=48px y=215px anchor_y=50% width=280px height=110px class="back_print">Πάντες ἄνθρωποι τοῦ εἰδέναι ὀρέγονται φύσει</Text>
+                    </CuboidFace>
+                </Cuboid>
+            } else {
+                <Rectangle width=100% height=100% fill=rgb(17, 61, 53)/>
+            }
+        </Group>
+        <LightSource x=20% y=0% z=900px radius=1800px intensity=1.5 color=rgb(239, 246, 225)/>
+        <LightSource x=90% y=85% z=650px radius=1300px intensity=0.6 color=rgb(139, 204, 204)/>
+    </LightFrame>
+</Group>
+
+@settings {
+    @mount: mount
+    @pre_render: resize
+    #board {
+        x: 50%  y: 50%
+        z: {@gpu ? 600px : 0px}
+        width: {(self.board_width)px}  height: {(self.board_height)px}
+        scale: {(self.board_scale)%}
+        rotate_y: {@gpu ? (self.rotation_y)deg : 0deg}
+    }
+    .metal { fill: {paint: rgb(119, 126, 122), material: {ambient: 0.55, diffuse: 0.23, specular: 0.22, metallic: 0.45, roughness: 0.35}} }
+    .back_print {
+        opacity: {1 - self.face_opacity}
+        selectable: false
+        style: {
+            font: Font::Web("Circuit Greek", "/assets/fonts/CircuitGreek-Italic.ttf", FontStyle::Italic, FontWeight::Normal)
+            font_size: 24px
+            fill: rgb(161, 182, 155)
+            align_vertical: TextAlignVertical::Center
+        }
+    }
+    .silkscreen {
+        opacity: {self.face_opacity}
+        selectable: false
+        style: {
+            font: Font::Web("IBM Plex Mono", "/assets/fonts/IBMPlexMono-Regular.ttf", FontStyle::Normal, FontWeight::Normal)
+            font_size: 9px
+            fill: rgb(161, 182, 155)
+        }
+    }
+}

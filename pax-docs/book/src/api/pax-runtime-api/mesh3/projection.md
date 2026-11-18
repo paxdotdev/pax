@@ -71,6 +71,12 @@ Runtime visibility uses this when it owns a shared, byte-bounded cache.
 
 Closest rendered triangle depth; camera-clipped caps are not invented.
 
+##### `depth_bounds`
+<pre><code class="api-signature language-rust ignore">pub fn depth_bounds(&amp;self) -&gt; Option&lt;[f64; 2]&gt;</code></pre>
+
+Retained minimum and maximum z/w of the surviving surface vertices.
+Empty surfaces return `None`; clipped surfaces exclude discarded vertices.
+
 ##### `front_contours`
 <pre><code class="api-signature language-rust ignore">pub fn front_contours(&amp;self, plane: <a href="../../../api/pax-runtime-api/rendering.md#depthplane">DepthPlane</a>) -&gt; Vec&lt;Vec&lt;[f64; 2]&gt;&gt;</code></pre>
 

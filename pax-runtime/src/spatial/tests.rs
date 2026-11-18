@@ -2085,3 +2085,60 @@ fn coplanar_native_leaves_share_solid_relations_and_retain_fade_geometry() {
         );
     }
 }
+
+#[test]
+fn flow_hulls_ignore_ancestor_tilt_and_child_depth_even_edge_on() {
+    let (mut engine, parent, _, child) = fixture();
+    let p = common(&parent);
+    let c = common(&child);
+    p.width.set(Some(Size::Pixels(50.0.into())));
+    p.height.set(Some(Size::Pixels(50.0.into())));
+    c.x.set(Some(Size::Pixels(20.0.into())));
+    c.y.set(Some(Size::Pixels(10.0.into())));
+    c.width.set(Some(Size::Pixels(100.0.into())));
+    c.height.set(Some(Size::Pixels(30.0.into())));
+    c.z.set(Some(40.0.into()));
+    engine.tick();
+    let baseline = parent.subtree_layout_hull.get();
+    assert_eq!(baseline.x_range(), Some((0., 120.)));
+    let local = child.local_transform_and_bounds.get();
+    let context = child.get_node_context(&engine.runtime_context);
+    engine.runtime_context.enable_work_profiling();
+    engine.runtime_context.begin_work_profile();
+    for angle in [20., -20., 45., 89., 90., 91., 180., 270.] {
+        p.rotate_y.set(Some(Rotation::Degrees(angle.into())));
+        c.rotate_y.set(Some(Rotation::Degrees((-angle).into())));
+        engine.tick();
+        assert_eq!(parent.subtree_layout_hull.get(), baseline, "angle {angle}");
+        assert_eq!(
+            child.local_transform_and_bounds.get().transform.coeffs(),
+            local.transform.coeffs()
+        );
+        assert_eq!(context.bounds_self.get(), (100., 30.));
+        assert_eq!(context.bounds_parent.get(), (50., 50.));
+    }
+    let report = engine.runtime_context.take_work_profile().unwrap();
+    assert!(
+        report.effect_categories.iter().all(|(name, counts)| !name
+            .contains("projected child layout hull")
+            || counts.evaluations() == 0),
+        "ancestor pose must not enqueue local flow measurement"
+    );
+    // Local edits still propagate while the parent is edge-on.
+    p.rotate_y.set(Some(Rotation::Degrees(90.0.into())));
+    c.width.set(Some(Size::Pixels(60.0.into())));
+    c.x.set(Some(Size::Pixels(30.0.into())));
+    p.height.set(Some(Size::Pixels(75.0.into())));
+    engine.tick();
+    assert_eq!(parent.subtree_layout_hull.get().x_range(), Some((0., 90.)));
+    assert_eq!(context.bounds_self.get(), (60., 30.));
+    assert_eq!(context.bounds_parent.get(), (50., 75.));
+    // Padding is measured in local flow, independent of depth and tilt.
+    p.padding_x.set(Some(Size::Pixels(10.0.into())));
+    engine.tick();
+    let padded = parent.subtree_layout_hull.get();
+    p.rotate_y.set(Some(Rotation::Degrees(0.0.into())));
+    engine.tick();
+    assert_eq!(parent.subtree_layout_hull.get(), padded);
+    assert_eq!(context.bounds_parent.get(), (30., 75.));
+}

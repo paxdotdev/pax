@@ -1,0 +1,19 @@
+if @gpu {
+    <Ellipsoid x=50% y=50% z=5px width=13px height=13px depth=7px color=rgb(122, 129, 124)
+        material={ambient: 0.65, diffuse: 0.25, specular: 0.4, metallic: 0.6, roughness: 0.22}/>
+    <Cuboid class="lead" x=50% y={50% - (self.side * 10)px} z=23px width=7px height=27px depth=5px/>
+    // One continuous lead crosses the 12px PCB and protrudes 12px from its back.
+    <Cuboid class="lead" x=50% y=50% z=0px width=7px height=7px depth=48px/>
+    <Ellipsoid x=50% y=50% z=-15px width=13px height=13px depth=7px color=rgb(122, 129, 124)
+        material={ambient: 0.65, diffuse: 0.25, specular: 0.4, metallic: 0.6, roughness: 0.22}/>
+    <Ellipse x=50% y=50% z=-13px rotate_y=180deg width=17px height=17px fill={paint: rgb(144, 117, 66), material: {ambient: 0.65, diffuse: 0.15, specular: 0.12, metallic: 0.45, roughness: 0.45}}/>
+} else {
+    <Rectangle x=50% y={50% - (self.side * 10)px} width=7px height=27px fill=rgb(174, 183, 181)/>
+}
+<Ellipse x=50% y=50% z={@gpu ? 1px : 0px} width=17px height=17px fill={paint: rgb(144, 117, 66), material: {ambient: 0.65, diffuse: 0.15, specular: 0.12, metallic: 0.45, roughness: 0.45}}/>
+
+@settings {
+    .lead {
+        fill: {paint: rgb(119, 126, 122), material: {ambient: 0.55, diffuse: 0.23, specular: 0.22, metallic: 0.45, roughness: 0.35}}
+    }
+}

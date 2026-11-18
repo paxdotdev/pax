@@ -16,6 +16,12 @@ pub(super) struct SpatialFades {
     warned: bool,
 }
 
+impl SpatialFades {
+    pub(super) fn has_admitted_scopes(&self, live: &HashMap<u32, Vec<OpacityScope>>) -> bool {
+        !self.scopes.is_empty() && live.values().flatten().any(|s| self.scopes.contains(&s.node_id))
+    }
+}
+
 #[derive(Clone)]
 struct Scope {
     id: u32,

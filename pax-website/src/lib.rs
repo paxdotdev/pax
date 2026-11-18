@@ -12,6 +12,12 @@ pub mod authoring_section;
 pub mod brand_mark;
 #[cfg(feature = "app")]
 pub mod calculator_preview;
+#[cfg(feature = "app")]
+pub mod circuit_board;
+#[cfg(feature = "app")]
+mod circuit_package;
+#[cfg(feature = "app")]
+mod circuit_pin;
 // Parked experiment: retained with tests, but not mounted or wired into the site.
 #[cfg(feature = "app")]
 pub mod chromatic_contour;

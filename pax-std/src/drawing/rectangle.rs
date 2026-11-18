@@ -41,6 +41,51 @@ pub struct RectangleInstance {
     base: BaseInstance,
 }
 
+// CornerRadii contains its own reactive properties. Retaining a local outline
+// requires observing those edits even when the outer radius object is unchanged.
+fn watch_corner_radii(
+    node: &Rc<ExpandedNode>,
+    context: &Rc<RuntimeContext>,
+    radius: LocalProperty<CornerRadii>,
+) -> LocalProperty<()> {
+    let deps = [radius.untyped()];
+    let node = Rc::downgrade(node);
+    let context = Rc::downgrade(context);
+    let nested = LocalProperty::default();
+    LocalProperty::computed(
+        move || {
+            let (Some(node), Some(context)) = (node.upgrade(), context.upgrade()) else {
+                return;
+            };
+            let radii = radius.get();
+            let deps = [
+                radii.top_left.local().untyped(),
+                radii.top_right.local().untyped(),
+                radii.bottom_right.local().untyped(),
+                radii.bottom_left.local().untyped(),
+            ];
+            let weak_node = Rc::downgrade(&node);
+            let weak_context = Rc::downgrade(&context);
+            nested.replace_with(LocalProperty::computed(
+                move || {
+                    radii.resolve_in_graph();
+                    if let (Some(node), Some(context)) =
+                        (weak_node.upgrade(), weak_context.upgrade())
+                    {
+                        node.changed_listener.invalidate();
+                        context.mark_canvas_node_dirty(node.id);
+                        context.mark_node_occlusion_dirty(node.id.to_u32());
+                    }
+                },
+                &deps,
+            ));
+            context.register_expanded_node_effect_property_named(&node, &nested, "rectangle radii");
+            nested.get();
+        },
+        &deps,
+    )
+}
+
 impl InstanceNode for RectangleInstance {
     fn geometry_is_scroller_local(&self) -> bool {
         true
@@ -86,8 +131,10 @@ impl InstanceNode for RectangleInstance {
 
         let appearance =
             crate::common::watch_appearance(expanded_node, context, fill.clone(), stroke.clone());
+        let radii = watch_corner_radii(expanded_node, context, corner_radius.clone());
         let deps = &[
             appearance.untyped(),
+            radii.untyped(),
             tab.untyped(),
             corner_radius.untyped(),
             stroke.untyped(),
@@ -103,6 +150,7 @@ impl InstanceNode for RectangleInstance {
             .replace_with(LocalProperty::computed(
                 move || {
                     appearance.get();
+                    radii.get();
                     cloned_context.mark_canvas_node_dirty(cloned_expanded_node.id);
                     cloned_context
                         .set_canvas_dirty(cloned_expanded_node.occlusion.get().render_layer_id)
@@ -163,6 +211,10 @@ impl InstanceNode for RectangleInstance {
     }
 
     fn local_occlusion_path_is_retained(&self) -> bool {
+        true
+    }
+
+    fn local_occlusion_path_is_placement_independent(&self) -> bool {
         true
     }
 

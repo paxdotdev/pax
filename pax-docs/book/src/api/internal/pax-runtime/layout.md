@@ -187,8 +187,9 @@ Compute a reactive `TransformAndBounds` property from layout properties plus par
 Project a child's local hull into its parent's local layout space.
 
 Returns an unknown hull when the world transforms cannot determine a finite
-relative transform. Engine measurement reconstructs local placement from the
-nodes' layout inputs in that case, including beneath zero-scaled ancestors.
+relative transform. This helper accepts affine world geometry only; it cannot
+recover depth discarded by 3D projection. Engine flow measurement instead
+composes retained local placement, including beneath edge-on or zero-scaled ancestors.
 
 ---
 

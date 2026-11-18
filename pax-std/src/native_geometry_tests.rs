@@ -354,3 +354,42 @@ fn inherited_width_change_requests_fresh_native_text_measurement() {
         previous_generation = generation;
     }
 }
+
+#[test]
+fn retained_rectangle_coverage_tracks_nested_radius_edits_and_replacement() {
+    use crate::drawing::rectangle::CornerRadii;
+    let radii = CornerRadii::radii(0.into(), 0.into(), 0.into(), 0.into());
+    let rectangle = Rectangle::default();
+    rectangle.corner_radius.set(radii.clone());
+    let mut group = args(Group::default(), CommonProperties::default());
+    group.children = Some(RefCell::new(vec![
+        RectangleInstance::instantiate(args(rectangle.clone(), child_common())),
+        TextInstance::instantiate(args(Text::default(), child_common())),
+    ]));
+    let fixture = Fixture::mount(GroupInstance::instantiate(group));
+    let native = fixture.node.children.get()[1].clone();
+    let hash = || {
+        fixture.context.drain_node_effects();
+        pax_runtime::engine::occlusion::update_node_occlusion(&fixture._root, &fixture.context);
+        native.native_mask_hash.get()
+    };
+    let square = hash();
+    assert_ne!(square, 0);
+    radii.top_left.set(20.into());
+    let rounded = hash();
+    assert_ne!(rounded, square);
+    radii.top_left.set(0.into());
+    assert_eq!(hash(), square);
+    rectangle
+        .corner_radius
+        .set(CornerRadii::radii(0.into(), 30.into(), 0.into(), 0.into()));
+    let replaced = hash();
+    assert_ne!(replaced, rounded);
+    assert_ne!(replaced, square);
+    radii.top_left.set(45.into());
+    assert_eq!(
+        hash(),
+        replaced,
+        "replaced radii no longer own the retained outline"
+    );
+}

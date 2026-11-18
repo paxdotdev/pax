@@ -154,6 +154,16 @@ Type: `u64`
 ##### `solid_uniform_updates`
 Type: `u64`
 
+##### `opaque_depth_draws`
+Type: `u64`
+
+Opaque planar draws resolved by hardware depth instead of CPU fragments.
+
+##### `opaque_depth_upload_bytes`
+Type: `u64`
+
+Bytes uploaded for retained planar depth equations (16 per changed draw).
+
 ##### `solid_clip_preparations`
 Type: `u64`
 

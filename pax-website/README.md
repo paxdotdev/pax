@@ -143,6 +143,70 @@ compact layouts stack the cube and inline source with an expand action.
 “Plug, Extend, and Play” follows “Simple meets powerful,” introducing reactive composition
 and linking to the standard library and component-authoring guide. Its copy lives
 in `ModularitySection`, separate from these background treatments.
+Its `CircuitBoard` illustration assembles six named packages from reusable
+`CircuitPackage` and `CircuitPin` templates. The packages form a reduced tree of
+the illustration's own template: `CircuitBoard` → `For` (chips) → `CircuitPackage`,
+which branches to `Text` and `For` (pins) → `CircuitPin`. Every package has leads
+on its left and right sides: three per side on most packages, five on
+`CircuitPackage` to give its branches separate pin banks. Both layouts use four
+physical rows: `CircuitBoard`, `For`, `CircuitPackage` / `CircuitPin`, and
+sibling `Text` / `For`. `CircuitPin` deliberately sits above its parent `For`
+to reclaim the otherwise empty last row; the trace still shows their relationship.
+The packages align in two sparse columns: `CircuitBoard`, the first `For`,
+`CircuitPackage`, and `Text` on the left; the final `For` and `CircuitPin` on the
+right. Short side-pin routes keep the rows close together on a 580px-tall PCB;
+only the branch to the pin subtree crosses between columns. The stage occupies
+540px on desktop and 370px below a 760px viewport width.
+Lighting, layout Groups, primitives, and repeated instances
+are folded away from the depicted hierarchy. Closely spaced octilinear copper
+bundles show parent–child composition, with no cross-links. Each bundle follows
+one shared route, with 4px perpendicular lane spacing through nested 45° bends
+and fan-outs at its pads. The GPU view uses lit cuboids and
+face-mounted native text in an orthographic view. While visible, the board rocks
+about its Y axis between −20° and +20° over a ten-second cycle, centered face-on.
+Click or touch the board and drag horizontally to rotate freely through full
+turns (one stage-width of travel is one revolution). On release or cancellation,
+it eases to the nearest equivalent idle endpoint in 450–850 ms, then rocks inward
+again. Re-grabbing interrupts that return at its current pose. Touch input waits
+for horizontal intent; vertical gestures remain available for page scrolling.
+Its sixteen traces connect pin pads, including three parallel runs from the
+left-edge connector into CircuitBoard's inputs. The connector aligns with the
+root package and has two banks of three soldered through-board leads. Four small
+signal accents move only while
+the board is visible. Board and signal clocks skip pauses of a second or longer
+instead of catching up after a hidden-tab pause. Below 600 logical pixels of
+available board width, the PCB and column spacing narrow while preserving the
+same four-row arrangement. CPU rendering uses
+an unrotated, static plan view without drag rotation.
+Back-facing native labels stay mounted but hide while the GPU board
+is flipped, preserving pointer capture without reversed print.
+Each lead passes through the 12px PCB and projects 12px beyond its back, with
+copper pads and rounded solder beads on both sides. The back face prints
+“Πάντες ἄνθρωποι τοῦ εἰδέναι ὀρέγονται φύσει” in 24px italic lettering, vertically
+centered beside the first For's three-bead banks. A `CuboidFace` keeps the lettering
+upright from the reverse view; its ink hides from the front. The bundled Circuit
+Greek font is a small Inter Italic subset covering the exact phrase, including
+its polytonic Greek accents (see
+[font provenance and regeneration](assets/fonts/README.md#circuit-greek)).
+The GPU assembly contains
+106 cuboids and 92 ellipsoids (rounded solder beads); there are no decorative LEDs.
+The ellipsoids share retained sphere detail levels selected by their transformed
+size in this orthographic view, up to 3,968 triangles per instance. Lower levels
+use a conservative 0.25-logical-pixel surface-error bound and hysteresis;
+rendering, picking, and native masks share the selected surface. The illustration
+is a composition analogy, not an electrical simulator. Its
+connector is a folded cuboid shell; package notches and matching front/rear
+mounting-hole marks are surface details, without geometric bore cut-outs.
+It has no imported mesh, cast shadows, or texture maps, and
+the solder beads are ellipsoidal approximations, not concave fillets.
+The board's opaque solid-color canvas paint uses the GPU depth path automatically,
+sharing depth between its planar faces and curved solder beads. Topology stays
+retained through rotation; depth and transform parameters change. Transparency,
+alpha masks, images, gradients, effects, and captures retain the ordered
+compositor. Native label masking and canvas/native publication are separate;
+this optimization does not fix cross-layer drift when frames drop. See
+[spatial depth composition](../pax-docs/book/src/layout-responsiveness.md#rotating-flat-surfaces-in-3d).
+
 “Fluent in UI” and Paxflix live together in `RuntimeSection`, over a single
 continuous `rain-pane::WetPane` at half resolution. It captures only a dark
 Rectangle, never the selectable copy or live app. Three broad cyan,

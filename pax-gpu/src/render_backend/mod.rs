@@ -3,6 +3,8 @@ pub(crate) const STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Dept
 #[cfg(not(feature = "3d"))]
 pub(crate) const STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Stencil8;
 #[cfg(feature = "3d")]
+pub(crate) mod opaque_depth;
+#[cfg(feature = "3d")]
 pub(crate) mod solid;
 
 // The selected transform ABI must match data::GpuTransform and transform_pages.
@@ -10,7 +12,16 @@ pub(crate) mod solid;
 const TRANSFORM_SHADER: &str = include_str!("transform_3d.wgsl");
 #[cfg(not(feature = "3d"))]
 const TRANSFORM_SHADER: &str = include_str!("transform_2d.wgsl");
+#[cfg(test)]
 fn geometry_shader_source(capacity: VectorUniformCapacity) -> String {
+    geometry_shader_source_with_depth(capacity, false)
+}
+fn geometry_shader_source_with_depth(capacity: VectorUniformCapacity, depth: bool) -> String {
+    let depth_shader = if depth {
+        include_str!("opaque_depth.wgsl")
+    } else {
+        "fn vector_depth(h: vec4<f32>) -> f32 { return 0.0; }\n@fragment fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> { return shade_vector(in); }"
+    };
     let constants = format!(
         "const VECTOR_TABLE_CAPACITY: u32 = {}u;\nconst VECTOR_PRIMITIVES_PER_BANK: u32 = {}u;\nconst VECTOR_MATERIALS_PER_BANK: u32 = {}u;",
         capacity.entries(),
@@ -19,6 +30,7 @@ fn geometry_shader_source(capacity: VectorUniformCapacity) -> String {
     );
     [
         constants.as_str(),
+        depth_shader,
         TRANSFORM_SHADER,
         include_str!("scene_lighting.wgsl"),
         include_str!("lighting.wgsl"),
@@ -222,10 +234,15 @@ pub struct GpuContext {
     queue: wgpu::Queue,
     max_surface_dimension: u32,
     primitive_bind_group_layout: BindGroupLayout,
+    #[cfg(feature = "3d")]
+    opaque_primitive_layout: BindGroupLayout,
+    #[cfg(feature = "3d")]
+    sample_locations: RefCell<HashMap<u32, wgpu::Buffer>>,
     alpha_mask_layout: BindGroupLayout,
     mesh_paint_layout: BindGroupLayout,
     transform_layout: BindGroupLayout,
-    vector_pipelines: RefCell<HashMap<(VectorPipelineKey, VectorUniformCapacity), Rc<RenderPipeline>>>,
+    vector_pipelines:
+        RefCell<HashMap<(VectorPipelineKey, VectorUniformCapacity, bool), Rc<RenderPipeline>>>,
     texture_pipelines: RefCell<HashMap<VectorPipelineKey, TexturePipelineResources>>,
     image_textures: RefCell<ImageTextureCache>,
     stencil_pipelines: RefCell<HashMap<VectorPipelineKey, StencilPipelineResources>>,
@@ -437,7 +454,9 @@ impl GpuContext {
             "render backend: max surface dimension {}",
             max_surface_dimension
         );
-        let primitive_bind_group_layout = create_primitive_bind_group_layout(&device);
+        let primitive_bind_group_layout = create_primitive_bind_group_layout(&device, false);
+        #[cfg(feature = "3d")]
+        let opaque_primitive_layout = create_primitive_bind_group_layout(&device, true);
         let alpha_mask_layout = alpha_mask::sampling_layout(&device);
         let mesh_paint_layout = mesh_paint::sampling_layout(&device);
         let transform_layout = transform_pages::layout(&device);
@@ -469,6 +488,10 @@ impl GpuContext {
             queue,
             max_surface_dimension,
             primitive_bind_group_layout,
+            #[cfg(feature = "3d")]
+            opaque_primitive_layout,
+            #[cfg(feature = "3d")]
+            sample_locations: RefCell::new(HashMap::new()),
             alpha_mask_layout,
             mesh_paint_layout,
             transform_layout,
@@ -494,26 +517,45 @@ impl GpuContext {
         sample_count: u32,
         capacity: VectorUniformCapacity,
     ) -> Rc<RenderPipeline> {
+        self.vector_pipeline_with_depth(format, sample_count, capacity, false)
+    }
+
+    fn vector_pipeline_with_depth(
+        &self,
+        format: TextureFormat,
+        sample_count: u32,
+        capacity: VectorUniformCapacity,
+        depth: bool,
+    ) -> Rc<RenderPipeline> {
         let key = (
             VectorPipelineKey {
                 format,
                 sample_count,
             },
             capacity,
+            depth,
         );
         if let Some(pipeline) = self.vector_pipelines.borrow().get(&key) {
             return Rc::clone(pipeline);
         }
 
+        let layout = &self.primitive_bind_group_layout;
+        #[cfg(feature = "3d")]
+        let layout = if depth {
+            &self.opaque_primitive_layout
+        } else {
+            layout
+        };
         let pipeline = Rc::new(RenderBackend::create_pipeline(
             &self.device,
             format,
             sample_count,
-            &self.primitive_bind_group_layout,
+            layout,
             &self.alpha_mask_layout,
             &self.mesh_paint_layout,
             &self.transform_layout,
             capacity,
+            depth,
         ));
         self.vector_pipelines
             .borrow_mut()
@@ -973,6 +1015,8 @@ pub(crate) enum RetainedDraw<'a> {
     #[cfg(feature = "shaders")]
     Effect(u32),
     Vector(&'a RetainedVectorResource),
+    #[cfg(feature = "3d")]
+    OpaqueVector(&'a RetainedVectorResource, &'a opaque_depth::Resource),
     Image {
         texture: &'a CachedTextureResource,
         draw: &'a RetainedImageDraw,
@@ -1061,90 +1105,113 @@ fn material_binding_for(
     })
 }
 
-fn create_primitive_bind_group_layout(device: &Device) -> BindGroupLayout {
+fn create_primitive_bind_group_layout(device: &Device, depth: bool) -> BindGroupLayout {
+    let mut entries = vec![
+        wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        },
+        wgpu::BindGroupLayoutEntry {
+            binding: 1,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        },
+        wgpu::BindGroupLayoutEntry {
+            binding: 2,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        },
+        wgpu::BindGroupLayoutEntry {
+            binding: 3,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        },
+        wgpu::BindGroupLayoutEntry {
+            binding: 4,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        },
+        wgpu::BindGroupLayoutEntry {
+            binding: 5,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        },
+        wgpu::BindGroupLayoutEntry {
+            binding: 6,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        },
+        wgpu::BindGroupLayoutEntry {
+            binding: 7,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        },
+    ];
+    if depth {
+        entries.push(wgpu::BindGroupLayoutEntry {
+            binding: 8,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        });
+        entries.push(wgpu::BindGroupLayoutEntry {
+            binding: 9,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        });
+    }
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 2,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 3,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 4,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 5,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 6,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 7,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-        ],
+        entries: &entries,
         label: Some("bind_group_layout"),
     })
 }
@@ -1845,10 +1912,13 @@ impl<'w> RenderBackend<'w> {
         mesh_paint_layout: &BindGroupLayout,
         transform_layout: &BindGroupLayout,
         capacity: VectorUniformCapacity,
+        depth: bool,
     ) -> RenderPipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(geometry_shader_source(capacity).into()),
+            source: wgpu::ShaderSource::Wgsl(
+                geometry_shader_source_with_depth(capacity, depth).into(),
+            ),
         });
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -1892,8 +1962,12 @@ impl<'w> RenderBackend<'w> {
             },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: crate::render_backend::STENCIL_FORMAT,
-                depth_write_enabled: false,
-                depth_compare: wgpu::CompareFunction::Always,
+                depth_write_enabled: depth,
+                depth_compare: if depth {
+                    wgpu::CompareFunction::LessEqual
+                } else {
+                    wgpu::CompareFunction::Always
+                },
                 stencil: wgpu::StencilState {
                     front: wgpu::StencilFaceState {
                         compare: wgpu::CompareFunction::Equal,
@@ -2156,42 +2230,84 @@ impl<'w> RenderBackend<'w> {
         materials_buffer: &wgpu::Buffer,
         capacity: VectorUniformCapacity,
     ) -> BindGroup {
+        self.create_retained_bind_group_with_depth(
+            primitive_buffer,
+            colors_buffer,
+            gradients_buffer,
+            materials_buffer,
+            capacity,
+            None,
+        )
+    }
+
+    fn create_retained_bind_group_with_depth(
+        &self,
+        primitive_buffer: &wgpu::Buffer,
+        colors_buffer: &wgpu::Buffer,
+        gradients_buffer: &wgpu::Buffer,
+        materials_buffer: &wgpu::Buffer,
+        capacity: VectorUniformCapacity,
+        depth: Option<&wgpu::Buffer>,
+    ) -> BindGroup {
+        let mut entries = vec![
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: self.globals_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: primitive_binding_for(primitive_buffer, 0, capacity),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: primitive_binding_for(primitive_buffer, 1, capacity),
+            },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: colors_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 4,
+                resource: gradients_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 5,
+                resource: material_binding_for(materials_buffer, 0, capacity),
+            },
+            wgpu::BindGroupEntry {
+                binding: 7,
+                resource: material_binding_for(materials_buffer, 1, capacity),
+            },
+            wgpu::BindGroupEntry {
+                binding: 6,
+                resource: self.lighting_buffer.as_entire_binding(),
+            },
+        ];
+        if let Some(buffer) = depth {
+            entries.push(wgpu::BindGroupEntry {
+                binding: 8,
+                resource: buffer.as_entire_binding(),
+            });
+        }
+        #[cfg(feature = "3d")]
+        let sample_locations = depth.map(|_| self.context.opaque_sample_locations(self.sample_count));
+        #[cfg(feature = "3d")]
+        if let Some(buffer) = &sample_locations {
+            entries.push(wgpu::BindGroupEntry {
+                binding: 9,
+                resource: buffer.as_entire_binding(),
+            });
+        }
+        let layout = &self.context.primitive_bind_group_layout;
+        #[cfg(feature = "3d")]
+        let layout = if depth.is_some() {
+            &self.context.opaque_primitive_layout
+        } else {
+            layout
+        };
         self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &self.context.primitive_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: self.globals_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: primitive_binding_for(primitive_buffer, 0, capacity),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: primitive_binding_for(primitive_buffer, 1, capacity),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: colors_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: gradients_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 5,
-                    resource: material_binding_for(materials_buffer, 0, capacity),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 7,
-                    resource: material_binding_for(materials_buffer, 1, capacity),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 6,
-                    resource: self.lighting_buffer.as_entire_binding(),
-                },
-            ],
+            layout,
+            entries: &entries,
             label: Some("retained_bind_group"),
         })
     }
@@ -2833,7 +2949,7 @@ impl<'w> RenderBackend<'w> {
         let solid_depth = runs.iter().any(|run| {
             run.draws
                 .iter()
-                .any(|d| matches!(d, RetainedDraw::Solid(_)))
+                .any(|d| matches!(d, RetainedDraw::Solid(_) | RetainedDraw::OpaqueVector(..)))
         });
         #[cfg(not(feature = "3d"))]
         let solid_depth = false;
@@ -2933,6 +3049,29 @@ impl<'w> RenderBackend<'w> {
                             );
                             self.draw_transform_runs(&mut render_pass, resource);
                         }
+                        #[cfg(feature = "3d")]
+                        RetainedDraw::OpaqueVector(resource, depth) => {
+                            if !resource.is_drawable() {
+                                continue;
+                            }
+                            render_pass.set_pipeline(depth.pipeline.as_ref());
+                            render_pass.set_bind_group(0, &depth.bind_group, &[]);
+                            render_pass.set_bind_group(
+                                2,
+                                resource
+                                    .mesh_bind_group
+                                    .as_ref()
+                                    .unwrap_or(&self.empty_mesh_page.bind_group),
+                                &[],
+                            );
+                            render_pass
+                                .set_vertex_buffer(0, resource.shared.vertex_buffer.slice(..));
+                            render_pass.set_index_buffer(
+                                resource.shared.index_buffer.slice(..),
+                                IndexFormat::Uint16,
+                            );
+                            self.draw_transform_runs(&mut render_pass, resource);
+                        }
                         RetainedDraw::Image { texture, draw } => {
                             self.texture_renderer.draw_retained_image_in_pass(
                                 &mut render_pass,
@@ -3008,6 +3147,29 @@ impl<'w> RenderBackend<'w> {
                             }
                             render_pass.set_pipeline(resource.pipeline.as_ref());
                             render_pass.set_bind_group(0, &resource.bind_group, &[]);
+                            render_pass.set_bind_group(
+                                2,
+                                resource
+                                    .mesh_bind_group
+                                    .as_ref()
+                                    .unwrap_or(&self.empty_mesh_page.bind_group),
+                                &[],
+                            );
+                            render_pass
+                                .set_vertex_buffer(0, resource.shared.vertex_buffer.slice(..));
+                            render_pass.set_index_buffer(
+                                resource.shared.index_buffer.slice(..),
+                                IndexFormat::Uint16,
+                            );
+                            self.draw_transform_runs(&mut render_pass, resource);
+                        }
+                        #[cfg(feature = "3d")]
+                        RetainedDraw::OpaqueVector(resource, depth) => {
+                            if !resource.is_drawable() {
+                                continue;
+                            }
+                            render_pass.set_pipeline(depth.pipeline.as_ref());
+                            render_pass.set_bind_group(0, &depth.bind_group, &[]);
                             render_pass.set_bind_group(
                                 2,
                                 resource
@@ -4312,6 +4474,8 @@ mod shader_tests {
         for source in [
             super::geometry_shader_source(super::VectorUniformCapacity::Full),
             super::geometry_shader_source(super::VectorUniformCapacity::Compact),
+            super::geometry_shader_source_with_depth(super::VectorUniformCapacity::Full, true),
+            super::geometry_shader_source_with_depth(super::VectorUniformCapacity::Compact, true),
             super::stencil_shader_source(),
         ] {
             let module = naga::front::wgsl::parse_str(&source).unwrap();

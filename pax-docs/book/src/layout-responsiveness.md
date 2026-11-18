@@ -547,9 +547,32 @@ This is a bounded first spatial implementation:
 - Multiple views and spatial clipping volumes are not enabled by these
   properties. Shader containers and detached mask-source captures retain their
   existing raster composition semantics.
-- With fully opaque group scopes, the GPU compositor splits intersecting
-  surfaces into ordered fragments and batches their clip changes and paint
-  into one render pass. Individual fills can still be translucent. Coplanar
+- Opaque solid-color vector surfaces and opaque curved solids automatically
+  share hardware depth testing when every visible draw in their composition
+  has unit opacity and only hard clips. When depth intervals prove that groups
+  cannot overlap, the renderer composes them in depth order and selects the path
+  independently for each group. Thus an unrelated translucent page divider can
+  remain in the ordered compositor while an opaque board in front uses depth.
+  Shared fades and ambiguous depth overlap keep the ordered compositor.
+  Spatial vector faces retain their local 3D depth through rasterization;
+  edge-on faces do not expand the depth range by extrapolating a flattened
+  screen-space footprint. This keeps front/rear occlusion consistent when an
+  assembly is resized or drawn in scroller tiles. Coplanar opaque vector paint
+  evaluates a shared depth equation at each raster sample, preserving authored
+  order even when face decorations use different local transforms or triangles.
+  A `CuboidFace` marking does not need a Z offset to stay above its face fill.
+  Rotation reuses retained vertex/index
+  buffers and updates transforms and small depth parameters; it does not build
+  CPU intersection fragments or solid/plane stencils. Coplanar front/back
+  ordering and independent presentation layers remain intact. This currently
+  excludes gradients, images, alpha masks, shader effects, and captures, even
+  when their result happens to be opaque. Depth uses the GPU's finite precision;
+  keep depth ranges proportionate to the scene rather than placing a backdrop
+  arbitrarily far away. Native masking and picking remain on their existing paths.
+- Other compositions use the ordered compositor. With fully opaque group
+  scopes, it splits intersecting surfaces into ordered fragments and batches
+  their clip changes and paint into one render pass. Individual fills can still
+  be translucent. Coplanar
   content shares a plane, and unsplit surfaces need no extra spatial clip.
   A translucent group that occupies one uninterrupted span in that paint order
   shares a single capture, including its intersecting surfaces. Changing only
@@ -567,6 +590,14 @@ This is a bounded first spatial implementation:
 and use the GPU renderer. Its `width` and `height` follow normal layout; `depth`
 is an absolute logical-pixel extent centered on local Z=0, defaulting to 100px.
 Equal extents produce a sphere. Pose changes transform shared mesh geometry.
+In orthographic views, small ellipsoids select from shared mesh detail levels
+(8–64 longitude segments, half as many latitude segments). A lower level is
+used only when a conservative surface-interpolation error bound is at most
+0.25 logical pixels, including scale, shear, and orthographic camera zoom.
+Coarsening requires extra headroom to avoid switching levels around a threshold.
+Large ellipsoids, perspective views, and detached render sources retain the
+existing 64 × 32 maximum detail; the error threshold does not increase that
+maximum. Rendering, picking, and native coverage use the same selected mesh.
 
 ```pax
 <LightFrame width=100% height=100%>
@@ -585,8 +616,12 @@ apertures; they clip the visible result, without adding solid caps at the cut.
 Controls keep their mounted identity as the occlusion changes. Tile coverage
 includes the full volume, including a pose whose local XY plane is edge-on.
 
-The mesh topology stays resident during motion. Each immutable world pose keeps
-up to four camera/chart projections. Each projection keeps its silhouette;
+Mesh topology is shared and retained while the detail level stays unchanged;
+crossing a detail threshold can select a different shared GPU mesh. Each
+immutable world pose keeps up to four camera/chart projections. Each projection
+keeps its silhouette and surface bounds, including its depth range. Unclipped
+bounds and silhouettes visit indexed vertices once rather than repeated triangle
+corners; clipped surfaces retain the surviving triangle geometry. The
 solid/plane coverage is retained in a runtime-wide cache shared by native masks
 and GPU tiles, limited to 2,048 entries and 4 MiB of charged data. Each tile's
 computational viewport remains part of its coverage identity. Paint-only
@@ -977,8 +1012,11 @@ two-item position resets any earlier depth to zero.
 
 These are placement properties: X and Y contribute to measured content
 extents. Z positions the element along its parent's depth axis, without
-introducing 3D flow layout. A separate common post-layout `translate` offset
-is not yet available.
+introducing 3D flow layout. Flow measurement uses the local placement chain:
+rotating an ancestor does not change a child's measured X/Y extents, even when
+the child has nonzero Z or the ancestor turns edge-on. Local size, position,
+padding, and container placement still update measurement normally. A separate
+common post-layout `translate` offset is not yet available.
 
 The former `translate_z` spelling remains a deprecated template alias for
 `z` and emits a warning. Within a settings layer, explicit `z` wins over

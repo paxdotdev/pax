@@ -265,8 +265,9 @@ pub fn project_layout_hull<F: Space, T: Space>(
 /// Project a child's local hull into its parent's local layout space.
 ///
 /// Returns an unknown hull when the world transforms cannot determine a finite
-/// relative transform. Engine measurement reconstructs local placement from the
-/// nodes' layout inputs in that case, including beneath zero-scaled ancestors.
+/// relative transform. This helper accepts affine world geometry only; it cannot
+/// recover depth discarded by 3D projection. Engine flow measurement instead
+/// composes retained local placement, including beneath edge-on or zero-scaled ancestors.
 pub fn project_child_layout_hull_to_parent_space(
     parent: TransformAndBounds<NodeLocal, Window>,
     child: TransformAndBounds<NodeLocal, Window>,
@@ -300,26 +301,20 @@ pub(crate) fn project_child_layout_hull_with_nodes(
     parent_node: &std::rc::Weak<crate::ExpandedNode>,
     child_node: &std::rc::Weak<crate::ExpandedNode>,
 ) -> LayoutHull {
-    let relative = parent.transform.inverse() * child.transform;
-    if relative.m.iter().all(|value| value.is_finite()) {
-        return project_relative_layout_hull(relative, child_hull);
+    // Compose before projection: inverse(project(parent)) * project(child)
+    // leaks child depth into flow placement and diverges near an edge-on parent.
+    if let Some((parent_node, child_node)) = parent_node.upgrade().zip(child_node.upgrade()) {
+        if let Some(relative) = child_node.transform_to_ancestor_content_space(&parent_node) {
+            return project_relative_layout_hull(relative, child_hull);
+        }
     }
-    // World-space cancellation loses all local placement beneath a zero scale.
-    // Reconstruct that placement only on this exceptional path; ordinary
-    // measurement keeps its existing cached geometry and dependency graph.
-    let Some((parent_node, child_node)) = parent_node.upgrade().zip(child_node.upgrade()) else {
-        return LayoutHull::default();
-    };
-    child_node
-        .transform_to_ancestor_content_space(&parent_node)
-        .map(|relative| project_relative_layout_hull(relative, child_hull))
-        .unwrap_or_default()
+    project_child_layout_hull_to_parent_space(parent, child, child_hull)
 }
 
 /// Publish a child's layout hull in a parent's padded local space.
 ///
-/// The cutoff sits at the coordinate-space cancellation boundary: translating an
-/// ancestor changes both world transforms, but not the resulting parent-local hull.
+/// Descendant measurement depends only on the local placement chain and parent
+/// dimensions. Ancestor presentation changes never enter this dependency graph.
 pub(crate) fn projected_child_layout_hull_property(
     parent: LocalProperty<TransformAndBounds<NodeLocal, Window>>,
     padding_x: LocalProperty<Option<Size>>,
@@ -333,6 +328,58 @@ pub(crate) fn projected_child_layout_hull_property(
     ),
     name: &str,
 ) -> LocalProperty<LayoutHull> {
+    // Received children may sit beneath slots or component wrappers. Retain the
+    // complete render-parent chain; topology changes rebind this property.
+    if let Some((parent_node, mut node)) = nodes.0.upgrade().zip(nodes.1.upgrade()) {
+        let mut chain = Vec::new();
+        while node.id != parent_node.id {
+            chain.push(node.local_transform_and_bounds.clone());
+            let Some(next) = node.render_parent_node() else {
+                break;
+            };
+            node = next;
+        }
+        if node.id == parent_node.id {
+            let bounds = parent_node.layout_bounds.clone();
+            let mut deps = vec![
+                bounds.untyped(),
+                padding_x.untyped(),
+                padding_y.untyped(),
+                child_hull.untyped(),
+                child_layout_role.untyped(),
+            ];
+            deps.extend(chain.iter().map(LocalProperty::untyped));
+            return LocalProperty::computed_with_cutoff_and_name(
+                move || {
+                    if child_layout_role.get() == Some(LayoutRole::Breakout) {
+                        return LayoutHull::default();
+                    }
+                    let mut relative = Transform2::<NodeLocal>::identity();
+                    for local in &chain {
+                        relative = local.get().transform * relative;
+                    }
+                    let padded = apply_padding_frame(
+                        TransformAndBounds {
+                            transform: Transform2::identity(),
+                            bounds: bounds.get(),
+                        },
+                        padding_x.get(),
+                        padding_y.get(),
+                    );
+                    project_relative_layout_hull(
+                        padded.transform.inverse().cast_spaces() * relative,
+                        child_hull.get(),
+                    )
+                },
+                &deps,
+                layout_hulls_equivalent,
+                name,
+            );
+        }
+    }
+    // Non-descendant measurements (and detached test geometry) have no common
+    // local chain. Preserve the world-space fallback for that boundary.
+
     let deps = [
         parent.untyped(),
         padding_x.untyped(),

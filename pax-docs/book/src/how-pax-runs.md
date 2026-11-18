@@ -201,7 +201,11 @@ is a reactive value shared by descendants, including native presentation offsets
 and page-scroll delegation. Reading it after a property write observes current
 placement without waiting for a frame or traversing the ancestor chain again.
 Clip owners retain local paths separately from their placement, so moving a Frame
-or changing its opacity does not rebuild its local clip shape.
+or changing its opacity does not rebuild its local clip shape. Local layout and
+local 3D pose are retained separately from ancestor/world pose: rotating a group
+composes new world matrices without reevaluating descendant flow measurement or
+rebuilding their local spatial matrices. Moving bounds update spatial-index cells
+only when their grid membership changes; exact query bounds stay current.
 
 Ordinary affine canvas content inside an allocated Scroller surface also keeps
 its paint placement in that surface's local coordinates. Moving or rotating the
@@ -286,12 +290,24 @@ retain the camera's original clipping equations and computational viewport.
 Native plans and solid/support coverage have a combined ceiling of 4,096 entries
 and 8 MiB of charged retained data, split equally between the two caches. An
 oversized result is used without retention; eviction changes work, not coverage.
-GPU solid/plane coverage uses that same runtime-owned relation budget. Tile
+Fully opaque solid-color canvas compositions resolve planar/solid intersections
+with hardware depth testing, retaining topology and updating small pose/depth
+parameters. Strictly separated depth intervals can form independent composition
+groups, so unrelated translucent page paint does not disable that path. This path performs no GPU readback and does not change native masks
+or publication timing. Transparency, gradients, images, masks, effects, and
+capture scenes retain the ordered compositor; see
+[spatial depth composition](layout-responsiveness.md#rotating-flat-surfaces-in-3d).
+In that fallback, GPU solid/plane coverage uses the same runtime-owned relation budget. Tile
 charts keep their computational viewports and original camera clipping distinct;
 dropping a tile retires its relations. The GPU retains only weak coverage
 dependencies beside its stencil resources, so unchanged geometric plans avoid
 retessellation during paint and opacity updates. Plane partitioning, stencil
 execution, and bounded fade composition remain backend responsibilities.
+Projected solid bounds and depth ranges are retained with each immutable
+projection. Unclipped silhouettes use unique indexed vertices; camera or
+viewport cuts still use the surviving surface triangles. Small orthographic
+ellipsoids can select a lower shared mesh detail level using a bounded geometric
+error estimate; see [opaque curved solids](layout-responsiveness.md#opaque-curved-solids).
 On web, opacity patches update existing SVG paths and clip groups; Apple reuses
 parsed mask geometry while rerasterizing changed pixels. This resource reuse
 does not alter the native transparency approximation.
@@ -305,7 +321,13 @@ The independent `local_occlusion_path_is_retained` opt-in permits retaining the
 exact local path until coverage is invalidated. It requires invalidation on
 **every** path change, including changes inside unchanged bounds. Standard
 Rectangle, Ellipse, Line, and Path implement this contract; other custom hooks
-remain live by default.
+remain live by default. A further `local_occlusion_path_is_placement_independent`
+opt-in retains the shape across world-pose and opacity changes. Rectangle,
+Ellipse, and Path use it: the broad phase transforms conservative local bounds,
+and only native-mask candidates project their exact paths at the current pose.
+Nested shape edits, such as rectangle corner radii, invalidate the retained shape.
+This reduces CPU preparation without changing canvas/native publication timing
+or introducing delayed masks.
 
 The GPU renderer retains independent transforms and opacity values for scenes
 with more than 480 transformed drawing operations. It stores transforms and

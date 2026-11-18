@@ -127,6 +127,27 @@ pub fn begin_bounded_canvas_node(
     } else {
         geometry.projection
     };
+    // Keep local Z until rasterization. Recovering it from the inverse XY
+    // footprint is ill-conditioned for edge-on faces, especially after f32
+    // affine conversion or a distant scroller origin.
+    #[cfg(feature = "3d")]
+    let projection = projection.or_else(|| {
+        if !rc.is_gpu() || !geometry.spatial_geometry.is_spatial() {
+            return None;
+        }
+        let mut matrix = geometry.spatial_geometry.world_transform().coeffs();
+        let [a, b, c, d, e, f] = geometry.surface_transform.as_coeffs();
+        matrix[0] = a;
+        matrix[1] = b;
+        matrix[4] = c;
+        matrix[5] = d;
+        matrix[12] = e;
+        matrix[13] = f;
+        pax_runtime_api::math::ProjectedPlane::new(
+            pax_runtime_api::math::Transform3::<pax_runtime_api::math::Generic>::new(matrix),
+            false,
+        )
+    });
     let node_id = expanded_node.id.to_u32();
     let coverage_bounds = geometry.coverage_bounds.unwrap_or(kurbo::Rect::new(
         f64::NEG_INFINITY,

@@ -7,6 +7,8 @@ use crate::render_backend::capture::CaptureKey;
 #[cfg(feature = "3d")]
 #[derive(Default)]
 pub(super) struct SpatialComposition {
+    pub opaque_depth: HashMap<u32, crate::render_backend::opaque_depth::Resource>,
+    pub opaque_depth_active: bool,
     pub clip_keys: Vec<ClipArenaKey>,
     pub solid_clips: HashMap<u32, Vec<ClipReference>>,
     pub solid_clip_plans: HashMap<ClipArenaKey, solid::SolidClipPlan>,
@@ -66,7 +68,7 @@ impl WgpuRenderer<'_> {
             key.hash(&mut namespace);
             composition.namespace = namespace.finish();
             composition.capture = match key {
-                CaptureKey::Presentation(..) => self.spatial.capture,
+                CaptureKey::Presentation(..) | CaptureKey::DepthBand(..) => self.spatial.capture,
                 _ => true,
             };
             let main = std::mem::replace(&mut self.spatial, composition);
