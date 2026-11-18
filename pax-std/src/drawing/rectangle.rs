@@ -87,6 +87,10 @@ fn watch_corner_radii(
 }
 
 impl InstanceNode for RectangleInstance {
+    fn may_supply_clip(&self) -> bool {
+        false
+    }
+
     fn supports_retained_motion(&self) -> bool {
         true
     }
@@ -261,30 +265,34 @@ impl InstanceNode for RectangleInstance {
         };
         let (width, height) = scope.bounds;
 
-        expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
-            let rect = RoundedRect::new(
-                0.0,
-                0.0,
-                width,
-                height,
-                properties.corner_radius.local().get().resolve_in_graph(),
-            );
-            let bez_path = rect.to_path(0.1);
-            rc.save(scope.layer_id);
-            scope.apply_transform(rc);
-            crate::common::draw_appearance(
-                rc,
-                scope.layer_id,
-                bez_path,
-                &properties.fill.local().get(),
-                &properties.stroke.local().get(),
-                scope.paint_opacity,
-                pax_runtime_api::PathSmoothing::None,
-                0.0,
-                1.0,
-            );
-            rc.restore(scope.layer_id);
-        });
+        scope.draw_local(
+            rc,
+            rtc.canvas_geometry_for_node(expanded_node)
+                .local_paint_revision,
+            |rc| {
+                expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
+                    let rect = RoundedRect::new(
+                        0.0,
+                        0.0,
+                        width,
+                        height,
+                        properties.corner_radius.local().get().resolve_in_graph(),
+                    );
+                    let bez_path = rect.to_path(0.1);
+                    crate::common::draw_appearance(
+                        rc,
+                        scope.layer_id,
+                        bez_path,
+                        &properties.fill.local().get(),
+                        &properties.stroke.local().get(),
+                        scope.paint_opacity,
+                        pax_runtime_api::PathSmoothing::None,
+                        0.0,
+                        1.0,
+                    );
+                });
+            },
+        );
         if rc.end_node(scope.layer_id, scope.node_id) {
             rtc.clear_canvas_node_dirty(&expanded_node.id);
         }

@@ -32,6 +32,10 @@ pub struct ComponentInstance {
 // }
 
 impl InstanceNode for ComponentInstance {
+    fn may_supply_clip(&self) -> bool {
+        false
+    }
+
     fn supports_retained_motion(&self) -> bool {
         true
     }

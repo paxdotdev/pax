@@ -3558,11 +3558,15 @@ fn retained_transform_pages_pixels() {
                 renderer.save();
                 renderer.transform(Transform2D::from_array([1.0, 0.1, 0.0, 1.0, x, y]));
                 renderer.clip(rect(1.0, 1.0, 6.0, 6.0));
-                renderer.fill_path_with_opacity(
-                    rect(0.0, 0.0, 10.0, 10.0),
-                    Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
-                    if id % 2 == 0 { 1.0 } else { 0.5 },
-                );
+                let opacity = if id % 2 == 0 { 1.0 } else { 0.5 };
+                renderer.draw_local_paint(id as u64, opacity, |renderer| {
+                    assert!(frame_id == 0 || frame_id == 2, "a warm placement re-recorded its fill");
+                    renderer.fill_path_with_opacity(
+                        rect(0.0, 0.0, 10.0, 10.0),
+                        Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+                        opacity as f32,
+                    );
+                });
                 renderer.restore();
                 renderer.end_node(id);
             }
@@ -3603,6 +3607,7 @@ fn retained_transform_pages_pixels() {
             assert_pixel(&capture, 359, 255, [0, 0, 255, 255]);
             let stats = renderer.take_resource_churn_stats();
             if frame_id == 1 || frame_id == 3 {
+                assert_eq!(stats.vector_buffer_rebuilds, 0);
                 assert_eq!(stats.vector_geometry_rebuilds, 0);
                 assert_eq!(stats.vector_resource_creates, 0);
                 assert_eq!(stats.vector_resource_update_bytes, 0);

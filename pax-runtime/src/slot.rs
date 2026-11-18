@@ -47,6 +47,10 @@ enum SlotProjection {
 }
 
 impl InstanceNode for SlotInstance {
+    fn may_supply_clip(&self) -> bool {
+        false
+    }
+
     fn supports_retained_motion(&self) -> bool {
         true
     }

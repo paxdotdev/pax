@@ -140,6 +140,14 @@ impl ExpandedNode {
             &scroll_deps,
         ));
 
+        if !instance.may_supply_clip() {
+            self.local_clip_geometry
+                .replace_with(LocalProperty::default());
+            self.world_clip_geometry
+                .replace_with(LocalProperty::default());
+            return;
+        }
+
         let mut clip_deps: Vec<_> = self
             .properties_scope
             .borrow()

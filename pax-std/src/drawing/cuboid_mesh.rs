@@ -72,6 +72,10 @@ fn polygon_path(points: &[[f64; 2]]) -> kurbo::BezPath {
     p
 }
 impl InstanceNode for CuboidMeshInstance {
+    fn may_supply_clip(&self) -> bool {
+        false
+    }
+
     fn supports_retained_motion(&self) -> bool {
         true
     }
@@ -137,6 +141,9 @@ impl InstanceNode for CuboidMeshInstance {
     }
     fn handle_unmount(&self, node: &Rc<ExpandedNode>, _: &Rc<RuntimeContext>) {
         self.poses.borrow_mut().remove(&node.id.to_u32());
+    }
+    fn occlusion_is_mesh_silhouette(&self) -> bool {
+        true
     }
     fn resolve_convex_mesh(&self, node: &ExpandedNode) -> Option<Rc<PosedConvexMesh>> {
         let id = node.id.to_u32();

@@ -282,7 +282,7 @@ impl RuntimeContext {
                 inherited_scroll
             };
             let bounds = solid
-                .coverage_bounds()
+                .conservative_coverage_bounds()
                 .map(|bounds| scroll.transform_rect_bbox(bounds));
             return (
                 CoverageBounds::conservative(bounds),

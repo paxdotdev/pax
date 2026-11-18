@@ -101,6 +101,21 @@ pub struct CanvasNodeRenderScope {
 }
 
 impl CanvasNodeRenderScope {
+    pub(crate) fn draw_local(
+        &self,
+        rc: &mut dyn RenderContext,
+        revision: u64,
+        draw: impl FnOnce(&mut dyn RenderContext),
+    ) {
+        rc.save(self.layer_id);
+        self.apply_transform(rc);
+        if !rc.begin_local_paint(self.layer_id, self.node_id, revision, self.paint_opacity) {
+            draw(rc);
+            rc.end_local_paint(self.layer_id);
+        }
+        rc.restore(self.layer_id);
+    }
+
     pub fn apply_transform(&self, rc: &mut dyn RenderContext) {
         if let Some(projection) = self.projection {
             rc.project(self.layer_id, projection);

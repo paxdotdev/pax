@@ -56,7 +56,7 @@ impl ExpandedNode {
         if !deferred {
             deps.push(world.untyped());
         }
-        LocalProperty::computed_with_cutoff(
+        LocalProperty::computed_with_cutoff_and_name(
             move || {
                 if eligible.get() {
                     let local = local.get();
@@ -72,6 +72,7 @@ impl ExpandedNode {
             },
             &deps,
             PartialEq::eq,
+            "input or coverage placement",
         )
     }
     pub(crate) fn bind_native_placement(self: &Rc<Self>) {
@@ -96,7 +97,7 @@ impl ExpandedNode {
             progress.untyped(),
         ];
         self.native_local_placement
-            .replace_with(LocalProperty::computed_with_cutoff(
+            .replace_with(LocalProperty::computed_with_cutoff_and_name(
                 move || {
                     let parent = parent.get();
                     let owner = scroller.or(parent.owner);
@@ -121,6 +122,7 @@ impl ExpandedNode {
                 },
                 &deps,
                 NativeLocalPlacement::eq,
+                "native local placement",
             ));
     }
 
@@ -141,7 +143,7 @@ impl ExpandedNode {
         let deps = [local.untyped(), geometry];
         let node = Rc::downgrade(self);
         let context = Rc::downgrade(ctx);
-        let fallback = LocalProperty::computed_with_cutoff(
+        let fallback = LocalProperty::computed_with_cutoff_and_name(
             move || {
                 let local = local.get();
                 if local.tab.is_some() {
@@ -155,10 +157,11 @@ impl ExpandedNode {
             },
             &deps,
             PartialEq::eq,
+            "native world fallback",
         );
         let local = self.native_local_placement.clone();
         let deps = [local.untyped(), fallback.untyped()];
-        LocalProperty::computed_with_cutoff(
+        LocalProperty::computed_with_cutoff_and_name(
             move || {
                 let local = local.get();
                 if let Some(tab) = local.tab {
@@ -172,6 +175,7 @@ impl ExpandedNode {
             },
             &deps,
             PartialEq::eq,
+            "native matrix",
         )
     }
 }

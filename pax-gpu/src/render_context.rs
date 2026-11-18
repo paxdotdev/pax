@@ -1171,6 +1171,7 @@ impl<'w> WgpuRenderer<'w> {
             return;
         };
         buffers.ops.push(PendingVectorOp {
+            path_bounds: path_control_bounds(&path),
             #[cfg(feature = "3d")]
             lighting_surface: *lighting_surface,
             path,
@@ -1241,6 +1242,7 @@ impl<'w> WgpuRenderer<'w> {
             return;
         };
         buffers.ops.push(PendingVectorOp {
+            path_bounds: path_control_bounds(&path),
             #[cfg(feature = "3d")]
             lighting_surface: *lighting_surface,
             path,
@@ -2075,13 +2077,18 @@ impl<'w> WgpuRenderer<'w> {
                 }
                 None
             }
-            PendingNodeKind::Vector(buffers) => {
+            PendingNodeKind::Vector(mut buffers) => {
                 let lighting_dependencies = LightingDependencies::from_ops(&buffers.ops);
                 let (bounds, _spatial_coverage) = compute_vector_node_extent(&buffers.ops);
                 #[cfg(feature = "3d")]
                 let projected_depth_range = opaque_depth::projected_depth_range(&buffers.ops);
                 if self.work_observer.is_some() {
-                    self.observe_work(Some(node_id), "vector record", 1, 0);
+                    let operation = if buffers.reused_local_op {
+                        "vector program replay"
+                    } else {
+                        "vector record"
+                    };
+                    self.observe_work(Some(node_id), operation, 1, 0);
                     if !matches!(previous, Some(RetainedNode::Vector(_))) {
                         self.observe_work(Some(node_id), "vector new occurrence", 1, 0);
                     }
@@ -2089,18 +2096,28 @@ impl<'w> WgpuRenderer<'w> {
                         self.observe_work(Some(node_id), "vector record outside surface", 1, 0);
                     }
                 }
-                let geometry_signatures = buffers
-                    .ops
-                    .iter()
-                    .map(|op| op.geometry_signature)
-                    .collect::<Vec<_>>();
-                let fill_signature = hash_vector_fills(&buffers.ops);
-                let primitive_signature = hash_vector_primitives(&buffers.ops);
+                let (geometry_signatures, fill_signature, primitive_signature) = match &previous {
+                    Some(RetainedNode::Vector(v)) if buffers.reused_local_op => (
+                        v.geometry_signatures.clone(),
+                        v.fill_signature,
+                        v.primitive_signature,
+                    ),
+                    _ => (
+                        buffers
+                            .ops
+                            .iter()
+                            .map(|op| op.geometry_signature)
+                            .collect::<Vec<_>>(),
+                        hash_vector_fills(&buffers.ops),
+                        hash_vector_primitives(&buffers.ops),
+                    ),
+                };
                 let transform_signature = hash_vector_transforms(&buffers.ops);
-                let local_transforms = build_local_transform_table(&buffers.ops);
+                let (local_transforms, mut layout) = build_local_transform_table(&buffers.ops);
                 let (transform_keys, transform_ids) =
                     self.transform_arena.sync_node(node_id, &local_transforms);
-                let transform_layout_signature = hash_transform_ids(&transform_ids);
+                transform_ids.hash(&mut layout);
+                let transform_layout_signature = layout.finish();
                 let resource_key = VectorResourceKey {
                     tolerance_bits: self.tolerance.to_bits(),
                     geometry_signatures: geometry_signatures.clone(),
@@ -2142,7 +2159,15 @@ impl<'w> WgpuRenderer<'w> {
                             }
                         }
 
-                        if geometry_changed
+                        let placement_only = transform_changed
+                            && !geometry_changed
+                            && !fill_changed
+                            && !primitive_changed
+                            && !transform_layout_changed;
+                        if placement_only {
+                            existing.buffers.transforms = local_transforms;
+                            self.observe_work(Some(node_id), "vector placement update", 1, 0);
+                        } else if geometry_changed
                             || fill_changed
                             || primitive_changed
                             || transform_changed
@@ -2186,6 +2211,7 @@ impl<'w> WgpuRenderer<'w> {
                         existing.transform_signature = transform_signature;
                         existing.transform_layout_signature = transform_layout_signature;
                         existing.resource_key = resource_key;
+                        existing.local_op = buffers.local_key.zip(buffers.ops.pop());
                         existing.bounds = bounds;
                         #[cfg(feature = "3d")]
                         {
@@ -2208,6 +2234,7 @@ impl<'w> WgpuRenderer<'w> {
                         let retained_primitives =
                             build_retained_primitives(&buffers_out.primitives, &transform_ids);
                         Some(RetainedNode::Vector(RetainedVectorNode {
+                            local_op: buffers.local_key.zip(buffers.ops.pop()),
                             lighting_dependencies,
                             mesh_page: None,
                             resource: None,
@@ -2250,6 +2277,7 @@ impl<'w> WgpuRenderer<'w> {
                         let retained_primitives =
                             build_retained_primitives(&buffers_out.primitives, &transform_ids);
                         Some(RetainedNode::Vector(RetainedVectorNode {
+                            local_op: buffers.local_key.zip(buffers.ops.pop()),
                             lighting_dependencies,
                             mesh_page: None,
                             resource: None,
@@ -2409,13 +2437,69 @@ impl<'w> WgpuRenderer<'w> {
         removed
     }
 
+    /// Replay a node-local fill/stroke program under the current placement.
+    /// The caller owns the revision and must change it when any local command
+    /// changes. The callback must emit a solid-color fill or stroke at the
+    /// existing transform, projection and clip, without changing renderer state.
+    pub fn draw_local_paint(&mut self, revision: u64, opacity: f64, draw: impl FnOnce(&mut Self)) {
+        let transform = self.current_transform();
+        let Some(node) = self
+            .current_node
+            .as_mut()
+            .filter(|n| matches!(n.kind, PendingNodeKind::Empty))
+        else {
+            draw(self);
+            return;
+        };
+        let key = (revision, opacity.to_bits(), node.light_mask);
+        if let Some(RetainedNode::Vector(existing)) = self.scene.get_mut(&node.id) {
+            if existing
+                .local_op
+                .as_ref()
+                .is_some_and(|(old, _)| *old == key)
+            {
+                let (_, mut op) = existing.local_op.take().unwrap();
+                op.transform = transform;
+                op.projection = self.projection;
+                #[cfg(feature = "3d")]
+                {
+                    op.lighting_surface = node.lighting_surface;
+                }
+                node.kind = PendingNodeKind::Vector(PendingVectorNode {
+                    ops: vec![op],
+                    clip_stack: self.clip_stack.clone(),
+                    local_key: Some(key),
+                    reused_local_op: true,
+                });
+                return;
+            }
+        }
+        draw(self);
+        if let Some(PendingNode {
+            kind: PendingNodeKind::Vector(v),
+            ..
+        }) = &mut self.current_node
+        {
+            if matches!(v.ops.as_slice(), [op] if matches!(op.fill, Fill::Solid(_))) {
+                v.local_key = Some(key);
+            }
+        }
+    }
+
     fn ensure_vector_node(&mut self) -> Option<&mut PendingNode> {
         let current_node = self.current_node.as_mut()?;
         if matches!(current_node.kind, PendingNodeKind::Empty) {
             current_node.kind = PendingNodeKind::Vector(PendingVectorNode {
                 ops: Vec::new(),
+                local_key: None,
+                reused_local_op: false,
                 clip_stack: self.clip_stack.clone(),
             });
+        }
+        if let PendingNodeKind::Vector(v) = &mut current_node.kind {
+            // An additional operation makes the previous program a prefix.
+            v.local_key = None;
+            v.reused_local_op = false;
         }
         Some(current_node)
     }
@@ -2740,12 +2824,17 @@ enum PendingNodeKind {
     Image(PendingImageNode),
 }
 
+type LocalPaintKey = (u64, u64, u32);
+
 struct PendingVectorNode {
+    local_key: Option<LocalPaintKey>,
+    reused_local_op: bool,
     ops: Vec<PendingVectorOp>,
     clip_stack: Vec<ClipReference>,
 }
 
 struct PendingVectorOp {
+    path_bounds: Option<Box2D>,
     path: Path,
     fill: Fill,
     material: Material,
@@ -2830,6 +2919,7 @@ impl RetainedNode {
 }
 
 struct RetainedVectorNode {
+    local_op: Option<(LocalPaintKey, PendingVectorOp)>,
     lighting_dependencies: LightingDependencies,
     mesh_page: Option<Rc<crate::render_backend::mesh_paint::PaintPage>>,
     resource: Option<RetainedVectorResource>,
@@ -2930,15 +3020,22 @@ fn op_gpu_transform(op: &PendingVectorOp) -> GpuTransform {
     transform
 }
 
-fn build_local_transform_table(ops: &[PendingVectorOp]) -> Vec<GpuTransform> {
+fn build_local_transform_table(ops: &[PendingVectorOp]) -> (Vec<GpuTransform>, DefaultHasher) {
     let mut transforms = vec![GpuTransform::default()];
+    let mut layout = DefaultHasher::new();
     for op in ops {
         let transform = op_gpu_transform(op);
-        if !transforms.contains(&transform) {
-            transforms.push(transform);
-        }
+        let slot = transforms
+            .iter()
+            .position(|value| *value == transform)
+            .unwrap_or_else(|| {
+                transforms.push(transform);
+                transforms.len() - 1
+            });
+        // Equal arena slots can still be assigned to different operations.
+        slot.hash(&mut layout);
     }
-    transforms
+    (transforms, layout)
 }
 
 fn rebuild_vector_buffers(
@@ -3571,15 +3668,6 @@ fn hash_vector_transforms(ops: &[PendingVectorOp]) -> u64 {
     hasher.finish()
 }
 
-fn hash_transform_ids(transform_ids: &[u32]) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    transform_ids.len().hash(&mut hasher);
-    for transform_id in transform_ids {
-        transform_id.hash(&mut hasher);
-    }
-    hasher.finish()
-}
-
 #[cfg(feature = "3d")]
 type SpatialCoverage = Vec<[f64; 2]>;
 #[cfg(not(feature = "3d"))]
@@ -3590,7 +3678,7 @@ fn compute_vector_node_extent(ops: &[PendingVectorOp]) -> (Box2D, SpatialCoverag
     #[cfg(feature = "3d")]
     let mut coverage = Vec::with_capacity(ops.len() * 4);
     for op in ops {
-        let Some(path_bounds) = path_control_bounds(&op.path) else {
+        let Some(path_bounds) = op.path_bounds else {
             continue;
         };
         let op_bounds = if let Some(plane) = op.projection {
@@ -5041,6 +5129,7 @@ mod tests {
             (hole.build(), 84.0),
         ] {
             let op = PendingVectorOp {
+                path_bounds: path_control_bounds(&path),
                 #[cfg(feature = "3d")]
                 lighting_surface: None,
                 geometry_signature: hash_vector_path(
@@ -5247,6 +5336,7 @@ mod tests {
     fn vector_geometry_cache_reuses_tessellation_and_remaps_primitive_ids() {
         let path = rect_path(10.0, 5.0);
         let op = PendingVectorOp {
+            path_bounds: path_control_bounds(&path),
             #[cfg(feature = "3d")]
             lighting_surface: None,
             path: path.clone(),
@@ -5267,6 +5357,7 @@ mod tests {
         };
         let ops = vec![
             PendingVectorOp {
+                path_bounds: path_control_bounds(&path),
                 #[cfg(feature = "3d")]
                 lighting_surface: None,
                 path,
@@ -5348,6 +5439,7 @@ mod tests {
         let geometry_signature = hash_vector_path(&path, kind, PathSmoothing::None);
         let ops = vec![
             PendingVectorOp {
+                path_bounds: path_control_bounds(&path),
                 #[cfg(feature = "3d")]
                 lighting_surface: None,
                 path: path.clone(),
@@ -5363,6 +5455,7 @@ mod tests {
                 smoothing: PathSmoothing::None,
             },
             PendingVectorOp {
+                path_bounds: path_control_bounds(&path),
                 #[cfg(feature = "3d")]
                 lighting_surface: None,
                 path,
@@ -5408,6 +5501,7 @@ mod tests {
         let path = two_closed_rects_path(10.0, 5.0, 20.0);
         let kind = PendingVectorOpKind::Stroke(1.0, StrokeCap::Butt, StrokeJoin::Miter);
         let op = PendingVectorOp {
+            path_bounds: path_control_bounds(&path),
             #[cfg(feature = "3d")]
             lighting_surface: None,
             path: path.clone(),
@@ -5467,6 +5561,7 @@ mod tests {
         let geometry_signature = hash_vector_path(&path, kind, PathSmoothing::None);
         let make_ops = |draw_range| {
             vec![PendingVectorOp {
+                path_bounds: path_control_bounds(&path),
                 #[cfg(feature = "3d")]
                 lighting_surface: None,
                 path: path.clone(),
@@ -5528,6 +5623,7 @@ mod tests {
         let geometry_signature = hash_vector_path(&path, kind, PathSmoothing::None);
         let make_ops = |draw_range| {
             vec![PendingVectorOp {
+                path_bounds: path_control_bounds(&path),
                 #[cfg(feature = "3d")]
                 lighting_surface: None,
                 path: path.clone(),
@@ -5557,6 +5653,7 @@ mod tests {
         let unsmoothed = hash_vector_path(&path, kind, PathSmoothing::None);
         let smoothed = hash_vector_path(&path, kind, PathSmoothing::Strong);
         let make_op = |smoothing, geometry_signature| PendingVectorOp {
+            path_bounds: path_control_bounds(&path),
             #[cfg(feature = "3d")]
             lighting_surface: None,
             path: path.clone(),

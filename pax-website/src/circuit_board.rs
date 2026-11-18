@@ -24,9 +24,11 @@ pub struct CircuitTrace {
 }
 
 #[pax]
-pub struct CircuitPoint {
+pub struct CircuitSignalPair {
     pub x: f64,
     pub y: f64,
+    pub span: f64,
+    pub angle: f64,
 }
 
 /// A retained hardware illustration; signal accents never rebuild its geometry.
@@ -39,7 +41,7 @@ pub struct CircuitBoard {
     pub board_scale: Property<f64>,
     pub chips: Property<Vec<CircuitChip>>,
     pub traces: Property<Vec<CircuitTrace>>,
-    pub signals: Property<Vec<CircuitPoint>>,
+    pub signals: Property<Vec<CircuitSignalPair>>,
     pub visible: Property<bool>,
     pub rotation_y: Property<f64>,
     pub face_opacity: Property<f64>,
@@ -48,7 +50,7 @@ pub struct CircuitBoard {
     #[pax(rust)]
     pub motion_enabled: bool,
     #[pax(rust)]
-    pub signal_routes: Vec<Vec<(f64, f64)>>,
+    pub signal_routes: Vec<[Vec<(f64, f64)>; 2]>,
     #[pax(rust)]
     pub phase: f64,
     #[pax(rust)]
@@ -94,7 +96,10 @@ impl CircuitBoard {
                 pins_per_side: chip.pins_per_side,
             })
             .collect();
-        self.signal_routes = [0, 3, 6, 10].map(|i| routes[i].clone()).to_vec();
+        // Each pair travels down the same copper bundle and shares one short strip light.
+        self.signal_routes = [[0, 2], [3, 5], [8, 9], [10, 12]]
+            .map(|pair| pair.map(|i| routes[i].clone()))
+            .to_vec();
         self.traces.set(
             routes
                 .into_iter()
@@ -124,7 +129,7 @@ impl CircuitBoard {
         }
         self.motion.advance(dt);
         self.publish_pose();
-        self.phase = (self.phase + dt / 6500.0) % 1.0;
+        self.phase = (self.phase + dt / 3250.0) % 1.0;
         self.update_signals();
     }
 
@@ -236,12 +241,16 @@ impl CircuitBoard {
             self.signal_routes
                 .iter()
                 .enumerate()
-                .map(|(i, points)| {
-                    let (x, y) = along(
-                        points,
-                        (self.phase + i as f64 / self.signal_routes.len() as f64) % 1.0,
-                    );
-                    CircuitPoint { x, y }
+                .map(|(i, [a, b])| {
+                    let phase = (self.phase + i as f64 / self.signal_routes.len() as f64) % 1.0;
+                    let (ax, ay) = along(a, phase);
+                    let (bx, by) = along(b, phase);
+                    CircuitSignalPair {
+                        x: (ax + bx) / 2.0,
+                        y: (ay + by) / 2.0,
+                        span: (bx - ax).hypot(by - ay),
+                        angle: (by - ay).atan2(bx - ax).to_degrees(),
+                    }
                 })
                 .collect(),
         );

@@ -232,6 +232,7 @@ mod tests {
             (gradient(f32::NAN), true),
         ] {
             let mut op = PendingVectorOp {
+                path_bounds: None,
                 path: Path::builder().build(),
                 fill,
                 material: Material::matte(),

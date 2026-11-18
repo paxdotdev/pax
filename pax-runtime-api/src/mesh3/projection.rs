@@ -109,11 +109,18 @@ pub struct ProjectedConvexMesh {
     pub mesh: Rc<ConvexMesh>,
     pub projection: MeshProjection,
     viewport: Option<Rect>,
+    surface: OnceCell<ProjectedSurface>,
+    local_box: OnceCell<Option<Rect>>,
+    depth: OnceCell<Option<[f64; 2]>>,
+    silhouette: OnceCell<Vec<[f64; 2]>>,
+    bounds: OnceCell<Option<(Point, Point)>>,
+}
+
+#[derive(Debug)]
+struct ProjectedSurface {
     vertices: Vec<Point>,
     clipped: Option<Vec<Triangle>>,
     unbounded: bool,
-    silhouette: OnceCell<Vec<[f64; 2]>>,
-    bounds: OnceCell<Option<(Point, Point)>>,
 }
 
 impl ConvexMesh {
@@ -124,6 +131,23 @@ impl ConvexMesh {
         projection: MeshProjection,
         viewport: Option<Rect>,
     ) -> Rc<ProjectedConvexMesh> {
+        Rc::new(ProjectedConvexMesh {
+            mesh: self.clone(),
+            projection,
+            viewport,
+            surface: OnceCell::new(),
+            local_box: OnceCell::new(),
+            depth: OnceCell::new(),
+            silhouette: OnceCell::new(),
+            bounds: OnceCell::new(),
+        })
+    }
+
+    fn project_surface(
+        &self,
+        projection: MeshProjection,
+        viewport: Option<Rect>,
+    ) -> ProjectedSurface {
         let local: Vec<Point> = self
             .vertices
             .iter()
@@ -163,16 +187,11 @@ impl ConvexMesh {
             }
             triangles
         });
-        Rc::new(ProjectedConvexMesh {
-            mesh: self.clone(),
-            projection,
-            viewport,
+        ProjectedSurface {
             vertices,
             clipped,
             unbounded,
-            silhouette: OnceCell::new(),
-            bounds: OnceCell::new(),
-        })
+        }
     }
 }
 
@@ -197,16 +216,63 @@ impl PosedConvexMesh {
 }
 
 impl ProjectedConvexMesh {
+    fn surface(&self) -> &ProjectedSurface {
+        self.surface
+            .get_or_init(|| self.mesh.project_surface(self.projection, self.viewport))
+    }
+
+    /// Broad-phase bounds for culling and candidate selection. Exact clipped
+    /// triangles are prepared on demand when the box touches a camera plane or
+    /// projective horizon. An unbounded projection returns `None`.
+    pub fn conservative_coverage_bounds(&self) -> Option<Rect> {
+        match self.projected_local_box() {
+            Some(bounds) => Some(self.viewport.map_or(bounds, |view| bounds.intersect(view))),
+            None => self.coverage_bounds(),
+        }
+    }
+
+    fn projected_local_box(&self) -> Option<Rect> {
+        *self.local_box.get_or_init(|| self.compute_local_box())
+    }
+
+    fn compute_local_box(&self) -> Option<Rect> {
+        // A linear fractional coordinate with positive w takes its extrema
+        // at corners of a convex box. Both mesh constructors fit [-1, 1]^3.
+        let mut bounds: Option<Rect> = None;
+        for x in [-1., 1.] {
+            for y in [-1., 1.] {
+                for z in [-1., 1.] {
+                    let p = [x, y, z];
+                    if self.projection.clip_depth {
+                        let [depth, w] = self.projection.clip_rows.map(|r| evaluate(r, p));
+                        if !(depth >= 0. && depth <= w) {
+                            return None;
+                        }
+                    }
+                    let Some([x, y, _]) = self.projection.project(p) else {
+                        return None;
+                    };
+                    let point = kurbo::Point::new(x, y);
+                    bounds =
+                        Some(bounds.map_or(Rect::from_points(point, point), |r| r.union_pt(point)));
+                }
+            }
+        }
+        bounds
+    }
+
     fn surface_points(&self) -> impl Iterator<Item = Point> + '_ {
-        let indices = if self.clipped.is_none() {
+        let surface = self.surface();
+        let indices = if surface.clipped.is_none() {
             self.mesh.surface_vertices.as_slice()
         } else {
             &[]
         };
-        self.clipped
+        surface
+            .clipped
             .iter()
             .flat_map(|triangles| triangles.iter().flatten().copied())
-            .chain(indices.iter().map(|i| self.vertices[*i as usize]))
+            .chain(indices.iter().map(|i| surface.vertices[*i as usize]))
     }
 
     fn bounds(&self) -> Option<(Point, Point)> {
@@ -229,13 +295,16 @@ impl ProjectedConvexMesh {
     }
     /// Actual surviving surface triangles in destination coordinates.
     pub fn triangles(&self) -> impl Iterator<Item = Triangle> + '_ {
-        let count = self
+        let surface = self.surface();
+        let count = surface
             .clipped
             .as_ref()
             .map_or(self.mesh.indices.len() / 3, Vec::len);
-        (0..count).map(|i| match &self.clipped {
+        (0..count).map(|i| match &surface.clipped {
             Some(triangles) => triangles[i],
-            None => std::array::from_fn(|j| self.vertices[self.mesh.indices[i * 3 + j] as usize]),
+            None => {
+                std::array::from_fn(|j| surface.vertices[self.mesh.indices[i * 3 + j] as usize])
+            }
         })
     }
 
@@ -249,7 +318,7 @@ impl ProjectedConvexMesh {
 
     /// `None` is conservatively unbounded; an empty clipped mesh has zero coverage.
     pub fn coverage_bounds(&self) -> Option<Rect> {
-        if self.unbounded {
+        if self.surface().unbounded {
             return None;
         }
         Some(self.bounds().map_or(Rect::ZERO, |(min, max)| {
@@ -260,7 +329,28 @@ impl ProjectedConvexMesh {
     /// Retained minimum and maximum z/w of the surviving surface vertices.
     /// Empty surfaces return `None`; clipped surfaces exclude discarded vertices.
     pub fn depth_bounds(&self) -> Option<[f64; 2]> {
-        self.bounds().map(|(min, max)| [min[2], max[2]])
+        *self.depth.get_or_init(|| {
+            if self.surface.get().is_none()
+                && self.projected_local_box().is_some_and(|bounds| {
+                    self.viewport
+                        .is_none_or(|viewport| viewport.contains_rect(bounds))
+                })
+            {
+                // The entire mesh survived clipping. Depth normalization needs
+                // only the z/w of indexed vertices, not projected x/y or hulls.
+                let z = row(self.projection.matrix, 2);
+                let w = row(self.projection.matrix, 3);
+                let mut range = [f64::INFINITY, f64::NEG_INFINITY];
+                for &index in &self.mesh.surface_vertices {
+                    let p = self.mesh.vertices[index as usize].position.map(f64::from);
+                    let depth = evaluate(z, p) / evaluate(w, p);
+                    range[0] = range[0].min(depth);
+                    range[1] = range[1].max(depth);
+                }
+                return Some(range);
+            }
+            self.bounds().map(|(min, max)| [min[2], max[2]])
+        })
     }
 
     /// Closest rendered triangle depth; camera-clipped caps are not invented.
@@ -292,12 +382,22 @@ impl ProjectedConvexMesh {
     pub fn compute_front_contours(&self, plane: DepthPlane) -> Vec<Vec<[f64; 2]>> {
         let [a, b, c] = plane.coefficients;
         let front = [-a, -b, 1., -c - 1e-7];
-        if self.clipped.is_none() {
-            if self.vertices.iter().all(|p| evaluate(front, *p) > 0.) {
+        if self.surface().clipped.is_none() {
+            if self
+                .surface()
+                .vertices
+                .iter()
+                .all(|p| evaluate(front, *p) > 0.)
+            {
                 let hull = self.silhouette();
                 return if hull.len() < 3 { vec![] } else { vec![hull] };
             }
-            if self.vertices.iter().all(|p| evaluate(front, *p) < 0.) {
+            if self
+                .surface()
+                .vertices
+                .iter()
+                .all(|p| evaluate(front, *p) < 0.)
+            {
                 return vec![];
             }
             let mut points = Vec::new();
@@ -373,6 +473,25 @@ mod tests {
     use super::*;
 
     #[test]
+    fn broad_phase_and_unclipped_depth_leave_exact_surface_lazy() {
+        let mesh = ConvexMesh::sphere(24, 12);
+        let transform = [
+            2., 0.2, 0.5, 0., 0.4, 3., -0.3, 0., 0.8, 0.1, 4., 0., 20., -7., 3., 1.,
+        ];
+        let posed = mesh.posed(transform).unwrap();
+        let projected = posed.projected(MeshProjection::new(transform, false).unwrap());
+        let broad = projected.conservative_coverage_bounds().unwrap();
+        let depth = projected.depth_bounds().unwrap();
+        assert!(posed.vertices.get().is_none());
+        assert!(projected.surface.get().is_none());
+        let exact = projected.coverage_bounds().unwrap();
+        assert!(broad.contains_rect(exact));
+        let (lo, hi) = projected.bounds().unwrap();
+        assert_eq!(depth, [lo[2], hi[2]]);
+        assert!(projected.depth_at(20., -7.).is_some());
+    }
+
+    #[test]
     fn retained_bounds_and_hulls_match_surviving_triangles() {
         let mut mesh = ConvexMesh::sphere(24, 12);
         // Bounds must describe indexed surface geometry, even if a vertex is
@@ -407,7 +526,7 @@ mod tests {
                     [lo.min(p[2]), hi.max(p[2])]
                 })
             });
-            let expected_bounds = (!projected.unbounded).then(|| {
+            let expected_bounds = (!projected.surface().unbounded).then(|| {
                 points.first().map_or(Rect::ZERO, |first| {
                     points
                         .iter()
@@ -435,7 +554,7 @@ mod tests {
         assert!(Rc::ptr_eq(&a, &pose.projected(full)));
         let b = pose.projected(cut);
         assert!(!Rc::ptr_eq(&a, &b));
-        assert!(b.clipped.is_some());
+        assert!(b.surface().clipped.is_some());
         assert!(b.triangles().flatten().all(|p| p[2] >= 0.));
         for projected in [&a, &b] {
             for i in 0..64 {

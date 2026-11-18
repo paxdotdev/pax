@@ -48,6 +48,10 @@ impl ToPaxValue for ConditionalProperties {
 }
 
 impl InstanceNode for ConditionalInstance {
+    fn may_supply_clip(&self) -> bool {
+        false
+    }
+
     fn supports_retained_motion(&self) -> bool {
         true
     }

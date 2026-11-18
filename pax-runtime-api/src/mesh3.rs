@@ -152,20 +152,21 @@ impl ConvexMesh {
         if !determinant.is_finite() || determinant.abs() < 1e-12 {
             return None;
         }
-        let vertices: Vec<_> = self
-            .vertices
-            .iter()
-            .map(|v| {
-                std::array::from_fn(|i| {
-                    transform[i] * v.position[0] as f64
-                        + transform[4 + i] * v.position[1] as f64
-                        + transform[8 + i] * v.position[2] as f64
-                        + transform[12 + i]
-                })
-            })
-            .collect();
-        if !vertices.iter().flatten().all(|v| v.is_finite()) {
-            return None;
+        let vertices = OnceCell::new();
+        // Both constructors produce unit meshes. Only an extreme matrix can
+        // overflow a component on this domain. Validate actual vertices then,
+        // preserving the finite-pose contract even when large terms cancel.
+        if (0..3).any(|i| {
+            !(0..4)
+                .map(|j| transform[4 * j + i].abs())
+                .sum::<f64>()
+                .is_finite()
+        }) {
+            let points = self.world_vertices(transform);
+            if !points.iter().flatten().all(|v| v.is_finite()) {
+                return None;
+            }
+            let _ = vertices.set(points);
         }
         Some(Rc::new(PosedConvexMesh {
             mesh: self.clone(),
@@ -175,6 +176,20 @@ impl ConvexMesh {
             projections: RefCell::new(Vec::new()),
         }))
     }
+
+    fn world_vertices(&self, transform: [f64; 16]) -> Vec<[f64; 3]> {
+        self.vertices
+            .iter()
+            .map(|v| {
+                std::array::from_fn(|i| {
+                    transform[i] * v.position[0] as f64
+                        + transform[4 + i] * v.position[1] as f64
+                        + transform[8 + i] * v.position[2] as f64
+                        + transform[12 + i]
+                })
+            })
+            .collect()
+    }
 }
 
 /// One affine instance of a convex mesh, in a chosen world/presentation space.
@@ -182,7 +197,7 @@ impl ConvexMesh {
 pub struct PosedConvexMesh {
     pub mesh: Rc<ConvexMesh>,
     pub transform: [f64; 16],
-    vertices: Vec<[f64; 3]>,
+    vertices: OnceCell<Vec<[f64; 3]>>,
     silhouette: OnceCell<Vec<[f64; 2]>>,
     // Native siblings, physical tiles, and fade views often ask about the same
     // plane. Bound residency even when a stationary solid meets animated planes.
@@ -192,13 +207,14 @@ pub struct PosedConvexMesh {
 
 impl PosedConvexMesh {
     pub fn vertices(&self) -> &[[f64; 3]] {
-        &self.vertices
+        self.vertices
+            .get_or_init(|| self.mesh.world_vertices(self.transform))
     }
 
     /// Projected silhouette of the tessellated solid in these x/y coordinates.
     pub fn silhouette(&self) -> Vec<[f64; 2]> {
         self.silhouette
-            .get_or_init(|| convex_hull(self.vertices.iter().map(|p| [p[0], p[1]]).collect()))
+            .get_or_init(|| convex_hull(self.vertices().iter().map(|p| [p[0], p[1]]).collect()))
             .clone()
     }
 
@@ -213,7 +229,7 @@ impl PosedConvexMesh {
 
     fn compute_front_coverage(&self, plane: DepthPlane) -> Vec<[f64; 2]> {
         let distances: Vec<_> = self
-            .vertices
+            .vertices()
             .iter()
             .map(|p| p[2] - plane.depth_at(p[0], p[1]))
             .collect();
@@ -224,7 +240,7 @@ impl PosedConvexMesh {
             return Vec::new();
         }
         let mut points: Vec<_> = self
-            .vertices
+            .vertices()
             .iter()
             .zip(&distances)
             .filter(|(_, d)| **d > 1e-7)
@@ -235,7 +251,7 @@ impl PosedConvexMesh {
             let (da, db) = (distances[a], distances[b]);
             if (da > 1e-7) != (db > 1e-7) {
                 let t = da / (da - db);
-                let (a, b) = (self.vertices[a], self.vertices[b]);
+                let (a, b) = (self.vertices()[a], self.vertices()[b]);
                 points.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]);
             }
         }
@@ -248,9 +264,9 @@ impl PosedConvexMesh {
         let mut depth: Option<f64> = None;
         for triangle in self.mesh.indices.chunks_exact(3) {
             let [a, b, c] = [
-                self.vertices[triangle[0] as usize],
-                self.vertices[triangle[1] as usize],
-                self.vertices[triangle[2] as usize],
+                self.vertices()[triangle[0] as usize],
+                self.vertices()[triangle[1] as usize],
+                self.vertices()[triangle[2] as usize],
             ];
             let det = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
             if det.abs() < 1e-12 {

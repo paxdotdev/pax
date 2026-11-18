@@ -41,6 +41,10 @@ pub struct LineInstance {
 }
 
 impl InstanceNode for LineInstance {
+    fn may_supply_clip(&self) -> bool {
+        false
+    }
+
     fn supports_retained_motion(&self) -> bool {
         true
     }
@@ -211,24 +215,27 @@ impl InstanceNode for LineInstance {
             return;
         };
 
-        expanded_node.with_properties_unwrapped(|properties: &mut Line| {
-            let (start, end) = resolve_points(properties, scope.bounds);
-            rc.save(scope.layer_id);
-            scope.apply_transform(rc);
-            crate::common::draw_appearance(
-                rc,
-                scope.layer_id,
-                centerline_path(start, end),
-                &[],
-                &properties.stroke.local().get(),
-                scope.paint_opacity,
-                pax_runtime_api::PathSmoothing::None,
-                0.0,
-                1.0,
-            );
-            rc.restore(scope.layer_id);
-        });
-
+        scope.draw_local(
+            rc,
+            rtc.canvas_geometry_for_node(expanded_node)
+                .local_paint_revision,
+            |rc| {
+                expanded_node.with_properties_unwrapped(|properties: &mut Line| {
+                    let (start, end) = resolve_points(properties, scope.bounds);
+                    crate::common::draw_appearance(
+                        rc,
+                        scope.layer_id,
+                        centerline_path(start, end),
+                        &[],
+                        &properties.stroke.local().get(),
+                        scope.paint_opacity,
+                        pax_runtime_api::PathSmoothing::None,
+                        0.0,
+                        1.0,
+                    );
+                });
+            },
+        );
         if rc.end_node(scope.layer_id, scope.node_id) {
             rtc.clear_canvas_node_dirty(&expanded_node.id);
         }

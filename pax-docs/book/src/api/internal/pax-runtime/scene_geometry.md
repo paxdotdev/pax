@@ -145,6 +145,11 @@ Type: `Option`<`Rect`>
 
 Transformed paint coverage including the renderer's conservative culling pad.
 
+##### `local_paint_revision`
+Type: `u64`
+
+Identity of the current local paint inputs, shared across placement changes.
+
 ##### `local`
 Type: [`CanvasGeometry`](../../../api/internal/pax-runtime/scene_geometry.md#canvasgeometry)
 

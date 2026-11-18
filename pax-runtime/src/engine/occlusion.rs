@@ -317,10 +317,31 @@ struct OcclusionRecord {
     path_is_local: bool,
     path_bounds: Option<Rect>,
     #[cfg(feature = "3d")]
+    mesh_path: Option<Rc<pax_runtime_api::mesh3::ProjectedConvexMesh>>,
+    #[cfg(feature = "3d")]
     local_path: Option<Rc<BezPath>>,
     coverage_bounds: CoverageBounds,
     opacity: f64,
     geometry: Option<Rc<PreparedCanvasGeometry>>,
+}
+
+impl OcclusionRecord {
+    fn coverage_path(&self) -> Option<Rc<BezPath>> {
+        #[cfg(feature = "3d")]
+        if let Some(mesh) = &self.mesh_path {
+            let mut path = BezPath::new();
+            let hull = mesh.silhouette();
+            if let Some((first, rest)) = hull.split_first() {
+                path.move_to((first[0], first[1]));
+                for p in rest {
+                    path.line_to((p[0], p[1]));
+                }
+                path.close_path();
+            }
+            return Some(Rc::new(path));
+        }
+        self.path.clone()
+    }
 }
 
 #[derive(Clone)]
@@ -1030,6 +1051,8 @@ fn try_reconcile_structure(
                     path: None,
                     path_is_local: false,
                     path_bounds: None,
+                    #[cfg(feature = "3d")]
+                    mesh_path: None,
                     #[cfg(feature = "3d")]
                     local_path: None,
                     coverage_bounds: CoverageBounds::Empty,
@@ -1762,9 +1785,12 @@ fn update_indexed_mask(id: u32, ctx: &RuntimeContext, state: &mut OcclusionState
         if !(coverage.opacity > f64::EPSILON) {
             continue;
         }
-        let Some(path) = &coverage.path else {
+        let has_path = coverage.path.is_some();
+        #[cfg(feature = "3d")]
+        let has_path = has_path || coverage.mesh_path.is_some();
+        if !has_path {
             continue;
-        };
+        }
         let Some(occluder) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(candidate))
         else {
             continue;
@@ -1822,7 +1848,6 @@ fn update_indexed_mask(id: u32, ctx: &RuntimeContext, state: &mut OcclusionState
                     }),
             )
         };
-        let path = path.clone();
         #[cfg(feature = "3d")]
         let path = if let Some(solid) = &solid {
             mapping = Mapping::Affine(transform);
@@ -1835,8 +1860,14 @@ fn update_indexed_mask(id: u32, ctx: &RuntimeContext, state: &mut OcclusionState
                 a * t[4] + b * t[5] + c - ctx.presentation_depth_offset(&occluder),
             ];
             ctx.solid_front_coverage(&occluder, support, geometry.layer, solid, plane)
-        } else {
+        } else if let Some(path) = coverage.coverage_path() {
             path
+        } else {
+            continue;
+        };
+        #[cfg(not(feature = "3d"))]
+        let Some(path) = coverage.coverage_path() else {
+            continue;
         };
         #[cfg(feature = "3d")]
         let depth = (spatial && solid.is_none()).then(|| {
@@ -1894,7 +1925,31 @@ fn cached_local_occlusion_path(node: &ExpandedNode) -> Option<Option<Rc<BezPath>
 }
 
 fn refresh_record_path(record: &mut OcclusionRecord, node: &ExpandedNode) {
+    #[cfg(feature = "3d")]
+    {
+        let instance = borrow!(node.instance_node);
+        record.mesh_path = None;
+        if instance.occlusion_is_mesh_silhouette() {
+            if let Some(mesh) = instance
+                .resolve_convex_mesh(node)
+                .and_then(|s| node.project_convex_mesh(&s))
+            {
+                if let Some(bounds) = mesh.conservative_coverage_bounds() {
+                    record.path = None;
+                    record.local_path = None;
+                    record.path_is_local = false;
+                    record.path_bounds = (!bounds.is_zero_area()).then_some(bounds);
+                    record.mesh_path = Some(mesh);
+                    return;
+                }
+            }
+        }
+    }
     let previous = record.path.clone();
+    // A deferred mesh may have had bounds without a materialized path.
+    if previous.is_none() {
+        record.path_bounds = None;
+    }
     if let Some(local) = cached_local_occlusion_path(node) {
         record.path_is_local = true;
         record.path = local;
@@ -2069,7 +2124,7 @@ fn update_projected_mask(node: &ExpandedNode, ctx: &RuntimeContext, state: &mut 
             .projected_solid
             .clone();
         let (path, depth) = if layer_order.is_gt() && solid.is_some() {
-            let Some(path) = record.path.clone() else {
+            let Some(path) = record.coverage_path() else {
                 continue;
             };
             (
@@ -2387,6 +2442,8 @@ fn update_node_occlusion_recursive(
             path: None,
             path_is_local: false,
             path_bounds: None,
+            #[cfg(feature = "3d")]
+            mesh_path: None,
             #[cfg(feature = "3d")]
             local_path: None,
             coverage_bounds: CoverageBounds::Empty,

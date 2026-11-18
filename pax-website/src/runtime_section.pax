@@ -5,11 +5,11 @@
         <Group width=0px height=0px layout_role=LayoutRole::Breakout @tick=self.animate/>
     }
     <LightSource x={(self.cyan_x)px} y={(self.cyan_y)px} anchor=50% width=1px height=1px
-        z={(self.light_depth)px} radius={(self.light_radius)px} intensity=4 color=rgb(0, 255, 255)/>
+        enabled={self.visible} z={(self.light_depth)px} radius={(self.light_radius)px} intensity=4 color=rgb(0, 255, 255)/>
     <LightSource x={(self.magenta_x)px} y={(self.magenta_y)px} anchor=50% width=1px height=1px
-        z={(self.light_depth)px} radius={(self.light_radius)px} intensity=4 color=rgb(255, 0, 255)/>
+        enabled={self.visible} z={(self.light_depth)px} radius={(self.light_radius)px} intensity=4 color=rgb(255, 0, 255)/>
     <LightSource x={(self.yellow_x)px} y={(self.yellow_y)px} anchor=50% width=1px height=1px
-        z={(self.light_depth)px} radius={(self.light_radius)px} intensity=4 color=rgb(255, 255, 0)/>
+        enabled={self.visible} z={(self.light_depth)px} radius={(self.light_radius)px} intensity=4 color=rgb(255, 255, 0)/>
     <Stacker id=runtime_content width=100% autosize=true gutter=0px>
         <Stacker class="fluent_copy" autosize=true gutter=24px>
             ///#h3

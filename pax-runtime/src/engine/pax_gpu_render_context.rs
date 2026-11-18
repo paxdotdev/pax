@@ -4,7 +4,7 @@ use super::layer_surface::{
 };
 #[cfg(debug_assertions)]
 use super::layer_surface::{visible_surface_escape, VisibleSurfaceEscape};
-use super::recorded_drawing::{Command as DrawingCommand, Drawing, DrawingCache};
+use super::recorded_drawing::{Command as DrawingCommand, Drawing, DrawingCache, LocalPaint};
 use crate::render_instrumentation::{count, Counter};
 use kurbo::{Affine, BezPath, PathEl, Rect, Shape};
 use pax_gpu::render_backend::SharedGpuContext;
@@ -805,6 +805,8 @@ pub struct PaxGpuRenderer {
     #[cfg(feature = "shaders")]
     shader_effect_scopes: Vec<(usize, usize)>,
     drawings: DrawingCache,
+    previous_paint: Option<Rc<LocalPaint>>,
+    recording_paint: Option<LocalPaint>,
     pending_drawings: HashMap<usize, HashMap<u32, Rc<Drawing>>>,
     prepare_surface_content: bool,
     recording_layer: Option<usize>,
@@ -925,6 +927,8 @@ impl PaxGpuRenderer {
             #[cfg(feature = "shaders")]
             shader_effect_scopes: Vec::new(),
             drawings: DrawingCache::default(),
+            previous_paint: None,
+            recording_paint: None,
             pending_drawings: HashMap::new(),
             prepare_surface_content: false,
             recording_layer: None,
@@ -953,6 +957,10 @@ impl PaxGpuRenderer {
             .or(self.source_capture_layer())
             .is_some_and(|owner| owner != layer)
         {
+            return;
+        }
+        if let Some(paint) = &mut self.recording_paint {
+            paint.push(command);
             return;
         }
         let command = Rc::new(command);
@@ -1347,7 +1355,10 @@ impl PaxGpuRenderer {
                             #[cfg(feature = "3d")]
                             ("opaque depth draws", stats.opaque_depth_draws),
                             #[cfg(feature = "3d")]
-                            ("opaque depth parameter bytes", stats.opaque_depth_upload_bytes),
+                            (
+                                "opaque depth parameter bytes",
+                                stats.opaque_depth_upload_bytes,
+                            ),
                             #[cfg(feature = "3d")]
                             ("solid clip preparations", stats.solid_clip_preparations),
                         ] {
@@ -3087,6 +3098,7 @@ impl RenderContext for PaxGpuRenderer {
         {
             return false;
         }
+        self.previous_paint = self.drawings.local_paint(layer, node_id);
         if let Some(owner) = self.recording_layer {
             if owner != layer {
                 return false;
@@ -3198,6 +3210,31 @@ impl RenderContext for PaxGpuRenderer {
         }
     }
 
+    fn begin_local_paint(
+        &mut self,
+        layer: usize,
+        node_id: u32,
+        revision: u64,
+        opacity: f64,
+    ) -> bool {
+        if let Some(paint) = self
+            .previous_paint
+            .take()
+            .filter(|p| p.node_id == node_id && p.revision == revision && p.opacity == opacity)
+        {
+            self.apply_drawing_command(layer, DrawingCommand::LocalPaint(paint));
+            return true;
+        }
+        self.recording_paint = Some(LocalPaint::new(node_id, revision, opacity));
+        false
+    }
+
+    fn end_local_paint(&mut self, layer: usize) {
+        if let Some(paint) = self.recording_paint.take() {
+            self.apply_drawing_command(layer, DrawingCommand::LocalPaint(Rc::new(paint)));
+        }
+    }
+
     fn take_clean_skipped_node(&mut self, layer: usize, node_id: u32) -> bool {
         self.clean_skipped_canvas_nodes
             .borrow_mut()
@@ -3205,6 +3242,7 @@ impl RenderContext for PaxGpuRenderer {
     }
 
     fn end_node(&mut self, layer: usize, node_id: u32) -> bool {
+        self.previous_paint = None;
         self.drawings.end(layer, node_id);
         if self.recording_layer.is_some() {
             return true;

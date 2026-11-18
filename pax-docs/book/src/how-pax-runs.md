@@ -216,15 +216,26 @@ control-flow nodes use the same placement notification path; no author-specified
 grouping is needed. Local content edits and resizing still invalidate their
 respective caches.
 
-This is CPU-side invalidation and cache reuse, not a retained GPU subtree.
-Current world geometry, draw placement, and native occlusion masks still update
-before rendering. Native controls, detached sources, and custom primitives keep
-their existing dependencies unless explicitly supported. Custom primitives opt
-in through `InstanceNode::supports_retained_motion`, using
-`ExpandedNode::canvas_placement_dependencies` while retaining all paint and shape
-inputs; world-dependent content hooks must keep the conservative default.
-Property invalidation and required world-space preparation can still scale with
-the number of descendants. No mask from an earlier pose is reused for a new pose.
+The GPU renderer retains local fill and stroke commands for Rectangle, Ellipse,
+Line, and Path. When one of these nodes moves, it can replay those commands
+with the current placement, clip, lighting, and opacity. A single solid-color
+fill or stroke can also reuse its prepared GPU drawing operation. Paint or shape
+edits and resizing produce a new local paint revision. These caches apply per
+node and per resident drawing.
+
+For opaque convex solids the runtime indexes conservative bounds. Picking and
+native masks request exact projected triangles for candidates at their current
+pose. When the bounding box crosses a camera clip plane or the projective
+horizon, the runtime falls back to clipped geometry. The opaque depth path can
+compute the depth range of an unclipped mesh without building its silhouette.
+
+Custom primitives opt into placement reuse through
+`InstanceNode::supports_retained_motion` and
+`ExpandedNode::canvas_placement_dependencies`. Their content dependencies must
+cover every input that changes local paint. Primitives whose local and world clip
+hooks always return `None` can also return `false` from `may_supply_clip` to
+avoid subscribing to clip placement. Dynamic clip providers use the default.
+World placement and native coverage still update before rendering.
 
 Ordinary affine canvas content inside an allocated Scroller surface also keeps
 its paint placement in that surface's local coordinates. Moving or rotating the

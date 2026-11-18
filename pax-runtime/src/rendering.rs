@@ -465,6 +465,13 @@ pub trait InstanceNode {
         //no-op default implementation
     }
 
+    /// Whether the native occlusion path is exactly the projected convex mesh
+    /// silhouette. Allows broad-phase indexing before computing that path.
+    #[cfg(feature = "3d")]
+    fn occlusion_is_mesh_silhouette(&self) -> bool {
+        false
+    }
+
     /// A closed opaque convex volume in unscrolled world coordinates, if present.
     #[cfg(feature = "3d")]
     fn resolve_convex_mesh(
@@ -829,6 +836,12 @@ pub trait InstanceNode {
     /// properties. Non-reactive source changes call `mark_node_clip_dirty`.
     fn property_requires_clip_recompute(&self, name: &str) -> bool {
         self.property_requires_occlusion_recompute(name)
+    }
+
+    /// Set to false only when both local and world clip hooks always return
+    /// `None`. This lets placement changes skip clip dependencies entirely.
+    fn may_supply_clip(&self) -> bool {
+        true
     }
 
     fn resolve_local_clip_path(&self, _node: &ExpandedNode) -> Option<kurbo::BezPath> {

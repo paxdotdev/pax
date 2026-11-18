@@ -322,7 +322,7 @@ pub(super) fn projected_depth_range(ops: &[PendingVectorOp]) -> Option<[f64; 2]>
     let mut range = [f64::INFINITY, f64::NEG_INFINITY];
     for op in ops {
         let plane = op.projection?;
-        let Some(mut bounds) = path_control_bounds(&op.path) else {
+        let Some(mut bounds) = op.path_bounds else {
             continue;
         };
         if let PendingVectorOpKind::Stroke(width, _, _) = op.kind {

@@ -61,6 +61,13 @@ Type: [`MeshProjection`](../../../api/pax-runtime-api/mesh3/projection.md#meshpr
 Computes exact front contours without retaining a per-mesh cache entry.
 Runtime visibility uses this when it owns a shared, byte-bounded cache.
 
+##### `conservative_coverage_bounds`
+<pre><code class="api-signature language-rust ignore">pub fn conservative_coverage_bounds(&amp;self) -&gt; Option&lt;Rect&gt;</code></pre>
+
+Broad-phase bounds for culling and candidate selection. Exact clipped
+triangles are prepared on demand when the box touches a camera plane or
+projective horizon. An unbounded projection returns `None`.
+
 ##### `coverage_bounds`
 <pre><code class="api-signature language-rust ignore">pub fn coverage_bounds(&amp;self) -&gt; Option&lt;Rect&gt;</code></pre>
 

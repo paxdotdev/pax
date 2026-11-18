@@ -48,6 +48,10 @@ pub struct GroupInstance {
 }
 
 impl InstanceNode for GroupInstance {
+    fn may_supply_clip(&self) -> bool {
+        false
+    }
+
     fn geometry_is_scroller_local(&self) -> bool {
         true
     }

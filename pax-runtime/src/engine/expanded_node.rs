@@ -3059,32 +3059,37 @@ impl ExpandedNode {
         // Structural child changes are handled by children_listener after
         // reconciliation; data-only repeat invalidation is not an occlusion change.
         let placement = self.retained_placement_dependency(self.local_compositing.clone());
-        let eligible = self.local_compositing.clone();
-        let local_placement = self.native_local_placement.clone();
-        let local_clip = self.local_clip_geometry.clone();
-        let world_clip = self.world_clip_geometry.clone();
-        let clip_deps = [
-            eligible.untyped(),
-            local_placement.untyped(),
-            local_clip.untyped(),
-            world_clip.untyped(),
-        ];
-        let node = Rc::downgrade(self);
-        let clip = LocalProperty::computed_with_cutoff(
-            move || {
-                if eligible.get()
-                    && node
-                        .upgrade()
-                        .is_some_and(|n| n.retained_native_placement().is_some())
-                {
-                    local_clip.get()
-                } else {
-                    world_clip.get()
-                }
-            },
-            &clip_deps,
-            |a, b| a.0 == b.0,
-        );
+        let clip = if self.instance_node.borrow().may_supply_clip() {
+            let eligible = self.local_compositing.clone();
+            let local_placement = self.native_local_placement.clone();
+            let local_clip = self.local_clip_geometry.clone();
+            let world_clip = self.world_clip_geometry.clone();
+            let clip_deps = [
+                eligible.untyped(),
+                local_placement.untyped(),
+                local_clip.untyped(),
+                world_clip.untyped(),
+            ];
+            let node = Rc::downgrade(self);
+            LocalProperty::computed_with_cutoff_and_name(
+                move || {
+                    if eligible.get()
+                        && node
+                            .upgrade()
+                            .is_some_and(|n| n.retained_native_placement().is_some())
+                    {
+                        local_clip.get()
+                    } else {
+                        world_clip.get()
+                    }
+                },
+                &clip_deps,
+                |a, b| a.0 == b.0,
+                "occlusion clip",
+            )
+        } else {
+            self.world_clip_geometry.clone()
+        };
         deps.extend([
             self.presentation_layer.untyped(),
             placement.untyped(),
@@ -4662,8 +4667,8 @@ impl ExpandedNode {
             deps.push(inherited.untyped());
         }
         let parent = Rc::downgrade(&parent);
-        self.opaque_mesh_content_allowed
-            .replace_with(LocalProperty::computed_with_cutoff(
+        self.opaque_mesh_content_allowed.replace_with(
+            LocalProperty::computed_with_cutoff_and_name(
                 move || {
                     parent.upgrade().is_none_or(|parent| {
                         instance.permits_opaque_mesh_content(&parent) && (capture || inherited.get())
@@ -4671,7 +4676,9 @@ impl ExpandedNode {
                 },
                 &deps,
                 bool::eq,
-            ));
+                "opaque mesh permission",
+            ),
+        );
     }
 
     fn clear_projected_membership_index(&self) {

@@ -99,6 +99,10 @@ pub struct PathInstance {
 }
 
 impl InstanceNode for PathInstance {
+    fn may_supply_clip(&self) -> bool {
+        false
+    }
+
     fn supports_retained_motion(&self) -> bool {
         true
     }
@@ -380,24 +384,23 @@ impl InstanceNode for PathInstance {
             return;
         };
 
-        if let Some(bez_path) = bez_path {
-            expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-                rc.save(scope.layer_id);
-                scope.apply_transform(rc);
-                crate::common::draw_appearance(
-                    rc,
-                    scope.layer_id,
-                    bez_path.clone(),
-                    &properties.fill.local().get(),
-                    &properties.stroke.local().get(),
-                    scope.paint_opacity,
-                    properties.smoothing.local().get(),
-                    properties.draw_start.local().get().to_clamped_unit_float(),
-                    properties.draw_end.local().get().to_clamped_unit_float(),
-                );
-                rc.restore(scope.layer_id);
-            });
-        }
+        scope.draw_local(rc, geometry.local_paint_revision, |rc| {
+            if let Some(bez_path) = bez_path {
+                expanded_node.with_properties_unwrapped(|properties: &mut Path| {
+                    crate::common::draw_appearance(
+                        rc,
+                        scope.layer_id,
+                        bez_path.clone(),
+                        &properties.fill.local().get(),
+                        &properties.stroke.local().get(),
+                        scope.paint_opacity,
+                        properties.smoothing.local().get(),
+                        properties.draw_start.local().get().to_clamped_unit_float(),
+                        properties.draw_end.local().get().to_clamped_unit_float(),
+                    );
+                });
+            }
+        });
         if rc.end_node(scope.layer_id, scope.node_id) {
             rtc.clear_canvas_node_dirty(&expanded_node.id);
         }

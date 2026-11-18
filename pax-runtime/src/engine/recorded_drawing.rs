@@ -36,6 +36,7 @@ pub(super) enum Command {
     Depth(u32, Option<pax_runtime_api::DepthPlane>),
     #[cfg(feature = "3d")]
     LightingSurface(u32, Option<pax_runtime_api::LightingSurface>),
+    LocalPaint(Rc<LocalPaint>),
     Fill {
         path: Path,
         bounds: Rect,
@@ -114,6 +115,24 @@ impl Command {
             Self::Depth(id, plane) => gpu.set_node_depth_plane(*id, *plane),
             #[cfg(feature = "3d")]
             Self::LightingSurface(id, surface) => gpu.set_node_lighting_surface(*id, *surface),
+            Self::LocalPaint(paint) => {
+                let draw = |gpu: &mut WgpuRenderer| {
+                    for command in &paint.commands {
+                        command.execute(gpu, images, versions);
+                    }
+                };
+                match paint.commands.as_slice() {
+                    [Self::Fill {
+                        paint: Paint::Solid(_),
+                        ..
+                    }
+                    | Self::Stroke {
+                        paint: Paint::Solid(_),
+                        ..
+                    }] => gpu.draw_local_paint(paint.revision, paint.opacity, draw),
+                    _ => draw(gpu),
+                }
+            }
             Self::Fill {
                 path,
                 bounds,
@@ -185,6 +204,7 @@ impl Command {
             Self::Fill { path, paint, .. } | Self::Stroke { path, paint, .. } => {
                 path.iter().count() + paint_units(paint)
             }
+            Self::LocalPaint(paint) => paint.units,
             Self::Clip(path) => path.iter().count(),
             Self::Alpha(paints, _) => paints
                 .iter()
@@ -204,6 +224,35 @@ fn paint_units(paint: &Paint) -> usize {
         Paint::RadialGradient(p) => p.stops.len(),
         Paint::MeshGradient(p) => p.rows.iter().map(Vec::len).sum(),
         Paint::Blend(paints) => paints.iter().map(|(p, _)| paint_units(p)).sum(),
+    }
+}
+
+pub(super) struct LocalPaint {
+    pub node_id: u32,
+    pub revision: u64,
+    pub opacity: f64,
+    pub commands: Vec<Command>,
+    units: usize,
+}
+
+impl LocalPaint {
+    pub fn new(node_id: u32, revision: u64, opacity: f64) -> Self {
+        Self {
+            node_id,
+            revision,
+            opacity,
+            commands: Vec::new(),
+            units: 0,
+        }
+    }
+
+    pub fn push(&mut self, command: Command) {
+        debug_assert!(matches!(
+            command,
+            Command::Fill { .. } | Command::Stroke { .. }
+        ));
+        self.units += command.units();
+        self.commands.push(command);
     }
 }
 
@@ -265,6 +314,18 @@ impl DrawingCache {
             commands: r.state.clone(),
         });
         self.push(layer, Rc::new(Command::Begin(id, order, lights)));
+    }
+
+    pub fn local_paint(&self, layer: usize, id: u32) -> Option<Rc<LocalPaint>> {
+        let (drawing, _) = self.drawings.get(&(layer, id))?;
+        drawing
+            .commands
+            .iter()
+            .rev()
+            .find_map(|cmd| match cmd.as_ref() {
+                Command::LocalPaint(paint) if paint.node_id == id => Some(paint.clone()),
+                _ => None,
+            })
     }
 
     pub fn update_orders(&mut self, layer: usize, orders: &[(u32, i32)]) {
@@ -414,6 +475,22 @@ mod tests {
         cache.push(0, Rc::new(Command::Image("test".into(), Rect::ZERO, 1.0)));
         cache.push(0, Rc::new(Command::Restore));
         cache.end(0, id);
+    }
+
+    #[test]
+    fn nested_drawings_replay_only_their_own_paint_program() {
+        let mut cache = DrawingCache::default();
+        let bounds = Some(Rect::new(0., 0., 10., 10.));
+        let parent = Rc::new(LocalPaint::new(1, 7, 1.));
+        let child = Rc::new(LocalPaint::new(2, 7, 1.));
+        cache.begin(0, 1, 0, 0, bounds);
+        cache.push(0, Rc::new(Command::LocalPaint(parent.clone())));
+        cache.begin(0, 2, 0, 0, bounds);
+        cache.push(0, Rc::new(Command::LocalPaint(child.clone())));
+        cache.end(0, 2);
+        cache.end(0, 1);
+        assert!(Rc::ptr_eq(&cache.local_paint(0, 1).unwrap(), &parent));
+        assert!(Rc::ptr_eq(&cache.local_paint(0, 2).unwrap(), &child));
     }
 
     #[test]

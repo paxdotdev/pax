@@ -140,7 +140,19 @@ impl WgpuRenderer<'_> {
         });
         let pose =
             retained_pose.unwrap_or_else(|| draw.mesh.projected(projection, projection_viewport));
-        let bounds = bounds_of(&pose.silhouette());
+        let bounds = match pose.conservative_coverage_bounds() {
+            Some(r) => Box2D::new(
+                point(r.x0 as f32, r.y0 as f32),
+                point(r.x1 as f32, r.y1 as f32),
+            ),
+            // A capture can sample outside the tile, including the finite
+            // surface remaining after clipping at a projective horizon.
+            None => Box2D::from_points(
+                pose.silhouette()
+                    .into_iter()
+                    .map(|[x, y]| point(x as f32, y as f32)),
+            ),
+        };
         pending.kind = PendingNodeKind::Solid(RetainedSolid {
             pose,
             world: draw.world,
@@ -385,23 +397,6 @@ impl WgpuRenderer<'_> {
     }
 }
 
-fn bounds_of(p: &[[f64; 2]]) -> Box2D {
-    if p.is_empty() {
-        return Box2D::new(point(0., 0.), point(0., 0.));
-    }
-    let mut min = [f64::INFINITY; 2];
-    let mut max = [f64::NEG_INFINITY; 2];
-    for p in p {
-        for i in 0..2 {
-            min[i] = min[i].min(p[i]);
-            max[i] = max[i].max(p[i]);
-        }
-    }
-    Box2D::new(
-        point(min[0] as f32, min[1] as f32),
-        point(max[0] as f32, max[1] as f32),
-    )
-}
 fn append_polygon(builder: &mut lyon::path::path::Builder, p: &[[f64; 2]]) {
     if p.len() < 3 {
         return;

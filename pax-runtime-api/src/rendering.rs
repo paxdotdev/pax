@@ -651,6 +651,22 @@ pub trait RenderContext {
         self.begin_node(layer, node_id, z_index, light_mask)
     }
 
+    /// Begin a sequence of local fill/stroke commands for the current node.
+    /// A true result means the renderer replayed the commands for this revision
+    /// and opacity. On a miss, emit those commands and call `end_local_paint`.
+    /// Change the revision whenever shape, bounds, or paint inputs change.
+    fn begin_local_paint(
+        &mut self,
+        _layer: usize,
+        _node_id: u32,
+        _revision: u64,
+        _opacity: f64,
+    ) -> bool {
+        false
+    }
+    /// Finish a sequence recorded after a miss in `begin_local_paint`.
+    fn end_local_paint(&mut self, _layer: usize) {}
+
     /// Returns true when a bounded node skipped by `begin_node_with_bounds` is clean for now.
     fn take_clean_skipped_node(&mut self, _layer: usize, _node_id: u32) -> bool {
         false

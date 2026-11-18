@@ -519,6 +519,14 @@ Multiplies source pixel alpha by `opacity` without reuploading the texture.
 Sibling tiles share resident image pixels, but keep their own draw bindings.
 Identity/version follows the same contract as [`Self::draw_image`].
 
+##### `draw_local_paint`
+<pre><code class="api-signature language-rust ignore">pub fn draw_local_paint(&amp;mut self, revision: u64, opacity: f64, draw: impl FnOnce(&amp;mut Self))</code></pre>
+
+Replay a node-local fill/stroke program under the current placement.
+The caller owns the revision and must change it when any local command
+changes. The callback must emit a solid-color fill or stroke at the
+existing transform, projection and clip, without changing renderer state.
+
 ##### `fill_path`
 <pre><code class="api-signature language-rust ignore">pub fn fill_path(&amp;mut self, path: <a href="../../../api/pax-std/drawing/path.md#path">Path</a>, fill: <a href="../../../api/pax-runtime-api/drawing.md#fill">Fill</a>)</code></pre>
 

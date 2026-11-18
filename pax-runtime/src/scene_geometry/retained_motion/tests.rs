@@ -180,6 +180,7 @@ fn inherited_motion_preserves_content_but_prepares_current_world_records() {
                 let current = ctx.canvas_geometry_for_node(node);
                 assert_eq!(current.spatial_geometry, node.presentation_geometry.get());
                 if enabled {
+                    assert_eq!(current.local_paint_revision, original.local_paint_revision);
                     assert!(Rc::ptr_eq(
                         current.local.path.as_ref().unwrap(),
                         original.local.path.as_ref().unwrap()
@@ -205,6 +206,8 @@ fn inherited_motion_preserves_content_but_prepares_current_world_records() {
         surface.content.set(3.);
         engine.tick();
         assert!(surface.effects.get() > effects);
+        let revised = ctx.canvas_geometry_for_node(&children[0]).local_paint_revision;
+        assert_ne!(revised, before[0].local_paint_revision);
         assert_eq!(
             ctx.canvas_geometry_for_node(&children[0])
                 .local
@@ -219,6 +222,7 @@ fn inherited_motion_preserves_content_but_prepares_current_world_records() {
             .width
             .set(Some(Size::Pixels(40.0.into())));
         engine.tick();
+        assert_ne!(ctx.canvas_geometry_for_node(&children[0]).local_paint_revision, revised);
         assert_eq!(
             ctx.canvas_geometry_for_node(&children[0])
                 .local

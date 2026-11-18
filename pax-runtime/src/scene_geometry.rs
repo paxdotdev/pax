@@ -129,6 +129,8 @@ pub struct PreparedCanvasGeometry {
     pub world_projection: Option<pax_runtime_api::math::ProjectedPlane>,
     /// Transformed paint coverage including the renderer's conservative culling pad.
     pub coverage_bounds: Option<Rect>,
+    /// Identity of the current local paint inputs, shared across placement changes.
+    pub local_paint_revision: u64,
     /// Primitive-local geometry backing this prepared record.
     pub local: CanvasGeometry,
 }
@@ -177,6 +179,7 @@ impl PreparedCanvasGeometry {
             projection: None,
             world_projection: None,
             coverage_bounds,
+            local_paint_revision: 0,
             local,
         }
     }
@@ -692,6 +695,7 @@ mod tests {
             projection: None,
             world_projection: None,
             coverage_bounds: bounds,
+            local_paint_revision: 0,
             local: CanvasGeometry::default(),
         }
     }

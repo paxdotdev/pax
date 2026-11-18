@@ -2503,6 +2503,13 @@ impl RuntimeContext {
                 local,
             )
         };
+        prepared.local_paint_revision = retained.as_ref().map_or_else(
+            || {
+                static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+                NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            },
+            |old| old.local_paint_revision,
+        );
         if node.has_perspective_camera() {
             prepared.projection = self.canvas_surface_projection_for_node(node);
             prepared.world_projection = self.presented_projection_for_node(node);
@@ -2547,7 +2554,9 @@ impl RuntimeContext {
                     .map(|(projection, mapping)| projection.post_mapping(mapping));
                 prepared.coverage_bounds = prepared
                     .solid_projection
-                    .and_then(|projection| solid.projected(projection).coverage_bounds())
+                    .and_then(|projection| {
+                        solid.projected(projection).conservative_coverage_bounds()
+                    })
                     .map(|bounds| {
                         if bounds.area() == 0. {
                             bounds

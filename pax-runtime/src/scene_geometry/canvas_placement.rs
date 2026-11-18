@@ -49,7 +49,7 @@ impl ExpandedNode {
             deps
         };
         self.affine_canvas_domain
-            .replace_with(LocalProperty::computed_with_cutoff(
+            .replace_with(LocalProperty::computed_with_cutoff_and_name(
                 move || {
                     let transform = kurbo::Affine::from(local.get().transform);
                     let affine = parent_domain.get()
@@ -65,6 +65,7 @@ impl ExpandedNode {
                 },
                 &deps,
                 bool::eq,
+                "canvas affine domain",
             ));
 
         let parent_id = parent.as_ref().map(|p| p.id.to_u32());
@@ -84,7 +85,7 @@ impl ExpandedNode {
             origin.untyped(),
         ];
         self.canvas_local_placement
-            .replace_with(LocalProperty::computed_with_cutoff(
+            .replace_with(LocalProperty::computed_with_cutoff_and_name(
                 move || {
                     let owner = owner.get();
                     let mut result = CanvasLocalPlacement { owner, tab: None };
@@ -110,6 +111,7 @@ impl ExpandedNode {
                 },
                 &deps,
                 CanvasLocalPlacement::eq,
+                "canvas local placement",
             ));
 
         // Unsupported placements keep their existing dependencies. The cutoff
@@ -119,10 +121,11 @@ impl ExpandedNode {
         let world = self.presentation_transform_and_bounds.clone();
         let deps = [local.untyped(), world.untyped()];
         let fallback =
-            LocalProperty::<Option<TransformAndBounds<NodeLocal, Window>>>::computed_with_cutoff(
+            LocalProperty::<Option<TransformAndBounds<NodeLocal, Window>>>::computed_with_cutoff_and_name(
                 move || local.get().tab.is_none().then(|| world.get()),
                 &deps,
                 |old, new| old.is_none() && new.is_none(),
+                "canvas world fallback",
             );
         let local = self.canvas_local_placement.clone();
         let context = Rc::downgrade(ctx);
