@@ -95,6 +95,7 @@ impl WgpuRenderer<'_> {
 
     // Spatial draws are already visibility-filtered. Each occurrence can have a different
     // BSP clip, so repeated node IDs must remain distinct in both the plan and cache key.
+    #[cfg(feature = "3d")]
     pub(super) fn opacity_plan_for_draws(
         &self,
         nodes: &[u32],

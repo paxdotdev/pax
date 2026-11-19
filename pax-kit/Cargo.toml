@@ -28,10 +28,6 @@ windows = ["pax-engine/windows"]
 linux = ["pax-engine/linux"]
 android = ["pax-engine/android"]
 
-[profile.release]
-lto = true
-opt-level = "z"
-
 # The compilation target chooses its chassis; Cargo features remain available
 # for explicit capability requests and compatibility with existing manifests.
 [target.'cfg(target_os = "macos")'.dependencies]

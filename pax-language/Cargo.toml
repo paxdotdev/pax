@@ -27,6 +27,3 @@ proc-macro2 = { version = "1.0", features = ["span-locations"], optional = true 
 [features]
 default = ["parser"]
 parser = ["dep:pest", "dep:pest_derive", "dep:syn", "dep:eyre", "dep:proc-macro2"]
-
-[profile.dev]
-debug = false

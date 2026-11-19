@@ -1,4 +1,5 @@
-use crate::*;
+#[allow(unused_imports)] // Component paths used by the Pax template compiler.
+use crate::{Group, Rectangle};
 #[allow(unused)]
 use pax_engine::api::LocalProperty;
 use pax_engine::api::*;

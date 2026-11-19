@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
-use crate::*;
+#[allow(unused_imports)] // Component paths used by the Pax template compiler.
+use crate::{Button, Group, Rectangle, Text};
 #[allow(unused)]
 use pax_engine::api::LocalProperty;
 use pax_engine::api::*;
