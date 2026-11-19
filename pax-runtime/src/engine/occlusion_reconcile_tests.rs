@@ -1408,7 +1408,64 @@ fn leaf_changes_inside_nested_clips_reuse_exact_coverage() {
 }
 
 #[test]
-fn container_creation_falls_back_but_transfers_repair_locally() {
+fn inserting_a_rounded_clip_repairs_shared_and_neighbor_masks_in_a_scroller() {
+    let (ctx, root) = mount(vec![retained_probe(
+        Kind::Scroller,
+        vec![retained_probe(Kind::Native, vec![])],
+    )]);
+    let scroller = root.children.get()[0].children.get()[0].clone();
+    let neighbor = scroller.children.get()[0].clone();
+    scroll_surface(&ctx, &scroller, 5.);
+    settle(&root, &ctx);
+    clear(&ctx);
+
+    let clip = scroller
+        .create_children_detached(
+            vec![(
+                retained_probe(
+                    Kind::Clip,
+                    vec![
+                        retained_probe(Kind::Canvas, vec![]),
+                        retained_probe(Kind::Native, vec![]),
+                    ],
+                ),
+                scroller.stack.clone(),
+            )],
+            &ctx,
+            &Rc::downgrade(&scroller),
+        )
+        .remove(0);
+    let before = ctx.occlusion_stats();
+    attach(&scroller, vec![clip.clone(), neighbor.clone()], &ctx);
+    settle(&root, &ctx);
+    assert_eq!(ctx.occlusion_stats().rebuilds, before.rebuilds);
+    let inner = clip.children.get()[1].clone();
+    assert_eq!(inner.occlusion.get().parent_frame, Some(clip.id.to_u32()));
+    let masks: HashMap<_, _> = ctx
+        .take_native_messages()
+        .into_iter()
+        .filter_map(|message| match message {
+            pax_message::NativeMessage::NativeMaskUpdate(patch) => Some((patch.id, patch.entries)),
+            _ => None,
+        })
+        .collect();
+    // The native child shares the clip with the canvas. Its neighbor sees
+    // the same occluder through the rounded path.
+    let shared = &masks[&inner.id.to_u32()];
+    let external = &masks[&neighbor.id.to_u32()];
+    assert_eq!(shared.len(), 1);
+    assert!(shared[0].clips.is_empty());
+    assert_eq!(external.len(), 1);
+    assert_eq!(external[0].clips.len(), 1);
+    // Scroll with the membership produced by insertion, before the full-rebuild comparison.
+    scroll_surface(&ctx, &scroller, 19.);
+    settle(&root, &ctx);
+    assert_eq!(ctx.occlusion_stats().rebuilds, before.rebuilds);
+    assert_full_rebuild_matches(&root, &ctx);
+}
+
+#[test]
+fn affine_clip_insertion_reconciles_while_new_scrollers_rebuild() {
     for kind in [Kind::Clip, Kind::Scroller] {
         let (ctx, root) = mount(vec![
             probe(Kind::Canvas, vec![]),
@@ -1418,7 +1475,11 @@ fn container_creation_falls_back_but_transfers_repair_locally() {
         let before = ctx.occlusion_stats();
         let container = add(&group, kind, &ctx);
         settle(&root, &ctx);
-        assert!(ctx.occlusion_stats().rebuilds > before.rebuilds);
+        assert_eq!(
+            ctx.occlusion_stats().rebuilds - before.rebuilds,
+            u64::from(matches!(kind, Kind::Scroller))
+        );
+        assert_full_rebuild_matches(&root, &ctx);
         let before = ctx.occlusion_stats();
         let leaf = group.children.get()[0].clone();
         crate::NodeRef::new(&leaf, &ctx)

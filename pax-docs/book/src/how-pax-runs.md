@@ -272,6 +272,9 @@ Container presentation and external overlaps can still require work. These optim
 debug and release builds; they are not subtree virtualization or a promise of
 constant total frame cost.
 
+Mounting an ordinary affine clipping Frame on an existing render layer retains
+the surrounding scene's coverage. Its descendants inherit the new clip, and
+the engine checks overlapping native masks in the same tick.
 Transfers between existing clipping and presentation domains repair the moved
 subtree's layer/container membership and both its former and current overlaps.
 Unrelated coverage remains retained. Overlay entry, return, and animation-flight

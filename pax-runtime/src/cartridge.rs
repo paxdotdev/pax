@@ -35,6 +35,9 @@ use std::collections::{BTreeMap, HashMap};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
+mod timeline_selectors;
+use timeline_selectors::TimelineSelectors;
+
 pub trait PaxCartridge {}
 
 #[cfg(test)]
@@ -561,121 +564,6 @@ fn overlay_static_runtime_properties(
     }
 }
 
-fn timeline_transition_kind(
-    timeline: &TimelineDefinition,
-    settings: &Option<PreparedRuntimeSettings>,
-) -> Option<u64> {
-    let timeline_name = timeline.name.as_ref()?.token_value.as_str();
-    settings
-        .as_ref()?
-        .0
-        .transitions
-        .iter()
-        .find_map(|(name, phase)| (name == timeline_name).then_some(*phase))
-}
-
-fn timeline_target_matches_node(
-    target: &str,
-    tnd: &TemplateNodeDefinition,
-    classes: &[String],
-) -> bool {
-    if let Some(class_name) = target.strip_prefix('.') {
-        return classes.iter().any(|candidate| candidate == class_name);
-    }
-    if let Some(id) = target.strip_prefix('#') {
-        return tnd
-            .selector_info
-            .id
-            .as_ref()
-            .map(|candidate| candidate.token_value == id)
-            .unwrap_or(false);
-    }
-    false
-}
-
-fn append_timeline_selector_entries(
-    columns: &mut RuntimeResolvedPropertyColumns,
-    tnd: &TemplateNodeDefinition,
-    timelines: &[TimelineDefinition],
-    component_settings: &Option<PreparedRuntimeSettings>,
-    classes: &[String],
-    transition_classes: Option<&[String]>,
-) {
-    let mut values =
-        BTreeMap::<String, (SelectorExpr, Option<LocationInfo>, ValueDefinition)>::new();
-    let empty_base = BTreeMap::new();
-
-    for timeline in timelines {
-        let transition_kind = timeline_transition_kind(timeline, component_settings);
-        let selector_classes = transition_kind.and(transition_classes).unwrap_or(classes);
-        for element in &timeline.elements {
-            let TimelineBlockElement::SelectorBlock(target, block) = element else {
-                continue;
-            };
-            if !timeline_target_matches_node(&target.token_value, tnd, selector_classes) {
-                continue;
-            }
-            let Ok(selector) = SelectorExpr::parse(&target.token_value) else {
-                continue;
-            };
-            for element in &block.elements {
-                let TimelineSelectorElement::Track(property, track) = element else {
-                    continue;
-                };
-                let value = if let Some(transition_kind) = transition_kind {
-                    let track = pax_manifest::PaxManifest::prepare_transition_track(
-                        timeline,
-                        track,
-                        &empty_base,
-                        &property.token_value,
-                    );
-                    let existing = values
-                        .remove(&property.token_value)
-                        .map(|(_, _, value)| value);
-                    let mut transition = match existing {
-                        Some(ValueDefinition::Transition(transition)) => transition,
-                        Some(value) => TransitionDefinition {
-                            starting_value: Some(Box::new(value)),
-                            ..Default::default()
-                        },
-                        None => TransitionDefinition::default(),
-                    };
-                    match transition_kind {
-                        TRANSITION_PHASE_ENTER => transition.enter = Some(track),
-                        TRANSITION_PHASE_EXIT => transition.exit = Some(track),
-                        _ => {}
-                    }
-                    ValueDefinition::Transition(transition)
-                } else {
-                    ValueDefinition::Timeline(pax_manifest::PaxManifest::prepare_timeline_track(
-                        timeline, track,
-                    ))
-                };
-                values.insert(
-                    property.token_value.clone(),
-                    (selector.clone(), property.token_location.clone(), value),
-                );
-            }
-        }
-    }
-
-    for (property, (selector, source_location, value)) in values {
-        append_resolved_property_entry(
-            columns,
-            &property,
-            runtime_property_entry(
-                RuntimeSettingsSource::ComponentSettings,
-                Some(selector),
-                source_location,
-                None,
-                value,
-                None,
-                None,
-            ),
-        );
-    }
-}
-
 #[cfg(test)]
 fn resolve_runtime_settings_with_layers_for_node(
     tnd: &TemplateNodeDefinition,
@@ -693,7 +581,7 @@ fn resolve_runtime_settings_with_layers_for_node(
         imported_layers,
         classes,
         transition_classes,
-        timelines,
+        &TimelineSelectors::new(tnd, timelines, containing_component_settings.as_ref()),
         None,
     )
 }
@@ -705,7 +593,7 @@ fn resolve_runtime_settings_with_prepared_inline(
     imported_layers: &[RuntimeSettingsLayer],
     classes: &[String],
     transition_classes: Option<&[String]>,
-    timelines: &[TimelineDefinition],
+    timelines: &TimelineSelectors,
     prepared_inline: Option<&RuntimeResolvedPropertyColumns>,
 ) -> ResolvedRuntimeSettings {
     let mut columns = BTreeMap::new();
@@ -738,16 +626,7 @@ fn resolve_runtime_settings_with_prepared_inline(
             columns.entry(name).or_default().extend(entries);
         }
     }
-    // These tracks are assembled from the matching selectors. Fresh definition
-    // identities conservatively rebind them until track preparation is shared.
-    append_timeline_selector_entries(
-        &mut columns,
-        tnd,
-        timelines,
-        containing_component_settings,
-        classes,
-        transition_classes,
-    );
+    timelines.append(&mut columns, classes, transition_classes);
     if let Some(prepared) = prepared_inline {
         append_prepared_settings(&mut columns, prepared, &RuntimeSettingsSource::Inline, None);
     } else {
@@ -782,7 +661,7 @@ fn resolve_runtime_settings_for_node(
     tnd: &TemplateNodeDefinition,
     base_defined_properties: &BTreeMap<String, ValueDefinition>,
     containing_component_settings: &Option<PreparedRuntimeSettings>,
-    timelines: &[TimelineDefinition],
+    timelines: &TimelineSelectors,
     expanded_node: Option<&Rc<ExpandedNode>>,
     prepared_inline: &RuntimeResolvedPropertyColumns,
 ) -> ResolvedRuntimeSettings {
@@ -808,7 +687,7 @@ fn resolve_property_columns_for_node(
     tnd: &TemplateNodeDefinition,
     base_defined_properties: &BTreeMap<String, ValueDefinition>,
     containing_component_settings: &Option<PreparedRuntimeSettings>,
-    timelines: &[TimelineDefinition],
+    timelines: &TimelineSelectors,
     expanded_node: Option<&Rc<ExpandedNode>>,
     prepared_inline: &RuntimeResolvedPropertyColumns,
 ) -> Rc<RuntimeResolvedPropertyColumns> {
@@ -838,14 +717,13 @@ fn resolve_property_columns_for_node(
 
 /// Immutable template inputs shared by common and component property binding.
 /// Selectors and conditional blocks are prepared once and shared by instances.
-/// Property definitions are prepared on the first selector match or inline use.
-/// Resolved columns and reactive properties are always node-local; this plan
-/// never caches evaluated values or selector matches across nodes or rebinds.
+/// Instances share immutable definitions for matching selector timeline tracks.
+/// Each resolution uses the current selectors and preserves node-local bindings.
 pub struct TemplatePropertyPlan {
     node: TemplateNodeDefinition,
     base_defined_properties: BTreeMap<String, ValueDefinition>,
     component_settings: Option<PreparedRuntimeSettings>,
-    timelines: Vec<TimelineDefinition>,
+    timelines: TimelineSelectors,
     inline_columns: OnceCell<RuntimeResolvedPropertyColumns>,
     pub(crate) requires_pre_node_binding: bool,
     #[cfg(test)]
@@ -857,7 +735,7 @@ impl TemplatePropertyPlan {
         node: TemplateNodeDefinition,
         base_defined_properties: BTreeMap<String, ValueDefinition>,
         component_settings: Option<Vec<SettingsBlockElement>>,
-        timelines: Vec<TimelineDefinition>,
+        timelines: &[TimelineDefinition],
     ) -> Self {
         let requires_pre_node_binding = base_defined_properties
             .values()
@@ -866,11 +744,13 @@ impl TemplatePropertyPlan {
                 matches!(setting,
                 SettingElement::Setting(_, value) if value_uses_local_property_scope(value))
             });
+        let component_settings = component_settings.map(PreparedRuntimeSettings::from);
+        let timelines = TimelineSelectors::new(&node, timelines, component_settings.as_ref());
         Self {
             inline_columns: OnceCell::new(),
             node,
             base_defined_properties,
-            component_settings: component_settings.map(PreparedRuntimeSettings::from),
+            component_settings,
             timelines,
             requires_pre_node_binding,
             #[cfg(test)]
@@ -2072,7 +1952,6 @@ pub trait DefinitionToInstanceTraverser {
         let node = containing_template.get_node(node_id).unwrap();
         let node = node.clone();
         let containing_component_settings = containing_component.settings.clone();
-        let containing_component_timelines = containing_component.timelines.clone();
         let containing_component_descriptor = self
             .get_component_descriptor(containing_component_type_id)
             .unwrap();
@@ -2128,7 +2007,7 @@ pub trait DefinitionToInstanceTraverser {
             node,
             inline_properties,
             containing_component_settings,
-            containing_component_timelines,
+            &containing_component.timelines,
         ));
         args.prototypical_properties = crate::PropertiesInit::Template {
             descriptor: node_component_descriptor,

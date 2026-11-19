@@ -8,8 +8,7 @@ use pax_engine::*;
 use pax_message::{AnyCreatePatch, FramePatch};
 use pax_runtime::api::{bez_path_to_svg_path_data, Layer, Property, RenderContext};
 use pax_runtime::{
-    bind_content_measurement_effect, resolve_axis_autosize, sync_content_autosize_with_axes,
-    BaseInstance, ContentMeasurementGeometry, ExpandedNode, InstanceFlags, InstanceNode,
+    bind_content_autosize, BaseInstance, ExpandedNode, InstanceFlags, InstanceNode,
     InstantiationArgs, RuntimeContext,
 };
 use_RefCell!();
@@ -149,25 +148,13 @@ impl InstanceNode for FrameInstance {
                     frame.autosize_y.local(),
                 )
             });
-        let deps = [
-            autosize.untyped(),
-            autosize_x.untyped(),
-            autosize_y.untyped(),
-        ];
-        bind_content_measurement_effect(
+        bind_content_autosize(
             expanded_node,
             &ctx,
             "frame autosize",
-            ContentMeasurementGeometry::Placed,
-            &deps,
-            move |node, node_ctx| {
-                sync_content_autosize_with_axes(
-                    node,
-                    node_ctx,
-                    resolve_axis_autosize(autosize.get(), autosize_x.get(), true),
-                    resolve_axis_autosize(autosize.get(), autosize_y.get(), true),
-                );
-            },
+            autosize,
+            autosize_x,
+            autosize_y,
         );
     }
 
