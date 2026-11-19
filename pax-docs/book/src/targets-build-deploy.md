@@ -861,8 +861,9 @@ on the browser and device. See [MDN's WebGPU reference](https://developer.mozill
 
 Automatic renderer selection falls back to Vello CPU when WebGPU initialization
 fails. iPhone and iPad Safari try WebGPU by default, including iPad Safari's
-desktop browsing mode. Pax bounds the density of iPhone WebGPU canvases to
-limit graphics memory; native text and controls are unaffected. Default CLI builds
+desktop browsing mode. On iPhone, WebGPU uses display-density canvases and
+limits the size and number of pixels prepared offscreen; native text and controls
+are unaffected. Default CLI builds
 require WebAssembly SIMD, including Safari 16.4 or
 newer. See [web build profiles](developer-workflow.md#web-build-profiles) for
 compiler-flag overrides, and [renderer selection](how-pax-runs.md#rendering-backends)

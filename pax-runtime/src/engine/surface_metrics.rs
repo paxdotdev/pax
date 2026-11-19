@@ -26,7 +26,13 @@ impl RasterDensityTracker {
         density: [f64; 2],
         now: f64,
     ) -> ([f64; 2], bool) {
-        let target = density.map(|v| 2.0_f64.powf((v.log2() * 16.0 - 1e-9).ceil() / 16.0));
+        // Include whole display densities in the upward buckets. Otherwise an
+        // unscaled 3× surface rasterizes at ~3.084× and the browser resamples
+        // it back to the physical pixel grid, even at rest.
+        let target = density.map(|v| {
+            let logarithmic = 2.0_f64.powf((v.log2() * 16.0 - 1e-9).ceil() / 16.0);
+            logarithmic.min((v * (1.0 - 1e-12)).ceil())
+        });
         let s = self.layers.entry(layer).or_insert(DensityState {
             owner,
             density: target,
@@ -179,6 +185,24 @@ mod tests {
         assert!(density[0] >= 2.2 && density[0] < 2.2 * 1.045);
         t.retain(&HashSet::new());
         assert_eq!(t.observe(1, None, [0.5; 2], 2.0), ([0.5; 2], false));
+    }
+
+    #[test]
+    fn native_triple_density_is_an_exact_monotone_bucket() {
+        for v in [2.99, 3.0, 3.0 + 1e-14] {
+            assert_eq!(
+                RasterDensityTracker::default()
+                    .observe(0, None, [v; 2], 0.)
+                    .0,
+                [3.; 2]
+            );
+        }
+        assert!(
+            RasterDensityTracker::default()
+                .observe(0, None, [3.01; 2], 0.)
+                .0[0]
+                >= 3.01
+        );
     }
 
     #[test]

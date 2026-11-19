@@ -229,14 +229,27 @@ impl Impressionist {
             V::Uint(self.seed.get()),
             V::Float(size),
         ];
-        marks.extend(PointillistPreset::for_mode(&mode).uniforms());
+        let preset = PointillistPreset::for_mode(&mode);
+        marks.extend(preset.uniforms());
+        // Bound the sampling halo from the shader's reach, not the longest
+        // brush at maximum size. Orientation samples another 0.4×size from
+        // each accepted anchor. In Gauguin the farthest direct color tap
+        // (1.5 + 0.25 spacings) is already inside that bound.
+        let reach = match mode {
+            ImpressionistMode::Signac | ImpressionistMode::Seurat => {
+                (1.55 * preset.spacing + 0.4) * size
+            }
+            ImpressionistMode::Gauguin => (1.75 * 1.35 + 0.4) * size,
+            _ => 96.,
+        };
+        // Allow for filtering on the half-resolution orientation grid and
+        // bucket changes so small size adjustments can reuse the capture.
+        let outset = (8. * ((f64::from(reach) + 4.) / 8.).ceil()).min(96.);
         ShaderEffect {
             lighting: None,
             program: &PAINT,
             parameters: vec![vec![V::Float(size)], marks],
-            // Covers the longest sweep plus orientation sampling. Stable across modes so
-            // changing brush treatment only updates uniforms, not capture attachments.
-            outset: 96.,
+            outset,
         }
     }
 }
@@ -267,6 +280,25 @@ mod tests {
             Impressionist::default().mode.get(),
             ImpressionistMode::Basic
         );
+    }
+
+    #[test]
+    fn painter_halo_covers_the_outermost_tap_without_full_size_word_captures() {
+        let p = Impressionist::default();
+        for (mode, size, expected) in [
+            (ImpressionistMode::Signac, 32., 32.),
+            (ImpressionistMode::Seurat, 32., 24.),
+            (ImpressionistMode::Gauguin, 4., 16.),
+            (ImpressionistMode::Gauguin, 32., 96.),
+            (ImpressionistMode::VanGogh, 4., 96.),
+        ] {
+            p.mode.set(mode);
+            p.size.set(size);
+            p.phase.set(0.);
+            assert_eq!(p.recipe().outset, expected);
+            p.phase.set(9.);
+            assert_eq!(p.recipe().outset, expected);
+        }
     }
 
     #[test]

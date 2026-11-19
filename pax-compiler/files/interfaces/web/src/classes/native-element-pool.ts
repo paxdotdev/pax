@@ -180,17 +180,13 @@ export class NativeElementPool {
     }
 
     private allowPageScroll = false;
-    private surfaceBaseDensityLimit?: number;
-
     private backingPixelRatio() {
-        const display = typeof window === 'undefined' ? 1 : Math.max(window.devicePixelRatio || 1, 1);
-        return Math.min(display, this.surfaceBaseDensityLimit ?? Infinity);
+        return typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
     }
 
     attach(chassis: PaxChassisWeb, mount: Element, allowPageScroll = false){
         this.allowPageScroll = allowPageScroll;
         this.chassis = chassis;
-        this.surfaceBaseDensityLimit = chassis.surface_base_density_limit?.();
         this.mount = mount instanceof HTMLElement ? mount : undefined;
         if (this.mount && new URLSearchParams(window.location.search).has('pax_surface_trace')) {
             this.surfaceTrace = new SurfaceTrace(this.mount, 2048, id => chassis.inspect_node?.(id),
@@ -1938,6 +1934,16 @@ export class NativeElementPool {
             const y = pageScroll.scrollY + visibleViewport.offsetY;
             const presentedClipBounds = {left: x, top: y,
                 right: x + visibleViewport.width, bottom: y + visibleViewport.height};
+            if (scrollerId === this.activePageScrollScrollerId) {
+                // The browser owns this viewport. In document coordinates its
+                // origin moves with page scroll; its content does not. Keeping
+                // the initial scene transform here clips the entire page branch
+                // out of preparation after the first screen.
+                return {presentedBounds: {left: pageScroll.scrollX, top: pageScroll.scrollY,
+                    right: Math.max(pageScroll.scrollX + (state.viewportWidth ?? leaf.clientWidth), presentedClipBounds.right),
+                    bottom: Math.max(pageScroll.scrollY + (state.viewportHeight ?? leaf.clientHeight), presentedClipBounds.bottom)},
+                    presentedClipBounds};
+            }
             const page = this.scrollerHosts.get(this.activePageScrollScrollerId)?.leaf;
             if (page && !page.contains(leaf)) {
                 // A fixed sibling (or its nested island) moves with the viewport,

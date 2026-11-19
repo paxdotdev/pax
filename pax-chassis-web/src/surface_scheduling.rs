@@ -255,6 +255,7 @@ pub(crate) fn schedule(
     snapshot: Snapshot,
     activity: &mut ScrollActivityTracker,
     prepared: Option<&PreparedTransaction>,
+    limit_speculation: bool,
 ) -> Result<Decision, &'static str> {
     if ![1, 2].contains(&snapshot.version) || !snapshot.now.is_finite() {
         return Err("invalid surface observation version/time");
@@ -333,7 +334,22 @@ pub(crate) fn schedule(
     }
     let policy = shared::ResidencyPolicy::default();
     let budget = match snapshot.resources {
-        Some(r) => policy.available(snapshot.capacity, r.viewport_pixels, r.unreleased_pixels),
+        Some(r) => {
+            let mut budget =
+                policy.available(snapshot.capacity, r.viewport_pixels, r.unreleased_pixels);
+            if limit_speculation {
+                // Backing pixels undercount tile cost: each can also retain a
+                // stencil, effect textures and a browser presentation buffer.
+                // Spend on visible work first; do not fill spare slots with
+                // speculative full-density tiles on constrained devices.
+                budget.optional_pixels = budget
+                    .optional_pixels
+                    .min(r.viewport_pixels)
+                    .min(2 * 1024 * 1024);
+                budget.borrowing_limit = None;
+            }
+            budget
+        }
         None => SurfaceBudget::count_only(snapshot.capacity),
     };
     let result = shared::schedule_surfaces(&candidates, budget);

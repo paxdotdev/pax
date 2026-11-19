@@ -91,7 +91,7 @@ for (const ios of [false, true]) {
     });
 }
 
-test('optional surface budget uses backing density rather than native display pixels', () => {
+test('physical viewport budget follows the native display density', () => {
     const {pool} = harness(true, 3);
     const schedule = pool.chassis.schedule_surfaces;
     let pixels;
@@ -99,12 +99,6 @@ test('optional surface budget uses backing density rather than native display pi
         pixels = snapshot.resources.viewportPixels;
         return schedule(snapshot);
     };
-    for (const density of [1, 1.5]) {
-        pool.surfaceBaseDensityLimit = density;
-        pool.syncWarmScrollerHosts();
-        assert.equal(pixels, (1000 * density) * (900 * density));
-    }
-    pool.surfaceBaseDensityLimit = undefined;
     pool.syncWarmScrollerHosts();
     assert.equal(pixels, 3000 * 2700);
 });
@@ -210,6 +204,13 @@ test('a fixed Safari island stays visible after its sibling document has scrolle
     const measure = () => ({left: 0, top: 0, right: 440, bottom: 64});
     const record = (leaf, state, read) => JSON.parse(JSON.stringify(
         h.prototype.getWarmthPresentationRecord.call(h.pool, 2, leaf, state, read)));
+    const root = h.prototype.getWarmthPresentationRecord.call(h.pool, 1, content,
+        {viewportWidth:440, viewportHeight:780, transform:[1,0,0,1,0,0]},
+        () => assert.fail('use the delegated viewport, not the document-sized DOM leaf'));
+    assert.deepEqual(JSON.parse(JSON.stringify(root)), {
+        presentedBounds: {left:10, top:2600, right:450, bottom:3397},
+        presentedClipBounds: {left:13, top:2607, right:443, bottom:3397},
+    });
     assert.deepEqual(record(fixed, {}, measure), {
         presentedBounds: {left: 10, top: 2600, right: 450, bottom: 2664},
         presentedClipBounds: {left: 13, top: 2607, right: 443, bottom: 3397},

@@ -39,10 +39,9 @@ impl WebSurfacePolicy {
 }
 
 const NESTED_SURFACE_DIMENSION_CAP: u32 = 2048;
-// A scene can own several color, stencil, multisample, and effect textures
-// per visible layer. A per-texture dimension limit alone does not bound that
-// footprint on iPhone Safari; apply the base density before projecting layers.
-const IPHONE_WEBGPU_BASE_DENSITY_CAP: f64 = 1.0;
+// Smaller preparation units bound backing and effect work without resampling
+// visible phone content. The independent per-axis cap still applies.
+const PHONE_TILE_PIXELS: f64 = 2.0 * 1024.0 * 1024.0;
 const CPU_TARGET_TILE_BACKING_DIMENSION: f64 = 2048.0;
 const CPU_TOTAL_CANVAS_BUDGET: usize = 56;
 const CPU_PREWARM_VIEWPORT_PAD_X_MULTIPLIER: f64 = 2.0;
@@ -104,16 +103,12 @@ impl BrowserSurfacePolicy {
         self.use_cpu_fallback
     }
 
-    pub(crate) fn base_density_limit(self) -> Option<f64> {
-        (self.phone_webkit && !self.use_cpu_fallback).then_some(IPHONE_WEBGPU_BASE_DENSITY_CAP)
-    }
-
-    pub(crate) fn base_density(self, display_ratio: f64) -> f64 {
-        display_ratio.min(self.base_density_limit().unwrap_or(f64::INFINITY))
-    }
-
     pub(crate) fn allow_multisampling(self) -> bool {
         !self.phone_webkit
+    }
+
+    pub(crate) fn limit_speculation(self) -> bool {
+        self.phone_webkit && !self.use_cpu_fallback
     }
 
     pub(crate) fn effective_max_surface_dimension(self, layer: usize, backend_limit: u32) -> u32 {
@@ -157,6 +152,9 @@ impl BrowserSurfacePolicy {
             policy.max_tile_backing_width = Some(surface_dimension_cap as f64);
             policy.max_tile_backing_height = Some(surface_dimension_cap as f64);
             policy.max_tile_backing_area = Some((surface_dimension_cap as f64).powi(2));
+            if self.limit_speculation() {
+                policy.max_tile_backing_area = Some(PHONE_TILE_PIXELS);
+            }
         }
         policy
     }
@@ -234,31 +232,27 @@ mod tests {
     }
 
     #[test]
-    fn iphone_webgpu_uses_bounded_density_but_cpu_fallback_keeps_display_density() {
+    fn iphone_webgpu_limits_tile_area_and_speculation_at_display_density() {
         let policy = BrowserSurfacePolicy::for_navigator(IOS_SAFARI_USER_AGENT, 5, true);
         let tiling = policy.scroller_tiling_policy();
 
         assert!(!policy.use_cpu_fallback());
         assert!(!policy.defer_transient_root_host_surfaces(1));
         assert!(!policy.allow_multisampling());
-        assert_eq!(policy.base_density(3.0), IPHONE_WEBGPU_BASE_DENSITY_CAP);
-        assert_eq!(policy.base_density(1.0), 1.0);
+        assert!(policy.limit_speculation());
         assert_eq!(
             policy.effective_max_surface_dimension(1, u32::MAX),
             NESTED_SURFACE_DIMENSION_CAP
         );
-        assert_eq!(
-            tiling.max_tile_backing_area,
-            Some((NESTED_SURFACE_DIMENSION_CAP as f64).powi(2))
-        );
+        assert_eq!(tiling.max_tile_backing_area, Some(PHONE_TILE_PIXELS));
         assert_eq!(tiling.max_surfaces_per_layer, None);
         for mut cpu in [
             policy,
             BrowserSurfacePolicy::for_navigator(IOS_SAFARI_USER_AGENT, 5, false),
         ] {
             cpu.select_cpu(true);
+            assert!(!cpu.limit_speculation());
             assert!(cpu.defer_transient_root_host_surfaces(1));
-            assert_eq!(cpu.base_density(3.0), 3.0);
             assert_eq!(
                 cpu.scroller_tiling_policy().max_surfaces_per_layer,
                 Some(CPU_TOTAL_CANVAS_BUDGET)
@@ -292,7 +286,7 @@ mod tests {
         for ua in [DESKTOP, MOBILE] {
             let gpu = BrowserSurfacePolicy::for_navigator(ua, 5, true);
             assert!(!gpu.use_cpu_fallback());
-            assert_eq!(gpu.base_density(3.0), 3.0);
+            assert!(!gpu.limit_speculation());
             assert!(gpu.allow_multisampling());
             assert_eq!(gpu.effective_max_surface_dimension(1, 8192), 2048);
             assert!(BrowserSurfacePolicy::for_navigator(ua, 5, false).use_cpu_fallback());

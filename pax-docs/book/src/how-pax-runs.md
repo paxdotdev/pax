@@ -676,14 +676,15 @@ require WebGPU, or `?pax_renderer=auto` for normal selection. Explicit GPU
 selection rejects startup if initialization fails. The `cpu` Cargo feature
 on `pax-kit` also selects CPU by default for web builds; a query override takes
 precedence. On iPhone and iPad Safari, the 2048-pixel per-axis limit on nested
-canvas backings applies to both renderers. On iPhone Safari, WebGPU also
-caps the base canvas density at one backing pixel per CSS pixel before
-applying scene transforms. It uses single-sample color and stencil attachments,
-including for effect captures, rather than allocating extra multisample buffers
-for every tile. These choices trade some vector edge smoothness for a smaller
-working set while scrolling. Native text and controls still
+canvas backings applies to both renderers. On iPhone Safari, WebGPU targets the
+display's pixel density, including 3×. It limits scroll tiles to 2,097,152
+backing pixels each, bounds [offscreen preparation](scrolling-viewports.md#rendering-density),
+and uses single-sample color and stencil attachments, including for effect
+captures. A fixed root viewport that fits the GPU's dimensions does not need
+to be subdivided into scroll tiles. These limits reduce extra allocations;
+they are not a cap on total GPU or browser memory. Native text and controls
 render at the browser's full display density; CSS sizes, input coordinates,
-and scroll distances do not change. Neither limit caps the dimensions of the
+and scroll distances do not change. Tile limits do not cap the dimensions of the
 page itself. The former `piet` feature and Piet
 adapter have been removed.
 

@@ -149,6 +149,13 @@ test('forward reserve borrows spare capacity without granting nested horizontal 
     assert.equal(moving.ranks[1].coverage,5);
     assert.equal(moving.borrowedForwardPixels,30000);
     assert.equal(moving.optionalLimit,20000);
+    const [, , constrained, retina] = sharedSurfaceDecisions([
+        prepare(0,0),prepare(50,10),{...schedule(50),limitSpeculation:true},
+        {...schedule(50),limitSpeculation:true,resources:{viewportPixels:3_150_000,unreleasedPixels:0}}]);
+    assert.deepEqual(constrained.admitted,[0], 'phone budget preserves visible work without borrowing for a warm shelf');
+    assert.equal(constrained.optionalLimit,10000);
+    assert.equal(constrained.borrowedForwardPixels,0);
+    assert.equal(retina.optionalLimit,2*1024*1024);
     assert.deepEqual(paused.admitted,[0,1]);
     assert.deepEqual(pressure.admitted,[0], 'borrowing leaves physical slot headroom');
     assert.deepEqual(expired.admitted,[0,1], 'idle filling remains eligible at lower priority');

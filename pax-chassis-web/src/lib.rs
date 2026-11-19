@@ -1903,11 +1903,6 @@ impl PaxChassisWeb {
         self.surface_policy.revision()
     }
 
-    /// Optional base pixels per CSS pixel for render backings, before scene transforms.
-    pub fn surface_base_density_limit(&self) -> Option<f64> {
-        self.surface_policy.browser.base_density_limit()
-    }
-
     pub fn install_surface_plan(&mut self, value: JsValue) -> Result<(), JsValue> {
         let next: installed_surfaces::InstalledSurfacePlan = serde_wasm_bindgen::from_value(value)
             .map_err(|error| JsValue::from_str(&error.to_string()))?;
@@ -1947,6 +1942,7 @@ impl PaxChassisWeb {
             snapshot,
             &mut self.surface_activity.borrow_mut(),
             self.surface_preparation.borrow().as_ref(),
+            self.surface_policy.browser.limit_speculation(),
         )
         .map_err(JsValue::from_str)?;
         // Near-plane magnification can be orders of magnitude larger than the
@@ -1986,10 +1982,7 @@ impl PaxChassisWeb {
     ) -> JsValue {
         let engine = self.engine.borrow();
         let ctx = &engine.runtime_context;
-        let base_density = self
-            .surface_policy
-            .browser
-            .base_density(window().unwrap().device_pixel_ratio());
+        let base_density = window().unwrap().device_pixel_ratio();
         let owner = ctx
             .get_layer_scroller_owner(layer)
             .and_then(|id| ctx.get_expanded_node_by_eid(id));
@@ -2111,6 +2104,16 @@ impl PaxChassisWeb {
             let host_signature = "root".to_string();
             let width = viewport.bounds.0;
             let height = viewport.bounds.1;
+            let mut policy = engine.scroller_tiling_policy;
+            if self.surface_policy.browser.limit_speculation() {
+                // The fixed root has no offscreen runway. Splitting it into
+                // scroll-sized tiles duplicates renderers and their attachments
+                // without saving backing pixels. Respect the actual device limit.
+                let limit = f64::from(self.surface_policy.max_surface_dimension(0));
+                policy.max_tile_backing_width = Some(limit);
+                policy.max_tile_backing_height = Some(limit);
+                policy.max_tile_backing_area = Some(limit * limit);
+            }
             scroller_canvas_plan_with_policy(
                 layer,
                 host_signature,
@@ -2121,7 +2124,7 @@ impl PaxChassisWeb {
                 0.0,
                 0.0,
                 dpr,
-                engine.scroller_tiling_policy,
+                policy,
             )
         } else {
             return JsValue::NULL;

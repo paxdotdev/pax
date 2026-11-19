@@ -25,11 +25,16 @@ fn main() {
                 prepared = Some(next);
                 value
             } else {
+                let limit_speculation = snapshot
+                    .get("limitSpeculation")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
                 serde_json::to_value(
                     surface_scheduling::schedule(
                         serde_json::from_value(snapshot).unwrap(),
                         &mut activity,
                         prepared.as_ref(),
+                        limit_speculation,
                     )
                     .unwrap(),
                 )

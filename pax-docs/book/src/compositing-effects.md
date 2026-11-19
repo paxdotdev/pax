@@ -1172,8 +1172,10 @@ There is no motion tracking or previous-frame state.
 Stopping phase updates freezes brush motion while source updates continue.
 Identical source content, mode, seed, size, and phase give identical output.
 Changing mode switches the treatment immediately; it does not morph one brush
-family into another. Mode and phase changes share the existing pipeline and
-capture envelope, so they can reuse an unchanged source capture.
+family into another. The modes share a pipeline. Animating phase can reuse an
+unchanged source capture. Changing the mode or brush size can resize it:
+shorter sweeps and pointillist dabs need fewer source pixels beyond the tile
+edge. The visible paint still renders at the same resolution.
 `size` is an overall brush scale in local logical pixels, clamped to 4–32.
 Each mode applies its own proportions: a Seurat dot is smaller than a Gauguin
 sweep at the same setting. Size also scales directional patterns, including

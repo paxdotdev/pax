@@ -90,8 +90,8 @@ that old pixels are valid for the new location.
 
 Web vector surfaces, including tiled Scroller content, target the browser's
 device-pixel ratio at their **presented scale**, in debug and release builds.
-The iPhone Safari WebGPU backend uses a lower base density on high-density
-screens to fit the browser's graphics memory budget (see
+This includes 3× iPhone Safari displays. WebGPU on iPhone limits tile size and
+offscreen preparation instead of lowering the display density (see
 [renderer selection](how-pax-runs.md#rendering-backends)).
 For example, a 1,000-unit-wide Scroller inside `scale=50%` appears 500 CSS pixels
 wide. On a 2× display it needs about 1,000 backing pixels, not 2,000. A backing
@@ -102,7 +102,7 @@ text retains the browser's own rasterization.
 
 The full affine transform determines density: rotated orthogonal axes retain
 their individual scales; shear uses a conservative bound. Density is rounded
-up in small steps, grows immediately, and normally shrinks after 500ms at a stable
+up in small steps (whole-number densities stay exact), grows immediately, and normally shrinks after 500ms at a stable
 scale to avoid reallocating for tiny variations. If that retained surplus would
 exclude visible tiles from the surface budget, it is released before publishing
 the next plan. The current view's required display density is preserved.
@@ -752,7 +752,8 @@ you still use Scroller properties rather than browser DOM operations.
 This also works when iPad Safari requests the desktop site. On iPhone Safari,
 expanding or collapsing the address bar changes the visible
 area, not the root Scroller's layout height or owner. A swipe therefore keeps
-its document scroll position. Viewport-local siblings, such as an `Overlay`
+its document scroll position. The painted tile window follows that position
+even several screens down the page. Viewport-local siblings, such as an `Overlay`
 toolbar, stay in place while content scrolls beneath them. A separate Scroller
 inside that toolbar is prepared at its position on screen, not at the document's
 scroll offset. Giving it `scroll_width=100% scroll_height=100%` clips its
@@ -899,7 +900,7 @@ The Web adapter supplies measured geometry, movement, and readiness to a shared
 Rust policy; it does not maintain a separate JavaScript ranking algorithm.
 This shared policy is currently enabled on Web; native chassis activation is
 a separate rollout. Web admission limits both surface count and physical backing
-pixels. Speculative coverage has a base allowance of two screenfuls of pixels.
+pixels. Speculative coverage normally has a base allowance of two screenfuls of pixels.
 After ordinary admission, all eligible preparation uses the same residency order
 to borrow unused capacity (bounded reverse coverage first, then incoming/near
 coverage before farther reserves), while
@@ -907,6 +908,9 @@ leaving four canvas slots and one screenful of backing pixels as headroom for
 new visible demand. Borrowing does not increase the overall caps or displace
 already-admitted near/safety coverage. New visible demand always takes priority;
 the headroom limits borrowing, not mandatory rendering.
+On iPhone Safari, WebGPU instead prepares at most one extra screenful, capped
+at 2,097,152 backing pixels, with no borrowing for offscreen tiles. These limits
+apply to preparation, not to the visible content's pixel density.
 Pausing a scroll does not remove nearby prepared tiles' borrowing eligibility.
 Retention remains bounded by the existing preparation region and hard limits;
 retaining pixels does not give trailing drawing priority over incoming work.
