@@ -274,7 +274,10 @@ constant total frame cost.
 
 Mounting an ordinary affine clipping Frame on an existing render layer retains
 the surrounding scene's coverage. Its descendants inherit the new clip, and
-the engine checks overlapping native masks in the same tick.
+the engine checks overlapping native masks in the same tick. When attachment
+and settings changes can be traced to mounted nodes, structural validation
+follows their ancestry and reuses the recorded topology of unaffected siblings.
+Changes with unknown origins still require a scene-wide check.
 Transfers between existing clipping and presentation domains repair the moved
 subtree's layer/container membership and both its former and current overlaps.
 Unrelated coverage remains retained. Overlay entry, return, and animation-flight

@@ -877,7 +877,8 @@ fn try_reconcile_structure(
         && !state.topology.branches.is_empty()
         && state.unsafe_layers.is_empty();
     if local {
-        for &id in state.structural_nodes.iter().chain(dirty.iter()) {
+        // The caller has already added every structural origin to the dirty set.
+        for &id in dirty.iter() {
             let mut reaches_root = false;
             let mut old = Some(id);
             while let Some(id) = old {

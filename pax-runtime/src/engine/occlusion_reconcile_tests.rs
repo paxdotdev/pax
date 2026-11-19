@@ -1718,6 +1718,96 @@ fn backend_scroller_policy_changes_and_reload_keep_the_full_fallback() {
 }
 
 #[test]
+fn finishing_a_mount_reuses_siblings_when_a_detached_provider_evaluates_children() {
+    let (ctx, root) = mount(vec![
+        probe(Kind::Group, vec![probe(Kind::Native, vec![])]),
+        probe(
+            Kind::Group,
+            (0..32).map(|_| probe(Kind::Canvas, vec![])).collect(),
+        ),
+    ]);
+    let _graph = ctx.property_graph.enter();
+    let parent = root.children.get()[0].children.get()[0].clone();
+    let before = ctx.occlusion_stats();
+    let child = add(&parent, Kind::Clip, &ctx);
+    let sidecar = child
+        .create_children_detached(
+            vec![(probe(Kind::Group, vec![]), child.stack.clone())],
+            &ctx,
+            &Rc::downgrade(&child),
+        )
+        .remove(0);
+    child.attach_sidecar_children(vec![sidecar.clone()], &ctx, &child.parent_frame);
+    sidecar.children_listener.get();
+    parent.finish_pending_child(&child, &ctx);
+    settle(&root, &ctx);
+
+    let after = ctx.occlusion_stats();
+    assert_eq!(after.rebuilds, before.rebuilds);
+    assert_eq!(
+        after.structural_reconciliations,
+        before.structural_reconciliations + 1
+    );
+    assert!(after.topology_nodes_reused - before.topology_nodes_reused >= 33);
+    assert_full_rebuild_matches(&root, &ctx);
+}
+
+#[test]
+fn unmounted_projected_condition_updates_occlusion_through_its_mounted_slot() {
+    use pax_runtime_api::{pax_value::ToFromPaxAny, LocalProperty};
+
+    let visible = LocalProperty::new(true);
+    let condition = visible.clone();
+    let mut conditional = args(vec![probe(Kind::Canvas, vec![])]);
+    conditional.prototypical_properties = PropertiesInit::Factory(Box::new(move |_, existing| {
+        existing.is_none().then(|| {
+            Rc::new(RefCell::new(
+                crate::ConditionalProperties {
+                    boolean_expression: condition.clone(),
+                    ..Default::default()
+                }
+                .to_pax_any(),
+            ))
+        })
+    }));
+    let mut slot = args(vec![]);
+    slot.prototypical_properties = PropertiesInit::Factory(Box::new(|_, existing| {
+        existing.is_none().then(|| {
+            Rc::new(RefCell::new(
+                crate::slot::Slot {
+                    is_remainder: LocalProperty::new(true),
+                    ..Default::default()
+                }
+                .to_pax_any(),
+            ))
+        })
+    }));
+    let mut receiver = args(vec![crate::ConditionalInstance::instantiate(conditional)]);
+    receiver.component_template = Some(RefCell::new(vec![crate::SlotInstance::instantiate(slot)]));
+    let (ctx, root) = mount(vec![
+        ComponentInstance::instantiate(receiver),
+        probe(Kind::Native, vec![]),
+    ]);
+    let children = root.children.get()[0].children.get();
+    let controller = children[0]
+        .expanded_projected_children
+        .borrow()
+        .as_ref()
+        .unwrap()[0]
+        .clone();
+    assert_eq!(controller.attached.get(), 0);
+    let neighbor = &children[1];
+    let covered = neighbor.native_mask_hash.get();
+    for show in [false, true] {
+        visible.set(show);
+        ctx.drain_node_effects();
+        settle(&root, &ctx);
+        assert_eq!(neighbor.native_mask_hash.get() == covered, show);
+        assert_full_rebuild_matches(&root, &ctx);
+    }
+}
+
+#[test]
 fn localized_edits_reuse_unaffected_nested_islands_and_match_full_reconciliation() {
     let (ctx, root) = mount(
         (0..12)

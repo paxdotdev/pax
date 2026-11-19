@@ -90,7 +90,7 @@ use pax_manifest::{
 use crate::ComputableTransform;
 use crate::{
     add_symmetric_padding_to_content_layout_hull, apply_container_frame, apply_padding_frame,
-    compute_tab, ComponentInstance, ContainerFrame, HandlerLocation, InstanceNode, InstanceNodePtr,
+    compute_tab, ComponentInstance, ContainerPlacement, HandlerLocation, InstanceNode, InstanceNodePtr,
     ReceivedChildrenSource, RuntimeContext, RuntimePropertiesStackFrame,
 };
 
@@ -423,8 +423,9 @@ pub struct ExpandedNode {
     opaque_mesh_content_allowed: LocalProperty<bool>,
     /// Engine-owned subtree hull used by container measurement.
     pub subtree_layout_hull: LocalProperty<LayoutHull>,
-    /// Optional container-assigned virtual wrapper frame applied before this node's own layout.
-    pub container_frame: LocalProperty<Option<ContainerFrame>>,
+    /// Container-assigned frame applied before this node's own layout. Custom
+    /// containers that retain a typed `LocalProperty` can clone `as_property()`.
+    pub container_frame: Rc<ContainerPlacement>,
 
     /// The accumulated opacity inherited from render ancestors and this node's
     /// own common opacity value.
@@ -1373,7 +1374,7 @@ impl ExpandedNode {
             #[cfg(feature = "3d")]
             opaque_mesh_content_allowed: LocalProperty::new(true),
             subtree_layout_hull: LocalProperty::new(LayoutHull::default()),
-            container_frame: LocalProperty::new(None),
+            container_frame: Rc::default(),
             computed_opacity: LocalProperty::new(1.0),
             computed_opacity_scopes: LocalProperty::new(Vec::new()),
             expanded_projected_children: Default::default(),
@@ -1720,7 +1721,7 @@ impl ExpandedNode {
         context.authored_order_changed(self);
         child.trigger_bound_enter_transitions_for_mounted_sources_recursive(context);
         self.mark_non_reactive_update_subtree_dirty();
-        context.mark_occlusion_dirty();
+        context.mark_occlusion_dirty_for_node(self.id.to_u32());
     }
 
     fn has_child(children: &[Rc<ExpandedNode>], target: &Rc<ExpandedNode>) -> bool {
@@ -2488,7 +2489,7 @@ impl ExpandedNode {
                 parent.computed_opacity_scopes.untyped(),
                 parent_cp.padding_x.untyped(),
                 parent_cp.padding_y.untyped(),
-                self.container_frame.untyped(),
+                self.container_frame.frame().untyped(),
                 self.measured_size.untyped(),
                 cp._suspended.untyped(),
                 cp.opacity.untyped(),
@@ -2674,7 +2675,7 @@ impl ExpandedNode {
                 )
             })
             .unwrap_or_default();
-        let container_frame = self.container_frame.clone();
+        let container_frame = self.container_frame.frame().clone();
         let deps = [
             parent_bounds.untyped(),
             parent_padding_x.untyped(),
@@ -2700,31 +2701,9 @@ impl ExpandedNode {
         let common_props = borrow!(self.common_properties);
         let extra_transform = borrow!(common_props).transform.clone();
 
-        let width = borrow!(common_props).width.clone();
-        let height = borrow!(common_props).height.clone();
-        let measured = self.measured_size.clone();
-        let container = effective_parent_transform_and_bounds.clone();
-        let deps = [
-            width.untyped(),
-            height.untyped(),
-            measured.untyped(),
-            container.untyped(),
-        ];
-        let target_bounds = LocalProperty::computed(
-            move || {
-                let measured = measured.get();
-                crate::layout::resolve_layout_bounds(
-                    width
-                        .get()
-                        .or(measured.map(|size| Size::Pixels(size.0.into()))),
-                    height
-                        .get()
-                        .or(measured.map(|size| Size::Pixels(size.1.into()))),
-                    container.get().bounds,
-                )
-            },
-            &deps,
-        );
+        let target_bounds = self
+            .container_frame
+            .bind_target_bounds(self, &effective_parent_transform_and_bounds);
         let origin = self.move_origin.clone();
         let progress = self.move_progress.clone();
         let deps = [
@@ -3246,7 +3225,12 @@ impl ExpandedNode {
                             ancestor = parent.template_parent.upgrade();
                         }
                     }
-                    context.mark_occlusion_dirty_for_node(node.id.to_u32());
+                    // Mount registers visible occurrences. Detached projection
+                    // controllers still notify their slots below, and settings
+                    // sidecars can evaluate children without ever mounting.
+                    if node.attached.get() > 0 {
+                        context.mark_occlusion_dirty_for_node(node.id.to_u32());
+                    }
 
                     let (is_slot, is_component) = {
                         let instance = borrow!(node.instance_node);
@@ -3629,13 +3613,13 @@ impl ExpandedNode {
         context.unregister_viewport_proximity(self.id.to_u32());
         self.refresh_properties_scope(&instance);
         self.mark_non_reactive_update_subtree_dirty();
-        context.mark_occlusion_dirty();
         context.set_canvas_dirty(self.occlusion.get().render_layer_id);
         // The template, parent, class binding, and common-property handles are
         // unchanged. Their existing subscriptions observe the new bindings.
         // Typed properties can still change aliases, so refresh their consumers.
         self.bind_occlusion_listener(context);
         if self.attached.get() > 0 {
+            context.mark_occlusion_dirty_for_node(self.id.to_u32());
             context.refresh_scene_lighting_node(self);
             context.viewport_structure_changed();
             context.register_viewport_proximity(self);

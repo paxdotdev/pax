@@ -540,6 +540,160 @@ impl Interpolatable for ContainerFrame {
     }
 }
 
+/// Reactive placement assigned by a container. A snapped cell supplies its own
+/// available size. Its translation still participates in paint and hit testing.
+/// Use `get`, `set`, or `set_if_neq` for snapped frames. Easing, rebinding,
+/// and borrowing the underlying `LocalProperty` through `as_property` or
+/// dereferencing use the full frame for subsequent layout reads.
+#[derive(Default)]
+pub struct ContainerPlacement {
+    frame: LocalProperty<Option<ContainerFrame>>,
+    dimensions: std::cell::RefCell<Option<ContainerDimensions>>,
+    // A retained property handle can change binding or begin easing at any time.
+    follows_full_frame: std::cell::Cell<bool>,
+}
+
+struct ContainerDimensions {
+    node: std::rc::Weak<ExpandedNode>,
+    inherited: LocalProperty<crate::TransformAndBounds<NodeLocal, pax_runtime_api::Window>>,
+    target: LocalProperty<(f64, f64)>,
+    cell: Option<LocalProperty<(f64, f64)>>,
+}
+
+impl ContainerDimensions {
+    fn target_bounds(
+        node: &ExpandedNode,
+        dependency: UntypedProperty,
+        extent: impl Fn() -> (f64, f64) + 'static,
+    ) -> LocalProperty<(f64, f64)> {
+        let common = node.get_common_properties();
+        let common = common.borrow();
+        let (width, height) = (common.width.clone(), common.height.clone());
+        let measured = node.measured_size.clone();
+        let deps = [
+            width.untyped(),
+            height.untyped(),
+            measured.untyped(),
+            dependency,
+        ];
+        LocalProperty::computed(
+            move || {
+                let size = measured.get();
+                crate::layout::resolve_layout_bounds(
+                    width.get().or(size.map(|s| Size::Pixels(s.0.into()))),
+                    height.get().or(size.map(|s| Size::Pixels(s.1.into()))),
+                    extent(),
+                )
+            },
+            &deps,
+        )
+    }
+
+    fn inherited_target(
+        node: &ExpandedNode,
+        parent: &LocalProperty<crate::TransformAndBounds<NodeLocal, pax_runtime_api::Window>>,
+    ) -> LocalProperty<(f64, f64)> {
+        let parent = parent.clone();
+        Self::target_bounds(node, parent.untyped(), move || parent.get().bounds)
+    }
+
+    fn assign(&mut self, bounds: Option<(f64, f64)>) {
+        match (&self.cell, bounds) {
+            (Some(cell), Some(bounds)) => {
+                cell.set_if_neq(bounds);
+            }
+            (None, Some(bounds)) => {
+                let Some(node) = self.node.upgrade() else {
+                    return;
+                };
+                let cell = LocalProperty::new(bounds);
+                self.cell = Some(cell.clone());
+                self.target
+                    .replace_with(Self::target_bounds(&node, cell.untyped(), move || {
+                        cell.get()
+                    }));
+            }
+            (Some(_), None) => {
+                let Some(node) = self.node.upgrade() else {
+                    return;
+                };
+                self.target
+                    .replace_with(Self::inherited_target(&node, &self.inherited));
+                self.cell = None;
+            }
+            (None, None) => {}
+        }
+    }
+}
+
+impl ContainerPlacement {
+    pub(crate) fn frame(&self) -> &LocalProperty<Option<ContainerFrame>> {
+        &self.frame
+    }
+
+    pub(crate) fn bind_target_bounds(
+        &self,
+        node: &Rc<ExpandedNode>,
+        inherited: &LocalProperty<crate::TransformAndBounds<NodeLocal, pax_runtime_api::Window>>,
+    ) -> LocalProperty<(f64, f64)> {
+        let target = ContainerDimensions::inherited_target(node, inherited);
+        let mut dimensions = ContainerDimensions {
+            node: Rc::downgrade(node),
+            target: target.clone(),
+            inherited: inherited.clone(),
+            cell: None,
+        };
+        if !self.follows_full_frame.get() {
+            dimensions.assign(self.get().map(|frame| frame.bounds));
+        }
+        self.dimensions.replace(Some(dimensions));
+        target
+    }
+
+    /// Reads the current parent-local frame, including active reflow interpolation.
+    pub fn get(&self) -> Option<ContainerFrame> {
+        self.frame.get()
+    }
+
+    /// Assigns a cell frame, or restores the padded parent extent when cleared.
+    pub fn set(&self, frame: Option<ContainerFrame>) {
+        self.frame.set(frame);
+        if !self.follows_full_frame.get() {
+            if let Some(dimensions) = self.dimensions.borrow_mut().as_mut() {
+                dimensions.assign(frame.map(|frame| frame.bounds));
+            }
+        }
+    }
+
+    /// Assigns the frame when its size or placement changed.
+    pub fn set_if_neq(&self, frame: Option<ContainerFrame>) -> bool {
+        if self.get() == frame {
+            return false;
+        }
+        self.set(frame);
+        true
+    }
+
+    /// Returns the underlying reactive property for easing or custom bindings.
+    /// Future size reads follow this handle, including any subsequent rebinding.
+    pub fn as_property(&self) -> &LocalProperty<Option<ContainerFrame>> {
+        if !self.follows_full_frame.replace(true) {
+            if let Some(dimensions) = self.dimensions.borrow_mut().as_mut() {
+                dimensions.assign(None);
+            }
+        }
+        &self.frame
+    }
+}
+
+impl std::ops::Deref for ContainerPlacement {
+    type Target = LocalProperty<Option<ContainerFrame>>;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_property()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::api::math::{Transform2, Vector2};
@@ -925,6 +1079,93 @@ mod tests {
         child_common.borrow().layout_role.set(None);
         context.drain_node_effects();
         assert_eq!(effect_runs.get(), breakout_baseline + 1);
+    }
+
+    #[test]
+    fn assigned_cell_dimensions_propagate_synchronously_and_ignore_translation() {
+        let leaf = TestDirectNode::instantiate(direct_node_args(vec![]));
+        let parent = TestDirectNode::instantiate(direct_node_args(vec![leaf]));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
+        let root = ExpandedNode::initialize_root(
+            ComponentInstance::instantiate(component_args(Some(vec![parent]), None)),
+            &context,
+        );
+        let cell = root.children.get()[0].clone();
+        let child = cell.children.get()[0].clone();
+        child
+            .get_common_properties()
+            .borrow()
+            .width
+            .set(Some(Size::Percent(50.into())));
+        let width = root.get_common_properties().borrow().width.clone();
+        let padding = root.get_common_properties().borrow().padding_x.clone();
+        width.set(Some(Size::Pixels(100.into())));
+        assert_eq!(child.layout_bounds.get().0, 50.);
+        width.set(Some(Size::Pixels(200.into())));
+        assert_eq!(child.layout_bounds.get().0, 100.);
+
+        let frame = |width, y| {
+            Some(ContainerFrame {
+                transform: Transform2::translate(Vector2::new(0., y)),
+                bounds: (width, 20.),
+            })
+        };
+        cell.container_frame.set(frame(80., 10.));
+        let reads = Rc::new(Cell::new(0));
+        let observed = {
+            let reads = reads.clone();
+            let bounds = child.layout_bounds.clone();
+            let deps = [bounds.untyped()];
+            LocalProperty::computed(
+                move || {
+                    reads.set(reads.get() + 1);
+                    bounds.get()
+                },
+                &deps,
+            )
+        };
+        assert_eq!(observed.get().0, 40.);
+        width.set(Some(Size::Pixels(300.into())));
+        padding.set(Some(Size::Percent(10.into())));
+        cell.container_frame.set(frame(80., 11.));
+        assert_eq!(observed.get().0, 40.);
+        assert_eq!(reads.get(), 1);
+        assert_eq!(child.transform_and_bounds.get().transform.m[4], 30.);
+        assert_eq!(child.transform_and_bounds.get().transform.m[5], 11.);
+        cell.container_frame.set(frame(100., 11.));
+        assert_eq!(observed.get().0, 50.);
+        cell.container_frame.set(None);
+        assert_eq!(observed.get().0, 120.);
+        width.set(Some(Size::Pixels(400.into())));
+        assert_eq!(observed.get().0, 160.);
+
+        let _graph = context.property_graph.enter();
+        let clock = LocalProperty::new(0_u64);
+        pax_runtime_api::properties::register_time(&clock);
+        cell.container_frame.set(frame(80., 10.));
+        cell.container_frame
+            .ease_to(frame(120., 20.), 10, pax_runtime_api::EasingCurve::Linear);
+        clock.set(5);
+        // Follow the actual eased frame at every read, including its size policy.
+        let current = cell.container_frame.get().unwrap();
+        assert_eq!(observed.get().0, current.bounds.0 * 0.5);
+        assert_eq!(child.transform_and_bounds.get().transform.m[5], 15.);
+        clock.set(10);
+        assert_eq!(observed.get().0, 60.);
+        cell.container_frame.cancel_transitions();
+
+        // A custom container may retain and rebind the underlying property.
+        let raw = cell.container_frame.as_property().clone();
+        cell.container_frame.set(frame(100., 10.));
+        let source = LocalProperty::new(frame(60., 2.));
+        let binding = source.clone();
+        raw.replace_with(LocalProperty::computed(
+            move || binding.get(),
+            &[source.untyped()],
+        ));
+        assert_eq!(observed.get().0, 30.);
+        source.set(None);
+        assert_eq!(observed.get().0, 160.);
     }
 
     #[test]
