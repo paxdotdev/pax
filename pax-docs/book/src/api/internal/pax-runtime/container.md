@@ -35,6 +35,37 @@ Type: `Transform2`<[`NodeLocal`](../../../api/internal/pax-runtime/engine/node_i
 ##### `bounds`
 Type: (`f64`, `f64`)
 
+---
+
+### `ContainerPlacement`
+Reactive placement assigned by a container. A snapped cell supplies its own
+available size. Its translation still participates in paint and hit testing.
+Use `get`, `set`, or `set_if_neq` for snapped frames. Easing, rebinding,
+and borrowing the underlying `LocalProperty` through `as_property` or
+dereferencing use the full frame for subsequent layout reads.
+
+#### Implementations
+##### `as_property`
+<pre><code class="api-signature language-rust ignore">pub fn as_property(&amp;self) -&gt; &amp;LocalProperty&lt;Option&lt;<a href="../../../api/internal/pax-runtime/container.md#containerframe">ContainerFrame</a>&gt;&gt;</code></pre>
+
+Returns the underlying reactive property for easing or custom bindings.
+Future size reads follow this handle, including any subsequent rebinding.
+
+##### `get`
+<pre><code class="api-signature language-rust ignore">pub fn get(&amp;self) -&gt; Option&lt;<a href="../../../api/internal/pax-runtime/container.md#containerframe">ContainerFrame</a>&gt;</code></pre>
+
+Reads the current parent-local frame, including active reflow interpolation.
+
+##### `set`
+<pre><code class="api-signature language-rust ignore">pub fn set(&amp;self, frame: Option&lt;<a href="../../../api/internal/pax-runtime/container.md#containerframe">ContainerFrame</a>&gt;)</code></pre>
+
+Assigns a cell frame, or restores the padded parent extent when cleared.
+
+##### `set_if_neq`
+<pre><code class="api-signature language-rust ignore">pub fn set_if_neq(&amp;self, frame: Option&lt;<a href="../../../api/internal/pax-runtime/container.md#containerframe">ContainerFrame</a>&gt;) -&gt; bool</code></pre>
+
+Assigns the frame when its size or placement changed.
+
 ## Enums
 ### `ReceivedChildrenSource`
 Engine-internal selector for which child family should be normalized into

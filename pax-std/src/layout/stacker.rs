@@ -491,7 +491,7 @@ impl Container for Stacker {
                             child.container_frame.set_if_neq(Some(seed_frame));
                         }
                     }
-                    child.container_frame.ease_to(
+                    child.container_frame.as_property().ease_to(
                         Some(placement.frame),
                         frames,
                         reflow_transition.curve.get().to_easing_curve(),
@@ -2290,6 +2290,64 @@ mod tests {
         assert!((x_positions[0] - 0.0).abs() < 1e-9);
         assert!((x_positions[1] - 36.666666666666664).abs() < 1e-9);
         assert!((x_positions[2] - 73.33333333333333).abs() < 1e-9);
+    }
+
+    #[test]
+    fn one_pixel_reflow_aligns_later_prepared_draws_and_hit_boundaries() {
+        let leaves = (0..3)
+            .map(|_| TestLeaf::instantiate(primitive_args(vec![])) as Rc<dyn InstanceNode>)
+            .collect();
+        let stacker = StackerInstance::instantiate(stacker_args_with(
+            leaves,
+            Stacker {
+                autosize: Property::new(true),
+                gutter: Property::new(Size::Pixels(0.into())),
+                ..Default::default()
+            },
+        ));
+        let mut engine = pax_runtime::PaxEngine {
+            runtime_context: Rc::new(crate::test_support::runtime_context()),
+            root_expanded_node: None,
+            scroller_tiling_policy: Default::default(),
+        };
+        let root =
+            engine.mount_root_component(ComponentInstance::instantiate(component_args(vec![
+                stacker,
+            ])));
+        let stacker = root.children.get()[0].clone();
+        let cells = stacker.children.get();
+        for cell in &cells {
+            let common = cell.get_common_properties();
+            common.borrow().width.set(Some(Size::Pixels(80.into())));
+            common.borrow().height.set(Some(Size::Pixels(20.into())));
+        }
+        for first in [20, 21, 20] {
+            cells[0]
+                .get_common_properties()
+                .borrow()
+                .height
+                .set(Some(Size::Pixels(first.into())));
+            engine.tick();
+            let ctx = &engine.runtime_context;
+            let hit = |y| {
+                ctx.get_elements_beneath_ray(
+                    None,
+                    pax_runtime::api::math::Point2::new(10., y),
+                    true,
+                    vec![],
+                    false,
+                )[0]
+                .id
+            };
+            for i in 1..3 {
+                let y = first as f64 + ((i - 1) * 20) as f64;
+                let drawn = ctx.canvas_geometry_for_node(&cells[i]);
+                assert_eq!(drawn.surface_transform.as_coeffs()[5], y);
+                assert_eq!(drawn.bounds, (80., 20.));
+                assert_eq!(hit(y - 0.5), cells[i - 1].id);
+                assert_eq!(hit(y + 0.5), cells[i].id);
+            }
+        }
     }
 
     #[test]

@@ -25,7 +25,9 @@ when the whole group is moved or rotated.
 
 The relevant area is usually the parent's content area. Padding reduces that
 area. A Stacker assigns each child a cell, which becomes the area the child
-uses for its own layout.
+uses for its own layout. If an earlier cell grows, a later cell can move
+while keeping the same width and height. Percentage-sized children in that
+later cell keep their size until the space available to them changes.
 
 Use `px` for a concrete length and `%` for a proportion of the relevant axis.
 These are logical layout units; `1px` need not equal one physical display
