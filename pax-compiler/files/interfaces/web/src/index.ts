@@ -655,7 +655,9 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
         let mountElement = mount as HTMLElement;
         let rect = mountElement.getBoundingClientRect();
         let width = rect.width;
-        let height = rect.height;
+        // A delegated mount is as tall as the entire article. On a real width
+        // change (e.g. rotation), never send that document height as a viewport.
+        let height = nativePool.hasActivePageScrollDelegation() ? window.innerHeight : rect.height;
         return { width, height };
     };
     let resizeHandler = () => {
@@ -678,6 +680,7 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
         }
         lastViewportWidth = width;
         lastViewportHeight = height;
+        nativePool.setLayoutViewport(width, height);
         cooperativeRender?.invalidate();
         chassis.interrupt({
             "ViewportResize": {
@@ -702,6 +705,7 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
     resizeHandler();
     teardownEventListeners = setupEventListeners(chassis, mount as HTMLElement, {
         passive: liveSession?.options.wheelEvents !== 'cancellable',
+        pageScrollDelegated: () => nativePool.hasActivePageScrollDelegation(),
         record: perfTraceEnabled ? sample => nativePool.recordWheelInput(sample) : undefined,
     });
     initializedChassis = true;
@@ -841,10 +845,12 @@ function runStartupFrame(chassis: PaxChassisWeb, mount: Element) {
             // After reveal, feedback checkpoints get the same bounded capture
             // and submission gate before the parked background queue resumes.
             if (cooperative && (visibleRenderPending || !nativePool.startupSurfacesReady())) return;
+            // Readiness describes the current viewport, not just its first paint.
+            // A late measurement can invalidate a fully mounted but still held loader.
+            if (liveSession?.options.holdPresentation) startupViewportReady = true;
             if (first && liveSession?.options.holdPresentation) {
                 // Do not admit the deferred tree while first-viewport capture or
                 // asynchronous surface submission is still outstanding.
-                startupViewportReady = true;
                 nativePool.finishTextFrame(true);
                 liveSession.didPrepare();
                 if (!complete && !liveSession.options.loader) return;
@@ -887,7 +893,7 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
         return;
     }
     if (liveSession?.options.holdPresentation) {
-        if (!chassis.prepare_startup_presentation() || startupWork?.patchesPending) {
+        if ((mountYieldEnabled && !startupViewportReady) || !chassis.prepare_startup_presentation() || startupWork?.patchesPending) {
             startupPresented = false;
             runStartupFrame(chassis, mount);
         }

@@ -57,9 +57,10 @@ export function isIOSWebKitBrowser() {
     if (typeof navigator === "undefined") {
         return false;
     }
-    let userAgent = navigator.userAgent;
-    let isiOS = /iPhone|iPad|iPod/i.test(userAgent);
-    return isiOS && /AppleWebKit/i.test(userAgent) && !/CriOS|FxiOS|EdgiOS/i.test(userAgent);
+    const {userAgent, maxTouchPoints} = navigator;
+    const isiOS = /iPhone|iPad|iPod/i.test(userAgent)
+        || (/Macintosh/i.test(userAgent) && maxTouchPoints > 1);
+    return isiOS && /AppleWebKit/i.test(userAgent) && !/CriOS|FxiOS|EdgiOS|Chrome\/|Chromium\//i.test(userAgent);
 }
 
 

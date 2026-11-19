@@ -3,7 +3,7 @@ import type { CanvasPool } from "./canvas-pool";
 import {ObjectManager} from "../pools/object-manager";
 import {ARRAY, DIV, LAYER} from "../pools/supported-objects";
 
-import { CLIPPING_CONTAINER, NATIVE_LEAF_CLASS } from "../utils/constants";
+import { CLIPPING_CONTAINER, NATIVE_LEAF_CLASS, SCROLLER_CONTAINER } from "../utils/constants";
 import { affineMultiply, invertAffineCoeffs } from "../utils/helpers";
 import {NATIVE_SURFACE, NATIVE_SURFACE_INVERSE} from './native-placement';
 import type { NativeMaskEntry } from "./messages/native-mask-update-patch";
@@ -148,7 +148,7 @@ export class RenderLayerManager {
             let image = this.maskImages.get(element);
             if (!image) {
                 this.maskRasterizer ??= new NativeMaskRasterizer();
-                image = new PreparedMaskImage(element, this.maskRasterizer.prepare);
+                image = new PreparedMaskImage(element, this.maskRasterizer.prepare, element.classList.contains(SCROLLER_CONTAINER));
                 this.maskImages.set(element, image);
             }
             image.update(entries, maskWidth, maskHeight, this.maskPixelRatio);

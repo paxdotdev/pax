@@ -676,6 +676,7 @@ pub struct RenderConfig {
     pub initial_height: u32,
     pub initial_dpr: [f32; 2],
     prefer_browser_premultiplied_alpha: bool,
+    multisampling: bool,
 }
 
 pub(crate) const MAX_BATCH_PRIMITIVES: usize = 512;
@@ -739,6 +740,7 @@ impl RenderConfig {
             initial_height: height,
             initial_dpr: dpr,
             prefer_browser_premultiplied_alpha: false,
+            multisampling: true,
         }
     }
 
@@ -749,6 +751,13 @@ impl RenderConfig {
     /// Pax needs that for transparent browser-owned scroller islands.
     pub fn with_browser_premultiplied_alpha(mut self, enabled: bool) -> Self {
         self.prefer_browser_premultiplied_alpha = enabled;
+        self
+    }
+
+    /// Allow multisampled color and stencil attachments (the default). Disable
+    /// on memory-constrained hosts to use one sample per pixel, including captures.
+    pub fn with_multisampling(mut self, enabled: bool) -> Self {
+        self.multisampling = enabled;
         self
     }
 }
@@ -855,7 +864,6 @@ pub struct RenderBackend<'w> {
     #[cfg(feature = "3d")]
     solid_renderer: Option<solid::Renderer>,
     stencil_renderer: StencilRenderer,
-    source_stencil: Option<StencilRenderer>,
     source_domain: Option<(GpuGlobals, u32, u32)>,
     #[cfg(test)]
     pub(crate) source_domain_entries: u64,
@@ -1602,7 +1610,11 @@ impl<'w> RenderBackend<'w> {
         let stencil_format_features = adapter
             .get_texture_format_features(crate::render_backend::STENCIL_FORMAT)
             .flags;
-        let sample_count = select_sample_count(surface_format_features, stencil_format_features);
+        let sample_count = if config.multisampling {
+            select_sample_count(surface_format_features, stencil_format_features)
+        } else {
+            1
+        };
         let mut surface_usage = TextureUsages::RENDER_ATTACHMENT;
         if matches!(target, RenderTarget::Texture(_)) {
             surface_usage |= TextureUsages::TEXTURE_BINDING;
@@ -1826,7 +1838,6 @@ impl<'w> RenderBackend<'w> {
             #[cfg(feature = "3d")]
             solid_renderer: None,
             stencil_renderer,
-            source_stencil: None,
             source_domain: None,
             #[cfg(test)]
             source_domain_entries: 0,
@@ -2709,21 +2720,9 @@ impl<'w> RenderBackend<'w> {
         {
             self.source_domain_entries += 1;
         }
-        let mut stencil = self.source_stencil.take().unwrap_or_else(|| {
-            StencilRenderer::with_shared_transforms(
-                &self.device,
-                width,
-                height,
-                self.sample_count,
-                &self.globals_buffer,
-                &self.stencil_renderer,
-                self.context
-                    .stencil_pipeline_resources(self.surface_config.format, self.sample_count),
-            )
-        });
-        stencil.resize(&self.device, width, height);
-        std::mem::swap(&mut self.stencil_renderer, &mut stencil);
-        self.source_stencil = Some(stencil);
+        // The padded domain is a coordinate system, not a render target. Source
+        // geometry draws only inside begin_bounded_capture, with its own stencil;
+        // filtering a cached alpha source likewise uses its own cropped targets.
         self.source_domain = Some((
             self.globals,
             self.surface_config.width,
@@ -2732,7 +2731,6 @@ impl<'w> RenderBackend<'w> {
         self.surface_config.width = width;
         self.surface_config.height = height;
         self.globals = globals;
-        self.stage_capture_globals();
         true
     }
 
@@ -2741,27 +2739,7 @@ impl<'w> RenderBackend<'w> {
         self.globals = globals;
         self.surface_config.width = width;
         self.surface_config.height = height;
-        std::mem::swap(
-            &mut self.stencil_renderer,
-            self.source_stencil.as_mut().unwrap(),
-        );
-        self.stage_capture_globals();
-    }
-
-    fn stage_capture_globals(&mut self) {
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Capture coordinate domain"),
-            });
-        write_staged_buffer(
-            &mut self.staging_belt,
-            &mut encoder,
-            &self.globals_buffer,
-            bytemuck::bytes_of(&self.globals),
-        );
-        self.stencil_renderer.encode_clear(&mut encoder);
-        self.enqueue_staged_command_buffer(encoder);
+        self.stage_bounded_capture_globals(false);
     }
 
     pub(crate) fn render_captured_alpha(
@@ -3218,9 +3196,6 @@ impl<'w> RenderBackend<'w> {
     ) {
         self.stencil_renderer
             .retain_cached_resources(active_signatures, active_clip_ids);
-        if let Some(stencil) = &mut self.source_stencil {
-            stencil.retain_cached_resources(active_signatures, active_clip_ids);
-        }
         if let Some(surfaces) = &mut self.retained_surfaces {
             surfaces.retain_stencil_resources(active_signatures, active_clip_ids);
         }

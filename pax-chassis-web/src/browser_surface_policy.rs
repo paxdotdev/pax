@@ -38,7 +38,11 @@ impl WebSurfacePolicy {
     }
 }
 
-const CPU_BROWSER_SURFACE_DIMENSION_CAP: u32 = 2048;
+const NESTED_SURFACE_DIMENSION_CAP: u32 = 2048;
+// A scene can own several color, stencil, multisample, and effect textures
+// per visible layer. A per-texture dimension limit alone does not bound that
+// footprint on iPhone Safari; apply the base density before projecting layers.
+const IPHONE_WEBGPU_BASE_DENSITY_CAP: f64 = 1.0;
 const CPU_TARGET_TILE_BACKING_DIMENSION: f64 = 2048.0;
 const CPU_TOTAL_CANVAS_BUDGET: usize = 56;
 const CPU_PREWARM_VIEWPORT_PAD_X_MULTIPLIER: f64 = 2.0;
@@ -53,6 +57,7 @@ pub(crate) struct BrowserSurfacePolicy {
     use_cpu_fallback: bool,
     surface_dimension_cap: Option<u32>,
     ios_webkit: bool,
+    phone_webkit: bool,
 }
 
 impl BrowserSurfacePolicy {
@@ -61,47 +66,54 @@ impl BrowserSurfacePolicy {
         let webgpu_available =
             js_sys::Reflect::has(window.navigator().as_ref(), &JsValue::from_str("gpu"))
                 .unwrap_or(false);
-        Self::from_browser_capabilities(&user_agent, webgpu_available)
+        Self::for_navigator(
+            &user_agent,
+            window.navigator().max_touch_points(),
+            webgpu_available,
+        )
     }
 
-    fn from_browser_capabilities(user_agent: &str, webgpu_available: bool) -> Self {
-        let isi_os = user_agent.contains("iPhone")
-            || user_agent.contains("iPad")
-            || user_agent.contains("iPod");
+    fn for_navigator(user_agent: &str, touch_points: i32, webgpu_available: bool) -> Self {
+        let ipad = user_agent.contains("iPad") || desktop_mode_ipad(user_agent, touch_points);
+        let isi_os = user_agent.contains("iPhone") || ipad || user_agent.contains("iPod");
         let ios_webkit = isi_os
             && user_agent.contains("AppleWebKit")
             && !user_agent.contains("CriOS")
             && !user_agent.contains("FxiOS")
-            && !user_agent.contains("EdgiOS");
-        let use_cpu_fallback = ios_webkit || !webgpu_available;
-
-        // Nested browser-owned scroller surfaces on iOS WebKit hit two limits that the generic
-        // web path does not:
-        // 1. WebGPU browser surfaces in this compositor path do not reliably preserve alpha.
-        // 2. Surface setup can fail once a nested layer's backing dimension grows beyond the
-        //    conservative 2048 px limit, even when a graphics API reports a higher maximum.
-        //
-        // We keep that policy isolated here so the rest of the web chassis stays platform-agnostic:
-        // choose the Vello CPU renderer on iOS and tile at screen density within that budget.
-        // Descendant layers may downsample below 1x only as a hard-limit safety fallback,
-        // instead of failing surface initialization outright. Root-layer tiling is chosen one
-        // level up in the web surface host policy, so the root viewport no longer needs the same
-        // backing-dimension cap here.
-        let surface_dimension_cap = ios_webkit.then_some(CPU_BROWSER_SURFACE_DIMENSION_CAP);
+            && !user_agent.contains("EdgiOS")
+            && !user_agent.contains("Chrome/")
+            && !user_agent.contains("Chromium/");
+        // Keep the tested nested backing limit independent of the renderer;
+        // Safari can advertise a larger device limit than its surfaces sustain.
+        let surface_dimension_cap = ios_webkit.then_some(NESTED_SURFACE_DIMENSION_CAP);
         Self {
-            use_cpu_fallback,
+            use_cpu_fallback: !webgpu_available,
             surface_dimension_cap,
             ios_webkit,
+            phone_webkit: ios_webkit && !ipad,
         }
     }
 
     pub(crate) fn select_cpu(&mut self, cpu: bool) {
         self.use_cpu_fallback = cpu;
-        self.surface_dimension_cap = cpu.then_some(CPU_BROWSER_SURFACE_DIMENSION_CAP);
+        self.surface_dimension_cap =
+            (cpu || self.ios_webkit).then_some(NESTED_SURFACE_DIMENSION_CAP);
     }
 
     pub(crate) fn use_cpu_fallback(self) -> bool {
         self.use_cpu_fallback
+    }
+
+    pub(crate) fn base_density_limit(self) -> Option<f64> {
+        (self.phone_webkit && !self.use_cpu_fallback).then_some(IPHONE_WEBGPU_BASE_DENSITY_CAP)
+    }
+
+    pub(crate) fn base_density(self, display_ratio: f64) -> f64 {
+        display_ratio.min(self.base_density_limit().unwrap_or(f64::INFINITY))
+    }
+
+    pub(crate) fn allow_multisampling(self) -> bool {
+        !self.phone_webkit
     }
 
     pub(crate) fn effective_max_surface_dimension(self, layer: usize, backend_limit: u32) -> u32 {
@@ -114,7 +126,8 @@ impl BrowserSurfacePolicy {
     }
 
     pub(crate) fn defer_transient_root_host_surfaces(self, layer: usize) -> bool {
-        self.surface_dimension_cap.is_some() && layer > 0
+        // A GPU dimension limit isn't a reason to skip an otherwise drawable host.
+        self.use_cpu_fallback && self.surface_dimension_cap.is_some() && layer > 0
     }
 
     pub(crate) fn scroller_tiling_policy(self) -> ScrollerTilingPolicy {
@@ -140,13 +153,19 @@ impl BrowserSurfacePolicy {
             // per-layer surface set that the chassis can never materialize.
             let surface_dimension_cap = self
                 .surface_dimension_cap
-                .unwrap_or(CPU_BROWSER_SURFACE_DIMENSION_CAP);
+                .unwrap_or(NESTED_SURFACE_DIMENSION_CAP);
             policy.max_tile_backing_width = Some(surface_dimension_cap as f64);
             policy.max_tile_backing_height = Some(surface_dimension_cap as f64);
             policy.max_tile_backing_area = Some((surface_dimension_cap as f64).powi(2));
         }
         policy
     }
+}
+
+pub(crate) fn desktop_mode_ipad(user_agent: &str, touch_points: i32) -> bool {
+    // iPadOS desktop browsing identifies as Macintosh, but unlike a Mac
+    // it exposes multiple direct touch contacts (not trackpad gestures).
+    user_agent.contains("Macintosh") && touch_points > 1
 }
 
 #[cfg(test)]
@@ -175,7 +194,7 @@ mod tests {
 
     #[test]
     fn desktop_webgpu_uses_gpu_policy() {
-        let policy = BrowserSurfacePolicy::from_browser_capabilities(DESKTOP_USER_AGENT, true);
+        let policy = BrowserSurfacePolicy::for_navigator(DESKTOP_USER_AGENT, 0, true);
 
         assert!(!policy.use_cpu_fallback());
         assert_eq!(policy.surface_dimension_cap, None);
@@ -188,7 +207,7 @@ mod tests {
 
     #[test]
     fn failed_or_forced_gpu_uses_cpu_surface_budget() {
-        let mut browser = BrowserSurfacePolicy::from_browser_capabilities(DESKTOP_USER_AGENT, true);
+        let mut browser = BrowserSurfacePolicy::for_navigator(DESKTOP_USER_AGENT, 0, true);
         browser.select_cpu(true);
         assert!(browser.use_cpu_fallback());
         assert_eq!(
@@ -200,7 +219,7 @@ mod tests {
 
     #[test]
     fn no_webgpu_uses_cpu_policy() {
-        let policy = BrowserSurfacePolicy::from_browser_capabilities(DESKTOP_USER_AGENT, false);
+        let policy = BrowserSurfacePolicy::for_navigator(DESKTOP_USER_AGENT, 0, false);
 
         assert!(policy.use_cpu_fallback());
         assert_eq!(
@@ -215,19 +234,72 @@ mod tests {
     }
 
     #[test]
-    fn ios_webkit_uses_conservative_cpu_policy_even_with_webgpu() {
-        let policy = BrowserSurfacePolicy::from_browser_capabilities(IOS_SAFARI_USER_AGENT, true);
+    fn iphone_webgpu_uses_bounded_density_but_cpu_fallback_keeps_display_density() {
+        let policy = BrowserSurfacePolicy::for_navigator(IOS_SAFARI_USER_AGENT, 5, true);
         let tiling = policy.scroller_tiling_policy();
 
-        assert!(policy.use_cpu_fallback());
+        assert!(!policy.use_cpu_fallback());
+        assert!(!policy.defer_transient_root_host_surfaces(1));
+        assert!(!policy.allow_multisampling());
+        assert_eq!(policy.base_density(3.0), IPHONE_WEBGPU_BASE_DENSITY_CAP);
+        assert_eq!(policy.base_density(1.0), 1.0);
         assert_eq!(
             policy.effective_max_surface_dimension(1, u32::MAX),
-            CPU_BROWSER_SURFACE_DIMENSION_CAP
+            NESTED_SURFACE_DIMENSION_CAP
         );
         assert_eq!(
             tiling.max_tile_backing_area,
-            Some((CPU_BROWSER_SURFACE_DIMENSION_CAP as f64).powi(2))
+            Some((NESTED_SURFACE_DIMENSION_CAP as f64).powi(2))
         );
-        assert_eq!(tiling.max_surfaces_per_layer, Some(CPU_TOTAL_CANVAS_BUDGET));
+        assert_eq!(tiling.max_surfaces_per_layer, None);
+        for mut cpu in [
+            policy,
+            BrowserSurfacePolicy::for_navigator(IOS_SAFARI_USER_AGENT, 5, false),
+        ] {
+            cpu.select_cpu(true);
+            assert!(cpu.defer_transient_root_host_surfaces(1));
+            assert_eq!(cpu.base_density(3.0), 3.0);
+            assert_eq!(
+                cpu.scroller_tiling_policy().max_surfaces_per_layer,
+                Some(CPU_TOTAL_CANVAS_BUDGET)
+            );
+        }
+    }
+
+    #[test]
+    fn requiring_gpu_keeps_ios_nested_backings_bounded_without_cpu_prewarming() {
+        let mut browser = BrowserSurfacePolicy::for_navigator(IOS_SAFARI_USER_AGENT, 5, true);
+        browser.select_cpu(false);
+        assert!(!browser.use_cpu_fallback());
+        assert!(!browser.defer_transient_root_host_surfaces(1));
+        assert_eq!(browser.effective_max_surface_dimension(0, 8192), 8192);
+        assert_eq!(browser.effective_max_surface_dimension(1, 8192), 2048);
+        assert_eq!(browser.effective_max_surface_dimension(1, 1024), 1024);
+        assert_eq!(
+            browser.scroller_tiling_policy().max_tile_backing_width,
+            Some(2048.0)
+        );
+        assert_eq!(
+            browser.scroller_tiling_policy().max_surfaces_per_layer,
+            None
+        );
+    }
+
+    #[test]
+    fn ipad_safari_keeps_its_nested_budget_in_either_browsing_mode() {
+        const DESKTOP: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/26.6.1 Safari/605.1.15";
+        const MOBILE: &str = "Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1";
+        for ua in [DESKTOP, MOBILE] {
+            let gpu = BrowserSurfacePolicy::for_navigator(ua, 5, true);
+            assert!(!gpu.use_cpu_fallback());
+            assert_eq!(gpu.base_density(3.0), 3.0);
+            assert!(gpu.allow_multisampling());
+            assert_eq!(gpu.effective_max_surface_dimension(1, 8192), 2048);
+            assert!(BrowserSurfacePolicy::for_navigator(ua, 5, false).use_cpu_fallback());
+        }
+        assert_eq!(
+            BrowserSurfacePolicy::for_navigator(DESKTOP, 0, true).surface_dimension_cap,
+            None
+        );
     }
 }

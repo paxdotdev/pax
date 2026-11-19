@@ -90,6 +90,9 @@ that old pixels are valid for the new location.
 
 Web vector surfaces, including tiled Scroller content, target the browser's
 device-pixel ratio at their **presented scale**, in debug and release builds.
+The iPhone Safari WebGPU backend uses a lower base density on high-density
+screens to fit the browser's graphics memory budget (see
+[renderer selection](how-pax-runs.md#rendering-backends)).
 For example, a 1,000-unit-wide Scroller inside `scale=50%` appears 500 CSS pixels
 wide. On a 2× display it needs about 1,000 backing pixels, not 2,000. A backing
 density below one per local unit can therefore still match the screen. Becoming
@@ -746,6 +749,18 @@ The native host moves the content, while Pax maintains the rendering,
 clipping, and input-coordinate relationships. A web root Scroller that fits
 the viewport and scrolls only vertically can delegate to page scrolling;
 you still use Scroller properties rather than browser DOM operations.
+This also works when iPad Safari requests the desktop site. On iPhone Safari,
+expanding or collapsing the address bar changes the visible
+area, not the root Scroller's layout height or owner. A swipe therefore keeps
+its document scroll position. Viewport-local siblings, such as an `Overlay`
+toolbar, stay in place while content scrolls beneath them. A separate Scroller
+inside that toolbar is prepared at its position on screen, not at the document's
+scroll offset. Giving it `scroll_width=100% scroll_height=100%` clips its
+contents to the toolbar without introducing a second scroll range. Changing width,
+for example by rotating the phone, measures a new layout viewport.
+You can start a page swipe over painted content. Taps and other pointer events
+use the same viewport coordinates as the visible scene, even far down the page;
+a native control covered by another element still cannot be activated through it.
 
 For a toolbar that stays in place, keep it outside the Scroller as a sibling,
 usually reserving space for it in the surrounding layout. A child at `y=0px`

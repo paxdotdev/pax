@@ -128,6 +128,7 @@ export class PaxChassisWeb {
 */
   layer_canvas_plan_generation(): number;
   surface_policy_revision(): number;
+  surface_base_density_limit(): number | undefined;
   install_surface_plan(snapshot: import('../classes/surface-coordinator').InstalledSurfacePlan): void;
   begin_surface_plan(): void;
 /**

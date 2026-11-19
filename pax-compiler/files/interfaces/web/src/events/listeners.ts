@@ -13,7 +13,7 @@ export type WheelInputSample = {
     deltaY: number;
 };
 
-type WheelOptions = {passive?: boolean; record?: (sample: WheelInputSample) => void};
+type InputOptions = {passive?: boolean; record?: (sample: WheelInputSample) => void; pageScrollDelegated?: () => boolean};
 
 // The mount's passive capture listener dispatches into Pax exactly once. A
 // descendant's non-passive listener only applies that dispatch's decision.
@@ -55,8 +55,8 @@ function getMouseButton(event: MouseEvent) {
 }
 
 
-export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, wheelOptions: WheelOptions = {}): () => void {
-    const wheelPassive = wheelOptions.passive ?? true;
+export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, options: InputOptions = {}): () => void {
+    const wheelPassive = options.passive ?? true;
     let disposed = false;
     const pressedButtons = new Set<string>();
     let currentButton = "Left";
@@ -87,7 +87,16 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
     let lastTouchTap: {x: number, y: number, timestamp: number} | undefined;
     let activeTapTouchIdentifier: number | undefined;
     let activeTapStart: {x: number, y: number} | undefined;
+    let coveredTouch: {target: Element; id: number; x: number; y: number; scrollX: boolean; scrollY: boolean} | undefined;
     const tapMovementTolerance = 10;
+    // The engine already applies the Scroller offset. A document-sized mount moves
+    // with browser scrolling; use its document origin, not its scrolled client rect.
+    function scenePoint(clientX: number, clientY: number) {
+        const bounds = mount.getBoundingClientRect();
+        const page = options.pageScrollDelegated?.();
+        return {x: clientX - (bounds.left + (page ? window.scrollX : 0)),
+            y: clientY - (bounds.top + (page ? window.scrollY : 0))};
+    }
     function getTouchMessages(touchList: TouchList) {
         return Array.from(touchList).map(touch => {
             let lastPosition = lastPositions.get(touch.identifier) || { x: touch.clientX, y: touch.clientY };
@@ -95,8 +104,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
             let delta_y = touch.clientY - lastPosition.y;
             lastPositions.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
             return {
-                x: touch.clientX - mount.getBoundingClientRect().left,
-                y: touch.clientY - mount.getBoundingClientRect().top,
+                ...scenePoint(touch.clientX, touch.clientY),
                 identifier: touch.identifier,
                 delta_x: delta_x,
                 delta_y: delta_y
@@ -111,8 +119,8 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         const leaf = target instanceof Element ? target.closest('.native-leaf[pax_id]') : null;
         if (!leaf) return false;
         const id = Number(leaf.getAttribute('pax_id'));
-        const bounds = mount.getBoundingClientRect();
-        return Number.isFinite(id) && !chassis.native_pointer_hit_test(id, x - bounds.left, y - bounds.top);
+        const point = scenePoint(x, y);
+        return Number.isFinite(id) && !chassis.native_pointer_hit_test(id, point.x, point.y);
     }
     function blockNativePointer(event: Event) {
         event.preventDefault();
@@ -144,8 +152,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
 
         let clickEvent = {
             "Click": {
-                "x": evt.clientX - mount.getBoundingClientRect().left,
-                "y": evt.clientY - mount.getBoundingClientRect().top,
+                ...scenePoint(evt.clientX, evt.clientY),
                 "button": getMouseButton(evt),
                 "modifiers": convertModifiers(evt)
             }
@@ -158,8 +165,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
     addWindowListener('dblclick', (evt) => {
         let event = {
             "DoubleClick": {
-                "x": evt.clientX - mount.getBoundingClientRect().left,
-                "y": evt.clientY - mount.getBoundingClientRect().top,
+                ...scenePoint(evt.clientX, evt.clientY),
                 "button": getMouseButton(evt),
                 "modifiers": convertModifiers(evt)
             }
@@ -170,6 +176,10 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         }
     }, true);
     addWindowListener('selectstart', (evt) => {
+        if (coveredTouch && evt.target instanceof Element && coveredTouch.target.contains(evt.target)) {
+            blockNativePointer(evt);
+            return;
+        }
 
         // NOTE: this shouldn't be needed once selectionstart can be
         // fired only on active/focused element instead of global
@@ -190,11 +200,10 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         // A release outside the browser may arrive only as a later move with no button held.
         if (evt.buttons === 0 && pressedButtons.size > 0) cancelMouse();
         let button = currentButton;
-        lastMouse = {x: evt.clientX - mount.getBoundingClientRect().left, y: evt.clientY - mount.getBoundingClientRect().top};
+        lastMouse = scenePoint(evt.clientX, evt.clientY);
         let event = {
             "MouseMove": {
-                "x": evt.clientX - mount.getBoundingClientRect().left,
-                "y": evt.clientY - mount.getBoundingClientRect().top,
+                ...lastMouse,
                 "button": button,
                 "modifiers": convertModifiers(evt)
             }
@@ -205,11 +214,10 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         }
     }, true);
     addWindowListener('wheel', (evt) => {
-        const enteredAt = wheelOptions.record ? performance.now() : 0;
+        const enteredAt = options.record ? performance.now() : 0;
         let event = {
             "Wheel": {
-                "x": evt.clientX - mount.getBoundingClientRect().left,
-                "y": evt.clientY - mount.getBoundingClientRect().top,
+                ...scenePoint(evt.clientX, evt.clientY),
                 "delta_x": evt.deltaX,
                 "delta_y": evt.deltaY,
                 "modifiers": convertModifiers(evt)
@@ -220,7 +228,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         if (res.prevent_default && !wheelPassive && evt.cancelable) {
             evt.preventDefault();
         }
-        if (wheelOptions.record) {
+        if (options.record) {
             const handlerMs = performance.now() - enteredAt;
             const sample = {
                 enteredAt,
@@ -238,10 +246,10 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
                 // Local listeners run later in the same DOM dispatch.
                 queueMicrotask(() => {
                     sample.defaultPrevented = evt.defaultPrevented;
-                    wheelOptions.record?.(sample);
+                    options.record?.(sample);
                 });
             } else {
-                wheelOptions.record(sample);
+                options.record(sample);
             }
         }
     }, {"passive": wheelPassive, "capture": true});
@@ -250,11 +258,10 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         let button = getMouseButton(evt);
         currentButton = button;
         pressedButtons.add(button);
-        lastMouse = {x: evt.clientX - mount.getBoundingClientRect().left, y: evt.clientY - mount.getBoundingClientRect().top};
+        lastMouse = scenePoint(evt.clientX, evt.clientY);
         let event = {
             "MouseDown": {
-                "x": evt.clientX - mount.getBoundingClientRect().left,
-                "y": evt.clientY - mount.getBoundingClientRect().top,
+                ...lastMouse,
                 "button": getMouseButton(evt),
                 "modifiers": convertModifiers(evt)
             }
@@ -269,8 +276,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         pressedButtons.delete(getMouseButton(evt));
         let event = {
             "MouseUp": {
-                "x": evt.clientX - mount.getBoundingClientRect().left,
-                "y": evt.clientY - mount.getBoundingClientRect().top,
+                ...scenePoint(evt.clientX, evt.clientY),
                 "button": getMouseButton(evt),
                 "modifiers": convertModifiers(evt)
             }
@@ -290,10 +296,13 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
     }
     addWindowListener('blur', cancelMouse);
     addWindowListener('contextmenu', (evt) => {
+        if (coveredTouch && evt.target instanceof Element && coveredTouch.target.contains(evt.target)) {
+            blockNativePointer(evt);
+            return;
+        }
         let event = {
             "ContextMenu": {
-                "x": evt.clientX - mount.getBoundingClientRect().left,
-                "y": evt.clientY - mount.getBoundingClientRect().top,
+                ...scenePoint(evt.clientX, evt.clientY),
                 "button": getMouseButton(evt),
                 "modifiers": convertModifiers(evt)
             }
@@ -314,7 +323,26 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         });
         let r1 = chassis.interrupt(event, []);
         const touch = evt.changedTouches[0];
-        if (touch && nativePointerOccluded(evt.target, touch.clientX, touch.clientY)) blockNativePointer(evt);
+        coveredTouch = undefined;
+        const target = evt.target instanceof Element ? evt.target : null;
+        const page = options.pageScrollDelegated?.();
+        const barePage = page && target?.matches('.scroller-container[data-page-scroll-delegated]');
+        if (touch && target && !barePage && nativePointerOccluded(target, touch.clientX, touch.clientY)) {
+            if (!page || target.closest('input, textarea, select, [contenteditable]:not([contenteditable=false]), video, audio')) {
+                // These controls can begin native editing or dragging on contact.
+                blockNativePointer(evt);
+            } else if (evt.touches.length === 1) {
+                // Cancelling touchstart here also cancels Safari's document pan.
+                // Block selection and activation, not a swipe through a covered
+                // label or across the non-scrolling axis of a covered shelf.
+                const scroller = target instanceof HTMLElement && target.matches('.scroller-container:not([data-page-scroll-delegated])') ? target : null;
+                const overflow = scroller && getComputedStyle(scroller);
+                coveredTouch = {target, id: touch.identifier, x: touch.clientX, y: touch.clientY,
+                    scrollX: !!scroller && /^(auto|scroll)$/.test(overflow!.overflowX) && scroller.scrollWidth > scroller.clientWidth,
+                    scrollY: !!scroller && /^(auto|scroll)$/.test(overflow!.overflowY) && scroller.scrollHeight > scroller.clientHeight};
+                evt.stopPropagation();
+            }
+        }
 
         activeTapTouchIdentifier = evt.touches.length === 1 && evt.changedTouches.length === 1
             ? evt.changedTouches[0].identifier
@@ -327,6 +355,11 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         }
     }, {"passive": false, "capture": true});
     addWindowListener('touchmove', (evt: TouchEvent) => {
+        if (coveredTouch && evt.touches.length === 1 && evt.touches[0].identifier === coveredTouch.id) {
+            const dx = Math.abs(evt.touches[0].clientX - coveredTouch.x);
+            const dy = Math.abs(evt.touches[0].clientY - coveredTouch.y);
+            if ((dx > dy && coveredTouch.scrollX) || (dy > dx && coveredTouch.scrollY)) evt.preventDefault();
+        }
         if (activeTapTouchIdentifier !== undefined && activeTapStart !== undefined) {
             let activeTouch = Array.from(evt.touches as TouchList).find(
                 touch => touch.identifier === activeTapTouchIdentifier,
@@ -361,7 +394,8 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
             }
         };
         let res = chassis.interrupt(event, []);
-        let tapPreventDefault = false;
+        let tapPreventDefault = !!coveredTouch && coveredTouch.id === activeTapTouchIdentifier;
+        coveredTouch = undefined;
         if (evt.touches.length === 0 && evt.changedTouches.length === 1) {
             let touch = evt.changedTouches[0];
             if (touch.identifier === activeTapTouchIdentifier) {
@@ -372,11 +406,10 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
                 };
                 let tapEvent = {
                     "Tap": {
-                        "x": touch.clientX - mount.getBoundingClientRect().left,
-                        "y": touch.clientY - mount.getBoundingClientRect().top,
+                        ...scenePoint(touch.clientX, touch.clientY),
                     }
                 };
-                tapPreventDefault = chassis.interrupt(tapEvent, []).prevent_default;
+                tapPreventDefault = chassis.interrupt(tapEvent, []).prevent_default || tapPreventDefault;
             }
         }
         activeTapTouchIdentifier = undefined;
@@ -387,8 +420,9 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         Array.from(evt.changedTouches).forEach(touch => {
             lastPositions.delete(touch.identifier);
         });
-    }, {"passive": true, "capture": true});
+    }, {"passive": false, "capture": true});
     addWindowListener('touchcancel', (evt: TouchEvent) => {
+        coveredTouch = undefined;
         let event = {
             "TouchCancel": {
                 "touches": getTouchMessages(evt.changedTouches)
@@ -478,8 +512,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         if (disposed) return;
         let event = {
             "DropFile": {
-                "x": evt.clientX - mount.getBoundingClientRect().left,
-                "y": evt.clientY - mount.getBoundingClientRect().top,
+                ...scenePoint(evt.clientX, evt.clientY),
                 "name": file.name,
                 "mime_type": file.type,
                 "size": file.size,

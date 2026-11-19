@@ -69,8 +69,7 @@ use pax_designtime::{AppRevisionActivationStatus, DesigntimeManager};
 /// Target facts available to application configuration before root construction.
 pub fn application_target() -> pax_runtime::api::TargetInfo {
     let os = window()
-        .and_then(|window| window.navigator().user_agent().ok())
-        .and_then(|value| parse_user_agent_str(&value))
+        .map(|window| browser_os(&window))
         .unwrap_or_default();
     pax_runtime::api::TargetInfo::new(Platform::Web, os)
 }
@@ -589,10 +588,7 @@ impl PaxChassisWeb {
         #[cfg(feature = "console_error_panic_hook")]
         console_error_panic_hook::set_once();
         let window = window().unwrap();
-        let user_agent_str = window.navigator().user_agent().ok();
-        let os_info = user_agent_str
-            .and_then(|s| parse_user_agent_str(&s))
-            .unwrap_or_default();
+        let os_info = browser_os(&window);
 
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
@@ -1907,6 +1903,11 @@ impl PaxChassisWeb {
         self.surface_policy.revision()
     }
 
+    /// Optional base pixels per CSS pixel for render backings, before scene transforms.
+    pub fn surface_base_density_limit(&self) -> Option<f64> {
+        self.surface_policy.browser.base_density_limit()
+    }
+
     pub fn install_surface_plan(&mut self, value: JsValue) -> Result<(), JsValue> {
         let next: installed_surfaces::InstalledSurfacePlan = serde_wasm_bindgen::from_value(value)
             .map_err(|error| JsValue::from_str(&error.to_string()))?;
@@ -1985,28 +1986,29 @@ impl PaxChassisWeb {
     ) -> JsValue {
         let engine = self.engine.borrow();
         let ctx = &engine.runtime_context;
-        let window = window().unwrap();
+        let base_density = self
+            .surface_policy
+            .browser
+            .base_density(window().unwrap().device_pixel_ratio());
         let owner = ctx
             .get_layer_scroller_owner(layer)
             .and_then(|id| ctx.get_expanded_node_by_eid(id));
-        let projected_density =
-            if let Some(owner) = owner.filter(|node| node.has_perspective_camera()) {
-                let bounds = owner.transform_and_bounds.get().bounds;
-                let viewport = ctx.globals().viewport.get().bounds;
-                ctx.presented_projection_for_node(&owner)
-                    .and_then(|plane| {
-                        plane.magnification_bound(
-                            kurbo::Rect::new(0., 0., bounds.0, bounds.1),
-                            Some(kurbo::Rect::new(0., 0., viewport.0, viewport.1)),
-                        )
-                    })
-                    .map(|scale| [scale * window.device_pixel_ratio(); 2])
-            } else {
-                pax_runtime::engine::surface_scheduling::projected_density(
-                    [a, b, c, d],
-                    window.device_pixel_ratio(),
-                )
-            };
+        let projected_density = if let Some(owner) =
+            owner.filter(|node| node.has_perspective_camera())
+        {
+            let bounds = owner.transform_and_bounds.get().bounds;
+            let viewport = ctx.globals().viewport.get().bounds;
+            ctx.presented_projection_for_node(&owner)
+                .and_then(|plane| {
+                    plane.magnification_bound(
+                        kurbo::Rect::new(0., 0., bounds.0, bounds.1),
+                        Some(kurbo::Rect::new(0., 0., viewport.0, viewport.1)),
+                    )
+                })
+                .map(|scale| [scale * base_density; 2])
+        } else {
+            pax_runtime::engine::surface_scheduling::projected_density([a, b, c, d], base_density)
+        };
         let Some(density) = projected_density else {
             return js_value_serde::to_value(&WebLayerCanvasPlan {
                 layer_id: layer,
@@ -3135,6 +3137,16 @@ mod js_value_serde {
                 inner: JsObjectSerializer::new(),
             })
         }
+    }
+}
+
+fn browser_os(window: &web_sys::Window) -> OS {
+    let nav = window.navigator();
+    let ua = nav.user_agent().unwrap_or_default();
+    if browser_surface_policy::desktop_mode_ipad(&ua, nav.max_touch_points()) {
+        OS::IPad
+    } else {
+        parse_user_agent_str(&ua).unwrap_or_default()
     }
 }
 

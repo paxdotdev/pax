@@ -7,15 +7,14 @@ type HostFactory = () => {initApplication(options: ApplicationOptions): Promise<
 /** One loading experience owns two application lifetimes and their publication gate. */
 export async function startLoadingApplication(options: WebInitOptions, glue: Glue, createHost: HostFactory): Promise<MountedApp> {
     const container = document.createElement('div');
-    container.style.cssText = 'position:relative;width:100%;height:100%;min-height:0;isolation:isolate';
+    container.className = 'pax-loading-host';
     options.element.appendChild(container);
     const mainSlot = document.createElement('div');
     const loaderSlot = document.createElement('div');
-    for (const slot of [mainSlot, loaderSlot]) {
-        slot.style.cssText = 'position:absolute;inset:0;overflow:hidden';
-        container.appendChild(slot);
-    }
-    loaderSlot.style.zIndex = '1';
+    mainSlot.className = 'pax-loading-main';
+    loaderSlot.className = 'pax-loading-overlay';
+    container.appendChild(mainSlot);
+    container.appendChild(loaderSlot);
     const split = await abortable(import(new URL('./__wasm_split.js', new URL(options.cartridgeUrl, document.baseURI)).href), options.signal)
         .catch(error => { container.remove(); throw error; });
     const adapter = split.loader;

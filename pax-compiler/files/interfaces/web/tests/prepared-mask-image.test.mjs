@@ -194,6 +194,16 @@ test('Chrome retains synchronous SVG fragment masks without bitmap work', () => 
 
 const panel = (bottom = 80) => ({path: `M0,0L200,0L200,${bottom}L0,${bottom}Z`, clips: [], opacity: 1});
 
+test('Safari scroller mask keeps both images bounded and offsets only the cropped occluder', () => {
+    const element = {style:{}};
+    const handoff = new PreparedMaskImage(element, () => assert.fail('rectangular cutout needs no bitmap'), true);
+    handoff.update([{path:'M10,4L120,4L120,64L10,64Z', opacity:1, clips:[]}], 440, 796, 3);
+    assert.equal(element.style.webkitMaskSize, '440px 796px, 110px 60px');
+    assert.equal(element.style.webkitMaskPosition, '0px 0px, 10px calc(4px + var(--pax-page-y, 0px))');
+    assert.equal(element.style.webkitMaskRepeat, 'var(--pax-mask-base-repeat, no-repeat), no-repeat');
+    assert.equal(element.style.maskComposite, 'subtract');
+});
+
 test('rectangular Safari masks are synchronous and follow dimensions without preparation', () => {
     const {manager, element, requests} = managerFixture();
     manager.updateElementMask(element, 7, [panel()], 200, 150);

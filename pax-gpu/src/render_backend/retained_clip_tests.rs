@@ -866,10 +866,18 @@ fn attachment_retirement_source_resize_capture_eviction_and_shutdown() {
     let context = backend.shared_context();
     let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
     let key = capture::CaptureKey::Alpha(1);
-    // Different feather domains replace the source stencil and capture scratch
-    // attachments while earlier clear/copy commands remain unsubmitted.
+    // Changing the logical feather domain must not allocate a full-domain
+    // stencil. Bounded capture attachments can retire before submission.
     for margin in [2., 12., 0., 8.] {
         assert!(backend.begin_source_domain(margin));
+        assert_eq!(
+            backend
+                .stencil_renderer
+                .stencil_view_clone()
+                .texture()
+                .width(),
+            32
+        );
         backend.capture_is_cached(key, 0);
         let bounds = ScissorRect {
             min_x: 4.,
@@ -3800,7 +3808,7 @@ fn retained_mask_source_clip_pages_pixels() {
     let device = backend.device.clone();
     let mut renderer = WgpuRenderer::new(backend);
     for frame_id in 0..3 {
-        // Grow the clip arena after the source stencil exists, then move its clips.
+        // Grow the clip arena after the bounded capture stencil exists, then move its clips.
         let count = if frame_id == 0 { 300 } else { 600 };
         let shift = if frame_id == 2 { 1.0 } else { 0.0 };
         renderer.begin_node(1000, 0, 0);
@@ -3869,15 +3877,20 @@ fn shader_effect_pixels_clip_cache_and_tile_halo() {
         label: "translate.wgsl", source: "fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p - vec2<f32>(parameters.shift,0.0)); }",
         parameters: &[ShaderParameter {name:"shift",ty:ShaderParameterType::Float}], inputs:[ShaderInput::Subtree;2],downsample:1,
     }] };
-    for dpr in [1.0, 2.0, 3.0] {
+    for (dpr, multisampling) in [(1.0, true), (2.0, true), (3.0, true), (1.5, false)] {
         let layer = MetalLayer::new();
         let backend = pollster::block_on(unsafe {
             RenderBackend::to_core_animation_layer(
                 layer.0.cast(),
-                RenderConfig::new(true, (64.0 * dpr) as u32, (32.0 * dpr) as u32, [dpr, dpr]),
+                RenderConfig::new(true, (64.0 * dpr) as u32, (32.0 * dpr) as u32, [dpr, dpr])
+                    .with_multisampling(multisampling),
             )
         })
         .unwrap();
+        if !multisampling {
+            assert_eq!(backend.sample_count, 1);
+            assert!(backend.multisampled_target.is_none());
+        }
         let device = backend.device.clone();
         let mut renderer = WgpuRenderer::new(backend);
         renderer.set_viewport(64., 32., [dpr, dpr]);

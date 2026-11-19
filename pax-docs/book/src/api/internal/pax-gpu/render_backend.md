@@ -159,3 +159,9 @@ Request premultiplied browser canvas alpha for WebGPU surfaces.
 wgpu's web backend currently reports only `Opaque` alpha in surface capabilities, but its
 configure path accepts `PreMultiplied` and maps it to `GPUCanvasAlphaMode::Premultiplied`.
 Pax needs that for transparent browser-owned scroller islands.
+
+##### `with_multisampling`
+<pre><code class="api-signature language-rust ignore">pub fn with_multisampling(self, enabled: bool) -&gt; Self</code></pre>
+
+Allow multisampled color and stencil attachments (the default). Disable
+on memory-constrained hosts to use one sample per pixel, including captures.

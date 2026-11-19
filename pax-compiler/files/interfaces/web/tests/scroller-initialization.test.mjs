@@ -138,7 +138,7 @@ for (const ios of [false, true]) {
         const h = harness(ios, true); h.create(); h.update(initial); h.sample(); h.feedback.length = 0;
         delete h.pool.syncDelegatedPageScrollViewport; // Exercise the real viewport method.
         h.pool.activePageScrollScrollerId = 1;
-        h.pool.mount = {dataset: {}};
+        h.pool.mount = {dataset: {}, style: {setProperty(k, v) {this[k] = v;}}};
         let height = 140.8;
         h.pool.readVisiblePageViewport = () => ({width: 294, height, offsetX: 0, offsetY: 12});
         const interrupts = [];
@@ -146,12 +146,28 @@ for (const ios of [false, true]) {
         h.leaf().scrollTop = 4200; h.pool.activateScrollerMeasurement(1); h.observe();
         height = 170; h.observe(); h.observe();
         assert.equal(h.pool.mount.dataset.viewportHeight, '170');
+        assert.equal(h.leaf().style['--pax-page-y'], '4200px');
+        assert.equal(h.pool.mount.style['--pax-page-y'], '4200px');
         assert.equal(h.pool.scrollerHosts.get(1).canvasHost.dataset.approvedScrollY, '4200');
         assert.deepEqual(interrupts, [], 'even visual viewport feedback waits for an application frame');
         h.sample();
         assert.equal(interrupts[0].VisualViewportUpdate.height, 170);
         assert.equal(interrupts[0].VisualViewportUpdate.page_scroll_y, 4200);
         assert.equal(interrupts[1].ScrollerPosition.scroll_y, 4200);
+        const writes = [];
+        for (const host of [h.pool.mount, h.pool.scrollerHosts.get(1).canvasHost]) {
+            host.dataset = new Proxy(host.dataset, {set(target, key, value) {
+                writes.push(key); return Reflect.set(target, key, value);
+            }});
+        }
+        h.sample(); h.observe(); h.sample();
+        assert.equal(interrupts.length, 2, 'idle frames must not restart startup settlement');
+        assert.deepEqual(writes, [], 'sampling does not invalidate unchanged viewport selectors');
+        height = 172; h.observe();
+        assert.deepEqual(writes, ['viewportHeight', 'viewportHeight']);
+        assert.equal(interrupts.length, 2);
+        h.sample(); h.sample();
+        assert.deepEqual(interrupts.slice(2).map(m => m.VisualViewportUpdate.height), [172]);
     });
 
     for (const delegated of [false, true]) {

@@ -15,7 +15,7 @@ title = "Pax — Build creative user interfaces with Rust"
 yield_mount = true
 # Keep the loader over the prepared hero until its animation clock can run.
 loader_exit = "full_mount"
-background_color = "#11110f"
+background_color = "#000000"
 server_owned_prefixes = ["/blog", "/ai", "/ai.md", "/paxflix", "/calculator", "/oscilloscope"]
 title = "Pax — Build creative user interfaces with Rust"
 favicon = "assets/branding/pax-favicon.ico"

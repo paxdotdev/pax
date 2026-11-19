@@ -660,10 +660,10 @@ text and image rendering. The detailed boundaries belong in
 
 ### Rendering backends
 
-On the web, Pax selects WebGPU when browser policy permits and initialization
-succeeds. **Vello CPU** is the portable software fallback when WebGPU is absent,
-adapter/device initialization fails, or the conservative iOS Safari policy
-selects CPU. Selection finishes before application initialization and template
+On the web, Pax tries WebGPU by default, including on iPhone Safari and in
+both iPad Safari browsing modes. **Vello CPU** is the portable software
+fallback when WebGPU is absent or adapter/device initialization fails.
+Selection finishes before application initialization and template
 mounting. CPU rasterizes into reusable pixel buffers; Canvas2D presents the
 finished pixels. Native browser text and controls remain native on either path.
 GPU startup acquires one adapter and device for the mounted application;
@@ -675,7 +675,17 @@ Use `?pax_renderer=cpu` to exercise software rendering, `?pax_renderer=gpu` to
 require WebGPU, or `?pax_renderer=auto` for normal selection. Explicit GPU
 selection rejects startup if initialization fails. The `cpu` Cargo feature
 on `pax-kit` also selects CPU by default for web builds; a query override takes
-precedence. The former `piet` feature and Piet adapter have been removed.
+precedence. On iPhone and iPad Safari, the 2048-pixel per-axis limit on nested
+canvas backings applies to both renderers. On iPhone Safari, WebGPU also
+caps the base canvas density at one backing pixel per CSS pixel before
+applying scene transforms. It uses single-sample color and stencil attachments,
+including for effect captures, rather than allocating extra multisample buffers
+for every tile. These choices trade some vector edge smoothness for a smaller
+working set while scrolling. Native text and controls still
+render at the browser's full display density; CSS sizes, input coordinates,
+and scroll distances do not change. Neither limit caps the dimensions of the
+page itself. The former `piet` feature and Piet
+adapter have been removed.
 
 `@gpu` and `@cpu` identify this session's selected renderer. There is no live
 backend switch after mount; later device loss does not automatically remount

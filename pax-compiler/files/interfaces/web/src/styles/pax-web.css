@@ -1,3 +1,42 @@
+.pax-loading-host {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    isolation: isolate;
+}
+.pax-loading-main, .pax-loading-overlay {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+.pax-loading-overlay { z-index: 1; }
+
+/* The document now sizes itself from the main scene. An absolute main slot
+   contributes no height; both it and the loader would be clipped to zero. */
+.pax-loading-host:has(> .pax-loading-main > .pax-mount[data-viewport-height]) {
+    height: auto;
+}
+.pax-loading-main:has(> .pax-mount[data-viewport-height]) {
+    position: relative;
+    inset: auto;
+    overflow: visible;
+}
+.pax-loading-main:has(> .pax-mount[data-viewport-height]) + .pax-loading-overlay {
+    position: fixed;
+}
+/* Safari samples the scrolling document outside the fixed overlay for its
+   translucent toolbar. Keep the real page background there during handoff,
+   including on a restored scroll position. Do not resize either scene. */
+.pax-loading-host:has(> .pax-loading-overlay:not([hidden])) > .pax-loading-main > .pax-mount[data-viewport-height] {
+    clip-path: inset(var(--pax-page-y, 0px) 0 max(0px, calc(100% - var(--pax-page-y, 0px) - 100dvh)) 0);
+}
+@property --pax-page-y {
+    syntax: '<length>';
+    inherits: false;
+    initial-value: 0px;
+}
+
 .pax-mount {
     position: relative;
     width: 100%;
@@ -35,10 +74,17 @@
 
 /* Firefox */
 .pax-mount .scroller-container {
+    --pax-mask-base-repeat: no-repeat;
+    --pax-page-y: 0px;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.5) transparent;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: auto;
+}
+.pax-mount .scroller-container[data-page-scroll-delegated].masked-native-leaf {
+    /* A CSS mask clips even visible overflow to the element's border box. */
+    height: var(--pax-page-height) !important;
+    --pax-mask-base-repeat: repeat;
 }
 
 .pax-mount .inner-pane {
@@ -60,6 +106,22 @@
 
 .pax-mount .native-overlay:focus {
     outline: none;
+}
+
+/* Only the delegated scroller belongs to the scrolling document. Root
+   canvases and native siblings (e.g. an Overlay toolbar) are viewport-local.
+   Layout/paint containment would anchor fixed children to the document-sized
+   native overlay instead. Scope this to the root; nested islands keep theirs. */
+.pax-mount[data-viewport-height] > .native-overlay {
+    contain: style;
+}
+.pax-mount[data-viewport-height] > canvas.canvas {
+    position: fixed !important;
+}
+.pax-mount[data-viewport-height] > .native-overlay > :is(.native-leaf, .clipping-container):not([data-page-scroll-delegated]) {
+    position: fixed;
+    top: 0;
+    left: 0;
 }
 
 .pax-mount strong {

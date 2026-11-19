@@ -4,13 +4,50 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {transformSync} from 'esbuild';
 
-function load(path, require = () => ({})) {
+function load(path, require = () => ({}), browser = {}) {
     const module = {exports: {}};
     const source = readFileSync(new URL(path, import.meta.url), 'utf8');
     vm.runInNewContext(transformSync(source, {loader: 'ts', format: 'cjs'}).code,
-        {module, exports: module.exports, require, window:{innerWidth:1000,innerHeight:900}});
+        {module, exports: module.exports, require, window:{innerWidth:1000,innerHeight:900}, ...browser});
     return module.exports;
 }
+
+test('delegated root scroll survives Safari toolbar changes but not a resized or nested scroller', () => {
+    const window = {innerWidth:440, innerHeight:796};
+    const browser = {window, document:{documentElement:{}}, navigator:{userAgent:'iPhone AppleWebKit Safari'}};
+    const policy = load('../src/classes/surface-host-policy.ts', undefined, browser);
+    const {NativeElementPool} = load('../src/classes/native-element-pool.ts',
+        name => name === './surface-host-policy' ? policy : {}, browser);
+    const pool = Object.create(NativeElementPool.prototype);
+    pool.allowPageScroll = true;
+    pool.setLayoutViewport(440, 796);
+    const state = {isRootScroller:true, contentLayerId:1, clipContent:true, transform:[1,0,0,1,0,0],
+        viewportWidth:440, viewportHeight:796, contentWidth:440, contentHeight:7303, delegatesToPageScroll:false};
+    const owns = (patch = {}) => pool.shouldDelegateToPageScroll({}, patch, state);
+    assert.equal(owns(), true);
+    window.innerHeight = 876;
+    assert.equal(owns(), false, 'a new owner must initially fill the actual viewport');
+    state.delegatesToPageScroll = true;
+    assert.equal(owns(), true, 'toolbar collapse does not give scrolling back to the element');
+    assert.equal(owns({sizeY:500}), false, 'an authored smaller viewport still relinquishes ownership');
+    assert.equal(owns({sizeInnerPaneX:640}), false);
+    window.innerWidth = 876; window.innerHeight = 440;
+    pool.setLayoutViewport(876, 440);
+    assert.equal(owns(), false, 'old portrait bounds no longer match landscape');
+    assert.equal(owns({sizeX:876,sizeY:440}), true);
+    state.isRootScroller = false;
+    assert.equal(owns({sizeX:876,sizeY:440}), false);
+});
+
+test('desktop-mode iPad uses Safari scroll policy; a Mac or Chromium does not', () => {
+    const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/26.6.1 Safari/605.1.15';
+    const detect = (userAgent, maxTouchPoints) => load('../src/classes/surface-host-policy.ts', undefined,
+        {navigator:{userAgent, maxTouchPoints}}).isIOSWebKitBrowser();
+    assert.equal(detect(ua, 5), true);
+    assert.equal(detect(ua, 0), false);
+    assert.equal(detect(ua.replace('Version/26.6.1', 'Chrome/140.0'), 5), false);
+    assert.equal(detect('iPhone AppleWebKit Safari', 5), true);
+});
 const helpers = load('../src/utils/helpers.ts');
 const placement = load('../src/classes/native-placement.ts', () => helpers);
 const {NativeElementPool} = load('../src/classes/native-element-pool.ts', path =>

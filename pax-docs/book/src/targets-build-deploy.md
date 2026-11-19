@@ -427,7 +427,12 @@ size. Pax follows its bounds, clips inside the region and routes input relative
 to it. CSS transforms on the container or its ancestors are not supported.
 `pageScroll` and `documentRouting` default to false for embedding; the standalone
 page and compatibility `Pax.mount(element, cartridgeUrl)` entry enable them to
-own page scrolling, history and metadata. With document
+own page scrolling, history and metadata. When the root scroller delegates to
+the document, the main scene supplies the document's scroll height even
+while the loader is visible. Safari shows the page background behind its
+translucent toolbar during this handoff; set `background_color` to match
+the loader. Embedded loaders stay within their host. A stationary visual viewport
+does not delay the handoff. With document
 routing disabled, a bubbling `pax-navigate` event carries `{url, target}` for the
 host to handle. Aborting `signal` cancels startup or closes an existing mount.
 During bootstrap loading, cancellation rejects that invocation promptly. Other
@@ -855,7 +860,10 @@ development URLs have special treatment. Backend availability still depends
 on the browser and device. See [MDN's WebGPU reference](https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API).
 
 Automatic renderer selection falls back to Vello CPU when WebGPU initialization
-fails. Default CLI builds require WebAssembly SIMD, including Safari 16.4 or
+fails. iPhone and iPad Safari try WebGPU by default, including iPad Safari's
+desktop browsing mode. Pax bounds the density of iPhone WebGPU canvases to
+limit graphics memory; native text and controls are unaffected. Default CLI builds
+require WebAssembly SIMD, including Safari 16.4 or
 newer. See [web build profiles](developer-workflow.md#web-build-profiles) for
 compiler-flag overrides, and [renderer selection](how-pax-runs.md#rendering-backends)
 for the CPU/GPU testing controls.

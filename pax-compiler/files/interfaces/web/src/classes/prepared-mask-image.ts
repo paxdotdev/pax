@@ -13,7 +13,8 @@ export class PreparedMaskImage {
     private pending?: MaskPreparation;
     private disposed = false;
 
-    constructor(private element: HTMLElement, private createPreparation = prepareNativeMaskRaster) {}
+    constructor(private element: HTMLElement, private createPreparation = prepareNativeMaskRaster,
+        private scroller = false) {}
 
     update(entries: NativeMaskEntry[], width: number, height: number, scale: number) {
         if (this.disposed) return;
@@ -93,8 +94,14 @@ export class PreparedMaskImage {
         const style = this.element.style;
         const cropped = image && bounds;
         style.webkitMaskImage = 'linear-gradient(white, white)' + (cropped ? `, ${image}` : '');
-        style.webkitMaskRepeat = 'no-repeat';
-        style.webkitMaskPosition = '0px 0px' + (cropped ? `, ${bounds.left}px ${bounds.top}px` : '');
+        // A delegated vertical scroller paints in document space, but its
+        // occluders are reported in viewport space. Tile the solid base, not
+        // the cutout; neither mask image has to be rendered at document size.
+        style.webkitMaskRepeat = this.scroller ? 'var(--pax-mask-base-repeat, no-repeat), no-repeat' : 'no-repeat';
+        const cropPosition = !cropped ? '' : this.scroller
+            ? `, ${bounds.left}px calc(${bounds.top}px + var(--pax-page-y, 0px))`
+            : `, ${bounds.left}px ${bounds.top}px`;
+        style.webkitMaskPosition = '0px 0px' + cropPosition;
         style.webkitMaskSize = `${request.width}px ${request.height}px`
             + (cropped ? `, ${bounds.right - bounds.left}px ${bounds.bottom - bounds.top}px` : '');
         // White is the source, cropped occluder alpha is the destination. Both

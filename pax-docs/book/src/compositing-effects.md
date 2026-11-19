@@ -1077,7 +1077,8 @@ Effect bounds are checked against each tile's padded sampling domain before
 setting up capture attachments. Off-tile effects do not allocate or clear those
 attachments. Visible sources use scratch color and stencil attachments bounded
 to their aligned capture envelope, including sampling support and spare capacity,
-rather than the entire padded tile. This preserves coarse sampling alignment
+rather than the entire padded tile. The larger sampling domain defines coordinates;
+entering it does not allocate or clear a separate tile-sized stencil. This preserves coarse sampling alignment
 across adjacent tiles. A cached source needs no capture setup even when shader
 parameters change. This is a rendering optimization, not deferred component
 mounting; reactive updates and the sampling support of nearby effects remain

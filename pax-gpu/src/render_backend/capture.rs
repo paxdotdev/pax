@@ -24,23 +24,6 @@ pub(crate) enum CaptureKey {
     EffectSource(u32),
 }
 
-impl CaptureKey {
-    fn uses_source_domain(&self) -> bool {
-        match self {
-            Self::Alpha(_) => true,
-            #[cfg(feature = "shaders")]
-            Self::EffectSource(_) => true,
-            Self::Opacity(..) => false,
-            #[cfg(feature = "3d")]
-            Self::Presentation(..)
-            | Self::DepthBand(..)
-            | Self::SpatialGroup(..)
-            | Self::SpatialOpacity(..)
-            | Self::SpatialVisibility(..) => false,
-        }
-    }
-}
-
 enum CaptureBlend {
     SourceOver,
     #[cfg(feature = "3d")]
@@ -293,9 +276,6 @@ impl RenderBackend<'_> {
             );
         }
 
-        if !active.iter().any(CaptureKey::uses_source_domain) {
-            self.source_stencil = None;
-        }
         if let Some(surfaces) = &mut self.retained_surfaces {
             surfaces.groups.retain(|key, _| active.contains(key));
             surfaces.scratch.retain(|target| {
@@ -319,7 +299,6 @@ impl RenderBackend<'_> {
         {
             self.effects = None;
         }
-        self.source_stencil = None;
     }
 
     pub(crate) fn capture_is_cached(&self, key: CaptureKey, signature: u64) -> bool {
@@ -396,7 +375,7 @@ impl RenderBackend<'_> {
         true
     }
 
-    fn stage_bounded_capture_globals(&mut self, clear_stencil: bool) {
+    pub(super) fn stage_bounded_capture_globals(&mut self, clear_stencil: bool) {
         // Keep domain changes in the retained command stream. A command buffer
         // per small group would exhaust Metal's queue during letter animation.
         let mut encoder = self.take_retained_encoder();
@@ -784,11 +763,9 @@ impl RenderBackend<'_> {
     }
 
     pub(crate) fn alpha_source_has_working_storage(&self) -> bool {
-        self.source_stencil.is_some()
-            || self
-                .retained_surfaces
-                .as_ref()
-                .is_some_and(|s| !s.scratch.is_empty())
+        self.retained_surfaces
+            .as_ref()
+            .is_some_and(|s| !s.scratch.is_empty())
     }
 
     #[cfg(feature = "3d")]
@@ -811,7 +788,12 @@ impl RenderBackend<'_> {
         self.retained_surfaces.as_ref().map_or(0, |s| {
             s.groups
                 .keys()
-                .filter(|key| key.uses_source_domain())
+                .filter(|key| match key {
+                    CaptureKey::Alpha(_) => true,
+                    #[cfg(feature = "shaders")]
+                    CaptureKey::EffectSource(_) => true,
+                    _ => false,
+                })
                 .count()
         })
     }

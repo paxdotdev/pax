@@ -46,6 +46,30 @@ For an optimized web build without serving or publishing:
 ./pax-website/pax build --target web --release
 ```
 
+### Publish the website to staging
+
+After the release build above, run from the monorepo root:
+
+```sh
+./pax-website/deploy.staging.sh --dry-run  # offline: validate and print the runtime URL and routes
+./pax-website/deploy.staging.sh --publish  # requires the AWS CLI and the pax profile
+```
+
+Both commands use the existing `pax-website/.pax/build/release/web/` directory;
+neither rebuilds the site. To promote a release built in another checkout, pass
+`--web-dir /path/to/release/web`. The target is the **root** of
+`s3://staging.pax.dev/`, not the retired website's `/www` prefix. The blog,
+including any local draft preview under `blog/`, is not published by this command.
+
+Every generated Pax route links its stylesheet, script and cartridge to the same
+`/_pax/releases/<content-hash>/` directory. The publisher uploads that runtime
+first, including both Wasm modules and their JS imports; old runtime URLs remain
+available. It then uploads site content and revalidatable route HTML (homepage
+last), and waits for CloudFront to invalidate the mutable paths and index aliases.
+To smoke-test an upgrade, reload an existing staging tab normally and check
+that the hero actually paints; a fresh tab or hero text in the DOM alone can
+miss a stale stylesheet.
+
 To preview the same hero on Apple targets, run one of these commands:
 
 ```sh
@@ -105,7 +129,12 @@ Its website-local `SiteLogo` wrapper carries the new radiance treatment and fits
 the artwork into its hero home or the navigation's smaller container. View Source
 includes the wrapper and canonical files in `pax-std/src/drawing/pax_logo/`.
 The navigation uses a fixed `Overlay` with an opaque vertical slide instead of
-group opacity. Hero and nav each retain a separate `SiteLogo`, coordinated by
+group opacity. A header-sized Scroller with no scroll range keeps the logo,
+button fills and native links together above the page. The bar doesn't need a
+moving cutout in the document to show its background. A solid native backplate
+behind that surface gives mobile Safari the same ink color to extend behind the
+status icons. It travels with the bar; it adds no padding to the page or header.
+Hero and nav each retain a separate `SiteLogo`, coordinated by
 one reversible 800ms portal clock (described below). The hidden offset includes
 the top safe-area inset; reversals continue from the current pose. Both logos
 stay mounted in their own rendering contexts, while fully hidden controls unmount.
@@ -304,7 +333,8 @@ but the initial scene still mounts. System reduced-motion integration is tracked
 in PAX-1048.
 
 The HTML background uses `package.metadata.pax.web.background_color` to match
-the scene's dark ink before the cartridge starts. The hero logo holds its
+the loader's black backdrop, including under translucent mobile browser chrome.
+The hero logo holds its
 initial pose until frames and hero height have stayed stable for 100 ms, then
 runs the usual reveal. Long startup frames restart that settling interval;
 a five-second ceiling prevents a persistently slow frame rate from suppressing

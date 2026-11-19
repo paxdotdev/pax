@@ -5,6 +5,13 @@ import {transformSync} from 'esbuild';
 // Load the small, real scheduling modules in the fake DOM tests. Unrelated
 // native controls remain stubbed; surface policy/reconciliation does not.
 export function surfaceRequire(name) {
+    if (name === '../utils/helpers') {
+        const module = {exports: {}};
+        const source = readFileSync(new URL('../src/utils/helpers.ts', import.meta.url), 'utf8');
+        vm.runInNewContext(transformSync(source, {loader: 'ts', format: 'cjs'}).code,
+            {module, exports: module.exports, require: surfaceRequire});
+        return module.exports;
+    }
     if (name === '../utils/shared-work-budget') {
         const module = {exports:{}};
         const source = readFileSync(new URL('../src/utils/shared-work-budget.ts', import.meta.url),'utf8');

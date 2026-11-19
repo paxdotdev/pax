@@ -120,6 +120,21 @@ test('a detached mount cannot publish from a stale animation-frame callback', ()
     assert.equal(h.state.ticks, 0);
 });
 
+test('a fully mounted but held loader can publish after a late viewport measurement', () => {
+    const h = harness(true);
+    h.state.patchesPending = false; h.state.textReady = true;
+    h.frame(); h.frame();
+    assert.ok(h.state.events.includes('mounted'));
+    h.state.enginePending = true; h.frame();
+    assert.throws(() => h.reveal(), /not prepared/);
+    h.state.enginePending = false; h.state.surfacesReady = false;
+    h.frame(); h.frame();
+    assert.throws(() => h.reveal(), /not prepared/);
+    h.state.surfacesReady = true; h.frame(); h.reveal();
+    assert.equal(h.state.ticks, 0);
+    assert.equal(h.state.events.filter(e => e === 'prepared').length, 1);
+});
+
 test('loader exit drains queued input during background mounting without advancing animations', () => {
     const h = harness(true);
     h.state.patchesPending = false; h.state.textReady = true; h.state.remainderPending = true;

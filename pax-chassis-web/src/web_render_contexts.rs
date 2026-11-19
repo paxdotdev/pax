@@ -154,7 +154,9 @@ pub async fn prepare_renderer() -> Result<PreparedWebRenderer, JsValue> {
     if !browser.use_cpu_fallback() {
         match RenderBackend::to_canvas_with_context(
             probe.clone(),
-            RenderConfig::new(false, 1, 1, [1.0, 1.0]).with_browser_premultiplied_alpha(true),
+            RenderConfig::new(false, 1, 1, [1.0, 1.0])
+                .with_multisampling(browser.allow_multisampling())
+                .with_browser_premultiplied_alpha(true),
             None,
         )
         .await
@@ -344,9 +346,8 @@ fn get_gpu_render_context(
                 if !request.needs_surface(&target.key, &target.host_signature) {
                     continue;
                 }
-                target.canvas.set_width(target.surface.surface_width);
-                target.canvas.set_height(target.surface.surface_height);
-
+                // The backend syncs backing dimensions after acquiring the lease.
+                // Redundant DOM width/height writes reset even an equal-sized canvas.
                 let (backend, context) = match RenderBackend::to_canvas_with_context(
                     target.canvas.clone(),
                     RenderConfig::new(
@@ -355,6 +356,7 @@ fn get_gpu_render_context(
                         target.surface.surface_height,
                         target.surface.dpr,
                     )
+                    .with_multisampling(surface_policy.allow_multisampling())
                     .with_browser_premultiplied_alpha(true),
                     shared_context.clone(),
                 )

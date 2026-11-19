@@ -313,8 +313,10 @@ or a way to make a drawn widget focusable. See
 [Keyboard events](event-handling-rust.md#keyboard-delivery) for the app-level
 event boundary.
 
-On web, pointer starts on a native control are checked against the engine's
-frontmost logical hit geometry. On macOS, fully opaque punch-through coverage
+On web, pointer activation of a native control is checked against the engine's
+frontmost logical hit geometry. In a browser-owned scrolling page, swiping over
+a covered label can still pan the page without selecting or activating the label.
+On macOS, fully opaque punch-through coverage
 also excludes the covered portion of a native control from pointer hit testing.
 This lets an opaque 3D solid intercept a click where it hides a live control.
 Moving coverage does not cancel an established native drag, remove keyboard

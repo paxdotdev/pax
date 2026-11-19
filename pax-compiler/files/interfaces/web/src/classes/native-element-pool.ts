@@ -109,6 +109,11 @@ export class NativeElementPool {
     private chassis?: PaxChassisWeb;
     private mount?: HTMLElement;
     private activePageScrollScrollerId?: number;
+    private layoutViewport?: {width: number; height: number};
+    private presentedPageScrollY?: number;
+    private publishedPageViewport?: {
+        width: number; height: number; offsetX: number; offsetY: number; scrollX: number; scrollY: number;
+    };
     private pageSnapHost?: HTMLDivElement;
     private pageSnapOwnerScrollerId?: number;
     private pageScrollActivityListenersInstalled = false;
@@ -175,10 +180,17 @@ export class NativeElementPool {
     }
 
     private allowPageScroll = false;
+    private surfaceBaseDensityLimit?: number;
+
+    private backingPixelRatio() {
+        const display = typeof window === 'undefined' ? 1 : Math.max(window.devicePixelRatio || 1, 1);
+        return Math.min(display, this.surfaceBaseDensityLimit ?? Infinity);
+    }
 
     attach(chassis: PaxChassisWeb, mount: Element, allowPageScroll = false){
         this.allowPageScroll = allowPageScroll;
         this.chassis = chassis;
+        this.surfaceBaseDensityLimit = chassis.surface_base_density_limit?.();
         this.mount = mount instanceof HTMLElement ? mount : undefined;
         if (this.mount && new URLSearchParams(window.location.search).has('pax_surface_trace')) {
             this.surfaceTrace = new SurfaceTrace(this.mount, 2048, id => chassis.inspect_node?.(id),
@@ -301,6 +313,10 @@ export class NativeElementPool {
 
     hasActivePageScrollDelegation() {
         return this.activePageScrollScrollerId != null;
+    }
+
+    setLayoutViewport(width: number, height: number) {
+        this.layoutViewport = {width, height};
     }
 
     sampleFrameInputs() {
@@ -1916,6 +1932,21 @@ export class NativeElementPool {
         measure = (element: HTMLElement) => element.getBoundingClientRect(),
     ): { presentedBounds: AxisAlignedRect; presentedClipBounds: AxisAlignedRect } {
         if (isIOSWebKitBrowser() && this.activePageScrollScrollerId != null) {
+            const visibleViewport = this.readVisiblePageViewport();
+            const pageScroll = this.readPageScrollPosition();
+            const x = pageScroll.scrollX + visibleViewport.offsetX;
+            const y = pageScroll.scrollY + visibleViewport.offsetY;
+            const presentedClipBounds = {left: x, top: y,
+                right: x + visibleViewport.width, bottom: y + visibleViewport.height};
+            const page = this.scrollerHosts.get(this.activePageScrollScrollerId)?.leaf;
+            if (page && !page.contains(leaf)) {
+                // A fixed sibling (or its nested island) moves with the viewport,
+                // not the document. Express its DOM rect in the planner's document
+                // space; visual-viewport offsets belong to the clip, not the rect.
+                const r = measure(leaf);
+                return {presentedBounds: {left: r.left + pageScroll.scrollX, top: r.top + pageScroll.scrollY,
+                    right: r.right + pageScroll.scrollX, bottom: r.bottom + pageScroll.scrollY}, presentedClipBounds};
+            }
             let transform = state.transform ?? [1, 0, 0, 1, 0, 0];
             let width = leaf.clientWidth || 0;
             let height = leaf.clientHeight || 0;
@@ -1928,19 +1959,7 @@ export class NativeElementPool {
             let top = Math.min(point0[1], point1[1], point2[1], point3[1]);
             let bottom = Math.max(point0[1], point1[1], point2[1], point3[1]);
 
-            let visibleViewport = this.readVisiblePageViewport();
-            let pageScroll = this.readPageScrollPosition();
-            let approvedScrollX = pageScroll.scrollX + visibleViewport.offsetX;
-            let approvedScrollY = pageScroll.scrollY + visibleViewport.offsetY;
-            return {
-                presentedBounds: { left, top, right, bottom },
-                presentedClipBounds: {
-                    left: approvedScrollX,
-                    top: approvedScrollY,
-                    right: approvedScrollX + visibleViewport.width,
-                    bottom: approvedScrollY + visibleViewport.height,
-                },
-            };
+            return {presentedBounds: {left, top, right, bottom}, presentedClipBounds};
         }
         return this.getPresentationRecordForLeaf(scrollerId, leaf, measure);
     }
@@ -2081,11 +2100,12 @@ export class NativeElementPool {
             }
         });
         const resources = this.canvasPool?.capacitySnapshot();
+        const density = this.backingPixelRatio();
         const shared = this.chassis!.schedule_surfaces({version: 2, now,
             layers: this.layers.layerIds(),
             capacity: Math.max(0, browserCanvasPoolBudget() - pendingCount - (resources?.retiring ?? 0)),
-            resources: {viewportPixels: Math.ceil(window.innerWidth * (window.devicePixelRatio || 1))
-                    * Math.ceil(window.innerHeight * (window.devicePixelRatio || 1)),
+            resources: {viewportPixels: Math.ceil(window.innerWidth * density)
+                    * Math.ceil(window.innerHeight * density),
                 unreleasedPixels: pendingPixels + (resources?.retiringPixels ?? 0),
                 unavailableSurfaces: pendingCount + (resources?.retiring ?? 0)},
             candidates: candidates.map(c => ({id: c.surface.id, owner: c.branch < 0 ? null : c.branch,
@@ -2232,8 +2252,7 @@ export class NativeElementPool {
             () => this.canvasPool?.capacitySnapshot());
         let layerCanvasPlanGeneration = this.chassis?.layer_canvas_plan_generation() ?? -1;
         let policyRevision = this.chassis?.surface_policy_revision?.() ?? 0;
-        let devicePixelRatio =
-            typeof window !== "undefined" ? Math.max(window.devicePixelRatio || 1, 1) : 1;
+        const devicePixelRatio = this.backingPixelRatio();
         this.layers.updateMaskPixelRatio(devicePixelRatio);
         let planInputsChanged =
             this.lastLayerCanvasPlanGeneration !== layerCanvasPlanGeneration
@@ -2374,29 +2393,36 @@ export class NativeElementPool {
         let pageScroll = this.readPageScrollPosition();
         let approvedScrollX = pageScroll.scrollX;
         let approvedScrollY = pageScroll.scrollY;
-
-        if (publish) this.chassis?.interrupt({
-            "VisualViewportUpdate": {
-                "width": visibleViewport.width,
-                "height": visibleViewport.height,
-                "offset_x": visibleViewport.offsetX,
-                "offset_y": visibleViewport.offsetY,
-                "page_scroll_x": pageScroll.scrollX,
-                "page_scroll_y": pageScroll.scrollY,
-            },
-        }, undefined);
-
-        if (this.mount != null) {
-            this.mount.dataset.viewportWidth = String(visibleViewport.width);
-            this.mount.dataset.viewportHeight = String(visibleViewport.height);
-            this.mount.dataset.approvedScrollX = String(approvedScrollX);
-            this.mount.dataset.approvedScrollY = String(approvedScrollY);
+        if (this.presentedPageScrollY !== approvedScrollY) {
+            this.presentedPageScrollY = approvedScrollY;
+            const y = `${approvedScrollY}px`;
+            leaf.style.setProperty('--pax-page-y', y);
+            this.mount?.style.setProperty('--pax-page-y', y);
         }
 
-        canvasHost.dataset.viewportWidth = String(visibleViewport.width);
-        canvasHost.dataset.viewportHeight = String(visibleViewport.height);
-        canvasHost.dataset.approvedScrollX = String(approvedScrollX);
-        canvasHost.dataset.approvedScrollY = String(approvedScrollY);
+        // Startup waits for a frame with no new layout feedback. Sampling the
+        // same visual viewport is not a resize. Observation-only passes must
+        // not consume a change before the next application frame publishes it.
+        const last = this.publishedPageViewport;
+        if (publish && this.chassis && (!last || last.width !== visibleViewport.width
+            || last.height !== visibleViewport.height || last.offsetX !== visibleViewport.offsetX
+            || last.offsetY !== visibleViewport.offsetY || last.scrollX !== pageScroll.scrollX
+            || last.scrollY !== pageScroll.scrollY)) {
+            this.publishedPageViewport = {...visibleViewport, ...pageScroll};
+            this.chassis.interrupt({
+                "VisualViewportUpdate": {
+                    "width": visibleViewport.width,
+                    "height": visibleViewport.height,
+                    "offset_x": visibleViewport.offsetX,
+                    "offset_y": visibleViewport.offsetY,
+                    "page_scroll_x": pageScroll.scrollX,
+                    "page_scroll_y": pageScroll.scrollY,
+                },
+            }, undefined);
+        }
+
+        if (this.mount) writePageViewport(this.mount, visibleViewport.width, visibleViewport.height, approvedScrollX, approvedScrollY);
+        writePageViewport(canvasHost, visibleViewport.width, visibleViewport.height, approvedScrollX, approvedScrollY);
     }
 
     private setPageScrollPosition(nextScrollX?: number, nextScrollY?: number) {
@@ -2432,10 +2458,7 @@ export class NativeElementPool {
             if (this.mount != null) {
                 this.mount.style.overflow = "visible";
                 this.mount.style.height = `${Math.max(contentHeight ?? 0, viewportHeight ?? 0)}px`;
-                this.mount.dataset.viewportWidth = String(viewportWidth ?? 0);
-                this.mount.dataset.viewportHeight = String(viewportHeight ?? 0);
-                this.mount.dataset.approvedScrollX = String(scrollX ?? 0);
-                this.mount.dataset.approvedScrollY = String(scrollY ?? 0);
+                writePageViewport(this.mount, viewportWidth ?? 0, viewportHeight ?? 0, scrollX ?? 0, scrollY ?? 0);
             }
         } else {
             root.style.overflow = "";
@@ -2452,6 +2475,11 @@ export class NativeElementPool {
             }
         }
         this.layers.setRootPageScrollMode(active);
+        if (!active) {
+            this.publishedPageViewport = undefined;
+            this.presentedPageScrollY = undefined;
+            this.mount?.style.removeProperty('--pax-page-y');
+        }
     }
 
     private setLeafPageScrollMode(leaf: HTMLElement, active: boolean) {
@@ -2465,6 +2493,8 @@ export class NativeElementPool {
             leaf.style.willChange = "auto";
         } else if (leaf.dataset.pageScrollDelegated === "true") {
             delete leaf.dataset.pageScrollDelegated;
+            leaf.style.removeProperty('--pax-page-y');
+            leaf.style.removeProperty('--pax-page-height');
             leaf.style.contain = "";
             leaf.style.willChange = "";
         }
@@ -2481,6 +2511,7 @@ export class NativeElementPool {
         approvedScrollX: number,
         approvedScrollY: number,
     ) {
+        if (active) leaf.style.setProperty('--pax-page-height', `${Math.max(viewportHeight, contentHeight)}px`);
         if (state.delegatesToPageScroll === active && this.activePageScrollScrollerId === (active ? scrollerId : undefined)) {
             this.setLeafPageScrollMode(leaf, active);
             if (active) {
@@ -2513,6 +2544,8 @@ export class NativeElementPool {
                 }
             }
             let activationScroll = this.pageScrollActivationPosition(approvedScrollX, approvedScrollY);
+            this.publishedPageViewport = undefined;
+            this.presentedPageScrollY = undefined;
             this.activePageScrollScrollerId = scrollerId;
             this.installPageScrollActivityListeners();
             this.setDocumentPageScrollMode(
@@ -2688,7 +2721,7 @@ export class NativeElementPool {
         patch: ScrollerUpdate,
         state: ScrollerMeasurementState,
     ) {
-        if (!this.allowPageScroll || !supportsPageScrollDelegation()) {
+        if (!this.allowPageScroll || !isIOSWebKitBrowser()) {
             return false;
         }
         if (!state.isRootScroller) {
@@ -2730,7 +2763,13 @@ export class NativeElementPool {
         }
         let root = document.documentElement;
         let targetWidth = window.innerWidth ?? root.clientWidth ?? this.mount?.clientWidth ?? 0;
-        let targetHeight = window.innerHeight ?? root.clientHeight ?? this.mount?.clientHeight ?? 0;
+        // The engine intentionally retains its layout height during a toolbar-only
+        // resize. Comparing its root Scroller to the live innerHeight here would
+        // disqualify the current owner mid-swipe and reset the document to zero.
+        // Initial acquisition still requires the Scroller to fill the window.
+        const layout = this.layoutViewport;
+        let targetHeight = state.delegatesToPageScroll && layout && nearlyEqual(layout.width, targetWidth)
+            ? layout.height : window.innerHeight ?? root.clientHeight ?? this.mount?.clientHeight ?? 0;
         return nearlyEqual(viewportWidth, targetWidth) && nearlyEqual(viewportHeight, targetHeight);
     }
 
@@ -4959,17 +4998,19 @@ function isViewportAnchoredTransform(transform: number[]) {
         && nearlyEqual(transform[5], 0);
 }
 
-function nearlyEqual(a: number, b: number, tolerance = 1.5) {
-    return Math.abs(a - b) <= tolerance;
+// These attributes participate in CSS selectors. Reassigning the same value
+// is still a DOM mutation, even when an idle frame only samples the viewport.
+function writePageViewport(host: HTMLElement, width: number, height: number, x: number, y: number) {
+    const data = host.dataset;
+    const w = String(width), h = String(height), sx = String(x), sy = String(y);
+    if (data.viewportWidth !== w) data.viewportWidth = w;
+    if (data.viewportHeight !== h) data.viewportHeight = h;
+    if (data.approvedScrollX !== sx) data.approvedScrollX = sx;
+    if (data.approvedScrollY !== sy) data.approvedScrollY = sy;
 }
 
-function supportsPageScrollDelegation() {
-    if (typeof navigator === "undefined") {
-        return false;
-    }
-    let userAgent = navigator.userAgent;
-    let isiOS = /iPhone|iPad|iPod/i.test(userAgent);
-    return isiOS && /AppleWebKit/i.test(userAgent) && !/CriOS|FxiOS|EdgiOS/i.test(userAgent);
+function nearlyEqual(a: number, b: number, tolerance = 1.5) {
+    return Math.abs(a - b) <= tolerance;
 }
 
 function toCssColor(color: ColorGroup): string {

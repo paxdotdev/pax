@@ -8,13 +8,13 @@ import {sharedSurfaceDecision} from './shared-surface-policy.mjs';
 
 const source = readFileSync(new URL('../src/classes/native-element-pool.ts', import.meta.url), 'utf8');
 
-function harness(ios) {
+function harness(ios, devicePixelRatio = 1) {
     const module = {exports: {}};
     vm.runInNewContext(transformSync(source, {loader: 'ts', format: 'cjs'}).code, {
         module, exports: module.exports,
         require: name => ({...surfaceRequire(name), isIOSWebKitBrowser: () => ios}),
         performance: {now: () => 10000},
-        window: {innerWidth: 1000, innerHeight: 900},
+        window: {innerWidth: 1000, innerHeight: 900, devicePixelRatio},
     });
     const pool = Object.create(module.exports.NativeElementPool.prototype);
     const candidates = new Map();
@@ -90,6 +90,24 @@ for (const ios of [false, true]) {
         }
     });
 }
+
+test('optional surface budget uses backing density rather than native display pixels', () => {
+    const {pool} = harness(true, 3);
+    const schedule = pool.chassis.schedule_surfaces;
+    let pixels;
+    pool.chassis.schedule_surfaces = snapshot => {
+        pixels = snapshot.resources.viewportPixels;
+        return schedule(snapshot);
+    };
+    for (const density of [1, 1.5]) {
+        pool.surfaceBaseDensityLimit = density;
+        pool.syncWarmScrollerHosts();
+        assert.equal(pixels, (1000 * density) * (900 * density));
+    }
+    pool.surfaceBaseDensityLimit = undefined;
+    pool.syncWarmScrollerHosts();
+    assert.equal(pixels, 3000 * 2700);
+});
 
 test('excess density is replanned before an overloaded plan reaches the DOM', () => {
     const h = harness(false);
@@ -180,6 +198,25 @@ test('zero-sized SVG clip wrappers use their path bounds, not an empty DOM rect'
     const result = h.prototype.getPresentationRecordForLeaf.call(h.pool, 42, leaf);
     assert.deepEqual(JSON.parse(JSON.stringify(result.presentedClipBounds)),
         {left: 100, top: 150, right: 600, bottom: 450});
+});
+
+test('a fixed Safari island stays visible after its sibling document has scrolled', () => {
+    const h = harness(true);
+    const content = {clientWidth: 440, clientHeight: 200}, fixed = {};
+    h.pool.activePageScrollScrollerId = 1;
+    h.pool.scrollerHosts = new Map([[1, {leaf: {contains: e => e === content}}]]);
+    h.pool.readVisiblePageViewport = () => ({width: 430, height: 790, offsetX: 3, offsetY: 7});
+    h.pool.readPageScrollPosition = () => ({scrollX: 10, scrollY: 2600});
+    const measure = () => ({left: 0, top: 0, right: 440, bottom: 64});
+    const record = (leaf, state, read) => JSON.parse(JSON.stringify(
+        h.prototype.getWarmthPresentationRecord.call(h.pool, 2, leaf, state, read)));
+    assert.deepEqual(record(fixed, {}, measure), {
+        presentedBounds: {left: 10, top: 2600, right: 450, bottom: 2664},
+        presentedClipBounds: {left: 13, top: 2607, right: 443, bottom: 3397},
+    });
+    assert.deepEqual(record(content, {transform: [1,0,0,1,0,2800]},
+        () => assert.fail('the delegated branch retains its document coordinates')).presentedBounds,
+        {left: 0, top: 2800, right: 440, bottom: 3000});
 });
 
 test('shared preparation measures presentation clips without independently padding nested viewports', () => {

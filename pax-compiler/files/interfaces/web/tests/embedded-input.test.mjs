@@ -12,10 +12,11 @@ class Target {
     send(type, event) { for (const listener of this.listeners.get(type) ?? []) listener(event); }
     listenerCount() { return [...this.listeners.values()].reduce((n, set) => n + set.size, 0); }
 }
-function harness(permission, nativeHit = () => true) {
+function harness(permission, nativeHit = () => true, options = {}) {
     const window = new Target(), document = {activeElement: null}, interrupts = [];
     class Element extends Target {
         closest() { return null; }
+        matches() { return false; }
         contains(target) { return target === this; }
         getBoundingClientRect() { return {left: 100, top: 50}; }
         focus() { document.activeElement = this; }
@@ -24,9 +25,10 @@ function harness(permission, nativeHit = () => true) {
     if (permission) window.DeviceOrientationEvent = {requestPermission: () => permission};
     const module = {exports: {}};
     vm.runInNewContext(code, {module, exports: module.exports, window, document, console,
-        Element, HTMLElement: Element, HTMLInputElement: class {}, HTMLTextAreaElement: class {}, performance: {now: () => 0}});
+        Element, HTMLElement: Element, HTMLInputElement: class {}, HTMLTextAreaElement: class {},
+        getComputedStyle: e => e.style, performance: {now: () => 0}});
     const response = {prevent_default: false};
-    const dispose = module.exports.setupEventListeners({native_pointer_hit_test: nativeHit, interrupt: message => { interrupts.push(message); return response; }}, mount);
+    const dispose = module.exports.setupEventListeners({native_pointer_hit_test: nativeHit, interrupt: message => { interrupts.push(message); return response; }}, mount, options);
     const event = (target, clientX = 120, clientY = 80) => ({target, clientX, clientY, button: 0, preventDefault() {}, stopPropagation() {}});
     return {window, document, mount, outside, dispose, interrupts, event, response};
 }
@@ -60,6 +62,33 @@ test('late sensor permission cannot reattach callbacks after disposal', async ()
     assert.equal(h.interrupts.length, 0);
 });
 
+test('delegated input uses the scene viewport; a painted tile cannot cancel a page pan', () => {
+    let delegated = true;
+    const hits = [];
+    const h = harness(undefined, (...args) => { hits.push(args); return false; }, {pageScrollDelegated: () => delegated});
+    h.window.scrollX = 0; h.window.scrollY = 649;
+    h.mount.getBoundingClientRect = () => ({left: 0, top: -649});
+    h.outside.closest = s => s === '.native-leaf[pax_id]' ? {getAttribute: () => '61'} : null;
+    h.outside.matches = s => s === '.scroller-container[data-page-scroll-delegated]';
+    let cancelled = 0;
+    const finger = {identifier: 3, clientX: 185, clientY: 645};
+    const e = {...h.event(h.outside), touches: [finger], changedTouches: [finger], preventDefault: () => cancelled++};
+    h.mount.send('touchstart', e);
+    assert.deepEqual([h.interrupts[0].TouchStart.touches[0].y, cancelled, hits.length], [645, 0, 0]);
+    h.outside.matches = () => false;
+    h.mount.send('touchstart', e);
+    assert.deepEqual(hits[0], [61, 185, 645], 'a covered native control is still gated');
+    assert.equal(cancelled, 0, 'a covered label cannot cancel the whole swipe on contact');
+    h.mount.send('touchend', {...e, touches: []});
+    assert.equal(cancelled, 1);
+    h.outside.closest = s => s.startsWith('input,') ? h.outside : s === '.native-leaf[pax_id]' ? {getAttribute: () => '61'} : null;
+    h.mount.send('touchstart', e);
+    assert.equal(cancelled, 2, 'an occluded editor that acts on contact is still protected');
+    delegated = false;
+    h.mount.send('wheel', {...h.event(h.outside, 185, 645), deltaX: 0, deltaY: 10});
+    assert.equal(h.interrupts.at(-1).Wheel.y, 1294, 'an embedded mount keeps local coordinates');
+});
+
 test('focus loss cancels a drag once and later outside moves cannot continue it', () => {
     const h = harness();
     h.mount.send('mousedown', h.event(h.mount));
@@ -82,6 +111,24 @@ test('a lost release cancels capture before hover resumes; disposal also cancels
     h.mount.send('mousedown', h.event(h.mount));
     h.dispose();
     assert.ok(h.interrupts.at(-1).MouseCancel);
+});
+
+test('a covered horizontal shelf cannot be dragged but lets a vertical gesture reach the page', () => {
+    const h = harness(undefined, () => false, {pageScrollDelegated: () => true});
+    h.window.scrollX = h.window.scrollY = 0;
+    const shelf = h.outside;
+    Object.assign(shelf, {scrollWidth: 810, clientWidth: 320, scrollHeight: 80, clientHeight: 80, style: {overflowX: 'auto', overflowY: 'hidden'}});
+    shelf.closest = s => s === '.native-leaf[pax_id]' ? {getAttribute: () => '72'} : null;
+    shelf.matches = s => s === '.scroller-container:not([data-page-scroll-delegated])';
+    let cancelled = 0;
+    const gesture = (type, x, y) => {
+        const point = {identifier: 1, clientX: x, clientY: y};
+        h.mount.send(type, {...h.event(shelf), touches:[point], changedTouches:[point], preventDefault: () => cancelled++});
+    };
+    gesture('touchstart', 100, 100); gesture('touchmove', 100, 75);
+    assert.equal(cancelled, 0);
+    gesture('touchstart', 100, 100); gesture('touchmove', 65, 98);
+    assert.equal(cancelled, 1);
 });
 
 test('Escape reaches dismissal handlers from native focus without stealing text or IME input', () => {

@@ -948,7 +948,9 @@ complete source. Viewport selection uses the conservative, approximate
 layouts require more content before they can settle.
 
 The prepared canvas and native elements become visible together beneath the
-loader. By default, `loader_exit = "full_mount"` keeps the loader active until
+loader. If a late resize or text measurement invalidates a held viewport, the
+host waits for the updated measurements and visible pixels before revealing it.
+By default, `loader_exit = "full_mount"` keeps the loader active until
 mounting completes and the main animation clock can advance. The loader then
 runs its `@out`; the default loader fades over 250 ms. The main application's
 `@in` starts underneath that exit.
