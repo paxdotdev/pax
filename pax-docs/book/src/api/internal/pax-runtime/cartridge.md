@@ -43,9 +43,8 @@ Whether the source settings block was empty, including non-selector entries.
 ### `TemplatePropertyPlan`
 Immutable template inputs shared by common and component property binding.
 Selectors and conditional blocks are prepared once and shared by instances.
-Property definitions are prepared on the first selector match or inline use.
-Resolved columns and reactive properties are always node-local; this plan
-never caches evaluated values or selector matches across nodes or rebinds.
+Instances share immutable definitions for matching selector timeline tracks.
+Each resolution uses the current selectors and preserves node-local bindings.
 
 ## Functions
 ### `apply_component_property`

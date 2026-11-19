@@ -224,7 +224,7 @@ fn plan(
         node,
         BTreeMap::new(),
         selectors,
-        vec![],
+        &[],
     ))
 }
 fn template(plan: &Rc<TemplatePropertyPlan>) -> Rc<Leaf> {
@@ -1153,6 +1153,163 @@ fn settings_provider(
             Variable::new_from_typed_property(theme.clone()),
         )]),
     )
+}
+
+fn selector_timeline(
+    name: &str,
+    selector: &str,
+    property: &str,
+    track: TimelineTrackDefinition,
+) -> TimelineDefinition {
+    let token = |s: &str| pax_manifest::Token::new_without_location(s.into());
+    TimelineDefinition {
+        name: Some(token(name)),
+        elements: vec![TimelineBlockElement::SelectorBlock(
+            token(selector),
+            pax_manifest::TimelineSelectorBlockDefinition {
+                elements: vec![TimelineSelectorElement::Track(token(property), track)],
+            },
+        )],
+        ..Default::default()
+    }
+}
+
+#[test]
+fn imported_theme_keeps_selector_timeline_binding_and_each_instances_playhead() {
+    let (engine, root) = fixture();
+    let ctx = &engine.runtime_context;
+    let mut timeline = selector_timeline(
+        "slide",
+        "#card",
+        "untouched",
+        TimelineTrackDefinition {
+            elements: [0, 100]
+                .into_iter()
+                .map(|frame| {
+                    TimelineTrackElement::Keyframe(TimelineKeyframe {
+                        marker: TimelineMarker::Frame(frame),
+                        value: literal(frame as f64),
+                        easing: None,
+                    })
+                })
+                .collect(),
+            ..Default::default()
+        },
+    );
+    timeline.playhead = Some(expression("progress"));
+    timeline.repeat = false;
+    let mut node = TemplateNodeDefinition::default();
+    node.type_id = TypeId::build_singleton("test::Probe", Some("Probe"));
+    node.selector_info.id = Some(pax_manifest::Token::new_without_location("card".into()));
+    let plan = Rc::new(TemplatePropertyPlan::new(
+        node,
+        BTreeMap::new(),
+        None,
+        &[timeline],
+    ));
+    let template = template(&plan);
+    let make_card = |progress: &LocalProperty<f64>| {
+        child(
+            &root,
+            ctx,
+            template.clone(),
+            HashMap::from([(
+                "progress".into(),
+                Variable::new_from_typed_property(progress.clone()),
+            )]),
+        )
+    };
+    let early = LocalProperty::new(15.0);
+    let late = LocalProperty::new(80.0);
+    let first = make_card(&early);
+    let second = make_card(&late);
+    let import = settings_import(&root, ctx);
+    root.children.set(root.attach_children(
+        vec![import.clone(), first.clone(), second.clone()],
+        ctx,
+        &root.parent_frame,
+    ));
+    ctx.drain_node_effects();
+    let before = first.resolved_property_columns.borrow().clone();
+    assert_eq!((values(&first).1, values(&second).1), (15., 80.));
+    let theme = LocalProperty::new(4.);
+    let provider = settings_provider(&root, ctx, &theme);
+    import.attach_sidecar_children(vec![provider], ctx, &import.parent_frame);
+    ctx.drain_node_effects();
+    let patch = SettingsPatch::between(&before, &first.resolved_property_columns.borrow());
+    assert_eq!(patch.columns.keys().collect::<Vec<_>>(), ["value"]);
+    assert!(Rc::ptr_eq(
+        &before["untouched"][0].definition,
+        &second.resolved_property_columns.borrow()["untouched"][0].definition
+    ));
+    early.set(45.);
+    theme.set(9.);
+    assert_eq!((values(&first), values(&second)), ((9., 45.), (9., 80.)));
+}
+
+#[test]
+fn selector_timeline_identity_follows_winning_tracks_and_template_revision() {
+    let token = |s: &str| pax_manifest::Token::new_without_location(s.into());
+    let node = TemplateNodeDefinition::default();
+    let settings = Some(PreparedRuntimeSettings::from(vec![
+        SettingsBlockElement::Transition(token("in"), token("enter")),
+        SettingsBlockElement::Transition(token("out"), token("exit")),
+    ]));
+    let timelines = [
+        ("base", ".a"),
+        ("enter", ".b"),
+        ("exit", ".c"),
+        ("override", ".d"),
+    ]
+    .map(|(name, selector)| selector_timeline(name, selector, "x", Default::default()));
+    let prepared = TimelineSelectors::new(&node, &timelines, settings.as_ref());
+    let resolve = |plan: &TimelineSelectors, classes: &[&str], captured: &[&str]| {
+        let classes = classes.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let captured = captured.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let mut cols = BTreeMap::new();
+        plan.append(&mut cols, &classes, Some(&captured));
+        cols
+    };
+    let both = resolve(&prepared, &["a"], &["b", "c"]);
+    let entry = &both["x"][0];
+    assert_eq!(entry.selector, Some(SelectorExpr::Class("c".into())));
+    let ValueDefinition::Transition(track) = &entry.value else {
+        panic!("expected merged lifecycle tracks")
+    };
+    assert!(matches!(
+        track.starting_value.as_deref(),
+        Some(ValueDefinition::Timeline(_))
+    ));
+    assert!(track.enter.is_some() && track.exit.is_some());
+    let enter = resolve(&prepared, &["a", "c"], &["b"]);
+    assert!(
+        matches!(&enter["x"][0].value, ValueDefinition::Transition(t) if t.exit.is_none() && t.enter.is_some())
+    );
+    assert!(SettingsPatch::between(&both, &enter)
+        .columns
+        .contains_key("x"));
+    let override_track = resolve(&prepared, &["d", "a"], &["b", "c"]);
+    assert!(matches!(
+        override_track["x"][0].value,
+        ValueDefinition::Timeline(_)
+    ));
+    assert!(
+        SettingsPatch::between(&override_track, &resolve(&prepared, &["d"], &[]))
+            .columns
+            .is_empty()
+    );
+    assert!(
+        SettingsPatch::between(&both, &resolve(&prepared, &["other", "a"], &["c", "b"]))
+            .columns
+            .is_empty()
+    );
+    assert!(SettingsPatch::between(&both, &resolve(&prepared, &[], &[])).columns["x"].is_empty());
+    let replacement = TimelineSelectors::new(&node, &timelines, settings.as_ref());
+    assert!(
+        SettingsPatch::between(&both, &resolve(&replacement, &["a"], &["b", "c"]))
+            .columns
+            .contains_key("x")
+    );
 }
 
 #[test]

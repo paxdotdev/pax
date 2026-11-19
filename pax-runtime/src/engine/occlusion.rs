@@ -1027,11 +1027,16 @@ fn try_reconcile_structure(
             }
             old.clip.is_some()
         } else {
-            if scrolls
-                || before
-                || unclippable
-                || state.unsafe_layers.contains(&layer_id)
-                || instance.resolve_effect_clip_path(node).is_some()
+            if scrolls || before || unclippable || state.unsafe_layers.contains(&layer_id) {
+                return false;
+            }
+            let clip = node.world_clip_geometry.get().0;
+            let has_clip = clip.is_some();
+            // An affine Frame on an existing layer only adds a clip ancestor.
+            // Projected clips and clips that also paint need the full traversal.
+            if (has_clip && layer != Layer::DontCare)
+                || (node.has_perspective_camera()
+                    && (has_clip || ctx.presented_clip_path(node).is_some()))
             {
                 return false;
             }
@@ -1045,7 +1050,9 @@ fn try_reconcile_structure(
                     clips_content: instance.clips_content(node),
                     before_children: false,
                     unclippable: false,
-                    clip: None,
+                    clip,
+                    // Every added record is dirty. The clip pass captures its
+                    // settled transform before any coverage or mask query.
                     clip_transform: Affine::IDENTITY,
                     clips: clips.to_vec(),
                     path: None,
@@ -1060,7 +1067,7 @@ fn try_reconcile_structure(
                     geometry: None,
                 },
             );
-            false
+            has_clip
         };
         drop(instance);
         let child_layer = if let Some(&owned) = state.owned_layers.get(&id) {
@@ -1244,6 +1251,7 @@ fn try_reconcile_structure(
     }
     state.stats.records_retained += state.records.len() as u64;
     let added_ids: HashSet<_> = walk.added.keys().copied().collect();
+    let added_clip = walk.added.values().any(|record| record.clip.is_some());
     for (id, record) in walk.added {
         for &clip in &record.clips {
             state.clip_dependents.entry(clip).or_default().push(id);
@@ -1290,7 +1298,7 @@ fn try_reconcile_structure(
     state.stats.topology_nodes_visited += walk.inspected;
     state.stats.topology_nodes_reused += walk.reused;
     state.topology = walk.topology;
-    if migrated {
+    if migrated || added_clip {
         refresh_container_membership(ctx, state);
     }
     state.stats.structural_reconciliations += 1;

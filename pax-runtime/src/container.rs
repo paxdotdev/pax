@@ -346,6 +346,76 @@ fn rebind_content_measurement_effect<F>(
         ));
 }
 
+/// Bind Group or Frame autosizing only while at least one implicit axis uses its children.
+#[doc(hidden)]
+pub fn bind_content_autosize(
+    node: &Rc<ExpandedNode>,
+    ctx: &NodeContext,
+    name: &'static str,
+    autosize: LocalProperty<bool>,
+    autosize_x: LocalProperty<Option<bool>>,
+    autosize_y: LocalProperty<Option<bool>>,
+) {
+    if node.content_measurement_bound.replace(true) {
+        return;
+    }
+
+    let props = node.get_common_properties();
+    let width = borrow!(props).width.clone();
+    let height = borrow!(props).height.clone();
+    let deps = [
+        width.untyped(),
+        height.untyped(),
+        autosize.untyped(),
+        autosize_x.untyped(),
+        autosize_y.untyped(),
+    ];
+    let weak_node = Rc::downgrade(node);
+    let context = Rc::clone(&ctx.runtime_context);
+    let previous = std::cell::Cell::new(None);
+    let mode = LocalProperty::computed_with_name(
+        move || {
+            let enabled = autosize.get();
+            let x = resolve_axis_autosize(enabled, autosize_x.get(), true);
+            let y = resolve_axis_autosize(enabled, autosize_y.get(), true);
+            let axes = (width.get().is_none() && x, height.get().is_none() && y);
+            let old = previous.replace(Some(axes));
+            if old == Some(axes) {
+                return;
+            }
+            let Some(node) = weak_node.upgrade() else {
+                return;
+            };
+            if axes.0 || axes.1 {
+                install_content_measurement_effect(
+                    &node,
+                    &node.get_node_context(&context),
+                    name,
+                    ContentMeasurementGeometry::Placed,
+                    &[],
+                    move |node, ctx| sync_content_autosize_with_axes(node, ctx, axes.0, axes.1),
+                );
+            } else {
+                if old.is_some() {
+                    // Retire both the child-list subscription and the projected child hulls.
+                    node.content_measurement_rebind_listener
+                        .replace_with(LocalProperty::default());
+                    node.content_measurement_listener
+                        .replace_with(LocalProperty::default());
+                }
+                if node.measured_size.get().is_some() {
+                    node.measured_size.set(None);
+                }
+            }
+        },
+        &deps,
+        "content autosize axes",
+    );
+    ctx.runtime_context
+        .register_expanded_node_effect_property_named(node, &mode, "content autosize axes");
+    node.subscriptions.borrow_mut().push(mode);
+}
+
 /// Bind a reactive content-measurement effect to this node.
 ///
 /// The effect is re-evaluated after the tree update pass, before occlusion and
@@ -364,7 +434,26 @@ pub fn bind_content_measurement_effect<F>(
     if expanded_node.content_measurement_bound.replace(true) {
         return;
     }
+    install_content_measurement_effect(
+        expanded_node,
+        ctx,
+        listener_name,
+        geometry,
+        extra_deps,
+        effect,
+    );
+}
 
+fn install_content_measurement_effect<F>(
+    expanded_node: &Rc<ExpandedNode>,
+    ctx: &NodeContext,
+    listener_name: &'static str,
+    geometry: ContentMeasurementGeometry,
+    extra_deps: &[UntypedProperty],
+    effect: F,
+) where
+    F: Fn(&Rc<ExpandedNode>, &NodeContext) + Clone + 'static,
+{
     rebind_content_measurement_effect(
         expanded_node,
         &ctx.runtime_context,
@@ -690,6 +779,80 @@ mod tests {
             (836.8000000000001, 228.6585375853658),
         ));
         assert!(measured_size_needs_update(None, (0.0, 0.0)));
+    }
+
+    #[test]
+    fn toggling_content_autosize_measures_current_children_on_implicit_axes() {
+        let leaf = TestDirectNode::instantiate(direct_node_args(Vec::new()));
+        let parent = TestDirectNode::instantiate(direct_node_args(vec![leaf]));
+        let root_component =
+            ComponentInstance::instantiate(component_args(Some(vec![parent]), None));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
+        let root = ExpandedNode::initialize_root(root_component, &context);
+        root.recurse_update(&context);
+        let parent = root.children.get()[0].clone();
+        let child = parent.children.get()[0].clone();
+        let common = parent.get_common_properties();
+        let child_common = child.get_common_properties();
+        let px = |n: i32| Some(Size::Pixels(n.into()));
+        child_common.borrow().width.set(px(23));
+        child_common.borrow().height.set(px(31));
+        let enabled = LocalProperty::new(false);
+        let y = LocalProperty::<Option<bool>>::default();
+        super::bind_content_autosize(
+            &parent,
+            &parent.get_node_context(&context),
+            "test autosize",
+            enabled.clone(),
+            LocalProperty::default(),
+            y.clone(),
+        );
+        context.drain_node_effects();
+        assert_eq!(parent.measured_size.get(), None);
+
+        enabled.set(true);
+        context.drain_node_effects();
+        assert_eq!(parent.measured_size.get(), Some((23.0, 31.0)));
+        common.borrow().width.set(px(80));
+        y.set(Some(false));
+        context.drain_node_effects();
+        assert_eq!(parent.measured_size.get(), None);
+
+        child_common.borrow().height.set(px(56));
+        context.drain_node_effects();
+        y.set(Some(true));
+        context.drain_node_effects();
+        assert_eq!(parent.measured_size.get(), Some((80.0, 56.0)));
+        common.borrow().height.set(px(48));
+        context.drain_node_effects();
+        assert_eq!(parent.measured_size.get(), None);
+
+        let replacement: Rc<dyn InstanceNode> =
+            TestDirectNode::instantiate(direct_node_args(Vec::new()));
+        let new_children = parent.generate_children(
+            [(replacement, Rc::clone(&parent.stack))],
+            &context,
+            &parent.parent_frame,
+            true,
+        );
+        let new_common = new_children[0].get_common_properties();
+        parent.children.set(new_children);
+        new_common.borrow().height.set(px(72));
+        context.drain_node_effects();
+        assert_eq!(parent.measured_size.get(), None);
+        common.borrow().height.set(None);
+        context.drain_node_effects();
+        assert_eq!(parent.measured_size.get(), Some((80.0, 72.0)));
+        new_common.borrow().height.set(px(84));
+        context.drain_node_effects();
+        assert_eq!(parent.measured_size.get(), Some((80.0, 84.0)));
+        enabled.set(false);
+        context.drain_node_effects();
+        assert_eq!(parent.measured_size.get(), Some((80.0, 84.0)));
+        y.set(None);
+        context.drain_node_effects();
+        assert_eq!(parent.measured_size.get(), None);
+        assert_eq!(parent.transform_and_bounds.get().bounds, (80.0, 100.0));
     }
 
     #[test]
