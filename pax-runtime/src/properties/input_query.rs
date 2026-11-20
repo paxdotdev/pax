@@ -58,8 +58,8 @@ impl RuntimeContext {
     /// Invalidate conservative input coverage after non-reactive shape changes.
     /// This does not invalidate paint or run input/event callbacks.
     pub fn mark_node_input_dirty(&self, id: u32) {
-        if let Some(dirty) = self.input_capture_dirty.borrow_mut().as_mut() {
-            dirty.insert(id);
+        if let Some(changes) = self.input_capture_changes.borrow_mut().as_mut() {
+            changes.dirty.insert(id);
         }
         self.invalidate_input_placement(id);
     }

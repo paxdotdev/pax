@@ -10,6 +10,45 @@ fn flashy_random(value: u32) -> f32 {
     return f32(flashy_hash(value) & 0x00ffffffu) / 16777216.0;
 }
 
+fn flashy_key(c: vec2<i32>) -> u32 {
+    return flashy_hash(bitcast<u32>(c.x)) ^ flashy_hash(bitcast<u32>(c.y) + 0x9e3779b9u) ^ parameters.seed;
+}
+
+fn flashy_anchor(c: vec2<i32>, key: u32) -> vec2<f32> {
+    let jitter = vec2<f32>(flashy_random(key), flashy_random(key + 1u));
+    return (vec2<f32>(c) + vec2<f32>(0.24) + jitter * 0.52) * parameters.spacing;
+}
+
+struct Facet { tangent_u: vec3<f32>, tangent_v: vec3<f32>, normal: vec3<f32> }
+
+fn flashy_facet(key: u32) -> Facet {
+    // Seeded facet normals stay fixed when only the scene light moves.
+    let cycle = (parameters.phase - flashy_random(key + 2u)) * 6.28318530718;
+    let wave = vec2<f32>(sin(cycle), cos(cycle));
+    let roll = flashy_random(key + 3u) * 6.28318530718 + 0.42 * wave.x + 0.18 * wave.y;
+    let pitch = 0.55 * wave.x + 0.14 * (2.0 * flashy_random(key + 4u) - 1.0);
+    let yaw = 0.12 * wave.y + 0.10 * (2.0 * flashy_random(key + 5u) - 1.0);
+    let u = vec3<f32>(cos(roll), sin(roll), 0.0);
+    let v = vec3<f32>(-sin(roll), cos(roll), 0.0);
+    let tipped_v = v * cos(pitch) + vec3<f32>(0.0, 0.0, sin(pitch));
+    let tipped_n = vec3<f32>(0.0, 0.0, cos(pitch)) - v * sin(pitch);
+    let facet_u = u * cos(yaw) - tipped_n * sin(yaw);
+    let normal = tipped_n * cos(yaw) + u * sin(yaw);
+    return Facet(facet_u, tipped_v, normal);
+}
+
+// Coverage and illumination depend only on the seeded facet and the current capture.
+fn prepare_cell(c: vec2<i32>) -> vec4<f32> {
+    if parameters.brightness <= 0.0 { return vec4<f32>(0.0); }
+    let key = flashy_key(c);
+    let anchor = flashy_anchor(c, key);
+    let coverage = sample_input0(anchor).a;
+    if coverage <= 0.0 { return vec4<f32>(0.0); }
+    let specular = scene_specular(anchor, flashy_facet(key).normal, 110.0);
+    if max(specular.r, max(specular.g, specular.b)) < 0.0002 { return vec4<f32>(0.0); }
+    return vec4<f32>(specular, coverage);
+}
+
 fn effect(p: vec2<f32>) -> vec4<f32> {
     let source = sample_input0(p);
     if parameters.brightness <= 0.0 {
@@ -31,41 +70,20 @@ fn effect(p: vec2<f32>) -> vec4<f32> {
     for (var y = -neighborhood; y <= neighborhood; y += 1) {
         for (var x = -neighborhood; x <= neighborhood; x += 1) {
             let c = cell + vec2<i32>(x, y);
-            let key = flashy_hash(bitcast<u32>(c.x)) ^ flashy_hash(bitcast<u32>(c.y) + 0x9e3779b9u) ^ parameters.seed;
-            let jitter = vec2<f32>(flashy_random(key), flashy_random(key + 1u));
-            let anchor = (vec2<f32>(c) + vec2<f32>(0.24) + jitter * 0.52) * spacing;
-            let delta = p - anchor;
+            let light = load_cell(c);
+            if light.a <= 0.0 { continue; }
+            let key = flashy_key(c);
+            let delta = p - flashy_anchor(c, key);
             let radius = length(delta);
             if radius >= support_radius { continue; }
-
-            // Transparent anchors cannot emit a glint. Reject them before facet
-            // trig and scene lighting, especially in sparse lettering captures.
-            let coverage = sample_input0(anchor).a;
-            if coverage <= 0.0 { continue; }
-
-            // A fixed phase gives stationary seeded facets. Their normals never
-            // follow the light: moving the source alone makes them catch and fade.
-            let cycle = (parameters.phase - flashy_random(key + 2u)) * 6.28318530718;
-            let wave = vec2<f32>(sin(cycle), cos(cycle));
-            let roll = flashy_random(key + 3u) * 6.28318530718 + 0.42 * wave.x + 0.18 * wave.y;
-            let pitch = 0.55 * wave.x + 0.14 * (2.0 * flashy_random(key + 4u) - 1.0);
-            let yaw = 0.12 * wave.y + 0.10 * (2.0 * flashy_random(key + 5u) - 1.0);
-            let u = vec3<f32>(cos(roll), sin(roll), 0.0);
-            let v = vec3<f32>(-sin(roll), cos(roll), 0.0);
-            let tipped_v = v * cos(pitch) + vec3<f32>(0.0, 0.0, sin(pitch));
-            let tipped_n = vec3<f32>(0.0, 0.0, cos(pitch)) - v * sin(pitch);
-            let facet_u = u * cos(yaw) - tipped_n * sin(yaw);
-            let normal = tipped_n * cos(yaw) + u * sin(yaw);
-            let specular = scene_specular(anchor, normal, 110.0);
-            if max(specular.r, max(specular.g, specular.b)) < 0.0002 { continue; }
-
+            let facet = flashy_facet(key);
             // Only the tiny surface core inherits the facet's projected shape.
             // Invert its tangent frame to preserve rotation and foreshortening.
             // Bright facets face the viewer; the floor also protects very dim poses.
             let surface_q = vec2<f32>(
-                delta.x * tipped_v.y - delta.y * tipped_v.x,
-                facet_u.x * delta.y - facet_u.y * delta.x
-            ) / max(normal.z, 0.15);
+                delta.x * facet.tangent_v.y - delta.y * facet.tangent_v.x,
+                facet.tangent_u.x * delta.y - facet.tangent_u.y * delta.x
+            ) / max(facet.normal.z, 0.15);
             let core = 3.2 * exp(-dot(surface_q, surface_q) / (core_width * core_width));
 
             // The long star belongs to the shared viewing optics. Every glint
@@ -81,7 +99,7 @@ fn effect(p: vec2<f32>) -> vec4<f32> {
             let mist = 0.20 * exp(-q.x / reach - q.y / (reach * 0.22))
                 + 0.10 * exp(-radius / (reach * 0.52));
             let support = 1.0 - smoothstep(spacing * 0.60 * flare_scale, support_radius, radius);
-            energy += coverage * specular * (core + flare_strength * (rays + mist)) * support;
+            energy += light.a * light.rgb * (core + flare_strength * (rays + mist)) * support;
         }
     }
     let rgb = vec3<f32>(1.0) - exp(-energy * parameters.brightness);

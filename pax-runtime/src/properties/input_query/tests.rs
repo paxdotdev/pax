@@ -999,3 +999,126 @@ fn displayed_local_shapes_follow_parent_poses_and_match_fresh_capture() {
         assert_eq!(targets(&initial, 51., 51.), old);
     }
 }
+
+#[test]
+fn displayed_branch_replacement_shares_unrelated_shapes_and_keeps_the_old_hit_order() {
+    use crate::properties::input_capture::{CapturedInputView, InputPublisher};
+
+    let other_calls = Rc::new(Cell::new(0));
+    let other = HitNode::new(vec![], true, false, None, other_calls.clone());
+    let sibling = HitNode::new(vec![], true, false, None, Default::default());
+    let old_leaf = HitNode::new(vec![], true, false, None, Default::default());
+    let branch = HitNode::new(vec![old_leaf], true, false, None, Default::default());
+    let (mut engine, root) = fixture(vec![other, sibling.clone(), branch]);
+    let children = root.children.get();
+    let sibling_node = &children[1];
+    let parent = &children[2];
+    let old = parent.children.get()[0].clone();
+    place(&children[0], 300., 100., 25., 25.);
+    place(sibling_node, 20., 100., 25., 25.);
+    place(parent, 100., 100., 100., 100.);
+    place(&old, 0., 0., 45., 45.);
+    engine.tick();
+    let ctx = engine.runtime_context.clone();
+    let mut publisher = InputPublisher::default();
+    let front = publisher.capture(&ctx).unwrap();
+    let hits = |view: &CapturedInputView, x, y| {
+        view.hit_targets((x, y).into(), &HashMap::new(), false)
+            .unwrap()
+    };
+    let previous_target = hits(&front, 108., 108.)
+        .into_iter()
+        .find(|target| target.identity.id == old.id.to_u32())
+        .unwrap();
+    let make_leaf =
+        || HitNode::new(vec![], true, false, None, Default::default()) as Rc<dyn InstanceNode>;
+    let replacements = parent.create_children_detached(
+        vec![
+            (make_leaf(), parent.stack.clone()),
+            (make_leaf(), parent.stack.clone()),
+        ],
+        &ctx,
+        &Rc::downgrade(parent),
+    );
+    let attached = parent.attach_children(replacements.clone(), &ctx, &parent.parent_frame);
+    parent.children.set(attached);
+    for node in &replacements {
+        place(node, 0., 0., 45., 45.);
+    }
+    *sibling.shape.borrow_mut() = Some(Rect::new(0., 0., 3., 3.));
+    ctx.mark_node_input_dirty(sibling_node.id.to_u32());
+    engine.tick();
+    let replacement_order = |view: &CapturedInputView| {
+        hits(view, 108., 108.)
+            .into_iter()
+            .map(|t| t.identity.id)
+            .filter(|&id| replacements.iter().any(|n| n.id.to_u32() == id))
+            .collect::<Vec<_>>()
+    };
+    let mut first: Option<(Rc<CapturedInputView>, Vec<u32>)> = None;
+    for step in 0..2 {
+        if step == 1 {
+            let reversed = replacements.iter().rev().cloned().collect();
+            let attached = parent.attach_children(reversed, &ctx, &parent.parent_frame);
+            parent.children.set(attached);
+            engine.tick();
+        }
+        other_calls.set(0);
+        let next = publisher.capture(&ctx).unwrap();
+        assert_eq!(
+            other_calls.get(),
+            0,
+            "stable sibling was recorded again on edit {step}"
+        );
+        let fresh = InputPublisher::default().capture(&ctx).unwrap();
+        let ids = |view: &CapturedInputView, x, y| {
+            hits(view, x, y)
+                .into_iter()
+                .map(|target| (target.identity.id, target.identity.mount_epoch))
+                .collect::<Vec<_>>()
+        };
+        for (x, y) in [
+            (108., 108.),
+            (102., 102.),
+            (22., 102.),
+            (32., 115.),
+            (312., 112.),
+        ] {
+            assert_eq!(
+                ids(&next, x, y),
+                ids(&fresh, x, y),
+                "edit {step} at ({x},{y})"
+            );
+        }
+        assert!(hits(&front, 108., 108.).contains(&previous_target));
+        assert!(
+            front.resolve_target(&ctx, previous_target).is_none(),
+            "a late click on a retired incarnation must not reach its replacement"
+        );
+        let ordered = replacement_order(&next);
+        if let Some((earlier, earlier_order)) = &first {
+            assert_eq!(replacement_order(earlier), *earlier_order);
+            assert_eq!(
+                ordered,
+                earlier_order.iter().rev().copied().collect::<Vec<_>>()
+            );
+        } else {
+            assert_eq!(ordered.len(), 2);
+            first = Some((next.clone(), ordered));
+        }
+        assert!(hits(&front, 32., 115.)
+            .iter()
+            .any(|t| t.identity.id == sibling_node.id.to_u32()));
+        assert!(!hits(&next, 32., 115.)
+            .iter()
+            .any(|t| t.identity.id == sibling_node.id.to_u32()));
+    }
+
+    // A subsequent local notification cannot narrow a scene-wide invalidation.
+    ctx.mark_occlusion_dirty();
+    ctx.mark_occlusion_dirty_for_node(parent.id.to_u32());
+    engine.tick();
+    other_calls.set(0);
+    publisher.capture(&ctx).unwrap();
+    assert_eq!(other_calls.get(), 1);
+}

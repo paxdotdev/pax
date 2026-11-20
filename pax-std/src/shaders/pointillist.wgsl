@@ -1,7 +1,33 @@
-fn paint_pointillist(p: vec2<f32>) -> vec4<f32> {
+fn dab_anchor(id: vec2<i32>, r: f32) -> vec2<f32> {
+    let stagger = select(0.0,0.43,(id.y & 1) != 0);
+    return (vec2<f32>(id) + vec2<f32>(0.5 + stagger,0.5) +
+        vec2<f32>(r - 0.5,random(id,221u) - 0.5) * parameters.point_jitter) * parameters.point_spacing;
+}
+
+fn prepare_cell(id: vec2<i32>) -> vec4<f32> {
+    let spacing = parameters.point_spacing;
+    let anchor = dab_anchor(id, random(id,220u));
+    let group = noise(anchor / (parameters.size * 0.85),225u);
+    var angle = (group - 0.5) * parameters.point_direction.x +
+        (random(id,222u) - 0.5) * 0.5;
+    if (parameters.point_direction.y > 0.0) {
+        let field = sample_input1(anchor);
+        let edge = tangent(field);
+        let turn = atan2(edge.y,edge.x) - angle;
+        // An axis is unoriented: choose the nearest equivalent contour direction.
+        angle += 0.5 * atan2(sin(2.0 * turn),cos(2.0 * turn)) *
+            smoothstep(0.025,0.22,field.z) * parameters.point_direction.y;
+    }
+    let axis = vec2<f32>(cos(angle),sin(angle));
+    let center = moving_mark(anchor,axis,spacing,group * 2.0,
+        parameters.point_motion,0.8);
+    return vec4<f32>(center,axis);
+}
+
+fn effect(p: vec2<f32>) -> vec4<f32> {
     let source = sample_input0(p);
     var paint = ground(source,parameters.point_ground);
-    let spacing = parameters.size * parameters.point_spacing;
+    let spacing = parameters.point_spacing;
     let cell = vec2<i32>(floor(p / spacing));
     var colors = vec4<f32>(0.0);
     var coverage = 0.0;
@@ -10,24 +36,11 @@ fn paint_pointillist(p: vec2<f32>) -> vec4<f32> {
         for (var x = -2; x <= 2; x += 1) {
             let id = cell + vec2<i32>(x,y);
             let r = random(id,220u);
-            let stagger = select(0.0,0.43,(id.y & 1) != 0);
-            let anchor = (vec2<f32>(id) + vec2<f32>(0.5 + stagger,0.5) +
-                vec2<f32>(r - 0.5,random(id,221u) - 0.5) * parameters.point_jitter) * spacing;
+            let anchor = dab_anchor(id, r);
             if (length(p - anchor) > spacing * 1.55) { continue; }
-            let group = noise(anchor / (parameters.size * 0.85),225u);
-            var angle = (group - 0.5) * parameters.point_direction.x +
-                (random(id,222u) - 0.5) * 0.5;
-            if (parameters.point_direction.y > 0.0) {
-                let field = sample_input1(anchor);
-                let edge = tangent(field);
-                let turn = atan2(edge.y,edge.x) - angle;
-                // An axis is unoriented: choose the nearest equivalent contour direction.
-                angle += 0.5 * atan2(sin(2.0 * turn),cos(2.0 * turn)) *
-                    smoothstep(0.025,0.22,field.z) * parameters.point_direction.y;
-            }
-            let axis = vec2<f32>(cos(angle),sin(angle));
-            let center = moving_mark(anchor,axis,spacing,group * 2.0,
-                parameters.point_motion,0.8);
+            let dab_geometry = load_cell(id);
+            let center = dab_geometry.xy;
+            let axis = dab_geometry.zw;
             let d = p - center;
             if (length(d) > spacing * 1.25) { continue; }
             let breath = 1.0 + 0.035 * sin(parameters.phase * 0.75 + r * 6.283185);

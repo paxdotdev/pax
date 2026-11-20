@@ -215,7 +215,7 @@ mod tests {
         let mut source = String::from("struct Parameters {\n");
         for parameter in PARAMETERS {
             let ty = match parameter.ty {
-                ShaderParameterType::Float => "f32",
+                ShaderParameterType::Float | ShaderParameterType::CellSpacing { .. } => "f32",
                 ShaderParameterType::Uint => "u32",
                 ShaderParameterType::Vec2 => "vec2<f32>",
                 ShaderParameterType::Vec4 => "vec4<f32>",

@@ -70,7 +70,7 @@ static PROGRAM: ShaderProgram = ShaderProgram {
             },
             ShaderParameter {
                 name: "spacing",
-                ty: T::Float,
+                ty: T::CellSpacing { padding: 5 },
             },
             ShaderParameter {
                 name: "brightness",
@@ -119,7 +119,7 @@ mod tests {
         let mut source = String::from("struct Parameters {\n");
         for parameter in pass.parameters {
             let ty = match parameter.ty {
-                T::Float => "f32",
+                T::Float | T::CellSpacing { .. } => "f32",
                 T::Uint => "u32",
                 T::Vec2 => "vec2<f32>",
                 T::Vec4 => "vec4<f32>",
@@ -131,6 +131,7 @@ mod tests {
         // files from pax-gpu. Live fixture validation covers the renderer wrapper.
         source.push_str(
             "fn sample_input0(p: vec2<f32>) -> vec4<f32> { return vec4<f32>(p, 0.0, 1.0); }\n\
+             fn load_cell(cell: vec2<i32>) -> vec4<f32> { return prepare_cell(cell); }\n\
              fn scene_specular(p: vec2<f32>, n: vec3<f32>, power: f32) -> vec3<f32> { return vec3<f32>(1.0); }\n\
              fn input0_pixel_size() -> vec2<f32> { return vec2<f32>(1.0); }\n\
              @fragment fn main(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> { return effect(p.xy); }\n",

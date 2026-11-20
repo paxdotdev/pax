@@ -87,6 +87,8 @@ pub fn record_browser_surface_event(canvas: &web_sys::HtmlCanvasElement, event: 
 mod buffer_accounting;
 pub(crate) mod capture;
 #[cfg(feature = "shaders")]
+mod effect_cells;
+#[cfg(feature = "shaders")]
 mod effects;
 use anyhow::{anyhow, Context};
 use bytemuck::Pod;
