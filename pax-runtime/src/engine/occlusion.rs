@@ -1541,7 +1541,9 @@ fn update_container_presentation(
     let Some(record) = state.records.get(&id) else {
         return;
     };
-    if record.before_children {
+    // Web reads presentation rectangles by scroller ID. Frame clip geometry
+    // still contributes to the scroller's ancestor intersection below.
+    if record.before_children || (!record.scrolls && ctx.globals().platform.is_web()) {
         return;
     }
     let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) else {
@@ -1596,7 +1598,13 @@ fn update_container_presentation(
     if record.scrolls {
         ctx.enqueue_native_message(pax_message::NativeMessage::ScrollerUpdate(ScrollerPatch {
             id,
-            content_layer_id: state.owned_layers.get(&id).map(|layer| *layer as u32),
+            // The structural walk publishes web layer ownership. A sampled
+            // viewport rectangle must not also reassign a browser surface.
+            content_layer_id: if globals.platform.is_web() {
+                None
+            } else {
+                state.owned_layers.get(&id).map(|layer| *layer as u32)
+            },
             presentation_projection: Some(if node.has_perspective_camera() {
                 ctx.presented_projection_for_node(&node)
                     .map(|p| p.matrix().coeffs().to_vec())
@@ -2657,7 +2665,13 @@ fn update_node_occlusion_recursive(
         if node.browser_content_layer_id.get() != content_layer_id || presentation_changed {
             ctx.enqueue_native_message(pax_message::NativeMessage::ScrollerUpdate(ScrollerPatch {
                 id: node.id.to_u32(),
-                content_layer_id,
+                content_layer_id: if ctx.globals().platform.is_web()
+                    && node.browser_content_layer_id.get() == content_layer_id
+                {
+                    None
+                } else {
+                    content_layer_id
+                },
                 presentation_projection: Some(if node.has_perspective_camera() {
                     ctx.presented_projection_for_node(node)
                         .map(|p| p.matrix().coeffs().to_vec())
@@ -2674,7 +2688,7 @@ fn update_node_occlusion_recursive(
         }
     }
 
-    if has_effect_clip {
+    if has_effect_clip && !ctx.globals().platform.is_web() {
         let presentation_hash =
             hash_node_presentation(node, ctx, Some(presented_bounds), presented_clip_bounds);
         if node.presentation_cache_hash.get() != presentation_hash {

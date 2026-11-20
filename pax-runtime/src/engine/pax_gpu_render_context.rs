@@ -45,11 +45,18 @@ pub struct LayerRenderer {
     dpr: [f32; 2],
     needs_initial_replay: bool,
     presentation_ready: bool,
+    deferred_submission: bool,
     // Resizing a browser backing clears its pixels. Wait for an admitted,
     // atomic replay/submission rather than clearing during layout planning.
     pending_backing_resize: bool,
     publication_revision: u64,
     publication_ready: bool,
+}
+
+enum SurfaceFlush<'a> {
+    All,
+    VisibleFirst(&'a LayerSurfaceLayout),
+    Deferred(usize),
 }
 
 /// Current renderer set for one logical layer.
@@ -305,6 +312,7 @@ impl LayerRenderer {
             dpr,
             needs_initial_replay: true,
             presentation_ready: false,
+            deferred_submission: false,
             pending_backing_resize: false,
             publication_revision: 0,
             publication_ready: false,
@@ -1231,13 +1239,72 @@ impl PaxGpuRenderer {
             .advance_targeted_replay_queue(layer)
     }
 
-    fn flush_targeted_or_dirty(&self, layer: usize, target: &mut LayerTarget) -> bool {
+    fn flush_layer(
+        &mut self,
+        layer: usize,
+        dirty_canvases: Rc<RefCell<Vec<bool>>>,
+        visible_first: bool,
+    ) {
+        self.replay_drawings(layer);
+        self.drawings.finish_frame(layer);
+        #[cfg(debug_assertions)]
+        self.emit_tile_cull_stats(layer);
+
+        let mut flushed_targeted_batch = false;
+        let mut backends = self.backends.borrow_mut();
+        match backends.get_mut(layer) {
+            Some(RenderLayerState::Pending) => {}
+            Some(RenderLayerState::Failed) => {}
+            Some(RenderLayerState::Ready((target, provider))) => {
+                if !target.active {
+                    return;
+                }
+                if let Some(failed) = self.failed_context_gets.borrow_mut().get_mut(layer) {
+                    if *failed {
+                        if let Some(dirty_bit) = dirty_canvases.borrow_mut().get_mut(layer) {
+                            // If we failed to draw to this layer because the context wasn't
+                            // available yet, retry once the backend is ready.
+                            *dirty_bit = true;
+                        }
+                        *failed = false;
+                    }
+                }
+                let layout;
+                let scope = if visible_first {
+                    layout = provider();
+                    SurfaceFlush::VisibleFirst(&layout)
+                } else {
+                    SurfaceFlush::All
+                };
+                flushed_targeted_batch = self.flush_targeted_or_dirty(layer, target, scope);
+            }
+            None => log::warn!(
+                "tried to flush layer {} context for non-existent layer",
+                layer
+            ),
+        }
+        drop(backends);
+
+        if flushed_targeted_batch && self.advance_targeted_replay_queue(layer) {
+            self.replay_layers.borrow_mut().push(layer);
+        }
+        self.submitting_prepared_surface = false;
+        self.direct_surface_layer = None;
+    }
+
+    fn flush_targeted_or_dirty(
+        &self,
+        layer: usize,
+        target: &mut LayerTarget,
+        scope: SurfaceFlush<'_>,
+    ) -> bool {
         #[cfg(test)]
         self.flushed_surfaces
             .borrow_mut()
             .retain(|(old_layer, _, _)| *old_layer != layer);
         use crate::render_instrumentation::{Phase, Span};
-        let targeted_indices = if self.prepare_surface_content && !self.submitting_prepared_surface
+        let targeted_indices = if matches!(scope, SurfaceFlush::Deferred(_))
+            || (self.prepare_surface_content && !self.submitting_prepared_surface)
         {
             None
         } else {
@@ -1258,10 +1325,48 @@ impl PaxGpuRenderer {
                 !self.prepare_surface_content || target.renderers[*i].presentation_ready
             }));
         }
+        if matches!(scope, SurfaceFlush::All) && !self.submitting_prepared_surface {
+            // A synchronous fallback must also drain work a cooperative draw
+            // previously left on ready tiles. Cold jobs keep their own replay.
+            indices.extend(target.renderers.iter().enumerate().filter_map(|(i, r)| {
+                (r.deferred_submission && r.presentation_ready).then_some(i)
+            }));
+        }
         indices.sort_unstable();
         indices.dedup();
         if self.prepare_surface_content && !self.submitting_prepared_surface {
             indices.retain(|i| target.renderers[*i].presentation_ready);
+        }
+
+        match scope {
+            SurfaceFlush::Deferred(index) => {
+                indices.clear();
+                indices.push(index);
+            }
+            SurfaceFlush::VisibleFirst(layout) => {
+                indices.retain(|&index| {
+                    let renderer = &mut target.renderers[index];
+                    let warm = layout
+                        .surfaces
+                        .iter()
+                        .find(|s| renderer.matches_surface(s))
+                        .is_some_and(|s| s.replay_priority > 0);
+                    if warm
+                        && !targeted_indices
+                            .as_ref()
+                            .is_some_and(|batch| batch.contains(&index))
+                    {
+                        // The retained drawing is complete. Keep this obligation on the
+                        // physical lease, so reordering and retirement cannot transfer it.
+                        renderer.deferred_submission = true;
+                        self.clear_dirty_render_surfaces(layer, &[index]);
+                        false
+                    } else {
+                        true
+                    }
+                });
+            }
+            SurfaceFlush::All => {}
         }
 
         if !indices.is_empty() {
@@ -1296,6 +1401,7 @@ impl PaxGpuRenderer {
                         .as_ref()
                         .map(|_| web_time::Instant::now());
                     renderer.renderer.flush_deferred();
+                    renderer.deferred_submission = false;
                     drop(preparation_timing);
                     // The chassis can suppress copies of unchanged retained
                     // outputs without inspecting or downloading their pixels.
@@ -2606,44 +2712,55 @@ impl RenderContext for PaxGpuRenderer {
     }
 
     fn flush(&mut self, layer: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>) {
-        self.replay_drawings(layer);
-        self.drawings.finish_frame(layer);
-        #[cfg(debug_assertions)]
-        self.emit_tile_cull_stats(layer);
+        self.flush_layer(layer, dirty_canvases, false);
+    }
 
-        let mut flushed_targeted_batch = false;
+    fn flush_visible_first(&mut self, layer: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>) {
+        self.flush_layer(layer, dirty_canvases, self.prepare_surface_content);
+    }
+
+    fn submit_deferred_surface(&mut self, visible_only: bool) -> bool {
         let mut backends = self.backends.borrow_mut();
-        match backends.get_mut(layer) {
-            Some(RenderLayerState::Pending) => {}
-            Some(RenderLayerState::Failed) => {}
-            Some(RenderLayerState::Ready((target, _))) => {
-                if !target.active {
-                    return;
+        let mut next = None;
+        for (layer, state) in backends.iter().enumerate() {
+            let RenderLayerState::Ready((target, provider)) = state else {
+                continue;
+            };
+            if !target.active
+                || !target
+                    .renderers
+                    .iter()
+                    .any(|r| r.deferred_submission && r.presentation_ready)
+            {
+                continue;
+            }
+            let layout = provider();
+            if !layout.active {
+                continue;
+            }
+            for (index, renderer) in target.renderers.iter().enumerate() {
+                if !renderer.deferred_submission || !renderer.presentation_ready {
+                    continue;
                 }
-                if let Some(failed) = self.failed_context_gets.borrow_mut().get_mut(layer) {
-                    if *failed {
-                        if let Some(dirty_bit) = dirty_canvases.borrow_mut().get_mut(layer) {
-                            // If we failed to draw to this layer because the context wasn't
-                            // available yet, retry once the backend is ready.
-                            *dirty_bit = true;
-                        }
-                        *failed = false;
+                if let Some(surface) = layout.surfaces.iter().find(|s| renderer.matches_surface(s))
+                {
+                    let candidate = (surface.replay_priority, layer, index);
+                    if (!visible_only || candidate.0 <= 0)
+                        && next.is_none_or(|prior| candidate < prior)
+                    {
+                        next = Some(candidate);
                     }
                 }
-                flushed_targeted_batch = self.flush_targeted_or_dirty(layer, target);
             }
-            None => log::warn!(
-                "tried to flush layer {} context for non-existent layer",
-                layer
-            ),
         }
-        drop(backends);
-
-        if flushed_targeted_batch && self.advance_targeted_replay_queue(layer) {
-            self.replay_layers.borrow_mut().push(layer);
-        }
-        self.submitting_prepared_surface = false;
-        self.direct_surface_layer = None;
+        let Some((_, layer, index)) = next else {
+            return false;
+        };
+        let RenderLayerState::Ready((target, _)) = &mut backends[layer] else {
+            unreachable!()
+        };
+        self.flush_targeted_or_dirty(layer, target, SurfaceFlush::Deferred(index));
+        true
     }
 
     fn resize(&mut self, _width: usize, _height: usize) {

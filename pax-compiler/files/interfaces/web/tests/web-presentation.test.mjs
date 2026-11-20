@@ -36,13 +36,37 @@ function harness() {
         web_submission_fence: () => state.fence,
         web_submission_complete: serial => serial <= state.complete,
     };
+    const applied = [];
     const owner = new module.exports.WebPresentation(root, chassis,
-        messages => messages.forEach(msg => log.push(Object.keys(msg)[0])),
+        messages => messages.forEach(msg => { applied.push(msg); log.push(Object.keys(msg)[0]); }),
         () => state.coverage, () => []);
     owner.settled();
     log.length = 0;
-    return {canvas: new Canvas(), owner, state, log};
+    return {canvas: new Canvas(), owner, state, log, applied};
 }
+
+test('scroll observations coalesce across a rejected fence and preserve command and ownership barriers', () => {
+    const {owner, state, applied} = harness();
+    const offset = (axis, value) => ({ScrollerUpdate: {id: 4, subtree_depth: 0, [axis]: value}});
+    const geometry = n => ({ScrollerUpdate: {id: 5, subtree_depth: 0, presented_bounds: [0,n,10,n+10],
+        presented_clip_bounds: [0,0,10,10], presentation_projection: []}});
+    for (let n = 0; n < 2500; n++) owner.receive([geometry(n), offset('presentation_scroll_y', n)]);
+    owner.settled();
+    owner.receive([offset('presentation_scroll_x', 3), geometry(2500)]);
+    state.coverage = 'B';
+    state.complete = 1n;
+    assert.equal(owner.publish(), false);
+    const reparent = {ScrollerUpdate: {id: 4, subtree_depth: 0, parent_frame: null}};
+    const claim = {ScrollerUpdate: {...geometry(2501).ScrollerUpdate, content_layer_id: 3}};
+    const command = {ScrollerUpdate: {id: 4, subtree_depth: 0, scroll_y: 0}};
+    owner.receive([reparent, geometry(2502), claim, geometry(2503), command, command, offset('presentation_scroll_y', 0)]);
+    owner.settled();
+    assert.equal(owner.publish(), true);
+    assert.deepEqual(applied, [
+        {ScrollerUpdate: {id: 4, subtree_depth: 0, presentation_scroll_x: 3, presentation_scroll_y: 2499}},
+        geometry(2500), reparent, geometry(2502), claim, geometry(2503), command, command, offset('presentation_scroll_y', 0),
+    ]);
+});
 
 test('a late fence holds its native prefix, image and input and preserves later messages', () => {
     const {canvas, owner, state, log} = harness();

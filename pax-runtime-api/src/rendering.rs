@@ -451,6 +451,19 @@ pub trait RenderContext {
     fn clear(&mut self, layer: usize);
     /// Flushes a layer to its presentation target.
     fn flush(&mut self, layer: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>);
+
+    /// Flush an ordinary cooperative draw. A tiled backend may retain completed
+    /// offscreen drawing until a later submission opportunity.
+    fn flush_visible_first(&mut self, layer: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>) {
+        self.flush(layer, dirty_canvases);
+    }
+
+    /// Submit one retained dirty surface against current host demand. A visible
+    /// opportunity admits only tiles required by the current viewport.
+    fn submit_deferred_surface(&mut self, _visible_only: bool) -> bool {
+        false
+    }
+
     /// Resizes the render surface.
     fn resize(&mut self, width: usize, height: usize);
     /// Requests refresh of specific layers.

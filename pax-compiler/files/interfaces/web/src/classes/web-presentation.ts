@@ -9,9 +9,11 @@ type Tile = {
     content: string;
 };
 
+type NativeEntry = {message: any; bytes: number};
 type Revision = {
     tiles: Map<HTMLCanvasElement, Tile>;
-    messages: any[];
+    messages: Set<NativeEntry>;
+    scrollObservations: Map<string, NativeEntry>;
     payloadBytes: number;
 };
 
@@ -22,7 +24,22 @@ const maxPayloadBytes = 4 * 1024 * 1024;
 const immediate = new Set(['ImageLoad', 'Navigate', 'SetCursor', 'Screenshot']);
 
 function revision(): Revision {
-    return {tiles: new Map(), messages: [], payloadBytes: 0};
+    return {tiles: new Map(), messages: new Set(), scrollObservations: new Map(), payloadBytes: 0};
+}
+
+// These two producers report sampled presentation state. Authored scroll
+// commands and structural patches must retain their order, including a move
+// to the root (an explicitly null parent_frame).
+const observationFields = new Set(['id', 'subtree_depth', 'presentation_scroll_x', 'presentation_scroll_y',
+    'presentation_projection', 'presented_bounds', 'presented_clip_bounds']);
+function scrollObservationKey(patch: any): string | undefined {
+    if (!patch || patch.id == null || 'parent_frame' in patch || patch.subtree_depth !== 0) return;
+    if (Object.keys(patch).some(k => patch[k] != null && !observationFields.has(k))) return;
+    if (patch.presented_bounds && patch.presented_clip_bounds && patch.presentation_projection
+        && patch.presentation_scroll_x == null && patch.presentation_scroll_y == null) return 'geometry/' + patch.id;
+    if ((patch.presentation_scroll_x != null || patch.presentation_scroll_y != null)
+        && patch.presentation_projection == null
+        && patch.presented_bounds == null && patch.presented_clip_bounds == null) return 'offset/' + patch.id;
 }
 
 function current(tile: Tile) {
@@ -90,16 +107,30 @@ export class WebPresentation {
                 this.apply([message]);
                 continue;
             }
+            const key = scrollObservationKey(message.ScrollerUpdate);
+            const observations = this.working.scrollObservations;
+            const previous = key === undefined ? undefined : observations.get(key);
+            if (previous) {
+                const old = previous.message.ScrollerUpdate;
+                if (old.presentation_scroll_x != null) message.ScrollerUpdate.presentation_scroll_x ??= old.presentation_scroll_x;
+                if (old.presentation_scroll_y != null) message.ScrollerUpdate.presentation_scroll_y ??= old.presentation_scroll_y;
+                this.working.messages.delete(previous);
+                this.working.payloadBytes -= previous.bytes;
+            } else if (key === undefined) {
+                observations.clear();
+            }
             // The chassis hands off fresh, exclusively owned JS values. UTF-16
             // length accounts for strings without retaining a second wire copy.
             const bytes = 2 * JSON.stringify(message).length;
-            if (this.working.messages.length + (this.sealed?.batch.messages.length ?? 0) >= maxNativeMessages
+            if (this.working.messages.size + (this.sealed?.batch.messages.size ?? 0) >= maxNativeMessages
                 || this.working.payloadBytes + (this.sealed?.batch.payloadBytes ?? 0) + bytes > maxPayloadBytes) {
                 this.failed = true;
                 this.clearBatches();
                 throw new Error('Web presentation qualification exceeded its native batch budget');
             }
-            this.working.messages.push(message);
+            const entry = {message, bytes};
+            this.working.messages.add(entry);
+            if (key !== undefined) observations.set(key, entry);
             this.working.payloadBytes += bytes;
         }
     }
@@ -133,16 +164,20 @@ export class WebPresentation {
         // the native prefix forward and let the renderer supply replacement
         // coverage. A retired tile can never write into a newer assignment.
         if (this.coverage() !== sealed.coverage || [...sealed.batch.tiles.values()].some(tile => !current(tile))) {
-            this.working.messages = sealed.batch.messages.concat(this.working.messages);
-            this.working.payloadBytes += sealed.batch.payloadBytes;
-            for (const [canvas, tile] of sealed.batch.tiles) {
-                if (current(tile) && !this.working.tiles.has(canvas)) this.working.tiles.set(canvas, tile);
-                else tile.image.close();
-            }
+            const later = this.working;
             this.sealed = undefined;
+            this.working = sealed.batch;
+            this.receive(Array.from(later.messages, entry => entry.message));
+            for (const [canvas, tile] of sealed.batch.tiles) {
+                if (!current(tile) || later.tiles.has(canvas)) {
+                    tile.image.close();
+                    sealed.batch.tiles.delete(canvas);
+                }
+            }
+            for (const [canvas, tile] of later.tiles) this.working.tiles.set(canvas, tile);
             return false;
         }
-        this.apply(sealed.batch.messages);
+        this.apply(Array.from(sealed.batch.messages, entry => entry.message));
         for (const tile of sealed.batch.tiles.values()) display(tile);
         this.chassis.publish_displayed_input();
         this.sealed = undefined;

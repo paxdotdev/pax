@@ -872,6 +872,46 @@ fn scroll_surface(ctx: &RuntimeContext, node: &ExpandedNode, y: f64) {
 }
 
 #[test]
+fn web_container_presentation_reports_scroller_bounds_through_clipping_frames() {
+    use pax_message::NativeMessage;
+    let (ctx, root) = mount(vec![probe(
+        Kind::Clip,
+        vec![probe(Kind::Scroller, vec![probe(Kind::Canvas, vec![])])],
+    )]);
+    ctx.edit_globals(|g| g.platform = Platform::Web);
+    let clip = root.children.get()[0].children.get()[0].clone();
+    let scroller = clip.children.get()[0].clone();
+    for (x, full) in [(12., true), (13., false)] {
+        clip.get_common_properties()
+            .borrow()
+            .x
+            .set(Some(Size::Pixels(x.into())));
+        if full {
+            ctx.mark_occlusion_dirty();
+        }
+        settle(&root, &ctx);
+        let messages = ctx.take_native_messages();
+        assert!(!messages
+            .iter()
+            .any(|m| matches!(m, NativeMessage::FrameUpdate(p)
+            if p.presented_bounds.is_some() || p.presented_clip_bounds.is_some())));
+        let patch = messages
+            .iter()
+            .find_map(|m| match m {
+                NativeMessage::ScrollerUpdate(p)
+                    if p.id == scroller.id.to_u32() && p.presented_bounds.is_some() =>
+                {
+                    Some(p)
+                }
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(patch.presented_clip_bounds, Some([x, 0., x + 60., 60.]));
+        assert_eq!(patch.content_layer_id, None);
+    }
+}
+
+#[test]
 fn shared_scroll_motion_preserves_masks_without_evaluating_them() {
     let (ctx, root) = mount(vec![probe(
         Kind::Clip,

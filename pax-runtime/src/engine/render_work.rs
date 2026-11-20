@@ -51,7 +51,7 @@ impl PaxEngine {
         {
             self.runtime_context.set_canvas_dirty(layer);
         }
-        rcs.flush(layer, Rc::clone(&self.runtime_context.dirty_canvases));
+        rcs.flush_visible_first(layer, Rc::clone(&self.runtime_context.dirty_canvases));
     }
 
     pub(super) fn repair_visible_surface_layer(
@@ -212,8 +212,11 @@ impl PaxEngine {
             let visible_needs_draw = next.dirty_layers > 0 || next.unfiltered_layers > 0;
             report.preparation.accumulate(next.clone());
             state.preparation.accumulate(next);
-            let tried_preparation =
-                !prepared && !visible_needs_draw && state.prefer_preparation && report.units == 0;
+            let tried_preparation = !prepared
+                && !visible_needs_draw
+                && !state.yield_after_visible_draw
+                && state.prefer_preparation
+                && report.units == 0;
             if tried_preparation {
                 // Missing visible content always goes first. After an ordinary
                 // redraw, give admitted preparation a turn before another one,
@@ -245,6 +248,19 @@ impl PaxEngine {
                 let visible = layers
                     .first()
                     .is_some_and(|l| rcs.ordinary_layer_priority(*l).is_some_and(|r| r <= 0));
+                if !visible && rcs.submit_deferred_surface(true) {
+                    // A scroll can expose a tile between service calls without
+                    // dirtying any node in its logical layer.
+                    state.urgent_complete = false;
+                    state.yield_after_visible_draw = true;
+                    report.units += 1;
+                    report.max_unit_ms = report.max_unit_ms.max(now_ms() - unit_start);
+                    if now_ms() - start >= slice_ms {
+                        report.pending = true;
+                        break;
+                    }
+                    continue;
+                }
                 // Always offer one host boundary between urgent and optional
                 // work, even if urgent work happened to complete very cheaply.
                 if !visible && !state.urgent_complete {
@@ -252,7 +268,8 @@ impl PaxEngine {
                     // A previous slice already returned to the host. With no
                     // urgent work in this call, don't schedule another input/
                     // layout synchronization merely to discover idle work.
-                    if report.units > 0 {
+                    if report.units > 0 || state.yield_after_visible_draw {
+                        state.yield_after_visible_draw = false;
                         report.pending = true;
                         break;
                     }
@@ -261,6 +278,7 @@ impl PaxEngine {
                     let ordinary_start = now_ms();
                     if visible {
                         state.urgent_complete = false;
+                        state.yield_after_visible_draw = true;
                     }
                     let lighting_only = !self.runtime_context.is_canvas_dirty(&layer);
                     // Validate only this unit, then consume that exact plan.
@@ -322,6 +340,8 @@ impl PaxEngine {
                     report.units += 1;
                     report.ordinary_ms += now_ms() - ordinary_start;
                     state.prefer_preparation = true;
+                } else if rcs.submit_deferred_surface(false) {
+                    report.units += 1;
                 } else {
                     let prepared = if tried_preparation {
                         false

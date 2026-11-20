@@ -143,8 +143,10 @@ impl RuntimeContext {
                 // Existing affine Scroller charts already retain local input and
                 // coverage. Their local-placement subscriptions handle inner edits.
                 let local_chart = node.retained_native_placement().is_some();
-                if !local_chart || !node.instance_node.borrow().geometry_is_scroller_local() {
+                if !node.instance_node.borrow().geometry_is_scroller_local() {
                     self.mark_node_input_dirty(node.id.to_u32());
+                } else if !local_chart {
+                    self.invalidate_input_placement(node.id.to_u32());
                 }
                 if !local_chart || !node.local_compositing.get() {
                     self.mark_node_occlusion_placement_dirty(node.id.to_u32());

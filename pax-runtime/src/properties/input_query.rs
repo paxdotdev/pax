@@ -61,6 +61,12 @@ impl RuntimeContext {
         if let Some(dirty) = self.input_capture_dirty.borrow_mut().as_mut() {
             dirty.insert(id);
         }
+        self.invalidate_input_placement(id);
+    }
+
+    // The live index needs new bounds. Displayed input independently watches
+    // the resolved layouts and projections from which it built its snapshot.
+    pub(crate) fn invalidate_input_placement(&self, id: u32) {
         self.scene_geometry.borrow_mut().input.invalidate(id);
     }
 

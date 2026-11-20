@@ -3148,6 +3148,7 @@ impl ExpandedNode {
             .filter(|(name, _)| instance.property_requires_input_recompute(name))
             .map(|(_, value)| value.get_untyped_property().clone())
             .collect();
+        let placement_only = deps.is_empty() && instance.geometry_is_scroller_local();
         deps.push(placement.untyped());
         let context = ctx.clone();
         let id = self.id.to_u32();
@@ -3155,7 +3156,11 @@ impl ExpandedNode {
             .replace_with(LocalProperty::computed_with_name(
                 move || {
                     placement.get();
-                    context.mark_node_input_dirty(id);
+                    if placement_only {
+                        context.invalidate_input_placement(id);
+                    } else {
+                        context.mark_node_input_dirty(id);
+                    }
                 },
                 &deps,
                 "input geometry listener",
