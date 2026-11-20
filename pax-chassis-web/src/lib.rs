@@ -1801,8 +1801,8 @@ impl PaxChassisWeb {
         self.render_work.continue_epoch(epoch);
     }
 
-    /// Read-only continuation guard after the host samples native input. Scroll
-    /// handlers can dirty properties; that work must settle in a normal tick.
+    /// Check whether drawing can continue after native input or render feedback.
+    /// Pending effects or geometry require scene settlement before another slice.
     pub fn render_work_is_settled(&self) -> bool {
         let engine = borrow!(self.engine);
         if matches!(
@@ -1813,6 +1813,11 @@ impl PaxChassisWeb {
         }
         let _graph = engine.runtime_context.property_graph.enter();
         engine.runtime_context.can_present_settled_surfaces()
+    }
+
+    #[doc(hidden)]
+    pub fn settle_render_feedback(&self) -> JsValue {
+        js_value_serde::to_value(&self.engine.borrow().settle_render_feedback())
     }
 
     /// Opt-in synchronous rendering slice. Returning releases engine/graph

@@ -44,21 +44,19 @@ function harness() {
     return {canvas: new Canvas(), owner, state, log};
 }
 
-test('a late fence holds its native prefix, image and input, preserving a newer successor', () => {
+test('a late fence holds its native prefix, image and input and preserves later messages', () => {
     const {canvas, owner, state, log} = harness();
     canvas.submit('old');
     canvas.submit('first');
     owner.receive([{ButtonUpdate: {}}, {ImageLoad: {}}]);
     owner.settled();
-    assert.equal(owner.successorPending, false);
-    owner.didTick();
-    assert.equal(owner.successorPending, true);
+    assert.equal(owner.awaitingFence, true);
     owner.receive([{ButtonDelete: {}}]);
     owner.publish();
     assert.deepEqual(log, ['close old', 'ImageLoad']);
     state.complete = 1n;
     owner.publish();
-    assert.equal(owner.successorPending, false);
+    assert.equal(owner.awaitingFence, false);
     assert.deepEqual(log.slice(-3), ['ButtonUpdate', 'draw first', 'input']);
     state.fence = 2n;
     owner.settled();
@@ -73,12 +71,12 @@ test('a changed visible assignment invalidates the old completion and retains na
     const {canvas, owner, state, log} = harness();
     owner.receive([{ButtonCreate: {}}]);
     canvas.submit('retired');
-    owner.settled();
+    assert.equal(owner.settled(), true);
     owner.receive([{ButtonUpdate: {}}]);
     canvas.dataset.surfaceGeneration = '2';
     state.coverage = 'B';
     state.complete = 1n;
-    owner.publish();
+    assert.equal(owner.publish(), false);
     assert.deepEqual(log, ['close retired']);
     canvas.submit('replacement');
     state.fence = 2n;
@@ -111,4 +109,16 @@ test('exceeding the proof budget stops before applying any part of the retained 
     owner.publish();
     assert.equal(owner.stopped, true);
     assert.deepEqual(log, ['close pending']);
+});
+
+test('missing visible coverage holds an armed revision until it can seal', () => {
+    const {owner, state} = harness();
+    state.coverage = undefined;
+    assert.equal(owner.settled(), false);
+    assert.equal(owner.awaitingFence, false);
+    state.coverage = 'B';
+    assert.equal(owner.settled(), true);
+    assert.equal(owner.publish(), false);
+    state.complete = 1n;
+    assert.equal(owner.publish(), true);
 });

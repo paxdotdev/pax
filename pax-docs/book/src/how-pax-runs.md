@@ -659,9 +659,12 @@ to try it. After initial presentation, the renderer prepares changed canvas
 tiles privately. The host waits for GPU completion and checks the visible
 tile assignments before showing the pixels with their native placements and
 pointer geometry. This lets a button and its drawn backplate hold their previous
-position together when a frame is late. Native scrolling continues to supply
-the scroll offset used for hit testing. Structural changes can take a full
-input-geometry capture, which can cause visible pauses on a complex page.
+position together when a frame is late. While visible drawing is pending,
+the host can settle changes raised by drawing or input at the current animation
+time. It admits the next animation tick after the current revision reaches the
+display. Native scrolling continues to supply the scroll offset used for hit
+testing. Structural changes can take a full input-geometry capture, which can
+cause visible pauses on a complex page.
 
 On macOS, native scene updates are applied during the chassis frame cycle,
 before that frame's GPU submission. Animated native controls therefore receive

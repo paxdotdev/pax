@@ -614,8 +614,10 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
                 }
                 if (presentation?.awaitingFence) return {pending: false, blocked: true};
                 const report = sharedWorkBudget.run(3, budget => chassis.service_render_work(budget));
-                if (!report.visible_pending && !report.blocker) presentation?.settled();
-                ordinaryRenderPending = report.visible_pending && !report.blocked;
+                ordinaryRenderPending = report.visible_pending && (!report.blocked || !!presentation);
+                if (presentation && !report.visible_pending && !report.blocker) {
+                    ordinaryRenderPending = !presentation.settled();
+                }
                 recordService?.(report);
                 return report;
             } finally {
@@ -919,11 +921,29 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
         if (presentation?.awaitingFence) {
             nativePool.sampleFrameInputs();
             nativePool.syncRenderSurfaceLayouts(true);
-            presentation.publish();
-            if (presentation.successorPending) return;
+            if (!presentation.publish()) {
+                if (presentation.awaitingFence) return;
+                // A surface changed after submission. Repair the same revision.
+                ordinaryRenderPending = true;
+            }
         }
         if (ordinaryRenderPending) {
             nativePool.sampleFrameInputs();
+            if (presentation) {
+                nativePool.syncRenderSurfaceLayouts(true);
+                if (chassis.render_work_is_settled()) {
+                    chassis.continue_render_work(renderEpoch);
+                } else {
+                    // A drawing hook or new input can invalidate geometry while a
+                    // revision is incomplete. Reconcile the same animation sample.
+                    presentation.receive(chassis.settle_render_feedback());
+                    nativePool.syncRenderSurfaceLayouts();
+                    chassis.begin_render_work(renderEpoch);
+                }
+                cooperativeRender!.beginFrame();
+                nativePool.finishTextFrame();
+                return;
+            }
             if (!chassis.has_pending_properties() && chassis.render_work_is_settled()) {
                 // Finish required visible drawing before another tick invalidates
                 // its setup. Optional warm work must not freeze the frame clock.
@@ -948,7 +968,6 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
                 nativePool.recordInputQueryWork(input);
                 return messages;
             });
-            presentation?.didTick();
             withProfileMeasure("processMessages", () => {
                 if (presentation) presentation.receive(messages);
                 else processMessages(messages, chassis, objectManager);
