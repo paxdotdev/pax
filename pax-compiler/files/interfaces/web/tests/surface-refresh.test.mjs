@@ -522,6 +522,9 @@ test('surface generation survives steady layout and changes on each canvas assig
     class Element {
         dataset = {}; style = {}; parentElement; children = [];
         hasAttribute(name) { return this.getAttribute(name) !== null; }
+        closest(selector) {
+            return this.hasAttribute(selector.slice(1,-1)) ? this : this.parentElement?.closest(selector);
+        }
         appendChild(child) { child.parentElement = this; this.children.push(child); }
         removeChild(child) {
             this.children = this.children.filter(c => c !== child);

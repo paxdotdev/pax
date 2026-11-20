@@ -838,3 +838,88 @@ fn retained_scroll_follows_reactive_writes_page_delegation_and_reparenting() {
         "retired mounts release their projection"
     );
 }
+
+#[test]
+fn displayed_one_pixel_edit_preserves_the_old_hit_and_skips_unrelated_shapes() {
+    let mut visits = Vec::new();
+    for count in [16, 160] {
+        let calls = Rc::new(Cell::new(0));
+        let leaves = (0..count)
+            .map(|_| HitNode::new(vec![], true, false, None, calls.clone()) as Rc<dyn InstanceNode>)
+            .collect();
+        let (mut engine, root) = fixture(leaves);
+        let selected = root.children.get()[0].clone();
+        for (i, child) in root.children.get().iter().enumerate() {
+            place(child, 40. + i as f64 * 60., 100., 34., 34.);
+        }
+        engine.tick();
+        let ctx = &engine.runtime_context;
+        let mut producer = crate::properties::input_capture::InputPublisher::default();
+        let front = producer.capture(ctx).unwrap();
+        place(&selected, 40., 99., 34., 34.);
+        engine.tick();
+        calls.set(0);
+        let next = producer.capture(&engine.runtime_context).unwrap();
+        visits.push(calls.get());
+        let ctx = &engine.runtime_context;
+        let hit = || query(ctx, None, (45., 99.5), false).contains(&selected.id);
+        assert!(hit());
+        {
+            let _scope = front.enter(ctx, &HashMap::new()).unwrap();
+            assert!(!hit());
+        }
+        let _scope = next.enter(ctx, &HashMap::new()).unwrap();
+        assert!(hit());
+    }
+    assert!(visits[0] > 0);
+    assert_eq!(
+        visits[0], visits[1],
+        "unrelated siblings must retain their records"
+    );
+}
+
+#[test]
+fn displayed_capture_reuses_equal_geometry_and_honors_other_changes_in_the_same_tick() {
+    let calls = Rc::new(Cell::new(0));
+    let instance = HitNode::new(vec![], true, false, None, calls.clone());
+    let (mut engine, root) = fixture(vec![instance.clone()]);
+    let node = root.children.get()[0].clone();
+    place(&node, 100., 100., 20., 20.);
+    engine.tick();
+    let mut producer = crate::properties::input_capture::InputPublisher::default();
+    let front = producer.capture(&engine.runtime_context).unwrap();
+    calls.set(0);
+
+    node.presentation_transform_and_bounds.invalidate();
+    engine.tick();
+    producer.capture(&engine.runtime_context).unwrap();
+    assert_eq!(
+        calls.get(),
+        0,
+        "equal projected geometry should retain the prepared shape"
+    );
+
+    node.presentation_transform_and_bounds.invalidate();
+    node.measured_size.set(Some((17., 19.)));
+    engine.tick();
+    producer.capture(&engine.runtime_context).unwrap();
+    assert_eq!(calls.get(), 1, "the measured-size watch must still fire");
+
+    *instance.shape.borrow_mut() = Some(Rect::new(0., 0., 5., 5.));
+    node.presentation_transform_and_bounds.invalidate();
+    engine.tick();
+    let ctx = &engine.runtime_context;
+    ctx.mark_node_input_dirty(node.id.to_u32());
+    let next = producer.capture(ctx).unwrap();
+    assert_eq!(
+        calls.get(),
+        2,
+        "explicit custom shape invalidation must still fire"
+    );
+    {
+        let _scope = front.enter(ctx, &HashMap::new()).unwrap();
+        assert!(query(ctx, None, (110., 110.), false).contains(&node.id));
+    }
+    let _scope = next.enter(ctx, &HashMap::new()).unwrap();
+    assert!(!query(ctx, None, (110., 110.), false).contains(&node.id));
+}

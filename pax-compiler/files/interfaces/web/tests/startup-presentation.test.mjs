@@ -38,6 +38,7 @@ function harness(holdPresentation = false) {
         let pendingAsyncInterruptFlush = false;
         let startupRenderStarted = false;
         let ordinaryRenderPending = false;
+        const presentation = undefined;
         const mountYieldEnabled = true, perfTraceEnabled = false;
         const frameScheduler = {suspended: false};
         let startupWork = state;

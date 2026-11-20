@@ -92,6 +92,9 @@ pub struct NodeContext {
     pub(crate) runtime_context: Rc<RuntimeContext>,
     /// The transform of this node in the global coordinate space
     pub node_transform_and_bounds: TransformAndBounds<NodeLocal, Window>,
+    // An explicitly captured event context must not consult newer live geometry
+    // when a handler converts coordinates, including after saving the context.
+    pub(crate) captured_event_geometry: Option<Rc<CapturedEventGeometry>>,
     /// Children projected into this node from the containing component.
     ///
     /// Projection is an engine transport mechanism. Consumers that want the
@@ -130,6 +133,12 @@ pub struct NodeContext {
     pub(crate) get_elapsed_millis: Rc<dyn Fn() -> u128>,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct CapturedEventGeometry {
+    pub projection: Option<math::ProjectedPlane>,
+    pub bounds: (f64, f64),
+}
+
 impl NodeContext {
     /// Lifetime of this exact context node, ending at actual unmount. Retain a
     /// component mount scope when later handlers receive child-control contexts.
@@ -164,6 +173,13 @@ impl NodeContext {
     /// `(0, 0)` is the local origin and `(1, 1)` is the opposite layout corner.
     /// A clipped or noninvertible perspective mapping returns nonfinite coordinates.
     pub fn local_point(&self, p: Point2<Window>) -> Point2<NodeLocal> {
+        if let Some(geometry) = &self.captured_event_geometry {
+            return geometry
+                .projection
+                .and_then(|plane| plane.local_point(kurbo::Point::new(p.x, p.y)))
+                .map(|p| Point2::new(p.x / geometry.bounds.0, p.y / geometry.bounds.1))
+                .unwrap_or_else(|| Point2::new(f64::NAN, f64::NAN));
+        }
         let node = self.expanded_node.upgrade();
         let p = node.as_ref().map_or(p, |node| {
             let point = self

@@ -252,7 +252,24 @@ impl<T: PropertyValue> LocalProperty<T> {
     pub fn replace_with(&self, target: LocalProperty<T>) {
         PROPERTY_TABLE.with(|t| {
             // we know self contains T, and that target contains T, so this should never panic
-            t.replace_property_keep_outbound_connections::<T>(self.untyped.id, target.untyped.id)
+            t.replace_property_keep_outbound_connections::<T>(
+                self.untyped.id,
+                target.untyped.id,
+                false,
+            )
+        })
+    }
+
+    /// Engine binding for paintless nodes. Defer the initial cutoff evaluation
+    /// until a read or subscription when the property has no observers.
+    #[doc(hidden)]
+    pub fn replace_with_lazy(&self, target: LocalProperty<T>) {
+        PROPERTY_TABLE.with(|t| {
+            t.replace_property_keep_outbound_connections::<T>(
+                self.untyped.id,
+                target.untyped.id,
+                true,
+            )
         })
     }
 

@@ -1328,6 +1328,10 @@ export class NativeElementPool {
         });
     }
 
+    presentationCoverage(): string | undefined {
+        return this.surfaceCoordinator?.presentationCoverage();
+    }
+
     startupSurfacesReady(): boolean {
         return this.surfaceCoordinator?.presentationReady() ?? false;
     }
@@ -2895,6 +2899,17 @@ export class NativeElementPool {
         }
         this.pendingScrollerUpdates.delete(id);
         this.scrollerUpdate(queued);
+    }
+
+    displayedScrollOffsets(): [number, number, number][] {
+        const offsets: [number, number, number][] = [];
+        for (const [id, state] of this.scrollerMeasurementStates) {
+            const leaf = this.nodesLookup.get(id);
+            if (!leaf) continue;
+            const position = this.measureScrollerPosition(leaf, state);
+            offsets.push([id, position.presentationScrollX, position.presentationScrollY]);
+        }
+        return offsets;
     }
 
     private measureScrollerPosition(

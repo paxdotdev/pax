@@ -7,24 +7,90 @@ use web_sys::HtmlCanvasElement;
 pub(super) struct BrowserCanvasLease {
     pub canvas: HtmlCanvasElement,
     presentation: CanvasPresentation,
+    private: Option<web_sys::OffscreenCanvas>,
 }
 
 #[cfg(target_arch = "wasm32")]
 impl BrowserCanvasLease {
-    pub fn acquire(canvas: HtmlCanvasElement) -> Self {
+    pub fn acquire(
+        canvas: HtmlCanvasElement,
+        width: u32,
+        height: u32,
+    ) -> Result<Self, anyhow::Error> {
+        let private = canvas
+            .has_attribute("data-pax-bitmap-front")
+            .then(|| web_sys::OffscreenCanvas::new(width, height))
+            .transpose()
+            .map_err(|error| anyhow::anyhow!("private WebGPU canvas: {error:?}"))?;
         let presentation =
             CanvasPresentation::new(canvas.id(), canvas.get_attribute("data-surface-generation"));
-        let _ = canvas.style().set_property("visibility", "hidden");
+        if private.is_none() {
+            let _ = canvas.style().set_property("visibility", "hidden");
+        }
         let owners = owner_count(&canvas);
         let _ = canvas.set_attribute("data-pax-surface-owners", &(owners + 1).to_string());
         super::record_browser_surface_event(&canvas, "initialization-start");
-        Self {
+        Ok(Self {
             canvas,
             presentation,
+            private,
+        })
+    }
+
+    pub fn target(&self) -> wgpu::SurfaceTarget<'static> {
+        match &self.private {
+            Some(canvas) => wgpu::SurfaceTarget::OffscreenCanvas(canvas.clone()),
+            None => wgpu::SurfaceTarget::Canvas(self.canvas.clone()),
+        }
+    }
+
+    pub fn resize(&self, width: u32, height: u32) {
+        if let Some(canvas) = &self.private {
+            // The visible backing retains its displayed dimensions until the
+            // host installs this image. Report configuration of the GPU target.
+            let _ = self
+                .canvas
+                .set_attribute("data-pax-prepared-width", &width.to_string());
+            let _ = self
+                .canvas
+                .set_attribute("data-pax-prepared-height", &height.to_string());
+            if canvas.width() != width {
+                canvas.set_width(width);
+            }
+            if canvas.height() != height {
+                canvas.set_height(height);
+            }
+        } else {
+            super::sync_browser_canvas_backing_size(&self.canvas, width, height);
         }
     }
 
     pub fn present(&mut self) {
+        if let Some(private) = &self.private {
+            if self.canvas.id() != self.presentation.id
+                || self.canvas.get_attribute("data-surface-generation")
+                    != self.presentation.generation
+            {
+                return;
+            }
+            // Take ownership before returning to the browser. Reading the swap
+            // chain from a completion callback could capture a subsequent draw.
+            let bitmap = private
+                .transfer_to_image_bitmap()
+                .expect("take submitted tile");
+            let options = web_sys::CustomEventInit::new();
+            options.set_detail(&bitmap);
+            options.set_bubbles(true);
+            options.set_cancelable(true);
+            let event =
+                web_sys::CustomEvent::new_with_event_init_dict("pax-tile-submission", &options)
+                    .expect("create tile submission");
+            if self.canvas.dispatch_event(&event).unwrap_or(true) {
+                // No owner claimed the bitmap (e.g. the application closed).
+                bitmap.close();
+            }
+            return;
+        }
         // No per-frame DOM reads/writes after first presentation. Queue submission
         // precedes this call on both ordinary and deferred rendering paths; no GPU
         // wait or extra clear submission is needed to replace the previous image.

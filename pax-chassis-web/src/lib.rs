@@ -33,14 +33,17 @@ use pax_runtime::api::{
     PhotoPickerChange, SliderChange, SubmitTrigger, TextboxChange, TextboxInput,
 };
 use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, LayerCanvasPlan};
+use pax_runtime::properties::input_capture::{
+    CapturedInputScope, CapturedInputView, InputCaptureError, InputPublisher,
+};
 use pax_runtime::DefinitionToInstanceTraverser;
 use web_time::Instant;
 use_RefCell!();
 
 mod browser_surface_policy;
+mod clipboard;
 mod image_loading;
 mod installed_surfaces;
-mod clipboard;
 mod loading;
 mod surface_metrics;
 mod surface_scheduling;
@@ -258,6 +261,10 @@ pub struct PaxChassisWeb {
     engine: Rc<RefCell<PaxEngine>>,
     surface_work_budget: pax_runtime::engine::surface_work::SurfaceWorkBudget,
     render_work: pax_runtime::engine::surface_work::RenderWorkState,
+    input_publisher: InputPublisher,
+    displayed_input: Option<Rc<CapturedInputView>>,
+    prepared_input: Option<Rc<CapturedInputView>>,
+    displayed_scrolls: Option<js_sys::Function>,
     native_scroller_positions: HashMap<u32, (f64, f64)>,
     synthetic_scroll_gesture: Option<SyntheticScrollGesture>,
     startup_hold_input: bool,
@@ -489,6 +496,10 @@ impl PaxChassisWeb {
             surface_density: RefCell::new(Default::default()),
             surface_preparation: RefCell::new(None),
             surface_preparation_latency: RefCell::new(Default::default()),
+            input_publisher: Default::default(),
+            displayed_input: None,
+            prepared_input: None,
+            displayed_scrolls: None,
             native_scroller_positions: HashMap::new(),
             synthetic_scroll_gesture: None,
             startup_hold_input: yield_mount,
@@ -567,6 +578,10 @@ impl PaxChassisWeb {
             surface_density: RefCell::new(Default::default()),
             surface_preparation: RefCell::new(None),
             surface_preparation_latency: RefCell::new(Default::default()),
+            input_publisher: Default::default(),
+            displayed_input: None,
+            prepared_input: None,
+            displayed_scrolls: None,
             native_scroller_positions: HashMap::new(),
             synthetic_scroll_gesture: None,
             startup_hold_input: yield_mount,
@@ -809,13 +824,22 @@ impl PaxChassisWeb {
     /// platform-owned drags remain independent of this visibility check.
     pub fn native_pointer_hit_test(&self, id: u32, x: f64, y: f64) -> bool {
         let engine = borrow!(self.engine);
+        let _scope = match self.displayed_input_scope() {
+            Ok(scope) => scope,
+            Err(()) => return false,
+        };
         let id = pax_runtime::ExpandedNodeIdentifier(id);
         engine
             .runtime_context
             .get_elements_beneath_ray(None, Point2::new(x, y), true, vec![], false)
             .into_iter()
             .next()
-            .is_some_and(|hit| hit.id == id || hit.is_descendant_of(&id))
+            .is_some_and(|hit| {
+                engine
+                    .runtime_context
+                    .captured_input_descendant(&hit, id)
+                    .unwrap_or_else(|| hit.id == id || hit.is_descendant_of(&id))
+            })
     }
 
     pub fn interrupt(
@@ -824,6 +848,19 @@ impl PaxChassisWeb {
         additional_payload: &JsValue,
     ) -> InterruptResult {
         let x = native_interrupt_from_js(native_interrupt);
+        let _scope = if !startup_feedback(&x) || matches!(x, NativeInterrupt::ScrollerPosition(_)) {
+            match self.displayed_input_scope() {
+                Ok(scope) => scope,
+                Err(()) => {
+                    return InterruptResult {
+                        prevent_default: false,
+                        wheel_cancellable: false,
+                    }
+                }
+            }
+        } else {
+            None
+        };
         if (self.startup_hold_input || !self.startup_input.is_empty()) && !startup_feedback(&x) {
             let snapshot = self.engine.borrow().runtime_context.capture_startup_input(
                 if self.startup_hold_input {
@@ -872,7 +909,7 @@ impl PaxChassisWeb {
         let input_node = |id| {
             engine
                 .get_expanded_node(id)
-                .filter(|node| ctx.accepts_startup_input(node))
+                .filter(|node| ctx.accepts_startup_input(node) && ctx.accepts_displayed_input(node))
         };
         let mut wheel_cancellable = false;
         let prevent_default = match &x {
@@ -1249,7 +1286,11 @@ impl PaxChassisWeb {
                         engine
                             .runtime_context
                             .capture_touch_target(first_touch.identifier, topmost_node.id);
-                        if args.touches.len() == 1 && !node_is_in_scroller_subtree(&topmost_node) {
+                        if args.touches.len() == 1
+                            && !ctx
+                                .captured_scroller_ancestor(&topmost_node)
+                                .unwrap_or_else(|| node_is_in_scroller_subtree(&topmost_node))
+                        {
                             self.synthetic_scroll_gesture = Some(SyntheticScrollGesture {
                                 touch_identifier: first_touch.identifier,
                                 target_id: topmost_node.id,
@@ -1517,13 +1558,18 @@ impl PaxChassisWeb {
                         delta_y: args.delta_y,
                         modifiers,
                     };
-                    wheel_cancellable = topmost_node.allows_wheel_cancellation();
+                    wheel_cancellable = ctx
+                        .captured_wheel_cancellation(&topmost_node)
+                        .unwrap_or_else(|| topmost_node.allows_wheel_cancellation());
                     let mut prevented = topmost_node.dispatch_wheel(
                         Event::new(args_wheel),
                         &globals,
                         &engine.runtime_context,
                     );
-                    if !node_is_in_scroller_subtree(&topmost_node) {
+                    if !ctx
+                        .captured_scroller_ancestor(&topmost_node)
+                        .unwrap_or_else(|| node_is_in_scroller_subtree(&topmost_node))
+                    {
                         prevented |= topmost_node.dispatch_scroll(
                             Event::new(Scroll {
                                 delta_x: args.delta_x,
@@ -1692,6 +1738,62 @@ impl PaxChassisWeb {
     /// allowance if another tick already ran in this display-frame epoch.
     pub fn begin_render_work(&mut self, epoch: u32) {
         self.render_work.begin(epoch);
+    }
+
+    #[doc(hidden)]
+    pub fn set_displayed_scroll_reader(&mut self, reader: js_sys::Function) {
+        self.displayed_scrolls = Some(reader);
+    }
+
+    #[doc(hidden)]
+    pub fn prepare_displayed_input(&mut self) -> Result<bool, JsValue> {
+        let context = self.engine.borrow().runtime_context.clone();
+        match self.input_publisher.capture(&context) {
+            Ok(view) => {
+                self.prepared_input = Some(view);
+                Ok(true)
+            }
+            Err(InputCaptureError::Unsettled(_)) => Ok(false),
+            Err(error) => Err(JsValue::from_str(&format!(
+                "capture displayed input: {error:?}"
+            ))),
+        }
+    }
+
+    #[doc(hidden)]
+    pub fn publish_displayed_input(&mut self) {
+        self.displayed_input = Some(
+            self.prepared_input
+                .take()
+                .expect("preflight displayed input"),
+        );
+    }
+
+    fn displayed_input_scope(&self) -> Result<Option<CapturedInputScope>, ()> {
+        let Some(view) = &self.displayed_input else {
+            return Ok(None);
+        };
+        let values = self
+            .displayed_scrolls
+            .as_ref()
+            .ok_or(())?
+            .call0(&JsValue::NULL)
+            .map_err(|_| ())?;
+        let rows: Vec<(u32, f64, f64)> = serde_wasm_bindgen::from_value(values).map_err(|_| ())?;
+        let offsets = rows.into_iter().map(|(id, x, y)| (id, (x, y))).collect();
+        view.enter(&self.engine.borrow().runtime_context, &offsets)
+            .map(Some)
+            .map_err(|_| ())
+    }
+
+    #[doc(hidden)]
+    pub fn web_submission_fence(&self) -> Option<u64> {
+        self._renderer_host.fenced_submission()
+    }
+
+    #[doc(hidden)]
+    pub fn web_submission_complete(&self, serial: u64) -> bool {
+        self._renderer_host.completed_through(serial)
     }
 
     /// Replenish a display allowance without restarting a held startup scene.

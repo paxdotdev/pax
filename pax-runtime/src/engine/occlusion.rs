@@ -1329,16 +1329,20 @@ fn assign_occlusion(
     layer: Layer,
     ctx: &RuntimeContext,
 ) -> bool {
-    node.canvas_owner.set_if_neq(
+    let owner_changed = node.canvas_owner.set_if_neq(
         ctx.get_layer_scroller_owner(new.render_layer_id)
             .map(|owner| owner.to_u32()),
     );
+    if owner_changed {
+        node.bind_canvas_paint_placement(ctx);
+    }
     let old = node.occlusion.get();
-    if new == old {
+    if new == old && !owner_changed {
         return false;
     }
-    let order_only =
-        new.render_layer_id == old.render_layer_id && new.parent_frame == old.parent_frame;
+    let order_only = !owner_changed
+        && new.render_layer_id == old.render_layer_id
+        && new.parent_frame == old.parent_frame;
     if order_only {
         if layer == Layer::Canvas {
             ctx.queue_canvas_node_order(new.render_layer_id, node.id.to_u32(), new.z_index);
@@ -1354,7 +1358,9 @@ fn assign_occlusion(
         ctx.set_canvas_dirty(old.render_layer_id);
         ctx.set_canvas_dirty(new.render_layer_id);
     }
-    node.occlusion.set(new);
+    if new != old {
+        node.occlusion.set(new);
+    }
     order_only
 }
 

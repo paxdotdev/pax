@@ -90,8 +90,8 @@ use pax_manifest::{
 use crate::ComputableTransform;
 use crate::{
     add_symmetric_padding_to_content_layout_hull, apply_container_frame, apply_padding_frame,
-    compute_tab, ComponentInstance, ContainerPlacement, HandlerLocation, InstanceNode, InstanceNodePtr,
-    ReceivedChildrenSource, RuntimeContext, RuntimePropertiesStackFrame,
+    compute_tab, ComponentInstance, ContainerPlacement, HandlerLocation, InstanceNode,
+    InstanceNodePtr, ReceivedChildrenSource, RuntimeContext, RuntimePropertiesStackFrame,
 };
 
 #[derive(Clone)]
@@ -876,6 +876,9 @@ macro_rules! dispatch_event_handler {
             globals: &Globals,
             ctx: &Rc<RuntimeContext>,
         ) -> bool {
+            if let Some(routing) = ctx.active_captured_input() {
+                return routing.dispatch(ctx, self, $handler_key, &event, $recurse);
+            }
             if self.is_render_source() {
                 return event.cancelled();
             }
@@ -1028,6 +1031,23 @@ impl ExpandedNode {
         event: &Event<T>,
         ctx: &Rc<RuntimeContext>,
     ) {
+        self.run_event_handlers_with_context(
+            handler_key,
+            event,
+            ctx,
+            || self.get_node_context(ctx),
+            || true,
+        );
+    }
+
+    pub(crate) fn run_event_handlers_with_context<T: Clone + 'static>(
+        self: &Rc<Self>,
+        handler_key: &str,
+        event: &Event<T>,
+        ctx: &Rc<RuntimeContext>,
+        make_context: impl FnOnce() -> NodeContext,
+        recipient_current: impl Fn() -> bool,
+    ) {
         if self.is_render_source() || !ctx.accepts_startup_input(self) {
             return;
         }
@@ -1040,8 +1060,11 @@ impl ExpandedNode {
         if let Some(registry) = borrow!(self.instance_node).base().get_handler_registry() {
             let borrowed_registry = &borrow!(*registry);
             if let Some(handlers) = borrowed_registry.handlers.get(handler_key) {
-                let context = self.get_node_context(ctx);
+                let context = make_context();
                 for handler in handlers {
+                    if !recipient_current() {
+                        break;
+                    }
                     let owner = self.handler_owner(&handler.location);
                     if owner.attached.get() == 0 || !ctx.accepts_startup_input(&owner) {
                         continue;
@@ -4590,6 +4613,7 @@ impl ExpandedNode {
             projected_children_count,
             projected_children,
             node_transform_and_bounds: self.transform_and_bounds.get(),
+            captured_event_geometry: None,
             projected_children_changed,
             received_children,
             received_children_count,
@@ -4844,15 +4868,16 @@ impl ExpandedNode {
         source: PointerActivationSource,
         ctx: &Rc<RuntimeContext>,
     ) -> bool {
-        let has_click = self.has_event_handlers(CLICK_HANDLERS);
-        let has_tap = self.has_event_handlers(TAP_HANDLERS);
-        let handler_key = match (has_click, has_tap, source) {
-            (true, true, PointerActivationSource::Mouse) => Some(CLICK_HANDLERS),
-            (true, true, PointerActivationSource::Touch) => Some(TAP_HANDLERS),
-            (true, false, _) => Some(CLICK_HANDLERS),
-            (false, true, _) => Some(TAP_HANDLERS),
-            (false, false, _) => None,
-        };
+        if let Some(routing) = ctx.active_captured_input() {
+            return routing.activation(
+                ctx,
+                self,
+                &event,
+                matches!(source, PointerActivationSource::Touch),
+            );
+        }
+        let handler_key =
+            self.pointer_activation_handler(matches!(source, PointerActivationSource::Touch));
 
         if let Some(handler_key) = handler_key {
             self.run_event_handlers_for_key(handler_key, &event, ctx);
@@ -4864,6 +4889,18 @@ impl ExpandedNode {
             }
         }
         event.cancelled()
+    }
+
+    pub(crate) fn pointer_activation_handler(&self, touch: bool) -> Option<&'static str> {
+        match (
+            self.has_event_handlers(CLICK_HANDLERS),
+            self.has_event_handlers(TAP_HANDLERS),
+            touch,
+        ) {
+            (true, true, false) | (true, false, _) => Some(CLICK_HANDLERS),
+            (true, true, true) | (false, true, _) => Some(TAP_HANDLERS),
+            (false, false, _) => None,
+        }
     }
 
     pub fn dispatch_click(

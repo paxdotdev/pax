@@ -7,12 +7,17 @@ use std::{marker::PhantomData, rc::Rc};
 mod graph_operations;
 mod local_property;
 mod properties_table;
+mod reads;
 mod shared_graph;
 mod shared_property;
 #[cfg(test)]
 mod shared_tests;
 #[cfg(test)]
 mod tests;
+#[doc(hidden)]
+pub use reads::PropertyReadScope;
+#[doc(hidden)]
+pub use untyped_property::{DependencyEventQueue, DependencyEventSubscription};
 mod untyped_property;
 
 use crate::{Duration, EasingCurve, Interpolatable, TransitionQueueEntry};

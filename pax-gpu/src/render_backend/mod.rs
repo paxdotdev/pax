@@ -624,12 +624,25 @@ impl GpuContext {
         self.frame_pacing.ready(frame)
     }
 
+    /// Last submission covered by a rendering-turn fence on this device.
+    #[doc(hidden)]
+    pub fn fenced_submission(&self) -> u64 {
+        self.frame_pacing.submission_serial()
+    }
+
+    /// Whether the queue acknowledged all work through a captured fence.
+    #[doc(hidden)]
+    pub fn completed_through(&self, serial: u64) -> bool {
+        self.frame_pacing.completed_through(serial)
+    }
+
     /// Fence all submissions made by the admitted rendering turn on this device.
     /// Empty turns consume no allowance. Completion never waits on the host thread.
     pub fn finish_render_turn(&self, frame: RenderFrame) {
         if self.unfenced_submission.replace(false) {
             let completion = self.frame_pacing.submitted(frame);
-            self.queue.on_submitted_work_done(move || drop(completion));
+            self.queue
+                .on_submitted_work_done(move || completion.complete());
         }
     }
 }
@@ -1372,10 +1385,14 @@ impl<'w> RenderBackend<'w> {
         config: RenderConfig,
         shared_context: Option<SharedGpuContext>,
     ) -> Result<(Self, SharedGpuContext), anyhow::Error> {
-        let lease = browser_canvas::BrowserCanvasLease::acquire(canvas.clone());
-        sync_browser_canvas_backing_size(&canvas, config.initial_width, config.initial_height);
+        let lease = browser_canvas::BrowserCanvasLease::acquire(
+            canvas,
+            config.initial_width,
+            config.initial_height,
+        )?;
+        lease.resize(config.initial_width, config.initial_height);
         if let Some(context) = shared_context {
-            let surface_target = wgpu::SurfaceTarget::Canvas(canvas.clone());
+            let surface_target = lease.target();
             let surface = context.instance.create_surface(surface_target)?;
             let mut backend = Self::new_with_context(surface, Rc::clone(&context), config)?;
             backend.browser_canvas = Some(lease);
@@ -1383,7 +1400,7 @@ impl<'w> RenderBackend<'w> {
         }
 
         let instance = Self::new_browser_instance(config.debug);
-        let surface_target = wgpu::SurfaceTarget::Canvas(canvas.clone());
+        let surface_target = lease.target();
         let surface = instance.create_surface(surface_target)?;
         let context = GpuContext::new(instance, &surface, &config).await?;
         let mut backend = Self::new_with_context(surface, Rc::clone(&context), config)?;
@@ -2065,7 +2082,7 @@ impl<'w> RenderBackend<'w> {
         self.surface_config.height = height;
         #[cfg(target_arch = "wasm32")]
         if let Some(canvas) = self.browser_canvas.as_ref() {
-            sync_browser_canvas_backing_size(&canvas.canvas, width, height);
+            canvas.resize(width, height);
         }
         self.stencil_renderer.resize(&self.device, width, height);
         self.target.configure(&self.device, &self.surface_config);

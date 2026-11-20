@@ -1,0 +1,114 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import test from 'node:test';
+import vm from 'node:vm';
+import {transformSync} from 'esbuild';
+
+const source = readFileSync(new URL('../src/classes/web-presentation.ts', import.meta.url), 'utf8');
+
+function harness() {
+    const log = [];
+    const listeners = new Map();
+    const root = {
+        setAttribute() {}, removeAttribute() {},
+        addEventListener: (name, fn) => listeners.set(name, fn),
+        removeEventListener: name => listeners.delete(name),
+    };
+    class Canvas {
+        id = 'tile';
+        isConnected = true;
+        dataset = {surfaceGeneration: '1', surfaceContentRevision: '1'};
+        style = {removeProperty() {}};
+        closest() { return root; }
+        getContext() { return {transferFromImageBitmap: image => log.push('draw ' + image.name)}; }
+        submit(name) {
+            const image = {name, close() { log.push('close ' + name); }};
+            listeners.get('pax-tile-submission')({target: this, detail: image, preventDefault() {}});
+        }
+    }
+    const module = {exports: {}};
+    vm.runInNewContext(transformSync(source, {loader: 'ts', format: 'cjs'}).code,
+        {module, exports: module.exports, HTMLCanvasElement: Canvas});
+    const state = {coverage: 'A', complete: 0n, fence: 1n};
+    const chassis = {
+        set_displayed_scroll_reader() {}, prepare_displayed_input: () => true,
+        publish_displayed_input: () => log.push('input'),
+        web_submission_fence: () => state.fence,
+        web_submission_complete: serial => serial <= state.complete,
+    };
+    const owner = new module.exports.WebPresentation(root, chassis,
+        messages => messages.forEach(msg => log.push(Object.keys(msg)[0])),
+        () => state.coverage, () => []);
+    owner.settled();
+    log.length = 0;
+    return {canvas: new Canvas(), owner, state, log};
+}
+
+test('a late fence holds its native prefix, image and input, preserving a newer successor', () => {
+    const {canvas, owner, state, log} = harness();
+    canvas.submit('old');
+    canvas.submit('first');
+    owner.receive([{ButtonUpdate: {}}, {ImageLoad: {}}]);
+    owner.settled();
+    assert.equal(owner.successorPending, false);
+    owner.didTick();
+    assert.equal(owner.successorPending, true);
+    owner.receive([{ButtonDelete: {}}]);
+    owner.publish();
+    assert.deepEqual(log, ['close old', 'ImageLoad']);
+    state.complete = 1n;
+    owner.publish();
+    assert.equal(owner.successorPending, false);
+    assert.deepEqual(log.slice(-3), ['ButtonUpdate', 'draw first', 'input']);
+    state.fence = 2n;
+    owner.settled();
+    owner.publish();
+    assert.equal(log.includes('ButtonDelete'), false);
+    state.complete = 2n;
+    owner.publish();
+    assert.deepEqual(log.slice(-2), ['ButtonDelete', 'input']);
+});
+
+test('a changed visible assignment invalidates the old completion and retains native order', () => {
+    const {canvas, owner, state, log} = harness();
+    owner.receive([{ButtonCreate: {}}]);
+    canvas.submit('retired');
+    owner.settled();
+    owner.receive([{ButtonUpdate: {}}]);
+    canvas.dataset.surfaceGeneration = '2';
+    state.coverage = 'B';
+    state.complete = 1n;
+    owner.publish();
+    assert.deepEqual(log, ['close retired']);
+    canvas.submit('replacement');
+    state.fence = 2n;
+    owner.settled();
+    owner.publish();
+    assert.deepEqual(log, ['close retired']);
+    state.complete = 2n;
+    owner.publish();
+    assert.deepEqual(log.slice(1), ['ButtonCreate', 'ButtonUpdate', 'draw replacement', 'input']);
+});
+
+test('a newly required tile invalidates coverage even if a prepared lease is still current', () => {
+    const {canvas, owner, state, log} = harness();
+    canvas.submit('keep');
+    owner.settled();
+    state.coverage = 'A+B';
+    state.complete = 1n;
+    owner.publish();
+    assert.deepEqual(log, []);
+    owner.dispose();
+    assert.deepEqual(log, ['close keep']);
+});
+
+test('exceeding the proof budget stops before applying any part of the retained prefix', () => {
+    const {canvas, owner, state, log} = harness();
+    canvas.submit('pending');
+    owner.settled();
+    assert.throws(() => owner.receive(Array.from({length: 2049}, () => ({ButtonUpdate: {}}))), /budget/);
+    state.complete = 1n;
+    owner.publish();
+    assert.equal(owner.stopped, true);
+    assert.deepEqual(log, ['close pending']);
+});

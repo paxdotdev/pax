@@ -55,12 +55,19 @@ pub struct PropertyData {
     // has been changed. For computed this can be any other props,
     // for literals, only time variable
     pub dirty: bool,
+    pub(super) invalidation_events: Option<Box<super::untyped_property::DependencyReaders>>,
     // Type-erased entry point used to settle cutoff properties from the
     // synchronous reactive worklist.
     pub(super) cutoff_settler: Option<Rc<dyn Fn(&PropertyTable, PropertyId) -> CutoffEvaluation>>,
 }
 
 impl PropertyData {
+    pub(super) fn notify_readers(&mut self) {
+        if let Some(watchers) = &mut self.invalidation_events {
+            watchers.notify();
+        }
+    }
+
     fn typed_data<T: 'static>(&mut self) -> &mut TypedPropertyData<T> {
         self.typed_data
             .downcast_mut::<TypedPropertyData<T>>()
@@ -219,6 +226,7 @@ impl PropertyTable {
     // Makes sure the value is up to date before returning in the case
     // of computed properties.
     pub fn get_value<T: PropertyValue>(&self, id: PropertyId) -> T {
+        super::reads::record(id);
         self.update_value::<T>(id);
         self.with_property_data_mut(id, |property_data| {
             property_data.typed_data::<T>().value.clone()
@@ -227,6 +235,7 @@ impl PropertyTable {
 
     // Reads a property value by reference after updating dirty dependencies.
     pub fn read_value<T: PropertyValue, V>(&self, id: PropertyId, f: impl FnOnce(&T) -> V) -> V {
+        super::reads::record(id);
         self.update_value::<T>(id);
         self.with_property_data_mut(id, |property_data| {
             f(&property_data.typed_data::<T>().value)
@@ -253,6 +262,7 @@ impl PropertyTable {
 
     pub fn invalidate(&self, id: PropertyId) {
         let (newly_dirty, is_cutoff) = self.with_property_data_mut(id, |property_data| {
+            property_data.notify_readers();
             if property_data.dirty {
                 (false, property_data.cutoff_settler.is_some())
             } else {
@@ -303,6 +313,7 @@ impl PropertyTable {
             let entry = Entry {
                 ref_count: 1,
                 data: Some(PropertyData {
+                    invalidation_events: None,
                     owner_graph: super::shared_graph::current_graph_id(),
                     owner_scope: super::shared_graph::current_binding_scope(),
                     inbound,
@@ -485,6 +496,7 @@ impl PropertyTable {
         &self,
         source_id: PropertyId,
         target_id: PropertyId,
+        defer_unobserved_cutoff: bool,
     ) {
         if source_id == target_id {
             return;
@@ -539,7 +551,16 @@ impl PropertyTable {
             panic!("cutoff properties cannot be registered as effects");
         }
         if self.is_cutoff(source_id) && self.is_dirty(source_id) {
-            self.enqueue_cutoff(source_id);
+            let defer = defer_unobserved_cutoff
+                && self.with_property_data_mut(source_id, |p| {
+                    p.outbound.is_empty()
+                        && p.invalidation_events.is_none()
+                        && p.typed_data::<T>().publisher.is_none()
+                        && p.typed_data::<T>().shared.is_none()
+                });
+            if !defer {
+                self.enqueue_cutoff(source_id);
+            }
         }
 
         // make sure dependencies of self
