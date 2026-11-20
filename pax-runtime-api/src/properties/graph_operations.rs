@@ -3,8 +3,10 @@ use super::{private::PropertyId, properties_table::PropertyTable};
 impl PropertyTable {
     // marks dependencies of self dirty recursively
     pub fn dirtify_outbound(&self, id: PropertyId) {
-        let mut to_dirtify =
-            self.with_property_data_mut(id, |property_data| property_data.outbound.clone());
+        let mut to_dirtify = self.with_property_data_mut(id, |data| {
+            data.notify_readers();
+            data.outbound.clone()
+        });
 
         while let Some(dep_id) = to_dirtify.pop() {
             let (newly_dirty, is_cutoff) = self.with_property_data_mut(dep_id, |dep_data| {
@@ -13,6 +15,7 @@ impl PropertyTable {
                 }
                 if !dep_data.dirty {
                     dep_data.dirty = true;
+                    dep_data.notify_readers();
                     let is_cutoff = dep_data.cutoff_settler.is_some();
                     if !is_cutoff {
                         to_dirtify.extend_from_slice(&dep_data.outbound);

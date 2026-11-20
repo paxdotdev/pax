@@ -8,6 +8,9 @@ import {surfaceRequire} from './surface-test-loader.mjs';
 class Element {
     dataset = {}; style = {}; children = []; parentElement;
     hasAttribute(name) { return name.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase()) in this.dataset; }
+    closest(selector) {
+        return this.hasAttribute(selector.slice(1, -1)) ? this : this.parentElement?.closest(selector);
+    }
     appendChild(child) {
         child.parentElement?.removeChild(child);
         child.parentElement = this;

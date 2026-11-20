@@ -116,6 +116,11 @@ export class PaxChassisWeb {
 */
   render(): void;
   begin_render_work(epoch: number): void;
+  set_displayed_scroll_reader(reader: () => [number, number, number][]): void;
+  prepare_displayed_input(): boolean;
+  publish_displayed_input(): void;
+  web_submission_fence(): bigint | undefined;
+  web_submission_complete(serial: bigint): boolean;
   continue_render_work(epoch: number): void;
   render_work_is_settled(): boolean;
   service_render_work(slice_ms: number): import('../utils/cooperative-render').RenderWorkResult & {

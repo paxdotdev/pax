@@ -78,6 +78,22 @@ pub(crate) struct WebRendererFamily {
     gpu: std::rc::Rc<futures_util::lock::Mutex<Option<pax_gpu::render_backend::SharedGpuContext>>>,
 }
 
+impl WebRendererFamily {
+    pub(crate) fn fenced_submission(&self) -> Option<u64> {
+        self.gpu
+            .try_lock()?
+            .as_ref()
+            .map(|gpu| gpu.fenced_submission())
+    }
+
+    pub(crate) fn completed_through(&self, serial: u64) -> bool {
+        self.gpu.try_lock().is_some_and(|slot| {
+            slot.as_ref()
+                .is_some_and(|gpu| gpu.completed_through(serial))
+        })
+    }
+}
+
 impl PreparedWebRenderer {
     pub fn hold_presentation(mut self) -> Self {
         self.hold = true;

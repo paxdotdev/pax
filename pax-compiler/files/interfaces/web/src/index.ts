@@ -1,3 +1,4 @@
+import {WebPresentation} from "./classes/web-presentation";
 import {sharedWorkBudget, requestPreparationFrame} from "./utils/shared-work-budget";
 import {startLoadingApplication} from "./loading";
 import {abortable} from "./utils/abortable";
@@ -208,6 +209,7 @@ let startupViewportReady = false;
 let startupWork: StartupWork | undefined;
 let startupFeedbackFrameReady = false;
 let mountYieldEnabled = false;
+let presentation: WebPresentation | undefined;
 let cooperativeRender: CooperativeRenderScheduler | undefined;
 let renderEpoch = 0;
 let hiddenTabPumpHandle: number | null = null;
@@ -488,6 +490,7 @@ function disposeCurrentChassis() {
         teardownRouteLocationSync, teardownResizeHandler, teardownEventListeners,
         () => chassis?.set_surface_ready_callback(undefined),
         () => { cooperativeRender?.dispose(); cooperativeRender = undefined; },
+        () => { presentation?.dispose(); presentation = undefined; },
         () => nativePool.dispose(), () => chassis?.free()];
     teardownHiddenTabPump = teardownRouteLocationSync = teardownResizeHandler = teardownEventListeners = null;
     renderLoopStarted = renderLoopStarting = initializedChassis = frameInProgress = pendingAsyncInterruptFlush = false;
@@ -512,7 +515,15 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element, session
 }
 
 function attachChassis(chassis: PaxChassisWeb, mount: Element) {
-    nativeMessageOwners.set(chassis, (messages, manager) => processMessages(messages, chassis, manager));
+    if (!liveSession?.options.loader && new URLSearchParams(window.location.search).get("pax_web_presentation") === "1"
+        && chassis.web_submission_fence() !== undefined) {
+        presentation = new WebPresentation(mount, chassis, messages => processMessages(messages, chassis, objectManager),
+            () => nativePool.presentationCoverage(), () => nativePool.displayedScrollOffsets());
+    }
+    nativeMessageOwners.set(chassis, (messages, manager) => {
+        if (presentation) presentation.receive(messages);
+        else processMessages(messages, chassis, manager);
+    });
     startupPresented = false;
     startupRenderStarted = false;
     ordinaryRenderPending = false;
@@ -601,7 +612,9 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
                     }
                     nativePool.syncRenderSurfaceLayouts(true);
                 }
+                if (presentation?.awaitingFence) return {pending: false, blocked: true};
                 const report = sharedWorkBudget.run(3, budget => chassis.service_render_work(budget));
+                if (!report.visible_pending && !report.blocker) presentation?.settled();
                 ordinaryRenderPending = report.visible_pending && !report.blocked;
                 recordService?.(report);
                 return report;
@@ -885,7 +898,7 @@ function runStartupFrame(chassis: PaxChassisWeb, mount: Element) {
 }
 
 function runFrame(chassis: PaxChassisWeb, mount: Element) {
-    if (frameScheduler.suspended || frameInProgress || chassis !== currentChassis || mount !== currentMount) {
+    if (frameScheduler.suspended || frameInProgress || presentation?.stopped || chassis !== currentChassis || mount !== currentMount) {
         return;
     }
     if (mountYieldEnabled && !startupPresented) {
@@ -903,6 +916,12 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
     try {
         nativePool.beginTraceFrame(renderEpoch);
         initializeChassis(chassis, mount);
+        if (presentation?.awaitingFence) {
+            nativePool.sampleFrameInputs();
+            nativePool.syncRenderSurfaceLayouts(true);
+            presentation.publish();
+            if (presentation.successorPending) return;
+        }
         if (ordinaryRenderPending) {
             nativePool.sampleFrameInputs();
             if (!chassis.has_pending_properties() && chassis.render_work_is_settled()) {
@@ -929,8 +948,10 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
                 nativePool.recordInputQueryWork(input);
                 return messages;
             });
+            presentation?.didTick();
             withProfileMeasure("processMessages", () => {
-                processMessages(messages, chassis, objectManager);
+                if (presentation) presentation.receive(messages);
+                else processMessages(messages, chassis, objectManager);
             });
             withProfileMeasure("syncRenderSurfaceLayoutsPhase", () => {
                 nativePool.syncRenderSurfaceLayouts();

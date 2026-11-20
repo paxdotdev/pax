@@ -21,6 +21,7 @@ function harness() {
     const module = {exports: {}};
     vm.runInNewContext(transformSync(`
         let ordinaryRenderPending = false, frameInProgress = false;
+        const presentation = undefined;
         const surfaceTraceEnabled = false;
         const chassis = {
             has_pending_properties: () => state.pendingProperties,

@@ -23,6 +23,8 @@ use std::rc::{Rc, Weak};
 use std::sync::OnceLock;
 use std::time::Instant;
 
+#[doc(hidden)]
+pub mod input_capture;
 mod input_query;
 
 use crate::{ExpandedNode, Globals};
@@ -116,6 +118,10 @@ pub struct RuntimeContext {
     pub(crate) presentation: RefCell<crate::presentation::PresentationState>,
     pub(crate) presentation_order_generation: LocalProperty<u64>,
     pub(crate) startup: RefCell<crate::engine::startup::Startup>,
+    input_capture_dirty: RefCell<Option<HashSet<u32>>>,
+    input_capture_topology: Cell<bool>,
+    captured_input_scopes: RefCell<Vec<Rc<input_capture::CapturedInputRouting>>>,
+    captured_input_hover: RefCell<Option<input_capture::CapturedInputHover>>,
     pub(crate) replaying_startup_input: RefCell<Option<crate::engine::startup::StartupInput>>,
     pub application: pax_runtime_api::application::ApplicationInstance,
     /// Owner-thread bridge for application properties.
@@ -163,7 +169,7 @@ pub struct RuntimeContext {
     removed_canvas_nodes: RefCell<Vec<(usize, u32)>>,
     occlusion_dirty: Cell<bool>,
     pub(crate) occlusion_state: RefCell<crate::engine::occlusion::OcclusionState>,
-    pub(crate) work_profile: RefCell<Option<crate::work_profile::WorkProfile>>,
+    pub(crate) work_profile: Rc<RefCell<Option<crate::work_profile::WorkProfile>>>,
     layer_canvas_plan_generation: Cell<u32>,
     canvas_drawable_layers: RefCell<HashSet<usize>>,
     import_settings_node_count: Cell<usize>,
@@ -296,6 +302,10 @@ impl RuntimeContext {
             presentation: Default::default(),
             presentation_order_generation: LocalProperty::new(0),
             startup: Default::default(),
+            input_capture_dirty: Default::default(),
+            input_capture_topology: Default::default(),
+            captured_input_scopes: Default::default(),
+            captured_input_hover: Default::default(),
             replaying_startup_input: Default::default(),
             application,
             messages: RefCell::new(Vec::new()),
@@ -367,6 +377,10 @@ impl RuntimeContext {
             presentation: Default::default(),
             presentation_order_generation: LocalProperty::new(0),
             startup: Default::default(),
+            input_capture_dirty: Default::default(),
+            input_capture_topology: Default::default(),
+            captured_input_scopes: Default::default(),
+            captured_input_hover: Default::default(),
             replaying_startup_input: Default::default(),
             application,
             messages: RefCell::new(Vec::new()),
@@ -440,6 +454,10 @@ impl RuntimeContext {
             presentation: Default::default(),
             presentation_order_generation: LocalProperty::new(0),
             startup: Default::default(),
+            input_capture_dirty: Default::default(),
+            input_capture_topology: Default::default(),
+            captured_input_scopes: Default::default(),
+            captured_input_hover: Default::default(),
             replaying_startup_input: Default::default(),
             wheel_regions: Default::default(),
             application,
@@ -1512,6 +1530,7 @@ impl RuntimeContext {
 
     #[track_caller]
     fn mark_occlusion_dirty_with_origin(&self, node: Option<u32>) {
+        self.input_capture_topology.set(true);
         self.scene_geometry.borrow_mut().input.topology_dirty = true;
         self.occlusion_dirty.set(true);
         let mut state = self.occlusion_state.borrow_mut();
@@ -2368,21 +2387,20 @@ impl RuntimeContext {
         self.get_layer_scroller_owner(own_layer)
             .and_then(|owner| self.get_expanded_node_by_eid(owner))
             .map_or(Affine::IDENTITY, |owner| {
-                let inverse = Affine::from(
-                    owner
-                        .presentation_transform_and_bounds
-                        .get()
-                        .transform
-                        .inverse(),
-                );
-                // Responsive previews can start at scale zero before layout. An
-                // inverse of that owner would poison descendant paths with NaN.
-                if inverse.as_coeffs().iter().all(|v| v.is_finite()) {
-                    inverse
-                } else {
-                    Affine::scale(0.0)
-                }
+                Self::inverse_canvas_owner_transform(owner.presentation_transform_and_bounds.get())
             })
+    }
+
+    pub(crate) fn inverse_canvas_owner_transform(
+        owner: crate::TransformAndBounds<crate::node_interface::NodeLocal, Window>,
+    ) -> Affine {
+        let inverse = Affine::from(owner.transform.inverse());
+        // A responsive preview may begin collapsed while its first layout settles.
+        if inverse.as_coeffs().iter().all(|v| v.is_finite()) {
+            inverse
+        } else {
+            Affine::scale(0.0)
+        }
     }
 
     pub(crate) fn invalidate_scene_geometry(&self, id: u32) {
@@ -2774,6 +2792,17 @@ impl RuntimeContext {
         mut accum: Vec<Rc<ExpandedNode>>,
         hit_invisible: bool,
     ) -> Vec<Rc<ExpandedNode>> {
+        if let Some(routing) = self.active_captured_input() {
+            routing.query(
+                self,
+                root.as_ref(),
+                ray,
+                limit_one,
+                hit_invisible,
+                &mut accum,
+            );
+            return accum;
+        }
         //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
         //First: check whether events are suppressed
         //Next: check whether ancestral clipping bounds (hit_test) are satisfied
@@ -3037,6 +3066,9 @@ impl RuntimeContext {
         self: &Rc<Self>,
         ray: Point2<Window>,
     ) -> Option<Rc<ExpandedNode>> {
+        if let Some(routing) = self.active_captured_input() {
+            return routing.topmost(self, ray);
+        }
         if let Some(input) = self.replaying_startup_input.borrow().as_ref() {
             return input
                 .target

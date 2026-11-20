@@ -33,6 +33,19 @@ export class SurfaceCoordinator {
         return true;
     }
 
+    // Optional publication compares the visible assignments at submission and
+    // display. A newly visible tile can invalidate a frame even when every
+    // previously submitted canvas still belongs to the same lease.
+    presentationCoverage(): string | undefined {
+        if (!this.presentationReady()) return undefined;
+        const assignments = Array.from(this.requiredForPresentation, id => {
+            const canvas = this.canvases.get(id)!;
+            return [id, canvas.dataset.surfaceGeneration, canvas.dataset.surfaceContentRevision,
+                this.lastCanvasSurfaceSignatures.get(id), this.lastCanvasTransformSignatures.get(id)];
+        });
+        return JSON.stringify([window.innerWidth, window.innerHeight, window.devicePixelRatio, assignments]);
+    }
+
     constructor(private canvases: Map<string, HTMLCanvasElement>,
         private layers: RenderLayerManager, private refresh: (layers: number[]) => void,
         private publish: (plan: InstalledSurfacePlan) => void = () => {},
@@ -187,8 +200,12 @@ export class SurfaceCoordinator {
             // them, including fractional rounding and backend hard limits.
             const width = Number(canvas.dataset.expectedBackingWidth);
             const height = Number(canvas.dataset.expectedBackingHeight);
+            const backingWidth = canvas.dataset.paxBitmapFront === undefined
+                ? canvas.width : Number(canvas.dataset.paxPreparedWidth);
+            const backingHeight = canvas.dataset.paxBitmapFront === undefined
+                ? canvas.height : Number(canvas.dataset.paxPreparedHeight);
             if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0
-                && (canvas.width !== width || canvas.height !== height)) {
+                && (backingWidth !== width || backingHeight !== height)) {
                 layers.add(layerId);
             }
         });

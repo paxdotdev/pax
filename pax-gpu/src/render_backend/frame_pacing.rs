@@ -24,12 +24,21 @@ impl Default for RenderFrame {
 struct State {
     pending: HashMap<RenderFrame, u64>,
     serial: u64,
+    completed: u64,
 }
 #[derive(Default)]
 pub(super) struct FramePacing {
     state: Arc<Mutex<State>>,
 }
 impl FramePacing {
+    pub(super) fn submission_serial(&self) -> u64 {
+        self.state.lock().unwrap().serial
+    }
+
+    pub(super) fn completed_through(&self, serial: u64) -> bool {
+        self.state.lock().unwrap().completed >= serial
+    }
+
     pub(super) fn ready(&self, frame: RenderFrame) -> bool {
         let state = self.state.lock().unwrap();
         state.pending.contains_key(&frame) || state.pending.len() < MAX_PENDING_FRAMES
@@ -43,6 +52,7 @@ impl FramePacing {
             state: Arc::clone(&self.state),
             frame,
             serial,
+            acknowledged: false,
         }
     }
 }
@@ -54,10 +64,21 @@ pub(super) struct Completion {
     state: Arc<Mutex<State>>,
     frame: RenderFrame,
     serial: u64,
+    acknowledged: bool,
+}
+impl Completion {
+    // Dropping a cancelled callback releases pacing capacity. Only an actual
+    // queue acknowledgement makes an immutable image eligible for display.
+    pub(super) fn complete(mut self) {
+        self.acknowledged = true;
+    }
 }
 impl Drop for Completion {
     fn drop(&mut self) {
         let mut state = self.state.lock().unwrap();
+        if self.acknowledged {
+            state.completed = state.completed.max(self.serial);
+        }
         if state.pending.get(&self.frame) == Some(&self.serial) {
             state.pending.remove(&self.frame);
         }
@@ -66,6 +87,20 @@ impl Drop for Completion {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn publication_waits_for_its_own_submission() {
+        let pacing = FramePacing::default();
+        let frame = RenderFrame::default();
+        let earlier = pacing.submitted(frame);
+        let cancelled = pacing.submitted(frame);
+        let latest = pacing.submitted(frame);
+        let serial = pacing.submission_serial();
+        earlier.complete();
+        drop(cancelled);
+        assert!(!pacing.completed_through(serial));
+        latest.complete();
+        assert!(pacing.completed_through(serial));
+    }
     #[test]
     fn completion_reopens_capacity_without_queueing_more_frames() {
         let pacing = FramePacing::default();

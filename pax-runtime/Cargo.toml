@@ -10,6 +10,7 @@ description = "Core shared runtime and rendering engine for Pax"
 
 
 [dependencies]
+imbl = "7.0.2"
 vello_cpu = { version = "=0.3.0", default-features = false, features = ["std", "u8_pipeline"] }
 vello_common = { version = "=0.3.0", default-features = false, features = ["std"] }
 cfg-if = "1.0.0"

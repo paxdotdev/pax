@@ -120,19 +120,38 @@ pub struct ScopedWork {
 
 /// An opt-in timing scope. Dropping it records work only while capture is active.
 pub struct WorkProfileScope {
-    context: Weak<RuntimeContext>,
+    profile: Weak<std::cell::RefCell<Option<WorkProfile>>>,
     node: u32,
     name: &'static str,
     started: web_time::Instant,
 }
 
+impl WorkProfileScope {
+    pub(crate) fn start(
+        profile: &Rc<std::cell::RefCell<Option<WorkProfile>>>,
+        node: u32,
+        name: &'static str,
+    ) -> Option<Self> {
+        profile
+            .borrow()
+            .as_ref()
+            .is_some_and(|p| p.active)
+            .then(|| Self {
+                profile: Rc::downgrade(profile),
+                node,
+                name,
+                started: web_time::Instant::now(),
+            })
+    }
+}
+
 impl Drop for WorkProfileScope {
     fn drop(&mut self) {
         let elapsed = self.started.elapsed().as_secs_f64() * 1000.;
-        let Some(context) = self.context.upgrade() else {
+        let Some(profile) = self.profile.upgrade() else {
             return;
         };
-        let mut slot = context.work_profile.borrow_mut();
+        let mut slot = profile.borrow_mut();
         if let Some(profile) = slot.as_mut().filter(|p| p.active) {
             let work = profile.scopes.entry((self.node, self.name)).or_default();
             work.calls += 1;
@@ -208,12 +227,7 @@ impl RuntimeContext {
         node: u32,
         name: &'static str,
     ) -> Option<WorkProfileScope> {
-        self.work_profile_active().then(|| WorkProfileScope {
-            context: Rc::downgrade(self),
-            node,
-            name,
-            started: web_time::Instant::now(),
-        })
+        WorkProfileScope::start(&self.work_profile, node, name)
     }
     /// Enable CPU-work capture before mounting to retain complete diagnostic names.
     /// Collection begins only after `begin_work_profile`, in debug or release builds.

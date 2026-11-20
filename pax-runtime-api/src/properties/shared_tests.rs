@@ -10,6 +10,49 @@ use std::{
 };
 
 #[test]
+fn unobserved_replacement_cutoff_starts_at_first_read_or_subscription() {
+    let graph = PropertyGraph::new(|| {});
+    let _entered = graph.enter();
+    let input = LocalProperty::new(1_u32);
+    let calls = Rc::new(Cell::new(0));
+    let bind = |p: &LocalProperty<u32>| {
+        let source = input.clone();
+        let calls = calls.clone();
+        p.replace_with_lazy(LocalProperty::computed_with_cutoff(
+            move || {
+                calls.set(calls.get() + 1);
+                source.get()
+            },
+            &[input.untyped()],
+            u32::eq,
+        ));
+    };
+
+    let read = LocalProperty::default();
+    let observed = LocalProperty::default();
+    bind(&read);
+    bind(&observed);
+    input.set(2);
+    drain_effects(32);
+    assert_eq!(calls.get(), 0);
+    assert_eq!(read.get(), 2);
+    assert_eq!(calls.get(), 1);
+
+    let value = observed.clone();
+    let seen = Rc::new(Cell::new(0));
+    let output = seen.clone();
+    let listener = LocalProperty::computed(move || output.set(value.get()), &[observed.untyped()]);
+    register_effect_property(&listener);
+    drain_effects(32);
+    assert_eq!(seen.get(), 2);
+    assert_eq!(calls.get(), 2);
+    input.set(3);
+    assert_eq!(read.get(), 3);
+    drain_effects(32);
+    assert_eq!(seen.get(), 3);
+}
+
+#[test]
 fn startup_profile_counts_cutoffs_without_replaying_effects() {
     let graph = PropertyGraph::new(|| {});
     graph.set_diagnostic_names_enabled(true);

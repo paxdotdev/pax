@@ -235,6 +235,128 @@ fn viewport_canvas_motion_keeps_invalidating_retained_paint() {
 }
 
 #[test]
+fn fallback_paint_tracks_the_assigned_surface_when_world_geometry_stays_fixed() {
+    let (ctx, root) = mount(vec![
+        probe(Kind::Group, vec![]),
+        probe(Kind::Group, vec![]),
+        retained_probe(Kind::Canvas, vec![]),
+    ]);
+    let nodes = root.children.get()[0].children.get();
+    let (first, second, leaf) = (&nodes[0], &nodes[1], &nodes[2]);
+    let set_x = |n: &ExpandedNode, x: f64| {
+        n.get_common_properties()
+            .borrow()
+            .x
+            .set(Some(Size::Pixels(x.into())));
+    };
+    set_x(first, 15.);
+    set_x(second, 15.);
+    set_x(leaf, 80.);
+    ctx.register_layer_scroller_owner(1, first.id);
+    ctx.register_layer_scroller_owner(2, second.id);
+    let assign = |layer| {
+        let mut order = leaf.occlusion.get();
+        order.render_layer_id = layer;
+        assign_occlusion(leaf, order, Layer::Canvas, &ctx);
+    };
+    let check = |owner: Option<&ExpandedNode>| {
+        let projected = leaf.presentation_transform_and_bounds.get();
+        let actual_owner = ctx.get_layer_scroller_owner(leaf.occlusion.get().render_layer_id);
+        assert_eq!(actual_owner, owner.map(|n| n.id));
+        assert_eq!(leaf.canvas_owner.get(), actual_owner.map(|n| n.to_u32()));
+        let inverse = owner.map_or(Affine::IDENTITY, |owner| {
+            Affine::from(owner.presentation_transform_and_bounds.get().transform).inverse()
+        });
+        let expected = inverse * Affine::from(projected.transform);
+        assert_eq!(ctx.canvas_surface_transform_for_node(leaf), expected);
+        assert_eq!(
+            Affine::from(leaf.canvas_transform_and_bounds.get().transform),
+            expected
+        );
+    };
+    ctx.drain_node_effects();
+    check(None);
+    let paints = std::rc::Rc::new(std::cell::Cell::new(0));
+    let count = paints.clone();
+    leaf.changed_listener
+        .replace_with(pax_runtime_api::LocalProperty::computed(
+            move || count.set(count.get() + 1),
+            &[leaf.canvas_transform_and_bounds.untyped()],
+        ));
+    ctx.register_expanded_node_effect_property_named(leaf, &leaf.changed_listener, "paint");
+    ctx.drain_node_effects();
+    paints.set(0);
+    leaf.presentation_transform_and_bounds.invalidate();
+    ctx.drain_node_effects();
+    assert!(paints.get() == 0, "identical flat placement retains paint");
+
+    assign(1);
+    ctx.drain_node_effects();
+    check(Some(first));
+    assert_eq!(paints.replace(0), 1);
+    ctx.take_canvas_node_removals();
+    assign(2);
+    ctx.drain_node_effects();
+    check(Some(second));
+    assert_eq!(
+        paints.replace(0),
+        1,
+        "a different surface must receive its paint"
+    );
+    assert!(ctx
+        .take_canvas_node_removals()
+        .contains(&(1, leaf.id.to_u32())));
+    assert!(ctx.is_canvas_node_dirty(&leaf.id));
+
+    set_x(first, 40.);
+    ctx.drain_node_effects();
+    check(Some(second));
+    assert!(
+        paints.get() == 0,
+        "the retired surface cannot invalidate this leaf"
+    );
+    set_x(second, 35.);
+    check(Some(second)); // geometry is readable before servicing queued paint
+    ctx.drain_node_effects();
+    assert_eq!(paints.replace(0), 1);
+    // A structural rebuild may recycle the layer number for a different owner.
+    clear(&ctx);
+    ctx.register_layer_scroller_owner(2, first.id);
+    assign(2);
+    assert!(ctx.is_canvas_node_dirty(&leaf.id));
+    ctx.drain_node_effects();
+    check(Some(first));
+    assign(0);
+    ctx.drain_node_effects();
+    check(None);
+}
+
+#[cfg(feature = "3d")]
+#[test]
+fn unchanged_xy_footprint_still_invalidates_paint_when_depth_changes() {
+    let (ctx, root) = mount(vec![retained_probe(Kind::Canvas, vec![])]);
+    let n = root.children.get()[0].children.get()[0].clone();
+    let z = n.get_common_properties().borrow().z.clone();
+    z.set(Some(10.0.into()));
+    ctx.drain_node_effects();
+    let before = n.canvas_transform_and_bounds.get();
+    let paints = Rc::new(std::cell::Cell::new(0));
+    let count = paints.clone();
+    n.changed_listener
+        .replace_with(pax_runtime_api::LocalProperty::computed(
+            move || count.set(count.get() + 1),
+            &[n.canvas_transform_and_bounds.untyped()],
+        ));
+    ctx.register_expanded_node_effect_property_named(&n, &n.changed_listener, "paint");
+    ctx.drain_node_effects();
+    paints.set(0);
+    z.set(Some(20.0.into()));
+    ctx.drain_node_effects();
+    assert_eq!(n.canvas_transform_and_bounds.get(), before);
+    assert_eq!(paints.get(), 1);
+}
+
+#[test]
 fn retained_host_motion_and_subsequent_clip_edits_match_full_rebuild() {
     let (ctx, root) = mount(vec![retained_probe(
         Kind::Clip,
