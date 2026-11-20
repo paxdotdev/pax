@@ -393,9 +393,8 @@ for the dependency declaration and feature-off behavior.
 `InstanceNode::shader_effect` is an experimental extension point for a
 GPU-only subtree filter. Return `Some(ShaderEffect)` from a primitive with
 `Layer::Canvas`. Keep returning `Some` throughout the node's mounted lifetime;
-use an identity pass or parameter value to disable filtering. The renderer
-captures its ordinary descendants and replaces
-their GPU presentation with the final pass output. The original nodes remain
+use an identity pass or parameter value to disable filtering. The renderer replaces the descendants’ GPU presentation with the final pass
+output. It captures their pixels when a pass requests a subtree input. The original nodes remain
 responsible for native coverage and hit testing.
 
 The standard-library implementations are in `pax-std/src/shaders/gaussian_blur.rs`
@@ -411,13 +410,31 @@ tracked independently.
 
 A `ShaderProgram` is an immutable Rust resource containing 1–8 ordered
 `ShaderPass` values. Each pass declares its WGSL source, diagnostic label,
-two inputs (the captured subtree or an earlier pass), a resolution divisor
+two inputs (the captured subtree, a solid color, or an earlier pass), a resolution divisor
 of 1, 2, 4, 8, or 16, and up to 32 typed parameters. Parameters support `Float`, `Uint`,
 `Vec2`, and `Vec4`; each occupies an explicit, zero-padded 16-byte uniform slot.
 `ShaderEffect.parameters` supplies one matching list of values per pass.
 Non-finite floats, mismatched schemas, invalid identifiers, and forward/cyclic
 pass references are rejected. WGSL is parsed and validated with the pinned
 Naga version, with the source label included in diagnostics.
+
+A shader with a known uniform base can declare it directly in its Rust recipe.
+For example, the curtain uses these pass fields:
+
+```rust,ignore
+inputs: [ShaderInput::SolidColor([19, 17, 20, 255]); 2],
+downsample: 2,
+```
+
+The four bytes specify straight RGBA. Sampling returns premultiplied color
+inside the primitive’s local layout rectangle, with filtered edges and
+transparency outside. A solid input uses the full backing pixel density for
+its edge and `input0_pixel_size()`, even when pass output is downsampled.
+Passes can mix a color with `ShaderInput::Pass(n)` or `ShaderInput::Subtree`.
+If no pass requests `Subtree`, WGPU skips the source texture, rasterization,
+and capture attachments. The renderer only uses the inputs declared in the
+recipe. Descendants still supply their usual hit and native coverage geometry.
+Provide child paint or an authored CPU fallback for a CPU renderer.
 
 Implement this function in each pass:
 

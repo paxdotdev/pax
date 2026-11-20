@@ -10,6 +10,7 @@ struct EffectDomain {
     camera_w: vec4<f32>,
     // Active source pixels and allocated capacity. All passes share this domain.
     storage: vec4<f32>,
+    local_size: vec4<f32>,
 };
 @group(0) @binding(0) var<uniform> domain: EffectDomain;
 @group(0) @binding(2) var input0: texture_2d<f32>;
@@ -26,16 +27,6 @@ fn visible_local(p: vec2<f32>) -> bool {
     let z = dot(domain.camera_z.xyz, h);
     return dot(domain.surface2.xyz, h) > 0.0 && w > 0.0 &&
         (domain.camera_z.w == 0.0 || (z >= 0.0 && z <= w));
-}
-fn sample_input0(p: vec2<f32>) -> vec4<f32> {
-    let uv = input_uv(p);
-    let value = textureSampleLevel(input0, input_sampler, storage_uv(uv, textureDimensions(input0)), 0.0);
-    return select(vec4<f32>(0.0), value, visible_local(p) && all(uv >= vec2<f32>(0.0)) && all(uv <= vec2<f32>(1.0)));
-}
-fn sample_input1(p: vec2<f32>) -> vec4<f32> {
-    let uv = input_uv(p);
-    let value = textureSampleLevel(input1, input_sampler, storage_uv(uv, textureDimensions(input1)), 0.0);
-    return select(vec4<f32>(0.0), value, visible_local(p) && all(uv >= vec2<f32>(0.0)) && all(uv <= vec2<f32>(1.0)));
 }
 fn active_pixels(dimensions: vec2<u32>) -> vec2<f32> {
     return ceil(domain.storage.xy * vec2<f32>(dimensions) / domain.storage.zw);
@@ -61,7 +52,7 @@ var<private> pax_effect_position: vec2<f32>;
 }
 // Local-axis distance corresponding to one texel of input0, including scale/rotation and DPR.
 fn input0_pixel_size() -> vec2<f32> {
-    let density = active_pixels(textureDimensions(input0)) / domain.rect.zw;
+    let density = PAX_INPUT0_ACTIVE_PIXELS / domain.rect.zw;
     let h = vec3<f32>(pax_effect_position, 1.0);
     let w = dot(domain.surface2.xyz, h);
     let xy = vec2<f32>(dot(domain.surface0.xyz, h), dot(domain.surface1.xyz, h));

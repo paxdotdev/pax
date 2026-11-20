@@ -6,6 +6,24 @@ use wgpu::util::DeviceExt;
 
 const MAX_EFFECT_BYTES: u64 = 256 * 1024 * 1024;
 
+// All supported pass divisors divide 64. Keep enough spare capacity for small
+// resizes, and reclaim it once either axis shrinks substantially.
+pub(super) fn storage_capacity(
+    pixels: [u32; 2],
+    previous: Option<[u32; 2]>,
+    limit: u32,
+) -> [u32; 2] {
+    let previous = previous.unwrap_or_default();
+    std::array::from_fn(|i| {
+        let required = pixels[i];
+        if previous[i] >= required && required > previous[i] / 4 {
+            previous[i]
+        } else {
+            required.div_ceil(64).saturating_mul(64).min(limit)
+        }
+    })
+}
+
 pub(super) struct Effects {
     layout: BindGroupLayout,
     composite_layout: BindGroupLayout,
@@ -54,8 +72,9 @@ impl GpuEffectLighting {
 
 struct Output {
     recipe: &'static pax_runtime_api::ShaderProgram,
-    source: Texture,
-    domain: [[f32; 4]; 10],
+    source: Option<Texture>,
+    capacity: [u32; 2],
+    domain: [[f32; 4]; 11],
     domain_buffer: wgpu::Buffer,
     lighting: GpuEffectLighting,
     lighting_buffer: wgpu::Buffer,
@@ -119,8 +138,35 @@ pub(super) fn shader_source(pass: &ShaderPass) -> Result<String, String> {
     source.push_str("};\n@group(0) @binding(1) var<uniform> parameters: Parameters;\n");
     source.push_str(include_str!("scene_lighting.wgsl"));
     source.push_str(include_str!("effect_lighting.wgsl"));
-    source.push_str(include_str!("effect.wgsl"));
-    source.push('\n');
+    let pixels = if matches!(pass.inputs[0], ShaderInput::SolidColor(_)) {
+        "domain.storage.xy"
+    } else {
+        "active_pixels(textureDimensions(input0))"
+    };
+    source.push_str(&include_str!("effect.wgsl").replace("PAX_INPUT0_ACTIVE_PIXELS", pixels));
+    if pass
+        .inputs
+        .iter()
+        .any(|input| matches!(input, ShaderInput::SolidColor(_)))
+    {
+        source.push_str(include_str!("effect_solid.wgsl"));
+    }
+    for (slot, input) in pass.inputs.iter().enumerate() {
+        source.push_str(&format!(
+            "fn sample_input{slot}(p: vec2<f32>) -> vec4<f32> {{\n"
+        ));
+        match input {
+            ShaderInput::SolidColor([r, g, b, a]) => source.push_str(&format!(
+                "return pax_effect_sample_solid(p, vec4<f32>({r}.0 / 255.0, {g}.0 / 255.0, {b}.0 / 255.0, 1.0) * ({a}.0 / 255.0));\n"
+            )),
+            _ => source.push_str(&format!(
+                "let uv = input_uv(p);
+                 let value = textureSampleLevel(input{slot}, input_sampler, storage_uv(uv, textureDimensions(input{slot})), 0.0);
+                 return select(vec4<f32>(0.0), value, visible_local(p) && all(uv >= vec2<f32>(0.0)) && all(uv <= vec2<f32>(1.0)));\n"
+            )),
+        }
+        source.push_str("}\n");
+    }
     source.push_str(pass.source);
     let module = naga::front::wgsl::parse_str(&source)
         .map_err(|e| format!("{}: {}", pass.label, e.emit_to_string(&source)))?;
@@ -291,6 +337,8 @@ impl RenderBackend<'_> {
         projection: pax_runtime_api::math::ProjectedPlane,
         signature: u64,
         source_globals: &data::GpuGlobals,
+        aligned_rect: [f32; 4],
+        local_size: [f32; 2],
         scene_lighting: &data::GpuSceneLighting,
         stats: &mut crate::ResourceChurnStats,
     ) {
@@ -298,11 +346,16 @@ impl RenderBackend<'_> {
         let parameters = effect
             .encode_parameters()
             .unwrap_or_else(|error| panic!("shader effect {}: {error}", effect.program.label));
-        let (source, rect) = self
-            .retained_surfaces
-            .as_ref()
-            .unwrap()
-            .effect_source(capture::CaptureKey::EffectSource(id), source_globals);
+        let (source, rect) = if effect.program.samples_subtree() {
+            let (texture, rect) = self
+                .retained_surfaces
+                .as_ref()
+                .unwrap()
+                .effect_source(capture::CaptureKey::EffectSource(id));
+            (Some(texture), rect)
+        } else {
+            (None, aligned_rect)
+        };
         let mapping = projection.mapping();
         let inverse = mapping
             .inverse()
@@ -326,23 +379,44 @@ impl RenderBackend<'_> {
             (rect[2] * source_globals.dpr[0]).round() as u32,
             (rect[3] * source_globals.dpr[1]).round() as u32,
         ];
+        let capacity = match &source {
+            Some(source) => [source.width(), source.height()],
+            None => storage_capacity(
+                pixels,
+                self.effects
+                    .as_ref()
+                    .and_then(|e| e.outputs.get(&id))
+                    .map(|o| o.capacity),
+                self.device.limits().max_texture_dimension_2d,
+            ),
+        };
         let storage = [
             pixels[0] as f32,
             pixels[1] as f32,
-            source.width() as f32,
-            source.height() as f32,
+            capacity[0] as f32,
+            capacity[1] as f32,
         ];
         let domain = [
-            rect, a[0], a[1], a[2], b[0], b[1], b[2], clips[0], clips[1], storage,
+            rect,
+            a[0],
+            a[1],
+            a[2],
+            b[0],
+            b[1],
+            b[2],
+            clips[0],
+            clips[1],
+            storage,
+            [local_size[0], local_size[1], 0., 0.],
         ];
         let final_downsample = effect.program.passes.last().unwrap().downsample;
         let composite_rect = [
             rect,
             [
                 pixels[0].div_ceil(final_downsample) as f32
-                    / source.width().div_ceil(final_downsample) as f32,
+                    / capacity[0].div_ceil(final_downsample) as f32,
                 pixels[1].div_ceil(final_downsample) as f32
-                    / source.height().div_ceil(final_downsample) as f32,
+                    / capacity[1].div_ceil(final_downsample) as f32,
                 0.,
                 0.,
             ],
@@ -371,18 +445,16 @@ impl RenderBackend<'_> {
                 stats.effect_pipeline_compilations += 1;
             }
         }
-        if effects
-            .outputs
-            .get(&id)
-            .is_none_or(|o| o.recipe != effect.program || o.source != source)
-        {
+        if effects.outputs.get(&id).is_none_or(|o| {
+            o.recipe != effect.program || o.source != source || o.capacity != capacity
+        }) {
             let required: u64 = effect
                 .program
                 .passes
                 .iter()
                 .map(|p| {
-                    4 * u64::from(source.width().div_ceil(p.downsample))
-                        * u64::from(source.height().div_ceil(p.downsample))
+                    4 * u64::from(capacity[0].div_ceil(p.downsample))
+                        * u64::from(capacity[1].div_ceil(p.downsample))
                 })
                 .sum();
             let used: u64 = effects
@@ -410,14 +482,14 @@ impl RenderBackend<'_> {
                         contents: bytemuck::bytes_of(&lighting),
                         usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
                     });
-            let source_view = source.create_view(&Default::default());
+            let source_view = source.as_ref().map(|t| t.create_view(&Default::default()));
             let mut passes: Vec<PassOutput> = Vec::new();
             for (recipe, values) in effect.program.passes.iter().zip(&parameters) {
                 let texture = self.device.create_texture(&wgpu::TextureDescriptor {
                     label: Some(recipe.label),
                     size: wgpu::Extent3d {
-                        width: source.width().div_ceil(recipe.downsample),
-                        height: source.height().div_ceil(recipe.downsample),
+                        width: capacity[0].div_ceil(recipe.downsample),
+                        height: capacity[1].div_ceil(recipe.downsample),
                         depth_or_array_layers: 1,
                     },
                     mip_level_count: 1,
@@ -436,7 +508,9 @@ impl RenderBackend<'_> {
                             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
                         });
                 let input = |input| match input {
-                    ShaderInput::Subtree => &source_view,
+                    ShaderInput::Subtree => source_view.as_ref().unwrap(),
+                    // Both slots share a bind group layout. Constant sampling never reads this view.
+                    ShaderInput::SolidColor(_) => self.alpha_masks.transparent_view(),
                     ShaderInput::Pass(n) => &passes[n].view,
                 };
                 let binding = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -511,6 +585,7 @@ impl RenderBackend<'_> {
                 Output {
                     recipe: effect.program,
                     source,
+                    capacity,
                     domain,
                     domain_buffer,
                     lighting,

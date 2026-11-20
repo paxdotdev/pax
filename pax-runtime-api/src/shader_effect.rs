@@ -68,11 +68,15 @@ impl ShaderValue {
     }
 }
 
-/// Texture input to a pass. Earlier outputs share the capture's logical coordinate domain.
+/// Image input to a pass. Earlier outputs share the capture's logical coordinate domain.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderInput {
     /// The rendered descendants before this effect.
     Subtree,
+    /// A uniform rectangle over the primitive’s local layout bounds, in straight RGBA8.
+    /// Sampling returns premultiplied color, with transparency outside the rectangle.
+    /// A program with no `Subtree` input runs without rasterizing descendants.
+    SolidColor([u8; 4]),
     /// Zero-based index of an earlier pass in this program.
     Pass(usize),
 }
@@ -101,6 +105,15 @@ pub struct ShaderProgram {
     pub label: &'static str,
     /// Ordered passes; the last pass supplies the premultiplied output.
     pub passes: &'static [ShaderPass],
+}
+
+impl ShaderProgram {
+    /// Whether any pass needs the rasterized GPU descendants.
+    pub fn samples_subtree(&self) -> bool {
+        self.passes
+            .iter()
+            .any(|pass| pass.inputs.contains(&ShaderInput::Subtree))
+    }
 }
 
 /// Opt-in scene lighting for an effect's container plane. The runtime resolves the
@@ -182,7 +195,7 @@ impl ShaderEffect {
                     .any(|v| matches!(v, ShaderInput::Pass(n) if *n >= i))
                 {
                     return Err(format!(
-                        "pass {}: inputs must reference the subtree or an earlier pass",
+                        "pass {}: pass inputs can only reference earlier passes",
                         pass.label
                     ));
                 }

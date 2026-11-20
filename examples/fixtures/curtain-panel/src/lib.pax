@@ -1,0 +1,77 @@
+if @gpu && self.playing && self.visible {
+    <Group width=0px height=0px @mount=self.reset_clock @tick=self.advance/>
+}
+<Scroller width=100% height=100% autosize=true>
+    <Stacker x=50% width={@viewport.width > 1440 ? 1440px : 100%} autosize=true>
+        <Frame id=panel width=100% height={@viewport.width < 700 ? 600px : 640px}
+            @viewport_proximity_change=self.visibility>
+            <Group x={@viewport.width < 700 ? 24px : 52px} y=100% anchor_y=100%
+                width={100% - 80px} height={@viewport.width < 700 ? 168px : 206px}>
+                if self.show_title {
+                    <Text width={@viewport.width < 700 ? 270px : 440px} height={@viewport.width < 700 ? 66px : 92px} selectable=true text="Black sateen"
+                        style={font: "Georgia", font_size: {@viewport.width < 700 ? 44px : 70px}, fill: rgb(235, 230, 222)}/>
+                }
+                <Button class="control" x={@gpu ? 140px : 0px} y={@viewport.width < 700 ? 74px : 106px} width=116px
+                    label={self.show_title ? "Hide title" : "Show title"} @button_click=self.toggle_title/>
+                if @gpu {
+                    <Button id=play class="control" y={@viewport.width < 700 ? 74px : 106px} width=131px
+                        label={self.playing ? "Pause draft" : "Play draft"} @button_click=self.playback/>
+                } else {
+                    <Text class="caption" y={@viewport.width < 700 ? 122px : 154px} width=260px text="Plain panel · CPU renderer"/>
+                }
+            </Group>
+            <LightFrame width=100% height=100%>
+                if @gpu && self.mode != 1 {
+                    <Sateen width=100% height=100% phase={self.phase} spacing={self.spacing}
+                        depth={self.depth} roughness={self.roughness} sheen={self.sheen}
+                        half_resolution={self.half_resolution} identity={self.mode == 2}>
+                        <Rectangle width=100% height=100% fill=rgb(19, 17, 20)/>
+                    </Sateen>
+                } else {
+                    <Rectangle width=100% height=100% fill=rgb(19, 17, 20)/>
+                }
+                <LightSource shape=LightShape::Strip x={(self.light_position * 100)%} y=32% anchor=50%
+                    width=900px height=1px rotate=-68deg z=340px intensity=2.0 radius=2300px
+                    color={self.lighting == 1 ? rgb(244, 166, 118) : rgb(244, 239, 235)}
+                    enabled={@gpu && self.lighting != 2}/>
+            </LightFrame>
+        </Frame>
+        if @gpu {
+            <Group width=100% height={@viewport.height < 420 ? 420px : (@viewport.height)px}>
+                <Group x=50% y=26px width={@viewport.width < 700 ? (100% - 44px) : (100% - 104px)} height=352px>
+                    <Button class="control" width=32% id=view @button_click=self.compare
+                        label={self.mode == 0 ? "View · cloth" : (self.mode == 1 ? "View · plain" : "View · identity")}/>
+                    <Button class="control" x=34% width=32% id=light @button_click=self.change_light
+                        label={self.lighting == 0 ? "Neutral light" : (self.lighting == 1 ? "Amber light" : "Light off")}/>
+                    <Button class="control" x=68% width=32% id=quality @button_click=self.quality
+                        label={self.half_resolution ? "Half resolution" : "Full resolution"}/>
+                    <Text class="caption" y=72px text="Fold spacing"/>
+                    <Slider class="slider" y=98px value=bind:spacing min=140 max=380 step=1/>
+                    <Text class="caption" x=53% y=72px text="Fold depth"/>
+                    <Slider class="slider" x=53% y=98px value=bind:depth min=0 max=1.8 step=0.01/>
+                    <Text class="caption" y=146px text="Sheen strength"/>
+                    <Slider class="slider" y=172px value=bind:sheen min=0 max=1.5 step=0.01/>
+                    <Text class="caption" x=53% y=146px text="Sheen width"/>
+                    <Slider class="slider" x=53% y=172px value=bind:roughness min=0 max=1 step=0.01/>
+                    <Text class="caption" y=220px text="Light position"/>
+                    <Slider class="slider" y=246px value=bind:light_position min=0 max=1 step=0.002/>
+                    <Text class="caption" x=53% y=220px text="Draft speed"/>
+                    <Slider class="slider" x=53% y=246px value=bind:speed min=0.25 max=2 step=0.05/>
+                </Group>
+            </Group>
+        }
+    </Stacker>
+</Scroller>
+<Rectangle width=100% height=100% fill=rgb(27, 25, 28)/>
+@settings {
+    .control {
+        anchor_x=0% anchor_y=0% height=39px corner_radius=5
+        color=rgb(52, 48, 53) hover_color=rgb(72, 66, 73)
+        style={font: "Arial", font_size: 13px, fill: rgb(235, 230, 223), align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center}
+    }
+    .caption {
+        anchor_x=0% width=47% height=22px
+        style={font: "Arial", font_size: 14px, fill: rgb(210, 201, 199)}
+    }
+    .slider { anchor_x=0% width=47% height=22px accent=rgb(181, 163, 156) background=rgb(62, 56, 62) corner_radius=6 }
+}

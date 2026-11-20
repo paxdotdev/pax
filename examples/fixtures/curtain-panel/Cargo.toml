@@ -1,0 +1,25 @@
+[package]
+name = "curtain-panel"
+version = "0.39.1"
+edition = "2021"
+publish = false
+default-run = "curtain-panel"
+
+[package.metadata.pax]
+title = "Pax / Black sateen"
+
+[dependencies]
+pax-kit = { path = "../../../pax-kit", version = "0.39.1", features = ["shaders"] }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "curtain-panel"
+path = "src/main.rs"
+required-features = ["standalone"]

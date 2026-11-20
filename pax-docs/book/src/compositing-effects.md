@@ -984,6 +984,15 @@ reuses shader pipelines and pass textures. Without opt-in the helpers return
 no illumination. Low-level renderer callers must provide the resolved
 `ShaderLighting` plane and mask themselves.
 
+The [curtain-panel fixture](https://github.com/paxdotdev/pax/tree/main/examples/fixtures/curtain-panel)
+uses a gathered height field to shade black sateen. Pause the draft and move
+the strip light to see the highlight travel across a stationary fold. Fold
+spacing stays in local pixels as the panel resizes. Relief affects shading
+on the container plane. The shader declares a
+[solid-color input](primitives.md#shader-primitives) and shades at half
+resolution by default. The resolution control also offers full resolution.
+The CPU renderer shows a plain dark panel.
+
 The `rain-pane` fixture uses these helpers with an analytic shared water contour
 over a dark captured Rectangle. Drops land across the glass as brief splotches,
 then develop smooth tails as they descend with seeded creep-and-slip timing.

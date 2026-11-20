@@ -11,6 +11,16 @@ pub(super) struct EffectCapture {
     children: Vec<u32>,
     pub(super) signature: u64,
 }
+impl EffectCapture {
+    fn sampled_children(&self) -> &[u32] {
+        if self.effect.program.samples_subtree() {
+            &self.children
+        } else {
+            &[]
+        }
+    }
+}
+
 pub(super) struct EffectRecording {
     clips: Vec<ClipReference>,
     saves: Vec<SceneStateSave>,
@@ -156,7 +166,7 @@ impl WgpuRenderer<'_> {
         };
         let inverse = ProjectedPlane::affine(kurbo::Affine::IDENTITY).post_mapping(inverse);
         let local = capture
-            .children
+            .sampled_children()
             .iter()
             .filter_map(|id| self.scene.get(id))
             .map(|node| node.bounds())
@@ -232,7 +242,12 @@ impl WgpuRenderer<'_> {
         }
         let margins = self.effect_margins();
         let mut visited = HashSet::new();
-        let ids: Vec<_> = self.effect_captures.keys().copied().collect();
+        let ids: Vec<_> = self
+            .effect_captures
+            .keys()
+            .copied()
+            .filter(|id| !self.effect_nodes.contains_key(id))
+            .collect();
         for id in ids {
             self.render_effect(id, &mut visited, &mut active, &margins);
         }
@@ -249,7 +264,7 @@ impl WgpuRenderer<'_> {
         if !visited.insert(id) {
             return;
         }
-        let children = self.effect_captures[&id].children.clone();
+        let children = self.effect_captures[&id].sampled_children().to_vec();
         for child in &children {
             if self.effect_captures.contains_key(child) {
                 self.render_effect(*child, visited, active, margins);
@@ -257,6 +272,10 @@ impl WgpuRenderer<'_> {
         }
         let capture = &self.effect_captures[&id];
         let effect = capture.effect.clone();
+        let local_size = [
+            capture.local_bounds.width() as f32,
+            capture.local_bounds.height() as f32,
+        ];
         let projection = capture.projection;
         if projection.mapping().inverse().is_none() {
             if let Some(RetainedNode::Effect(node)) = self.scene.get_mut(&id) {
@@ -366,36 +385,39 @@ impl WgpuRenderer<'_> {
                 }
             }
         }
-        let source_signature = hash.finish();
-        let source_pixels = if self.work_observer.is_some() {
-            ((bounds.max_x - bounds.min_x) * dpr[0]).round() as u64
-                * ((bounds.max_y - bounds.min_y) * dpr[1]).round() as u64
-        } else {
-            0
-        };
-        let key = CaptureKey::EffectSource(id);
-        active.insert(key);
-        if !self.render_backend.capture_is_cached(key, source_signature) {
-            assert!(self.render_backend.begin_source_domain(margin));
-            self.ensure_vector_resources_for_immediate_scene();
-            // Keep the aligned sampling rectangle, but render its source into
-            // bounded attachments instead of clearing the entire padded tile.
-            assert!(self.render_backend.begin_bounded_capture(bounds));
-            self.draw_capture_scene(key, &nodes, active);
-            let origin = self.render_backend.globals.origin;
-            let x = ((bounds.min_x - origin[0]) * dpr[0]).round().max(0.0) as u32;
-            let y = ((bounds.min_y - origin[1]) * dpr[1]).round().max(0.0) as u32;
-            let width = ((bounds.max_x - bounds.min_x) * dpr[0]).round() as u32;
-            let height = ((bounds.max_y - bounds.min_y) * dpr[1]).round() as u32;
-            self.render_backend
-                .end_capture_rect(key, source_signature, (x, y, width, height));
-            self.render_backend.end_source_domain();
-            self.resource_churn_stats.effect_source_renders += 1;
-            self.observe_work(Some(id), "effect source raster", 1, source_pixels);
-        } else {
-            self.retain_capture_scene(key, &nodes, active);
-            self.resource_churn_stats.effect_source_cache_hits += 1;
-            self.observe_work(Some(id), "effect source reuse", 1, source_pixels);
+        active.insert(CaptureKey::EffectOutput(id));
+        if effect.program.samples_subtree() {
+            let source_signature = hash.finish();
+            let source_pixels = if self.work_observer.is_some() {
+                ((bounds.max_x - bounds.min_x) * dpr[0]).round() as u64
+                    * ((bounds.max_y - bounds.min_y) * dpr[1]).round() as u64
+            } else {
+                0
+            };
+            let key = CaptureKey::EffectSource(id);
+            active.insert(key);
+            if !self.render_backend.capture_is_cached(key, source_signature) {
+                assert!(self.render_backend.begin_source_domain(margin));
+                self.ensure_vector_resources_for_immediate_scene();
+                // Keep the aligned sampling rectangle, but render its source into
+                // bounded attachments instead of clearing the entire padded tile.
+                assert!(self.render_backend.begin_bounded_capture(bounds));
+                self.draw_capture_scene(key, &nodes, active);
+                let origin = self.render_backend.globals.origin;
+                let x = ((bounds.min_x - origin[0]) * dpr[0]).round().max(0.0) as u32;
+                let y = ((bounds.min_y - origin[1]) * dpr[1]).round().max(0.0) as u32;
+                let width = ((bounds.max_x - bounds.min_x) * dpr[0]).round() as u32;
+                let height = ((bounds.max_y - bounds.min_y) * dpr[1]).round() as u32;
+                self.render_backend
+                    .end_capture_rect(key, source_signature, (x, y, width, height));
+                self.render_backend.end_source_domain();
+                self.resource_churn_stats.effect_source_renders += 1;
+                self.observe_work(Some(id), "effect source raster", 1, source_pixels);
+            } else {
+                self.retain_capture_scene(key, &nodes, active);
+                self.resource_churn_stats.effect_source_cache_hits += 1;
+                self.observe_work(Some(id), "effect source reuse", 1, source_pixels);
+            }
         }
         effect.lighting.is_some().hash(&mut hash);
         if let Some(lighting) = effect.lighting {
@@ -411,6 +433,7 @@ impl WgpuRenderer<'_> {
             .signature(&self.scene_lighting)
             .hash(&mut hash);
         }
+        local_size.map(f32::to_bits).hash(&mut hash);
         effect.program.hash(&mut hash);
         effect.encode_parameters().unwrap().hash(&mut hash);
         projection
@@ -434,6 +457,8 @@ impl WgpuRenderer<'_> {
             projection,
             signature,
             &globals,
+            [min_x, min_y, max_x - min_x, max_y - min_y],
+            local_size,
             &self.scene_lighting,
             &mut self.resource_churn_stats,
         );

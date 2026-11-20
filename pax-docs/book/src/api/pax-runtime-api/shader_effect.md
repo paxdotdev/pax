@@ -123,13 +123,24 @@ Type: &'`static` [[`ShaderPass`](../../api/pax-runtime-api/shader_effect.md#shad
 
 Ordered passes; the last pass supplies the premultiplied output.
 
+#### Implementations
+##### `samples_subtree`
+<pre><code class="api-signature language-rust ignore">pub fn samples_subtree(&amp;self) -&gt; bool</code></pre>
+
+Whether any pass needs the rasterized GPU descendants.
+
 ## Enums
 ### `ShaderInput`
-Texture input to a pass. Earlier outputs share the capture's logical coordinate domain.
+Image input to a pass. Earlier outputs share the capture's logical coordinate domain.
 
 #### Variants
 ##### `Subtree`
 The rendered descendants before this effect.
+
+##### `SolidColor`([`u8`; 4])
+A uniform rectangle over the primitive’s local layout bounds, in straight RGBA8.
+Sampling returns premultiplied color, with transparency outside the rectangle.
+A program with no `Subtree` input runs without rasterizing descendants.
 
 ##### `Pass`(`usize`)
 Zero-based index of an earlier pass in this program.

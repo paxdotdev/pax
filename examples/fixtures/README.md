@@ -42,6 +42,7 @@ accepts `fixtures/<name>` and `examples/fixtures/<name>`.
 | [particles](particles) | Repeated animated content/performance example |
 | [path-drawing](path-drawing) | SVG import, path stroking and drawing studies |
 | [pick-up-sticks](pick-up-sticks) | Interactive game with vector animation |
+| [curtain-panel](curtain-panel) | Top-gathered black sateen under a movable strip light, with fold, motion and sheen controls |
 | [rain-pane](rain-pane) | Passive raindrop impacts and pooling with adjustable arrival frequency under drifting CMY Pax lights |
 | [route-card](route-card) | Route transitions and modal/card integration example |
 | [light-space](light-space) | World-space materials, transformed lights, and live UI on a moving solid |

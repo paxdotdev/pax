@@ -22,6 +22,8 @@ pub(crate) enum CaptureKey {
     Alpha(u32),
     #[cfg(feature = "shaders")]
     EffectSource(u32),
+    #[cfg(feature = "shaders")]
+    EffectOutput(u32),
 }
 
 enum CaptureBlend {
@@ -136,11 +138,7 @@ impl RetainedSurfaces {
         (groups, scratch, self.stack.len())
     }
     #[cfg(feature = "shaders")]
-    pub(super) fn effect_source(
-        &self,
-        key: CaptureKey,
-        _globals: &data::GpuGlobals,
-    ) -> (Texture, [f32; 4]) {
+    pub(super) fn effect_source(&self, key: CaptureKey) -> (Texture, [f32; 4]) {
         let group = &self.groups[&key];
         (group.texture.clone(), group.logical_rect())
     }
@@ -269,7 +267,7 @@ impl RenderBackend<'_> {
                 &active
                     .iter()
                     .filter_map(|k| match k {
-                        CaptureKey::EffectSource(id) => Some(*id),
+                        CaptureKey::EffectOutput(id) => Some(*id),
                         _ => None,
                     })
                     .collect(),
@@ -286,7 +284,7 @@ impl RenderBackend<'_> {
             surfaces
                 .stencils
                 .retain(|(size, _)| surfaces.groups.values().any(|g| g.domain_size == *size));
-            if active.is_empty() {
+            if surfaces.groups.is_empty() {
                 surfaces.scratch.clear();
                 surfaces.stencils.clear();
             }
@@ -535,24 +533,12 @@ impl RenderBackend<'_> {
         };
         #[cfg(feature = "shaders")]
         let size = if matches!(key, CaptureKey::EffectSource(_)) {
-            // Small geometry changes must not replace the source and every dependent
-            // pass texture. Keep bounded spare capacity; logical bounds remain exact.
-            // 64 is divisible by every supported pass downsample factor.
-            let capacity = |required: u32, previous: u32| {
-                if previous >= required && required > previous / 4 {
-                    previous
-                } else {
-                    required
-                        .div_ceil(64)
-                        .saturating_mul(64)
-                        .min(self.device.limits().max_texture_dimension_2d)
-                }
-            };
-            let previous = surfaces.groups.get(&key);
-            (
-                capacity(rect.2, previous.map_or(0, |g| g.texture.width())),
-                capacity(rect.3, previous.map_or(0, |g| g.texture.height())),
+            super::effects::storage_capacity(
+                [rect.2, rect.3],
+                current_size.map(|(w, h)| [w, h]),
+                self.device.limits().max_texture_dimension_2d,
             )
+            .into()
         } else {
             size
         };

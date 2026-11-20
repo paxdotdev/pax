@@ -618,6 +618,11 @@ impl AlphaMasks {
         )))
     }
 
+    #[cfg(feature = "shaders")]
+    pub(super) fn transparent_view(&self) -> &wgpu::TextureView {
+        &self.resources.transparent
+    }
+
     pub(crate) fn with_resources(resources: Rc<AlphaMaskResources>) -> Self {
         Self {
             resources,

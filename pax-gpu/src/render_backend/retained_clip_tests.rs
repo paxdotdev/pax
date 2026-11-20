@@ -3965,6 +3965,128 @@ fn shader_effect_pixels_clip_cache_and_tile_halo() {
 #[cfg(feature = "shaders")]
 #[test]
 #[ignore = "requires a macOS Metal device"]
+fn shader_effect_solid_inputs_use_layout_and_release_capture_storage() {
+    use pax_runtime_api::{ShaderEffect, ShaderInput, ShaderPass, ShaderProgram};
+    const RED: ShaderInput = ShaderInput::SolidColor([255, 0, 0, 128]);
+    const SPLIT: ShaderPass = ShaderPass {
+        label: "split inputs",
+        source: "fn effect(p: vec2<f32>) -> vec4<f32> {
+            if abs(input0_pixel_size().x - 0.5) > 0.001 { return vec4<f32>(1.0); }
+            if p.x < 8.0 { return sample_input0(p); }
+            return sample_input1(p);
+        }",
+        parameters: &[],
+        inputs: [RED, ShaderInput::SolidColor([0, 255, 0, 255])],
+        downsample: 2,
+    };
+    const COPY: ShaderPass = ShaderPass {
+        label: "read earlier solid pass",
+        source: "fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p); }",
+        inputs: [ShaderInput::Pass(0); 2],
+        ..SPLIT
+    };
+    static SOLID: ShaderProgram = ShaderProgram {
+        label: "solid",
+        passes: &[SPLIT, COPY],
+    };
+    static MIXED: ShaderProgram = ShaderProgram {
+        label: "mixed",
+        passes: &[
+            ShaderPass {
+                inputs: [RED, ShaderInput::Subtree],
+                ..SPLIT
+            },
+            COPY,
+        ],
+    };
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 128, 64, [2., 2.]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.set_viewport(64., 32., [2., 2.]);
+    for (frame, (mixed, width)) in [
+        (false, 16.),
+        (true, 16.),
+        (false, 16.),
+        (false, 20.),
+        (false, 20.),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let effect = ShaderEffect {
+            program: if mixed { &MIXED } else { &SOLID },
+            parameters: vec![vec![], vec![]],
+            lighting: None,
+            outset: 4.,
+        };
+        renderer.begin_shader_effect(
+            1,
+            1,
+            &effect,
+            Transform2D::translation(4., 2.),
+            (width, 16.),
+            &[],
+            if frame == 0 { &[] } else { &[2] },
+        );
+        if frame == 1 {
+            renderer.begin_node(2, 0, 0);
+            renderer.fill_path(
+                rect(4., 2., 30., 16.),
+                Fill::Solid(Color::rgba(0., 0., 1., 1.)),
+            );
+            renderer.end_node(2);
+        }
+        renderer.end_shader_effect();
+        renderer.request_screenshot_capture(frame as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let image = renderer.take_screenshot_capture(frame as u32).unwrap();
+        assert_pixel(&image, 14, 16, [128, 0, 0, 128]);
+        assert_pixel(
+            &image,
+            32,
+            16,
+            if mixed {
+                [0, 0, 255, 255]
+            } else {
+                [0, 255, 0, 255]
+            },
+        );
+        assert_pixel(
+            &image,
+            44,
+            16,
+            if mixed {
+                [0, 0, 255, 255]
+            } else if width == 20. {
+                [0, 255, 0, 255]
+            } else {
+                [0; 4]
+            },
+        );
+        assert_pixel(&image, 4, 16, [0; 4]);
+        let stats = renderer.take_resource_churn_stats();
+        assert_eq!(stats.effect_source_renders, u64::from(mixed));
+        assert_eq!(renderer.capture_scratch_sizes_for_test().is_empty(), !mixed);
+        if frame >= 3 {
+            assert_eq!(stats.effect_texture_allocations, 0);
+        }
+        if frame == 4 {
+            assert_eq!(stats.effect_passes, 0);
+        }
+    }
+}
+
+#[cfg(feature = "shaders")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
 fn shader_effect_off_tile_and_cached_sources_skip_capture_setup() {
     use pax_runtime_api::{ShaderEffect, ShaderInput, ShaderPass, ShaderProgram};
     static PROGRAM: ShaderProgram = ShaderProgram {
