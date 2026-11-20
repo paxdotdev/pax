@@ -1,5 +1,5 @@
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
@@ -322,7 +322,25 @@ struct OcclusionRecord {
     local_path: Option<Rc<BezPath>>,
     coverage_bounds: CoverageBounds,
     opacity: f64,
-    geometry: Option<Rc<PreparedCanvasGeometry>>,
+    // Pose and surface at the time the coverage was prepared. The paint cache
+    // can advance independently before we repair overlaps at the old position.
+    geometry: Option<CoveragePlacement>,
+}
+
+struct CoveragePlacement {
+    layer: usize,
+    world_transform: Affine,
+    is_native: bool,
+}
+
+impl From<&PreparedCanvasGeometry> for CoveragePlacement {
+    fn from(geometry: &PreparedCanvasGeometry) -> Self {
+        Self {
+            layer: geometry.layer,
+            world_transform: geometry.world_transform,
+            is_native: geometry.is_native,
+        }
+    }
 }
 
 impl OcclusionRecord {
@@ -498,13 +516,19 @@ impl OcclusionState {
     pub(crate) fn layer_has_escaped_content(&self, layer: usize) -> bool {
         self.unsafe_layers.contains(&layer)
     }
-    pub(crate) fn remove(&mut self, id: u32) {
+    pub(crate) fn remove(&mut self, node: &ExpandedNode) {
+        let id = node.id.to_u32();
         // The live parent link disappears during unmount. Retain the old branch
         // origin until reconciliation has repaired its former overlaps/order.
         if let Some(&index) = self.topology.positions.get(&id) {
             if let Some(parent) = self.topology.branches[index].parent {
                 self.structural_nodes.insert(parent);
             }
+        } else if node.is_render_source() {
+            // An off-tree mask source has no visible branch to retire. Its owner
+            // carries the coverage change. Drop any pending source mount/edit as
+            // well, before its last live ancestry disappears.
+            self.structural_nodes.remove(&id);
         }
         if let Some(record) = self.records.remove(&id) {
             self.removed.push(record);
@@ -566,9 +590,17 @@ pub(crate) fn update_node_occlusion_observed(
     // reconciliation must repair that data as well as its tree membership.
     dirty.extend(state.structural_nodes.iter().copied());
     let mut affected = HashSet::new();
+    let mut containers = HashSet::new();
     let reconciled = structural
         && !state.records.is_empty()
-        && try_reconcile_structure(root_node, ctx, state, &mut dirty, &mut affected);
+        && try_reconcile_structure(
+            root_node,
+            ctx,
+            state,
+            &mut dirty,
+            &mut affected,
+            &mut containers,
+        );
     state.structural_nodes.clear();
     state.structural_unknown = false;
     completed("occlusion.topology");
@@ -674,7 +706,7 @@ pub(crate) fn update_node_occlusion_observed(
                 record.coverage_bounds =
                     occlusion_bounds(&node, record, &geometry, ctx, &mut canvas_mappings);
                 ctx.set_occlusion_bounds(id, geometry.layer, record.coverage_bounds);
-                record.geometry = Some(geometry);
+                record.geometry = Some(CoveragePlacement::from(geometry.as_ref()));
             }
         }
         completed("occlusion.coverage.records");
@@ -708,7 +740,6 @@ pub(crate) fn update_node_occlusion_observed(
         .copied()
         .filter(|id| state.records[id].clip.is_some())
         .collect();
-    let mut containers = HashSet::new();
     for id in clips {
         for &child in state.clip_dependents.get(&id).into_iter().flatten() {
             let retained = ctx
@@ -783,7 +814,7 @@ pub(crate) fn update_node_occlusion_observed(
         } else {
             affected.insert(id);
         }
-        record.geometry = Some(geometry);
+        record.geometry = Some(CoveragePlacement::from(geometry.as_ref()));
         if let Some(started) = started {
             record_coverage_timing(
                 &mut state.stats,
@@ -914,6 +945,7 @@ fn try_reconcile_structure(
     state: &mut OcclusionState,
     dirty: &mut HashSet<u32>,
     affected: &mut HashSet<u32>,
+    containers: &mut HashSet<u32>,
 ) -> bool {
     struct Walk {
         seen: HashSet<u32>,
@@ -921,6 +953,8 @@ fn try_reconcile_structure(
         migrated: HashMap<u32, (usize, Vec<u32>)>,
         topology: OcclusionTopology,
         next_layer: usize,
+        inserted_layers: usize,
+        changed_owners: Vec<(u32, usize)>,
         inspected: u64,
         reused: u64,
     }
@@ -968,6 +1002,7 @@ fn try_reconcile_structure(
         state: &OcclusionState,
         dirty: &HashSet<u32>,
         layer_id: usize,
+        previous_layer: Option<usize>,
         container: Option<u32>,
         clips: &[u32],
         parent: Option<u32>,
@@ -978,19 +1013,38 @@ fn try_reconcile_structure(
         if changed.is_some_and(|changed| !changed.contains(&id)) {
             if let Some(&index) = state.topology.positions.get(&id) {
                 let branch = &state.topology.branches[index];
-                if branch.layer == layer_id
+                let shift = walk.inserted_layers;
+                if Some(branch.layer) == previous_layer
                     && branch.container == container
                     && branch.parent == parent
-                    && branch.layer_start == walk.next_layer
+                    && branch.layer_start + shift == walk.next_layer
                     && state.records.get(&id).is_some_and(|r| r.clips == clips)
                 {
                     let new_start = walk.topology.branches.len();
                     let new_order_start = walk.topology.order.len();
+                    // An untouched branch inherits one layer and allocates a
+                    // contiguous range for its inner scrollers. Insertion shifts
+                    // that range without changing any of its geometry inputs.
+                    let remap = |old| {
+                        if old == branch.layer {
+                            layer_id
+                        } else {
+                            old + shift
+                        }
+                    };
                     for old in &state.topology.branches[index..branch.end] {
                         if !walk.seen.insert(old.id) || !state.records.contains_key(&old.id) {
                             return false;
                         }
                         let mut retained = old.clone();
+                        retained.layer = remap(old.layer);
+                        retained.layer_start += shift;
+                        retained.layer_end += shift;
+                        if shift > 0 {
+                            if let Some(&owned) = state.owned_layers.get(&old.id) {
+                                walk.changed_owners.push((old.id, owned + shift));
+                            }
+                        }
                         retained.end = new_start + old.end - index;
                         retained.order_start =
                             new_order_start + old.order_start - branch.order_start;
@@ -1000,10 +1054,18 @@ fn try_reconcile_structure(
                             .insert(old.id, walk.topology.branches.len());
                         walk.topology.branches.push(retained);
                     }
-                    walk.topology.order.extend_from_slice(
-                        &state.topology.order[branch.order_start..branch.order_end],
-                    );
-                    walk.next_layer = branch.layer_end;
+                    let orders = &state.topology.order[branch.order_start..branch.order_end];
+                    if shift == 0 {
+                        walk.topology.order.extend_from_slice(orders);
+                    } else {
+                        walk.topology
+                            .order
+                            .extend(orders.iter().map(|&(id, mut order)| {
+                                order.render_layer_id = remap(order.render_layer_id);
+                                (id, order)
+                            }));
+                    }
+                    walk.next_layer = branch.layer_end + shift;
                     walk.reused += (branch.end - index) as u64;
                     return true;
                 }
@@ -1033,7 +1095,7 @@ fn try_reconcile_structure(
                 .browser_allows_nested_scroller_vector_layers
                 .get()
                 || container.is_none());
-        if owns_layer != state.owned_layers.contains_key(&id) {
+        if state.records.contains_key(&id) && owns_layer != state.owned_layers.contains_key(&id) {
             return false;
         }
         let before = native && instance.materializes_native_surface_before_children(node);
@@ -1072,7 +1134,7 @@ fn try_reconcile_structure(
                 let branch = &state.topology.branches[i];
                 (branch.parent, branch.container)
             });
-            if old.render_layer_id != layer_id
+            if Some(old.render_layer_id) != previous_layer
                 || old.clips != clips
                 || old_parent != Some((parent, container))
             {
@@ -1080,14 +1142,25 @@ fn try_reconcile_structure(
             }
             old.clip.is_some()
         } else {
-            if scrolls || before || unclippable || state.unsafe_layers.contains(&layer_id) {
+            // Only a clipped, independently composited scroller can publish a new
+            // layer without reclassifying shared or escaped coverage.
+            if (scrolls
+                && (!owns_layer
+                    || !instance.clips_content(node)
+                    || !state.unsafe_layers.is_empty()
+                    || node.has_perspective_camera()
+                    || scroll_region(id, ctx).is_none()))
+                || before
+                || unclippable
+                || state.unsafe_layers.contains(&layer_id)
+            {
                 return false;
             }
             let clip = node.world_clip_geometry.get().0;
             let has_clip = clip.is_some();
             // An affine Frame on an existing layer only adds a clip ancestor.
             // Projected clips and clips that also paint need the full traversal.
-            if (has_clip && layer != Layer::DontCare)
+            if (has_clip && layer != Layer::DontCare && !scrolls)
                 || (node.has_perspective_camera()
                     && (has_clip || ctx.presented_clip_path(node).is_some()))
             {
@@ -1099,7 +1172,7 @@ fn try_reconcile_structure(
                     instance: Rc::downgrade(&instance),
                     layer,
                     render_layer_id: layer_id,
-                    scrolls: false,
+                    scrolls,
                     clips_content: instance.clips_content(node),
                     before_children: false,
                     unclippable: false,
@@ -1123,14 +1196,25 @@ fn try_reconcile_structure(
             has_clip
         };
         drop(instance);
-        let child_layer = if let Some(&owned) = state.owned_layers.get(&id) {
-            if owned != walk.next_layer {
-                return false;
+        let (child_layer, previous_child_layer) = if owns_layer {
+            let assigned = walk.next_layer;
+            if let Some(&previous) = state.owned_layers.get(&id) {
+                // Insertion shifts a suffix of the canonical layer sequence.
+                // Reorders and removals still require a full preflight.
+                if previous + walk.inserted_layers != assigned {
+                    return false;
+                }
+                if previous != assigned {
+                    walk.changed_owners.push((id, assigned));
+                }
+            } else {
+                walk.inserted_layers += 1;
+                walk.changed_owners.push((id, assigned));
             }
             walk.next_layer += 1;
-            owned
+            (assigned, state.owned_layers.get(&id).copied())
         } else {
-            layer_id
+            (layer_id, previous_layer)
         };
         let child_container = if scrolls || has_clip {
             Some(id)
@@ -1167,6 +1251,7 @@ fn try_reconcile_structure(
                     state,
                     dirty,
                     child_layer,
+                    previous_child_layer,
                     child_container,
                     &child_clips,
                     Some(id),
@@ -1203,6 +1288,8 @@ fn try_reconcile_structure(
         migrated: HashMap::new(),
         topology: Default::default(),
         next_layer: 1,
+        inserted_layers: 0,
+        changed_owners: Vec::new(),
         inspected: 0,
         reused: 0,
     };
@@ -1212,12 +1299,13 @@ fn try_reconcile_structure(
         state,
         dirty,
         0,
+        Some(0),
         None,
         &[],
         None,
         local.then_some(&changed),
         &mut walk,
-    ) || walk.next_layer != ctx.layer_count.get()
+    ) || walk.next_layer != ctx.layer_count.get() + walk.inserted_layers
         || state
             .records
             .iter()
@@ -1260,6 +1348,32 @@ fn try_reconcile_structure(
         }
     }
     ctx.prepare_scene_geometry();
+    // Translate all old footprints into the new layer numbering before any
+    // overlap query. A concurrent edit/removal still needs its original bounds
+    // on the same owner's surface, even when another host takes its old number.
+    let renumbered: BTreeMap<_, _> = walk
+        .changed_owners
+        .iter()
+        .filter_map(|(id, new)| state.owned_layers.get(id).map(|&old| (old, *new)))
+        .collect();
+    if !renumbered.is_empty() {
+        ctx.renumber_scroller_layers(&renumbered);
+        for (&old, &new) in renumbered.iter().rev() {
+            if let Some(count) = state.canvas_counts.remove(&old) {
+                state.canvas_counts.insert(new, count);
+            }
+        }
+        for record in state.records.values_mut().chain(&mut state.removed) {
+            if let Some(&layer) = renumbered.get(&record.render_layer_id) {
+                record.render_layer_id = layer;
+            }
+            if let Some(geometry) = &mut record.geometry {
+                if let Some(&layer) = renumbered.get(&geometry.layer) {
+                    geometry.layer = layer;
+                }
+            }
+        }
+    }
     for &id in walk.migrated.keys() {
         let record = &state.records[&id];
         include_old_overlaps(record, ctx, affected);
@@ -1312,6 +1426,31 @@ fn try_reconcile_structure(
         dirty.insert(id);
         state.records.insert(id, record);
     }
+    // Commit the owner map before assigning drawables. Placement and paint
+    // invalidation consult the owner of the newly assigned numeric layer.
+    for (id, layer) in walk.changed_owners {
+        state.owned_layers.insert(id, layer);
+        ctx.register_layer_scroller_owner(layer, crate::ExpandedNodeIdentifier(id));
+        containers.insert(id);
+    }
+    walk.topology.assign_z_indices(&state.topology);
+    for &(id, order) in &walk.topology.order {
+        let old = state.topology.previous_order(id);
+        let retained = !walk.migrated.contains_key(&id) && !added_ids.contains(&id);
+        if retained && old == Some(order) {
+            continue;
+        }
+        let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) else {
+            continue;
+        };
+        let same_surface = retained
+            && old.is_some_and(|old| {
+                renumbered.get(&old.render_layer_id) == Some(&order.render_layer_id)
+            });
+        if assign_occlusion(&node, order, state.records[&id].layer, ctx, same_surface) {
+            state.stats.orders_updated += 1;
+        }
+    }
     let migrated = !walk.migrated.is_empty();
     for (id, (layer, clips)) in walk.migrated {
         let record = state.records.get_mut(&id).unwrap();
@@ -1322,26 +1461,13 @@ fn try_reconcile_structure(
         dirty.insert(id);
     }
     dirty.retain(|id| walk.seen.contains(id));
-    walk.topology.assign_z_indices(&state.topology);
-    for &(id, order) in &walk.topology.order {
-        let unchanged =
-            !added_ids.contains(&id) && state.topology.previous_order(id) == Some(order);
-        if unchanged {
-            continue;
-        }
-        let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) else {
-            continue;
-        };
-        if assign_occlusion(&node, order, state.records[&id].layer, ctx) {
-            state.stats.orders_updated += 1;
-        }
-    }
     state.stats.topology_nodes_visited += walk.inspected;
     state.stats.topology_nodes_reused += walk.reused;
     state.topology = walk.topology;
-    if migrated || added_clip {
+    if migrated || added_clip || walk.inserted_layers > 0 {
         refresh_container_membership(ctx, state);
     }
+    publish_layer_count(ctx, walk.next_layer);
     state.stats.structural_reconciliations += 1;
     state.stats.rebuild_reason = Some("structure-reconciled");
     state.stats.rebuild_node = None;
@@ -1368,6 +1494,7 @@ fn assign_occlusion(
     new: Occlusion,
     layer: Layer,
     ctx: &RuntimeContext,
+    renumbered_surface: bool,
 ) -> bool {
     let owner_changed = node.canvas_owner.set_if_neq(
         ctx.get_layer_scroller_owner(new.render_layer_id)
@@ -1388,12 +1515,21 @@ fn assign_occlusion(
             ctx.queue_canvas_node_order(new.render_layer_id, node.id.to_u32(), new.z_index);
         }
     } else {
-        ctx.invalidate_scene_geometry(node.id.to_u32());
+        let retain_geometry =
+            renumbered_surface && !owner_changed && new.parent_frame == old.parent_frame;
+        if !retain_geometry {
+            ctx.invalidate_scene_geometry(node.id.to_u32());
+        }
         if layer == Layer::Canvas {
             if old.render_layer_id != new.render_layer_id {
                 ctx.enqueue_canvas_node_removal(old.render_layer_id, node.id.to_u32());
             }
-            ctx.mark_canvas_node_dirty(node.id);
+            if retain_geometry {
+                // The backend still needs this drawing on its new surface.
+                ctx.mark_canvas_placement_dirty(node);
+            } else {
+                ctx.mark_canvas_node_dirty(node.id);
+            }
         }
         ctx.set_canvas_dirty(old.render_layer_id);
         ctx.set_canvas_dirty(new.render_layer_id);
@@ -1586,7 +1722,9 @@ fn update_container_presentation(
         }
     }
     let hash = hash_node_presentation(node.as_ref(), ctx, Some(bounds), Some(clipped));
-    if node.presentation_cache_hash.get() == hash {
+    let content_layer = state.owned_layers.get(&id).map(|&layer| layer as u32);
+    let owner_changed = record.scrolls && node.browser_content_layer_id.get() != content_layer;
+    if node.presentation_cache_hash.get() == hash && !owner_changed {
         return;
     }
     if globals.platform == pax_runtime_api::Platform::Native {
@@ -1596,14 +1734,13 @@ fn update_container_presentation(
         ctx.mark_layer_canvas_plans_dirty();
     }
     if record.scrolls {
+        node.browser_content_layer_id.set(content_layer);
         ctx.enqueue_native_message(pax_message::NativeMessage::ScrollerUpdate(ScrollerPatch {
             id,
-            // The structural walk publishes web layer ownership. A sampled
-            // viewport rectangle must not also reassign a browser surface.
-            content_layer_id: if globals.platform.is_web() {
-                None
+            content_layer_id: if owner_changed || !globals.platform.is_web() {
+                content_layer
             } else {
-                state.owned_layers.get(&id).map(|layer| *layer as u32)
+                None
             },
             presentation_projection: Some(if node.has_perspective_camera() {
                 ctx.presented_projection_for_node(&node)
@@ -2443,7 +2580,7 @@ fn rebuild_node_occlusion(
     state.topology.assign_z_indices(previous);
     for (node, &(id, order)) in ordered_nodes.into_iter().zip(&state.topology.order) {
         let record = state.records.get_mut(&id).unwrap();
-        if assign_occlusion(&node, order, record.layer, ctx) {
+        if assign_occlusion(&node, order, record.layer, ctx, false) {
             state.stats.orders_updated += 1;
         }
         if record.layer == Layer::Canvas {
@@ -2452,21 +2589,22 @@ fn rebuild_node_occlusion(
         }
     }
 
-    let new_layer_count = next_layer_id;
-    if ctx.layer_count.get() != new_layer_count {
-        ctx.layer_count.set(new_layer_count);
-        ctx.enqueue_native_message(pax_message::NativeMessage::ShrinkLayersTo(
-            new_layer_count as u32,
-        ));
-    }
+    publish_layer_count(ctx, next_layer_id);
 
     #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
     log::trace!(
         "occlusion topology: {}us, layers={}, records={}",
         pass_start.elapsed().as_micros(),
-        new_layer_count,
+        next_layer_id,
         state.records.len(),
     );
+}
+
+fn publish_layer_count(ctx: &RuntimeContext, count: usize) {
+    if ctx.layer_count.get() != count {
+        ctx.layer_count.set(count);
+        ctx.enqueue_native_message(pax_message::NativeMessage::ShrinkLayersTo(count as u32));
+    }
 }
 
 // Resolve topology and coverage records before querying masks from the spatial index.

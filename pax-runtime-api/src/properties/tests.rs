@@ -214,6 +214,59 @@ fn test_replacement_preserves_dependency_connection_order_and_shared_target() {
 }
 
 #[test]
+fn direct_rebinding_preserves_synchronous_reads_order_and_cutoff_propagation() {
+    let source = LocalProperty::new(3);
+    let old = LocalProperty::new(99);
+    let previous = old.clone();
+    let slot = LocalProperty::computed(move || previous.get(), &[old.untyped()]);
+    let sibling = LocalProperty::computed(|| 0, &[source.untyped()]);
+    let read = slot.clone();
+    let runs = Rc::new(Cell::new(0));
+    let count = runs.clone();
+    let effect = LocalProperty::computed(
+        move || {
+            read.get();
+            count.set(count.get() + 1);
+        },
+        &[slot.untyped()],
+    );
+    register_effect_property(&effect);
+    drain_effects(10);
+
+    let input = source.clone();
+    slot.replace_with_computed(
+        move || input.get() + 10,
+        &[source.untyped(), source.untyped()],
+        None,
+    );
+    assert_eq!(slot.get(), 13);
+    PROPERTY_TABLE.with(|table| {
+        assert!(table.with_property_data(old.untyped.id, |p| p.outbound.is_empty()));
+        assert_eq!(
+            table.with_property_data(source.untyped.id, |p| p.outbound.clone()),
+            vec![sibling.untyped.id, slot.untyped.id, slot.untyped.id]
+        );
+    });
+    let input = source.clone();
+    slot.replace_with_computed_cutoff(
+        move || input.get() % 2,
+        &[source.untyped()],
+        i32::eq,
+        "parity",
+    );
+    assert_eq!(slot.get(), 1);
+    drain_effects(10);
+    let before = runs.get();
+    source.set(5);
+    drain_effects(10);
+    assert_eq!(runs.get(), before);
+    source.set(6);
+    assert_eq!(slot.get(), 0);
+    drain_effects(10);
+    assert_eq!(runs.get(), before + 1);
+}
+
+#[test]
 fn test_larger_network() {
     let prop_1 = LocalProperty::new(2);
     let prop_2 = LocalProperty::new(6);

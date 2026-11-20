@@ -355,6 +355,34 @@ impl SceneGeometry {
         geometry
     }
 
+    pub(crate) fn renumber_scroller_layers(&mut self, layers: &BTreeMap<usize, usize>) {
+        // Inserting hosts only moves layer numbers upward. Move the highest
+        // first so overlapping source and destination ranges keep every index.
+        for (&old, &new) in layers.iter().rev() {
+            debug_assert!(new > old);
+            for indices in [
+                &mut self.layers,
+                &mut self.native_layers,
+                &mut self.occlusion_layers,
+            ] {
+                if let Some(index) = indices.remove(&old) {
+                    debug_assert!(!indices.contains_key(&new));
+                    indices.insert(new, index);
+                }
+            }
+        }
+        for geometry in self.records.values_mut() {
+            if let Some(&layer) = layers.get(&geometry.layer) {
+                Rc::make_mut(geometry).layer = layer;
+            }
+        }
+        for (layer, _) in self.occlusion_bounds.values_mut() {
+            if let Some(&new) = layers.get(layer) {
+                *layer = new;
+            }
+        }
+    }
+
     pub fn remove(&mut self, id: u32) {
         self.content_dirty.remove(&id);
         self.input.remove(id);

@@ -565,6 +565,10 @@ impl RuntimeContext {
 
     /// Remove a node from runtime lookup caches.
     pub fn remove_from_cache(&self, node: &Rc<ExpandedNode>) {
+        self.mark_occlusion_dirty_for_node(node.id.to_u32());
+        if let Some(owner) = node.render_source_owner() {
+            self.mark_node_clip_dirty(owner.to_u32());
+        }
         self.remove_wheel_region(node.id.to_u32());
         borrow_mut!(self.node_cache).remove_from_cache(node);
         // Render work belongs to a mounted instance. A stale ID otherwise makes
@@ -584,7 +588,7 @@ impl RuntimeContext {
         }
         self.unregister_viewport_proximity(node.id.to_u32());
         borrow_mut!(self.scene_geometry).remove(node.id.to_u32());
-        self.occlusion_state.borrow_mut().remove(node.id.to_u32());
+        self.occlusion_state.borrow_mut().remove(node);
         borrow_mut!(self.canvas_node_light_masks).remove(&node.id);
         borrow_mut!(self.active_touch_targets).retain(|_, target| *target != node.id);
         borrow_mut!(self.mouse_input).forget(node.id);
@@ -593,7 +597,6 @@ impl RuntimeContext {
             self.import_settings_node_count
                 .set(self.import_settings_node_count.get().saturating_sub(1));
         }
-        self.mark_occlusion_dirty_for_node(node.id.to_u32());
     }
 
     pub fn has_import_settings_nodes(&self) -> bool {
@@ -2658,6 +2661,15 @@ impl RuntimeContext {
         self.scene_geometry
             .borrow_mut()
             .set_occlusion_bounds(id, layer, bounds);
+    }
+
+    pub(crate) fn renumber_scroller_layers(
+        &self,
+        layers: &std::collections::BTreeMap<usize, usize>,
+    ) {
+        self.scene_geometry
+            .borrow_mut()
+            .renumber_scroller_layers(layers);
     }
 
     pub(crate) fn clear_occlusion_bounds(&self) {

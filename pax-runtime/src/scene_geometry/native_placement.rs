@@ -96,34 +96,33 @@ impl ExpandedNode {
             origin.untyped(),
             progress.untyped(),
         ];
-        self.native_local_placement
-            .replace_with(LocalProperty::computed_with_cutoff_and_name(
-                move || {
-                    let parent = parent.get();
-                    let owner = scroller.or(parent.owner);
-                    let mut result = NativeLocalPlacement { owner, tab: None };
-                    // Same-domain moves retain their origin after easing ends.
-                    // At the exact destination pose, local placement is valid
-                    // again; interrupted/overshooting motion stays conservative.
-                    let moving = origin.get().is_some() && progress.get() != 1.;
-                    if detached || owner.is_none() || !domain.get() || moving {
-                        return result;
-                    }
-                    let local = local.get();
-                    result.tab = if scroller.is_some() {
-                        Some(local.cast_spaces())
-                    } else {
-                        parent.tab.map(|parent| TransformAndBounds {
-                            transform: parent.transform * local.transform,
-                            bounds: local.bounds,
-                        })
-                    };
-                    result
-                },
-                &deps,
-                NativeLocalPlacement::eq,
-                "native local placement",
-            ));
+        self.native_local_placement.replace_with_computed_cutoff(
+            move || {
+                let parent = parent.get();
+                let owner = scroller.or(parent.owner);
+                let mut result = NativeLocalPlacement { owner, tab: None };
+                // Same-domain moves retain their origin after easing ends.
+                // At the exact destination pose, local placement is valid
+                // again; interrupted/overshooting motion stays conservative.
+                let moving = origin.get().is_some() && progress.get() != 1.;
+                if detached || owner.is_none() || !domain.get() || moving {
+                    return result;
+                }
+                let local = local.get();
+                result.tab = if scroller.is_some() {
+                    Some(local.cast_spaces())
+                } else {
+                    parent.tab.map(|parent| TransformAndBounds {
+                        transform: parent.transform * local.transform,
+                        bounds: local.bounds,
+                    })
+                };
+                result
+            },
+            &deps,
+            NativeLocalPlacement::eq,
+            "native local placement",
+        );
     }
 
     /// Retained native placement: an optional Scroller ID and a transform
