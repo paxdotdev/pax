@@ -1839,6 +1839,28 @@ fn unfiltered_capture_waits_until_unrelated_dirty_work_has_finished() {
 }
 
 #[test]
+fn held_render_feedback_delivers_native_work_without_advancing_time() {
+    let mut engine = engine();
+    engine.tick();
+    let ctx = engine.runtime_context.clone();
+    let _graph = ctx.property_graph.enter();
+    let globals = ctx.globals();
+    let frame = globals.elapsed_frames.get();
+    let millis = globals.elapsed_millis.get();
+    let target = ctx.clone();
+    let effect = Property::computed(move || {
+        target.enqueue_native_message(NativeMessage::ShrinkLayersTo(3));
+    }, &[]);
+    pax_runtime_api::properties::register_effect_property(&effect);
+    assert!(!ctx.can_present_settled_surfaces());
+    let messages = engine.settle_render_feedback();
+    assert!(messages.iter().any(|m| matches!(m, NativeMessage::ShrinkLayersTo(3))));
+    assert!(ctx.can_present_settled_surfaces());
+    assert!(engine.settle_render_feedback().is_empty());
+    assert_eq!((globals.elapsed_frames.get(), globals.elapsed_millis.get()), (frame, millis));
+}
+
+#[test]
 fn settled_replay_enters_its_owner_graph_and_stops_after_shutdown() {
     let mut engine = engine();
     let mut renderer = RecordingRenderer::default();

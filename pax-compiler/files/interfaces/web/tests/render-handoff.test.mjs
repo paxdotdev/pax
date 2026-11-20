@@ -11,7 +11,7 @@ const service = source.slice(source.indexOf('const pump = new CooperativeRenderS
 const schedulerModule = {exports: {}};
 vm.runInNewContext(transformSync(readFileSync(new URL('../src/utils/cooperative-render.ts', import.meta.url), 'utf8'),
     {loader:'ts', format:'cjs'}).code, {module:schedulerModule, exports:schedulerModule.exports});
-function harness() {
+function harness(synchronized = false) {
     const state = {remaining: 4, pendingProperties: false, settled: true, calls: [],
         tasks: [], finishes: 0, observe: () => {}, report: {pending: true, visible_pending: true}};
     // Use the real coalescing/wakeup behavior, with explicit host-task delivery.
@@ -21,7 +21,7 @@ function harness() {
     const module = {exports: {}};
     vm.runInNewContext(transformSync(`
         let ordinaryRenderPending = false, frameInProgress = false;
-        const presentation = undefined;
+        const presentation = synchronized ? {settled() {return true;}} : undefined;
         const surfaceTraceEnabled = false;
         const chassis = {
             has_pending_properties: () => state.pendingProperties,
@@ -46,7 +46,7 @@ function harness() {
         }
         export function beginFrame() {pump.beginFrame();}
         export function wake() {return pump.request();}
-    `, {loader:'ts', format:'cjs'}).code, {state, module, exports:module.exports, CooperativeRenderScheduler:Scheduler});
+    `, {loader:'ts', format:'cjs'}).code, {state, synchronized, module, exports:module.exports, CooperativeRenderScheduler:Scheduler});
     return {state, ...module.exports};
 }
 
@@ -134,4 +134,55 @@ test('completion wakes survive exhausted preflight and a fresh frame resumes wor
     h.wake();
     h.state.tasks.shift()();
     assert.deepEqual(h.state.calls, ['render', 'observe', 'layout', 'render']);
+});
+
+test('synchronized presentation holds the animation clock across visible backpressure', () => {
+    const h = harness(true);
+    for (const blocker of ['effects', 'gpu_backpressure']) {
+        h.state.report = {blocked:true, visible_pending:true, blocker};
+        assert.equal(h.run(true).holdsTick, true);
+    }
+    h.state.report = {pending:true, visible_pending:false};
+    assert.equal(h.run(true).holdsTick, false);
+});
+
+test('a held revision settles drawing feedback and waits for its fence before admitting another tick', () => {
+    const frame = source.slice(source.indexOf('function runFrame('), source.indexOf('function finishEngineTurn('));
+    const calls = [];
+    const module = {exports: {}};
+    vm.runInNewContext(transformSync(`
+        let ordinaryRenderPending = true, frameInProgress = false, renderEpoch = 0;
+        const frameScheduler = {}, mountYieldEnabled = false, liveSession = undefined;
+        const currentMount = {}, currentChassis = {
+            render_work_is_settled: () => false,
+            settle_render_feedback() {calls.push('settle'); return ['pose'];},
+            begin_render_work() {calls.push('begin');},
+        };
+        const presentation = {
+            awaitingFence: false, ready: false,
+            receive(messages) {calls.push(...messages);},
+            publish() {if (!this.ready) return false; this.awaitingFence = false; return true;},
+        };
+        const nativePool = {
+            beginTraceFrame() {}, sampleFrameInputs() {}, syncRenderSurfaceLayouts() {}, finishTextFrame() {},
+        };
+        const cooperativeRender = {beginFrame() {calls.push('draw'); ordinaryRenderPending = false;}};
+        function initializeChassis() {}
+        function finishEngineTurn() {frameInProgress = false;}
+        function withProfileMeasure() {calls.push('ordinary frame');}
+        ${frame}
+        export {presentation};
+        export function run() {runFrame(currentChassis, currentMount);}
+    `, {loader:'ts', format:'cjs'}).code, {calls, module, exports:module.exports});
+    const {presentation, run} = module.exports;
+    run();
+    assert.deepEqual(calls, ['settle', 'pose', 'begin', 'draw']);
+    calls.length = 0;
+    presentation.awaitingFence = true;
+    run();
+    run();
+    assert.deepEqual(calls, []);
+    presentation.ready = true;
+    run();
+    assert.deepEqual(calls, ['ordinary frame']);
 });

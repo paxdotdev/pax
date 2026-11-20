@@ -123,6 +123,7 @@ export class PaxChassisWeb {
   web_submission_complete(serial: bigint): boolean;
   continue_render_work(epoch: number): void;
   render_work_is_settled(): boolean;
+  settle_render_feedback(): any[];
   service_render_work(slice_ms: number): import('../utils/cooperative-render').RenderWorkResult & {
     visible_pending: boolean; blocker: string | null; units: number; ordinary_layers: number; atomic_fallbacks: number;
     elapsed_ms: number; max_unit_ms: number; preparation: object;

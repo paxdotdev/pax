@@ -15,9 +15,8 @@ type Revision = {
     payloadBytes: number;
 };
 
-// Qualification limits cover the sealed prefix and its successor together.
+// Qualification limits cover all retained native work for a presentation.
 // They bound retained work; time spent inside a DOM setter still needs measuring.
-// Opening the homepage source drawer emits roughly 1,300 messages in one tick.
 const maxNativeMessages = 2048;
 const maxPayloadBytes = 4 * 1024 * 1024;
 const immediate = new Set(['ImageLoad', 'Navigate', 'SetCursor', 'Screenshot']);
@@ -47,7 +46,6 @@ export class WebPresentation {
     private working = revision();
     private sealed?: {batch: Revision; fence: bigint; coverage: string};
     private armed = false;
-    private successorTicked = false;
     private disposed = false;
     private failed = false;
 
@@ -108,36 +106,29 @@ export class WebPresentation {
 
     get awaitingFence() { return !!this.sealed; }
 
-    // While a GPU submission is late there is room for one CPU successor.
-    // Animation time is sampled again when the fence opens. Input handlers can
-    // still run against the displayed geometry between these turns.
-    get successorPending() { return this.awaitingFence && this.successorTicked; }
-
-    didTick() {
-        if (this.awaitingFence) this.successorTicked = true;
-    }
-
-    settled() {
-        if (this.sealed || this.stopped) return;
+    // During bootstrap native work still applies directly. Once armed, admit
+    // another animation sample only after this revision reaches the display.
+    settled(): boolean {
+        if (this.sealed || this.stopped) return false;
         const coverage = this.coverage();
-        if (coverage === undefined) return;
+        if (coverage === undefined) return !this.armed;
         if (!this.armed) {
             if (this.chassis.prepare_displayed_input()) {
                 this.chassis.publish_displayed_input();
                 this.armed = true;
             }
-            return;
+            return true;
         }
         const fence = this.chassis.web_submission_fence();
-        if (fence === undefined || !this.chassis.prepare_displayed_input()) return;
-        this.successorTicked = false;
+        if (fence === undefined || !this.chassis.prepare_displayed_input()) return false;
         this.sealed = {batch: this.working, fence, coverage};
         this.working = revision();
+        return true;
     }
 
     publish() {
         const sealed = this.sealed;
-        if (!sealed || !this.chassis.web_submission_complete(sealed.fence)) return;
+        if (!sealed || !this.chassis.web_submission_complete(sealed.fence)) return false;
         // Surface reassignment can occur during browser-owned scrolling. Carry
         // the native prefix forward and let the renderer supply replacement
         // coverage. A retired tile can never write into a newer assignment.
@@ -148,12 +139,14 @@ export class WebPresentation {
                 if (current(tile) && !this.working.tiles.has(canvas)) this.working.tiles.set(canvas, tile);
                 else tile.image.close();
             }
-        } else {
-            this.apply(sealed.batch.messages);
-            for (const tile of sealed.batch.tiles.values()) display(tile);
-            this.chassis.publish_displayed_input();
+            this.sealed = undefined;
+            return false;
         }
+        this.apply(sealed.batch.messages);
+        for (const tile of sealed.batch.tiles.values()) display(tile);
+        this.chassis.publish_displayed_input();
         this.sealed = undefined;
+        return true;
     }
 
     dispose() {

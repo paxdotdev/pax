@@ -359,7 +359,8 @@ struct TopologyBranch {
 
 // Traversal boundaries belong to the retained compositing records, not a second
 // scene graph. They let a localized edit reuse siblings without evaluating their
-// component properties. Dense global paint order is still renumbered.
+// component properties. Branch ranges index traversal positions, independently
+// of the sparse z values published to native and canvas consumers.
 #[derive(Default)]
 struct OcclusionTopology {
     branches: Vec<TopologyBranch>,
@@ -368,6 +369,60 @@ struct OcclusionTopology {
 }
 
 impl OcclusionTopology {
+    fn previous_order(&self, id: u32) -> Option<Occlusion> {
+        let branch = &self.branches[*self.positions.get(&id)?];
+        let range = &self.order[branch.order_start..branch.order_end];
+        // A drawable sorts immediately before or after its own descendants.
+        [range.first(), range.last()]
+            .into_iter()
+            .flatten()
+            .find_map(|&(candidate, order)| (candidate == id).then_some(order))
+    }
+
+    fn assign_z_indices(&mut self, previous: &Self) {
+        // Keep existing keys whenever the intervening run fits. After exhausting
+        // a gap, spread that neighborhood out to accommodate future insertions.
+        const REBALANCE_SPACING: i64 = 256;
+        let mut start = 0;
+        let mut left = -1_i64;
+        let len = self.order.len();
+        let end = i64::from(i32::MAX) + 1;
+        assert!(
+            len as u64 <= end as u64,
+            "scene exceeds the paint order range"
+        );
+        let mut rebalance = false;
+        for i in 0..=len {
+            let right = if i == len {
+                end
+            } else if let Some(old) = previous.previous_order(self.order[i].0) {
+                let key = i64::from(old.z_index);
+                let slots = (i - start + 1) as i64;
+                if key - left < slots || end - key < (len - i) as i64 {
+                    rebalance = true;
+                    continue;
+                }
+                if rebalance && key - left < slots * REBALANCE_SPACING {
+                    continue;
+                }
+                self.order[i].1.z_index = old.z_index;
+                key
+            } else {
+                continue;
+            };
+            // Keep ordinary scenes in a compact numerical range even when the
+            // right boundary is the end of the entire i32 domain.
+            let step = ((right - left) / (i - start + 1) as i64).min(4 * REBALANCE_SPACING);
+            for (_, order) in &mut self.order[start..i] {
+                left += step;
+                order.z_index = left as i32;
+            }
+            left = right;
+            start = i + 1;
+            rebalance = false;
+        }
+    }
+
     fn begin(
         &mut self,
         id: u32,
@@ -588,7 +643,7 @@ pub(crate) fn update_node_occlusion_observed(
         state.stats.rebuild_node = node;
         state.culling_rebuild = true;
         state.records.clear();
-        state.topology = Default::default();
+        let previous = std::mem::take(&mut state.topology);
         state.removed.clear();
         ctx.clear_occlusion_bounds();
         state.clip_dependents.clear();
@@ -598,7 +653,7 @@ pub(crate) fn update_node_occlusion_observed(
         state.leaf_scroll_regions.clear();
         state.owned_layers.clear();
         state.unsafe_layers.clear();
-        rebuild_node_occlusion(root_node, ctx, state);
+        rebuild_node_occlusion(root_node, ctx, state, &previous);
         refresh_container_membership(ctx, state);
         completed("occlusion.coverage.rebuild");
         ctx.prepare_scene_geometry();
@@ -945,12 +1000,9 @@ fn try_reconcile_structure(
                             .insert(old.id, walk.topology.branches.len());
                         walk.topology.branches.push(retained);
                     }
-                    for &(id, mut order) in
-                        &state.topology.order[branch.order_start..branch.order_end]
-                    {
-                        order.z_index = walk.topology.order.len() as i32;
-                        walk.topology.order.push((id, order));
-                    }
+                    walk.topology.order.extend_from_slice(
+                        &state.topology.order[branch.order_start..branch.order_end],
+                    );
                     walk.next_layer = branch.layer_end;
                     walk.reused += (branch.end - index) as u64;
                     return true;
@@ -1095,7 +1147,7 @@ fn try_reconcile_structure(
                 Occlusion {
                     render_layer_id: layer_id,
                     parent_frame: container,
-                    z_index: walk.topology.order.len() as i32,
+                    z_index: 0,
                 },
             ));
         }
@@ -1131,7 +1183,7 @@ fn try_reconcile_structure(
                 Occlusion {
                     render_layer_id: layer_id,
                     parent_frame: container,
-                    z_index: walk.topology.order.len() as i32,
+                    z_index: 0,
                 },
             ));
         }
@@ -1270,22 +1322,10 @@ fn try_reconcile_structure(
         dirty.insert(id);
     }
     dirty.retain(|id| walk.seen.contains(id));
+    walk.topology.assign_z_indices(&state.topology);
     for &(id, order) in &walk.topology.order {
-        // Avoid property reads/writes and scene lookup for an unchanged order.
-        let unchanged = !added_ids.contains(&id)
-            && state.topology.positions.get(&id).is_some_and(|&index| {
-                let branch = &state.topology.branches[index];
-                let old_index = if state.records[&id].before_children {
-                    branch.order_start
-                } else {
-                    branch.order_end - 1
-                };
-                state
-                    .topology
-                    .order
-                    .get(old_index)
-                    .is_some_and(|old| old == &(id, order))
-            });
+        let unchanged =
+            !added_ids.contains(&id) && state.topology.previous_order(id) == Some(order);
         if unchanged {
             continue;
         }
@@ -2367,11 +2407,12 @@ fn rebuild_node_occlusion(
     root_node: &Rc<ExpandedNode>,
     ctx: &RuntimeContext,
     state: &mut OcclusionState,
+    previous: &OcclusionTopology,
 ) {
     #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
     let pass_start = std::time::Instant::now();
 
-    let mut z_index = 0;
+    let mut ordered_nodes = Vec::new();
     let mut next_layer_id = 1;
     let viewport = ctx.globals().viewport.get();
     let viewport_bounds = OcclusionBox::from_viewport(viewport.bounds.0, viewport.bounds.1);
@@ -2384,12 +2425,24 @@ fn rebuild_node_occlusion(
         viewport_bounds,
         viewport_bounds,
         Affine::IDENTITY,
-        &mut z_index,
+        &mut ordered_nodes,
         &mut next_layer_id,
         &[],
         None,
         state,
     );
+
+    state.topology.assign_z_indices(previous);
+    for (node, &(id, order)) in ordered_nodes.into_iter().zip(&state.topology.order) {
+        let record = state.records.get_mut(&id).unwrap();
+        if assign_occlusion(&node, order, record.layer, ctx) {
+            state.stats.orders_updated += 1;
+        }
+        if record.layer == Layer::Canvas {
+            refresh_record_path(record, &node, None);
+            record.opacity = coverage_opacity(&node);
+        }
+    }
 
     let new_layer_count = next_layer_id;
     if ctx.layer_count.get() != new_layer_count {
@@ -2417,7 +2470,7 @@ fn update_node_occlusion_recursive(
     viewport_bounds: OcclusionBox,
     active_clip_bounds: OcclusionBox,
     active_scroll_transform: Affine,
-    z_index: &mut i32,
+    ordered_nodes: &mut Vec<Rc<ExpandedNode>>,
     next_layer_id: &mut usize,
     active_clip_ids: &[u32],
     parent: Option<u32>,
@@ -2542,16 +2595,12 @@ fn update_node_occlusion_recursive(
     if materializes_native_surface_before_children {
         let new_occlusion = Occlusion {
             render_layer_id: current_layer_id,
-            z_index: *z_index,
+            z_index: 0,
             parent_frame: active_container,
         };
 
-        if assign_occlusion(node, new_occlusion, layer, ctx) {
-            state.stats.orders_updated += 1;
-        }
+        ordered_nodes.push(Rc::clone(node));
         state.topology.order.push((node.id.to_u32(), new_occlusion));
-
-        *z_index += 1;
     }
 
     for child in node.presentation_children(ctx).iter().rev() {
@@ -2572,7 +2621,7 @@ fn update_node_occlusion_recursive(
             viewport_bounds,
             child_clip_bounds,
             descendant_scroll_transform,
-            z_index,
+            ordered_nodes,
             next_layer_id,
             if unclippable {
                 &[]
@@ -2596,7 +2645,7 @@ fn update_node_occlusion_recursive(
 
     let new_occlusion = Occlusion {
         render_layer_id: current_layer_id,
-        z_index: *z_index,
+        z_index: 0,
         parent_frame: active_container,
     };
 
@@ -2641,23 +2690,9 @@ fn update_node_occlusion_recursive(
         }
     }
 
-    if assign_occlusion(node, new_occlusion, layer, ctx) {
-        state.stats.orders_updated += 1;
-    }
+    ordered_nodes.push(Rc::clone(node));
     state.topology.order.push((node.id.to_u32(), new_occlusion));
     state.topology.end(topology_index, *next_layer_id);
-
-    match layer {
-        Layer::Canvas => {
-            let record = state.records.get_mut(&node.id.to_u32()).unwrap();
-            refresh_record_path(record, node, None);
-            record.opacity = coverage_opacity(node);
-        }
-        Layer::Native | Layer::NativeNonOccluding => {}
-        Layer::DontCare => {}
-    }
-
-    *z_index += 1;
 }
 
 // Retained only as a differential oracle for the pre-indexed affine pass.

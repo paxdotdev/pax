@@ -1042,6 +1042,37 @@ impl PaxEngine {
         // Keep their geometry and classifications in the same committed scene;
         // publishing between passes would expose stale layer ownership to hosts.
         // This does not repeat lifecycle handlers, time, or proximity delivery.
+        self.finish_scene_settlement(
+            completed,
+            #[cfg(target_os = "windows")]
+            startup_timing,
+        )
+    }
+
+    /// Reconcile effects raised during drawing or input on a held frame. This
+    /// preserves the scene clock and does not dispatch tick or proximity handlers.
+    #[doc(hidden)]
+    pub fn settle_render_feedback(&self) -> Vec<NativeMessage> {
+        if self.startup_pending() || matches!(
+            self.runtime_context.application.context().phase(),
+            pax_runtime_api::AppPhase::Closing | pax_runtime_api::AppPhase::Closed
+        ) {
+            return Vec::new();
+        }
+        let _graph = self.runtime_context.property_graph.enter();
+        self.finish_scene_settlement(
+            |_| {},
+            #[cfg(target_os = "windows")]
+            None,
+        )
+    }
+
+    fn finish_scene_settlement(
+        &self,
+        mut completed: impl FnMut(&'static str),
+        #[cfg(target_os = "windows")] mut startup_timing: Option<StartupTickTiming>,
+    ) -> Vec<NativeMessage> {
+        let ctx = &self.runtime_context;
         let mut passes = 0;
         loop {
             #[cfg(target_os = "windows")]

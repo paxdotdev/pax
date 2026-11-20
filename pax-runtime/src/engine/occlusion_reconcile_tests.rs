@@ -1474,6 +1474,55 @@ fn insertion_and_removal_preserve_geometry_and_unchanged_masks() {
 }
 
 #[test]
+fn staged_prefixes_leave_room_for_a_visibility_branch() {
+    fn layout(ids: &[u32], previous: &OcclusionTopology) -> OcclusionTopology {
+        let mut topology = OcclusionTopology::default();
+        for &id in ids {
+            let index = topology.begin(id, None, 0, None, 1);
+            topology.order.push((id, Occlusion::default()));
+            topology.end(index, 1);
+        }
+        topology.assign_z_indices(previous);
+        assert!(topology.order.windows(2).all(|pair| pair[0].1.z_index < pair[1].1.z_index));
+        topology
+    }
+    let mut ids = Vec::new();
+    let mut topology = OcclusionTopology::default();
+    for stage in 0..25 {
+        ids.splice(0..0, stage * 128..(stage + 1) * 128);
+        topology = layout(&ids, &topology);
+    }
+    ids.splice(512..512, 4000..4015);
+    let next = layout(&ids, &topology);
+    for &(id, order) in &topology.order {
+        assert_eq!(next.previous_order(id), Some(order));
+    }
+}
+
+#[test]
+fn insertion_keeps_native_and_canvas_orders_and_rebalances_exhausted_gaps() {
+    let (ctx, root) = mount(vec![probe(Kind::Canvas, vec![]), probe(Kind::Native, vec![])]);
+    let group = root.children.get()[0].clone();
+    let siblings = group.children.get();
+    let original = siblings.iter().map(|n| n.occlusion.get()).collect::<Vec<_>>();
+    for i in 0..40 {
+        let new = add(&group, Kind::Canvas, &ctx);
+        let mut nodes = group.children.get();
+        nodes.pop();
+        nodes.insert(1, new);
+        attach(&group, nodes.clone(), &ctx);
+        settle(&root, &ctx);
+        assert!(nodes.windows(2).all(|pair|
+            pair[0].occlusion.get().z_index > pair[1].occlusion.get().z_index));
+        if i == 0 {
+            assert_eq!(siblings[0].occlusion.get(), original[0]);
+            assert_eq!(siblings[1].occlusion.get(), original[1]);
+        }
+        assert_full_rebuild_matches(&root, &ctx);
+    }
+}
+
+#[test]
 fn native_insertion_reorder_opacity_and_removal_match_full_masks() {
     let (ctx, root) = mount(vec![
         probe(Kind::Canvas, vec![]),
