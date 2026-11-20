@@ -74,7 +74,7 @@ impl ExpandedNode {
         }
         let node = Rc::downgrade(self);
         let context = Rc::downgrade(ctx);
-        self.motion_listener.replace_with(LocalProperty::computed(
+        self.motion_listener.replace_with_computed(
             move || {
                 pose.get();
                 camera.get();
@@ -96,7 +96,8 @@ impl ExpandedNode {
                 }
             },
             &deps,
-        ));
+            None,
+        );
         ctx.register_expanded_node_effect_property_named(
             self,
             &self.motion_listener,

@@ -676,8 +676,11 @@ source expansion owns the full-screen sheet independently of the desktop drawer.
 
 The three Manrope words in `RotatingHeadline` use checked-in Bézier outlines at
 weight 800 of the [bundled font](assets/fonts/README.md). `HeroLetter` animates
-ordinary Pax paths: native assembles along
-short arcs, and portable presses and rebounds. Native and portable freeze their
+one path per shaped cluster. Each path pivots around the center of its cap height.
+Native assembles along short arcs, and portable presses and rebounds.
+The static “Build” and “user interfaces” lines sit above the animated artwork
+so its effect bounds can cross their line boxes without masking the text.
+Native and portable freeze their
 painted fields and fade in place on exit, reusing the assembled pixels rather
 than resizing shader captures. Letter poses derive reactively from the word, ordinal, and clock, including
 the retained native → portable handoff; they do not wait for a per-letter

@@ -2647,18 +2647,17 @@ impl ExpandedNode {
             let context = Rc::downgrade(ctx);
             let id = self.id;
             let deps = [ctx.presentation_order_generation.untyped()];
-            self.presentation_layer
-                .replace_with(LocalProperty::computed_with_cutoff_and_name(
-                    move || {
-                        context
-                            .upgrade()
-                            .map(|ctx| ctx.presentation_domain(id))
-                            .unwrap_or(0)
-                    },
-                    &deps,
-                    u32::eq,
-                    &format!("presentation domain (node id: {})", self.id.0),
-                ));
+            self.presentation_layer.replace_with_computed_cutoff(
+                move || {
+                    context
+                        .upgrade()
+                        .map(|ctx| ctx.presentation_domain(id))
+                        .unwrap_or(0)
+                },
+                &deps,
+                u32::eq,
+                &format!("presentation domain (node id: {})", self.id.0),
+            );
         } else {
             let domain = render_parent
                 .as_ref()
@@ -2666,7 +2665,7 @@ impl ExpandedNode {
                 .unwrap_or_default();
             let deps = [domain.untyped()];
             self.presentation_layer
-                .replace_with(LocalProperty::computed(move || domain.get(), &deps));
+                .replace_with_computed(move || domain.get(), &deps, None);
         }
         #[cfg(feature = "3d")]
         let parent_geometry = render_parent
@@ -2734,7 +2733,7 @@ impl ExpandedNode {
             origin.untyped(),
             progress.untyped(),
         ];
-        self.layout_bounds.replace_with(LocalProperty::computed(
+        self.layout_bounds.replace_with_computed(
             move || {
                 let target = target_bounds.get();
                 match origin.get() {
@@ -2749,7 +2748,8 @@ impl ExpandedNode {
                 }
             },
             &deps,
-        ));
+            None,
+        );
 
         let layout = self.layout_properties();
         let local = compute_tab(
@@ -2758,11 +2758,11 @@ impl ExpandedNode {
             effective_parent_transform_and_bounds.clone(),
         );
         let deps = [local.untyped()];
-        self.local_transform_and_bounds
-            .replace_with(LocalProperty::computed(
-                move || local.get().cast_spaces(),
-                &deps,
-            ));
+        self.local_transform_and_bounds.replace_with_computed(
+            move || local.get().cast_spaces(),
+            &deps,
+            None,
+        );
         #[cfg(feature = "3d")]
         {
             let parent_support = self
@@ -2782,7 +2782,7 @@ impl ExpandedNode {
                 rotate_y.untyped(),
                 z.untyped(),
             ];
-            self.support_node.replace_with(LocalProperty::computed(
+            self.support_node.replace_with_computed(
                 move || {
                     if own_view.get().is_none()
                         && rotate_x.get().unwrap_or_default().get_as_radians() == 0.
@@ -2795,7 +2795,8 @@ impl ExpandedNode {
                     }
                 },
                 &deps,
-            ));
+                None,
+            );
             let local = self.local_transform_and_bounds.clone();
             let rotate_x = borrow!(common_props).rotate_x.clone();
             let rotate_y = borrow!(common_props).rotate_y.clone();
@@ -2859,21 +2860,21 @@ impl ExpandedNode {
                 ));
             let geometry = self.spatial_geometry.clone();
             let deps = [geometry.untyped()];
-            self.transform_and_bounds
-                .replace_with(LocalProperty::computed(
-                    move || {
-                        let geometry = geometry.get();
-                        // Invalid authored poses paint no area, but keep mounted state and
-                        // local layout so a later finite value can recover the same subtree.
-                        geometry
-                            .orthographic_projection()
-                            .unwrap_or(TransformAndBounds {
-                                transform: pax_runtime_api::math::Transform2::new([0.0; 6]),
-                                bounds: geometry.bounds,
-                            })
-                    },
-                    &deps,
-                ));
+            self.transform_and_bounds.replace_with_computed(
+                move || {
+                    let geometry = geometry.get();
+                    // Invalid authored poses paint no area, but keep mounted state and
+                    // local layout so a later finite value can recover the same subtree.
+                    geometry
+                        .orthographic_projection()
+                        .unwrap_or(TransformAndBounds {
+                            transform: pax_runtime_api::math::Transform2::new([0.0; 6]),
+                            bounds: geometry.bounds,
+                        })
+                },
+                &deps,
+                None,
+            );
         }
         #[cfg(not(feature = "3d"))]
         {
@@ -2914,22 +2915,23 @@ impl ExpandedNode {
                 .unwrap_or_default();
             let own_view = self.own_camera_view.clone();
             let deps = [inherited_view.untyped(), own_view.untyped()];
-            self.presentation_view.replace_with(LocalProperty::computed(
+            self.presentation_view.replace_with_computed(
                 move || own_view.get().unwrap_or_else(|| inherited_view.get()),
                 &deps,
-            ));
+                None,
+            );
             let view = self.presentation_view.clone();
             let geometry = self.spatial_geometry.clone();
             let deps = [view.untyped(), geometry.untyped()];
-            self.presentation_geometry
-                .replace_with(LocalProperty::computed(
-                    move || view.get().project(geometry.get()),
-                    &deps,
-                ));
+            self.presentation_geometry.replace_with_computed(
+                move || view.get().project(geometry.get()),
+                &deps,
+                None,
+            );
             let geometry = self.presentation_geometry.clone();
             let deps = [geometry.untyped()];
             self.presentation_transform_and_bounds
-                .replace_with(LocalProperty::computed(
+                .replace_with_computed(
                     move || {
                         let geometry = geometry.get();
                         geometry
@@ -2940,7 +2942,8 @@ impl ExpandedNode {
                             })
                     },
                     &deps,
-                ));
+                    None,
+                );
         }
 
         self.bind_canvas_placement(ctx);
@@ -2961,22 +2964,22 @@ impl ExpandedNode {
         let local_opacity = self_opacity.clone();
         let node_id = self.id.to_u32();
         let scope_deps = [parent_scopes.untyped(), local_opacity.untyped()];
-        self.computed_opacity_scopes
-            .replace_with(LocalProperty::computed(
-                move || {
-                    let mut scopes = parent_scopes.get();
-                    if let Some(opacity) = local_opacity.get() {
-                        scopes.push(OpacityScope {
-                            node_id,
-                            opacity: opacity.to_float_0_1().clamp(0.0, 1.0) as f32,
-                        });
-                    }
-                    scopes
-                },
-                &scope_deps,
-            ));
+        self.computed_opacity_scopes.replace_with_computed(
+            move || {
+                let mut scopes = parent_scopes.get();
+                if let Some(opacity) = local_opacity.get() {
+                    scopes.push(OpacityScope {
+                        node_id,
+                        opacity: opacity.to_float_0_1().clamp(0.0, 1.0) as f32,
+                    });
+                }
+                scopes
+            },
+            &scope_deps,
+            None,
+        );
         let deps = [parent_opacity.untyped(), self_opacity.untyped()];
-        self.computed_opacity.replace_with(LocalProperty::computed(
+        self.computed_opacity.replace_with_computed(
             move || {
                 let parent = parent_opacity.get().clamp(0.0, 1.0);
                 let local = self_opacity
@@ -2987,7 +2990,8 @@ impl ExpandedNode {
                 (parent * local).clamp(0.0, 1.0)
             },
             &deps,
-        ));
+            None,
+        );
     }
 
     /// Refreshes native coverage after a paint alpha change that preserves its outline.
@@ -3036,33 +3040,33 @@ impl ExpandedNode {
             local_deps.push(self.layout_bounds.untyped());
             let weak = Rc::downgrade(self);
             let profile_context = ctx.work_profiling_enabled().then(|| Rc::downgrade(ctx));
-            self.local_occlusion_geometry
-                .replace_with(LocalProperty::computed(
-                    move || {
-                        crate::scene_geometry::presentation::ClipGeometry(
-                            weak.upgrade()
-                                .and_then(|node| {
-                                    let profile_context =
-                                        profile_context.as_ref().and_then(Weak::upgrade);
-                                    let _work = profile_context.as_ref().and_then(|context| {
-                                        context.profile_node_work(
-                                            node.id.to_u32(),
-                                            "local occlusion geometry",
-                                        )
-                                    });
-                                    // Resolve the sizing dependency even when a primitive
-                                    // reads bounds through its presentation geometry. A
-                                    // dependency left dirty cannot propagate later resizes.
-                                    node.layout_bounds.get();
-                                    node.instance_node
-                                        .borrow()
-                                        .resolve_local_occlusion_path(&node)
-                                })
-                                .map(Rc::new),
-                        )
-                    },
-                    &local_deps,
-                ));
+            self.local_occlusion_geometry.replace_with_computed(
+                move || {
+                    crate::scene_geometry::presentation::ClipGeometry(
+                        weak.upgrade()
+                            .and_then(|node| {
+                                let profile_context =
+                                    profile_context.as_ref().and_then(Weak::upgrade);
+                                let _work = profile_context.as_ref().and_then(|context| {
+                                    context.profile_node_work(
+                                        node.id.to_u32(),
+                                        "local occlusion geometry",
+                                    )
+                                });
+                                // Resolve the sizing dependency even when a primitive
+                                // reads bounds through its presentation geometry. A
+                                // dependency left dirty cannot propagate later resizes.
+                                node.layout_bounds.get();
+                                node.instance_node
+                                    .borrow()
+                                    .resolve_local_occlusion_path(&node)
+                            })
+                            .map(Rc::new),
+                    )
+                },
+                &local_deps,
+                None,
+            );
         } else {
             self.local_occlusion_geometry
                 .replace_with(LocalProperty::default());
@@ -3118,19 +3122,18 @@ impl ExpandedNode {
 
         let context = Rc::clone(ctx);
         let id = self.id.to_u32();
-        self.occlusion_listener
-            .replace_with(LocalProperty::computed_with_name(
-                move || {
-                    placement.get();
-                    clip.get();
-                    context.set_wheel_scope(id, wheel_events.get());
-                    // Typed inputs already invalidate the local coverage property.
-                    // Placement/opacity still repair coverage without rebuilding its shape.
-                    context.mark_node_occlusion_placement_dirty(id);
-                },
-                &deps,
-                "occlusion listener",
-            ));
+        self.occlusion_listener.replace_with_computed(
+            move || {
+                placement.get();
+                clip.get();
+                context.set_wheel_scope(id, wheel_events.get());
+                // Typed inputs already invalidate the local coverage property.
+                // Placement/opacity still repair coverage without rebuilding its shape.
+                context.mark_node_occlusion_placement_dirty(id);
+            },
+            &deps,
+            Some("occlusion listener"),
+        );
         ctx.register_expanded_node_effect_property_named(
             self,
             &self.occlusion_listener,
@@ -3152,19 +3155,18 @@ impl ExpandedNode {
         deps.push(placement.untyped());
         let context = ctx.clone();
         let id = self.id.to_u32();
-        self.input_listener
-            .replace_with(LocalProperty::computed_with_name(
-                move || {
-                    placement.get();
-                    if placement_only {
-                        context.invalidate_input_placement(id);
-                    } else {
-                        context.mark_node_input_dirty(id);
-                    }
-                },
-                &deps,
-                "input geometry listener",
-            ));
+        self.input_listener.replace_with_computed(
+            move || {
+                placement.get();
+                if placement_only {
+                    context.invalidate_input_placement(id);
+                } else {
+                    context.mark_node_input_dirty(id);
+                }
+            },
+            &deps,
+            Some("input geometry listener"),
+        );
         ctx.register_expanded_node_effect_property_named(
             self,
             &self.input_listener,

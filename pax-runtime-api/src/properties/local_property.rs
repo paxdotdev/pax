@@ -124,18 +124,11 @@ impl<T: PropertyValue> LocalProperty<T> {
     ) -> Self {
         let inbound: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
         let start_val = T::default();
-        let evaluator = Rc::new(super::shared_graph::owner_evaluator(evaluator));
         Self {
             untyped: UntypedProperty::new(
                 start_val,
                 inbound,
-                PropertyType::Computed {
-                    evaluator,
-                    cutoff: cutoff.map(|predicate| properties_table::Cutoff {
-                        predicate,
-                        initialized: false,
-                    }),
-                },
+                PropertyType::computed(evaluator, cutoff),
                 name,
             ),
             _phantom: PhantomData {},
@@ -258,6 +251,44 @@ impl<T: PropertyValue> LocalProperty<T> {
                 false,
             )
         })
+    }
+
+    /// Installs a fresh engine computation directly into this slot, preserving its subscribers.
+    #[doc(hidden)]
+    pub fn replace_with_computed(
+        &self,
+        evaluator: impl Fn() -> T + 'static,
+        dependencies: &[UntypedProperty],
+        name: Option<&str>,
+    ) {
+        self.install_computation(PropertyType::computed(evaluator, None), dependencies, name);
+    }
+
+    /// Installs a fresh cutoff computation with the ordinary eager replacement semantics.
+    #[doc(hidden)]
+    pub fn replace_with_computed_cutoff(
+        &self,
+        evaluator: impl Fn() -> T + 'static,
+        dependencies: &[UntypedProperty],
+        cutoff: impl Fn(&T, &T) -> bool + 'static,
+        name: &str,
+    ) {
+        self.install_computation(
+            PropertyType::computed(evaluator, Some(Rc::new(cutoff))),
+            dependencies,
+            Some(name),
+        );
+    }
+
+    fn install_computation(
+        &self,
+        computation: PropertyType<T>,
+        dependencies: &[UntypedProperty],
+        name: Option<&str>,
+    ) {
+        PROPERTY_TABLE.with(|table| {
+            table.install_computation(self.untyped.id, computation, dependencies, name)
+        });
     }
 
     /// Engine binding for paintless nodes. Defer the initial cutoff evaluation

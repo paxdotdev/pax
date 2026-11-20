@@ -189,6 +189,17 @@ fn settle(root: &Rc<ExpandedNode>, ctx: &Rc<RuntimeContext>) {
     update_node_occlusion(root, ctx);
 }
 
+fn settle_occlusion_effects(root: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
+    for _ in 0..16 {
+        ctx.drain_node_effects();
+        if !ctx.take_occlusion_dirty() {
+            return;
+        }
+        update_node_occlusion(root, ctx);
+    }
+    panic!("scroller insertion did not settle");
+}
+
 fn clear(ctx: &RuntimeContext) {
     ctx.clear_all_dirty_canvases();
     for id in ctx.dirty_canvas_node_ids() {
@@ -257,7 +268,7 @@ fn fallback_paint_tracks_the_assigned_surface_when_world_geometry_stays_fixed() 
     let assign = |layer| {
         let mut order = leaf.occlusion.get();
         order.render_layer_id = layer;
-        assign_occlusion(leaf, order, Layer::Canvas, &ctx);
+        assign_occlusion(leaf, order, Layer::Canvas, &ctx, false);
     };
     let check = |owner: Option<&ExpandedNode>| {
         let projected = leaf.presentation_transform_and_bounds.get();
@@ -796,6 +807,7 @@ fn assert_full_rebuild_matches(root: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
         (
             pairs(&state.clip_dependents),
             pairs(&state.scroll_containers),
+            state.owned_layers.clone(),
             state.isolated_scrollers.clone(),
             state.leaf_scroll_regions.clone(),
             state
@@ -1676,7 +1688,7 @@ fn inserting_a_rounded_clip_repairs_shared_and_neighbor_masks_in_a_scroller() {
 }
 
 #[test]
-fn affine_clip_insertion_reconciles_while_new_scrollers_rebuild() {
+fn affine_clip_and_isolated_scroller_insertions_reconcile() {
     for kind in [Kind::Clip, Kind::Scroller] {
         let (ctx, root) = mount(vec![
             probe(Kind::Canvas, vec![]),
@@ -1686,10 +1698,7 @@ fn affine_clip_insertion_reconciles_while_new_scrollers_rebuild() {
         let before = ctx.occlusion_stats();
         let container = add(&group, kind, &ctx);
         settle(&root, &ctx);
-        assert_eq!(
-            ctx.occlusion_stats().rebuilds - before.rebuilds,
-            u64::from(matches!(kind, Kind::Scroller))
-        );
+        assert_eq!(ctx.occlusion_stats().rebuilds, before.rebuilds);
         assert_full_rebuild_matches(&root, &ctx);
         let before = ctx.occlusion_stats();
         let leaf = group.children.get()[0].clone();
@@ -1698,6 +1707,245 @@ fn affine_clip_insertion_reconciles_while_new_scrollers_rebuild() {
             .unwrap();
         settle(&root, &ctx);
         assert_eq!(ctx.occlusion_stats().rebuilds, before.rebuilds);
+        assert_full_rebuild_matches(&root, &ctx);
+    }
+}
+
+#[test]
+fn inserting_nested_scrollers_reassigns_existing_surfaces_and_preserves_displayed_hits() {
+    use crate::properties::input_capture::InputPublisher;
+    use pax_message::NativeMessage;
+
+    let branch = || {
+        retained_probe(
+            Kind::Scroller,
+            vec![
+                retained_probe(Kind::Canvas, vec![]),
+                retained_probe(Kind::Native, vec![]),
+            ],
+        )
+    };
+    let (ctx, root) = mount(vec![branch(), branch()]);
+    ctx.register_root_expanded_node(&root);
+    ctx.edit_globals(|globals| globals.platform = Platform::Web);
+    let group = root.children.get()[0].clone();
+    settle_occlusion_effects(&root, &ctx);
+    ctx.take_native_messages();
+    let original = group.children.get();
+    let existing_layer = original[0].browser_content_layer_id.get().unwrap();
+    let inserted = group
+        .create_children_detached(
+            vec![(
+                retained_probe(Kind::Scroller, vec![branch()]),
+                group.stack.clone(),
+            )],
+            &ctx,
+            &Rc::downgrade(&group),
+        )
+        .remove(0);
+    let before = ctx.occlusion_stats();
+    attach(
+        &group,
+        vec![original[0].clone(), inserted.clone(), original[1].clone()],
+        &ctx,
+    );
+    settle_occlusion_effects(&root, &ctx);
+    assert_eq!(ctx.occlusion_stats().rebuilds, before.rebuilds);
+    let reused = ctx.occlusion_stats().topology_nodes_reused - before.topology_nodes_reused;
+    assert!(
+        reused >= 4,
+        "existing scroller content should reuse topology, reused {reused}"
+    );
+    let nested = inserted.children.get()[0].clone();
+    let messages = ctx.take_native_messages();
+    for host in [&original[0], &inserted, &nested] {
+        let layer = host.browser_content_layer_id.get().unwrap();
+        assert_eq!(ctx.get_layer_scroller_owner(layer as usize), Some(host.id));
+        assert!(messages
+            .iter()
+            .any(|m| matches!(m, NativeMessage::ScrollerUpdate(p)
+            if p.id == host.id.to_u32() && p.content_layer_id == Some(layer))));
+    }
+    assert_eq!(
+        original[0].browser_content_layer_id.get(),
+        Some(existing_layer + 2)
+    );
+    assert_eq!(ctx.layer_count.get(), 5);
+    assert!(messages
+        .iter()
+        .any(|m| matches!(m, NativeMessage::ShrinkLayersTo(5))));
+    let hits = || {
+        settle_occlusion_effects(&root, &ctx);
+        let view = InputPublisher::default().capture(&ctx).unwrap();
+        [(8., 8.), (40., 40.), (301., 201.)].map(|point| {
+            view.hit_targets(point.into(), &HashMap::new(), true)
+                .unwrap()
+                .into_iter()
+                .map(|hit| (hit.identity.id, hit.identity.mount_epoch))
+                .collect::<Vec<_>>()
+        })
+    };
+    let incremental_hits = hits();
+    assert!(incremental_hits[0]
+        .iter()
+        .any(|(id, _)| *id == nested.children.get()[1].id.to_u32()));
+    assert_full_rebuild_matches(&root, &ctx);
+    assert_eq!(hits(), incremental_hits);
+    assert!(!ctx.take_native_messages().iter().any(|m| matches!(m,
+        NativeMessage::ScrollerUpdate(p) if p.content_layer_id.is_some())));
+}
+
+#[test]
+fn shifted_scroller_layers_keep_coverage_indices_and_native_masks() {
+    let shelf = || {
+        retained_probe(
+            Kind::Scroller,
+            (0..16)
+                .flat_map(|_| {
+                    [
+                        retained_probe(Kind::Canvas, vec![]),
+                        retained_probe(Kind::Native, vec![]),
+                    ]
+                })
+                .collect(),
+        )
+    };
+    let (ctx, root) = mount(vec![shelf(), shelf(), shelf()]);
+    let group = root.children.get()[0].clone();
+    let hosts = group.children.get();
+    settle_occlusion_effects(&root, &ctx);
+    let probe = [Rect::new(4., 4., 5., 5.)];
+    let indices = |layer| {
+        let mut lists = [
+            ctx.canvas_nodes_intersecting(layer, &probe)
+                .unwrap_or_default(),
+            ctx.compositing_nodes_intersecting(layer, &probe, false),
+            ctx.compositing_nodes_intersecting(layer, &probe, true),
+        ];
+        for ids in &mut lists {
+            ids.sort_unstable();
+        }
+        lists
+    };
+    let snapshot = |host: &ExpandedNode| {
+        let children = host.children.get();
+        let geometry = ctx.canvas_geometry_for_node(&children[0]);
+        let mask = children[1].native_mask_hash.get();
+        let lists = indices(geometry.layer);
+        assert!(lists[0].contains(&children[0].id.to_u32()));
+        assert!(lists[1].contains(&children[0].id.to_u32()));
+        assert!(lists[2].contains(&children[1].id.to_u32()));
+        assert_ne!(mask, 0);
+        (geometry, mask, lists)
+    };
+    let before: Vec<_> = hosts.iter().map(|host| snapshot(host)).collect();
+    clear(&ctx);
+    ctx.take_canvas_node_removals();
+    let stats = ctx.occlusion_stats();
+    let inserted = add(&group, Kind::Scroller, &ctx);
+    settle_occlusion_effects(&root, &ctx);
+    let after = ctx.occlusion_stats();
+    assert_eq!(after.rebuilds, stats.rebuilds);
+    let updated = after.records_updated - stats.records_updated;
+    assert!(updated < 8, "{updated} coverage records refreshed");
+    let evaluated = after.masks_evaluated - stats.masks_evaluated;
+    assert!(evaluated < 4, "{evaluated} masks evaluated");
+    let removals = ctx.take_canvas_node_removals();
+    let draws = ctx.dirty_canvas_node_ids();
+    for (host, (old, old_mask, old_indices)) in hosts.iter().zip(before) {
+        let (new, mask, indices) = snapshot(host);
+        for canvas in host.children.get().iter().step_by(2) {
+            assert!(removals.contains(&(old.layer, canvas.id.to_u32())));
+            assert!(draws.contains(&canvas.id));
+        }
+        assert_eq!(new.layer, old.layer + 1);
+        assert_eq!(new.local_paint_revision, old.local_paint_revision);
+        assert_eq!(new.surface_transform, old.surface_transform);
+        assert_eq!(mask, old_mask);
+        assert_eq!(indices, old_indices);
+    }
+    let new_layer = ctx.occlusion_state.borrow().owned_layers[&inserted.id.to_u32()];
+    assert!(indices(new_layer).iter().all(Vec::is_empty));
+    assert_full_rebuild_matches(&root, &ctx);
+}
+
+#[test]
+fn layer_renumber_repairs_concurrent_edits_and_transfer_to_the_vacated_number() {
+    let shelf = || {
+        retained_probe(
+            Kind::Scroller,
+            vec![
+                retained_probe(Kind::Canvas, vec![]),
+                retained_probe(Kind::Native, vec![]),
+            ],
+        )
+    };
+    let (ctx, root) = mount(vec![shelf(), shelf(), shelf()]);
+    let group = root.children.get()[0].clone();
+    let hosts = group.children.get();
+    settle_occlusion_effects(&root, &ctx);
+    let edited = hosts[0].children.get();
+    let removed = hosts[1].children.get();
+    let source = hosts[2].children.get();
+    assert_ne!(edited[1].native_mask_hash.get(), 0);
+    assert_ne!(source[1].native_mask_hash.get(), 0);
+    assert_ne!(removed[1].native_mask_hash.get(), 0);
+    let old_layer = source[0].occlusion.get().render_layer_id;
+    let before = ctx.occlusion_stats();
+    let destination = add(&group, Kind::Scroller, &ctx);
+    let target = add(&destination, Kind::Native, &ctx);
+    // One canvas changes owners but keeps its number, another moves away,
+    // and a third unmounts. Repair old overlaps on all three shifted shelves.
+    crate::NodeRef::new(&source[0], &ctx)
+        .move_to_insert_before(&crate::NodeRef::new(&target, &ctx))
+        .unwrap();
+    attach(&hosts[1], vec![removed[1].clone()], &ctx);
+    edited[0]
+        .get_common_properties()
+        .borrow()
+        .x
+        .set(Some(Size::Pixels(400.into())));
+    settle_occlusion_effects(&root, &ctx);
+    assert_eq!(ctx.occlusion_stats().rebuilds, before.rebuilds);
+    assert_eq!(source[0].occlusion.get().render_layer_id, old_layer);
+    assert_eq!(source[0].canvas_owner.get(), Some(destination.id.to_u32()));
+    assert_eq!(edited[1].native_mask_hash.get(), 0);
+    assert_eq!(source[1].native_mask_hash.get(), 0);
+    assert_eq!(removed[1].native_mask_hash.get(), 0);
+    assert_ne!(target.native_mask_hash.get(), 0);
+    let region = [Rect::new(3., 3., 4., 4.)];
+    assert!(ctx
+        .compositing_nodes_intersecting(old_layer, &region, false)
+        .contains(&source[0].id.to_u32()));
+    assert!(ctx
+        .compositing_nodes_intersecting(old_layer, &region, true)
+        .contains(&target.id.to_u32()));
+    assert_full_rebuild_matches(&root, &ctx);
+}
+
+#[test]
+fn inserting_a_shared_or_singular_scroll_surface_uses_the_full_rebuild() {
+    for allow_layer in [false, true] {
+        let (ctx, root) = mount(vec![probe(Kind::Native, vec![])]);
+        ctx.globals()
+            .browser_allows_scroller_vector_layers
+            .set(allow_layer);
+        let group = root.children.get()[0].clone();
+        let before = ctx.occlusion_stats();
+        let scroller = add(&group, Kind::Scroller, &ctx);
+        if allow_layer {
+            scroller
+                .get_common_properties()
+                .borrow()
+                .scale_x
+                .set(Some(Size::Percent(0.into())));
+        }
+        settle(&root, &ctx);
+        assert!(ctx.occlusion_stats().rebuilds > before.rebuilds);
+        assert_eq!(
+            ctx.occlusion_stats().structural_reconciliations,
+            before.structural_reconciliations
+        );
         assert_full_rebuild_matches(&root, &ctx);
     }
 }
@@ -2067,6 +2315,47 @@ fn localized_edits_reuse_unaffected_nested_islands_and_match_full_reconciliation
         settle(&root, &ctx);
         assert_full_rebuild_matches(&root, &ctx);
     }
+}
+
+#[test]
+fn retiring_mask_sources_invalidates_the_owner_and_reuses_unrelated_branches() {
+    let (ctx, root) = mount(vec![
+        probe(Kind::Clip, vec![probe(Kind::Canvas, vec![])]),
+        probe(
+            Kind::Group,
+            (0..32).map(|_| probe(Kind::Native, vec![])).collect(),
+        ),
+    ]);
+    let group = root.children.get()[0].clone();
+    let owner = group.children.get()[0].clone();
+    let source = owner
+        .create_children_detached(
+            [(
+                probe(Kind::Group, vec![probe(Kind::Canvas, vec![])]),
+                owner.stack.clone(),
+            )],
+            &ctx,
+            &Rc::downgrade(&owner),
+        )
+        .remove(0);
+    source.mount_as_render_source(&owner, &ctx);
+    settle(&root, &ctx);
+    assert!(!ctx
+        .occlusion_state
+        .borrow()
+        .contains_node(source.id.to_u32()));
+    let before = ctx.occlusion_stats();
+    source.recurse_unmount(&ctx);
+    assert!(ctx
+        .occlusion_state
+        .borrow()
+        .dirty
+        .contains(&owner.id.to_u32()));
+    settle(&root, &ctx);
+    let after = ctx.occlusion_stats();
+    assert_eq!(before.rebuilds, after.rebuilds);
+    assert!(after.topology_nodes_reused - before.topology_nodes_reused >= 32);
+    assert_full_rebuild_matches(&root, &ctx);
 }
 
 #[test]

@@ -647,9 +647,16 @@ fn shared_cutoff_outputs_publish_only_accepted_values() {
 fn evaluator_keeps_its_graph_when_another_graph_is_entered() {
     let shared = Property::new(1_u32);
     let first = PropertyGraph::new(|| {});
+    let installed = LocalProperty::new(0);
     let computed = {
         let _entered = first.enter();
         let local = shared.local();
+        let replacement_source = shared.clone();
+        installed.replace_with_computed(
+            move || replacement_source.local().get(),
+            &[local.untyped()],
+            None,
+        );
         let value = shared.clone();
         LocalProperty::computed(move || value.local().get(), &[local.untyped()])
     };
@@ -658,8 +665,10 @@ fn evaluator_keeps_its_graph_when_another_graph_is_entered() {
     shared.set(2);
     assert_eq!(shared.local().get(), 2);
     assert_eq!(computed.get(), 1);
+    assert_eq!(installed.get(), 1);
     first.import();
     assert_eq!(computed.get(), 2);
+    assert_eq!(installed.get(), 2);
     first.close();
     second.close();
 }

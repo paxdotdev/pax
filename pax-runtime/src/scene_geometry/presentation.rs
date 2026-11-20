@@ -82,7 +82,7 @@ impl ExpandedNode {
         let weak = Rc::downgrade(self);
         let context = Rc::downgrade(ctx);
         let work = ctx.presentation_work();
-        self.scroll_state.replace_with(LocalProperty::computed(
+        self.scroll_state.replace_with_computed(
             move || {
                 let inherited = parent.get().children;
                 let (Some(node), Some(ctx)) = (weak.upgrade(), context.upgrade()) else {
@@ -138,7 +138,8 @@ impl ExpandedNode {
                 state
             },
             &scroll_deps,
-        ));
+            None,
+        );
 
         if !instance.may_supply_clip() {
             self.local_clip_geometry
@@ -158,20 +159,20 @@ impl ExpandedNode {
         clip_deps.push(self.layout_bounds.untyped());
         let weak = Rc::downgrade(self);
         let work = ctx.presentation_work();
-        self.local_clip_geometry
-            .replace_with(LocalProperty::computed(
-                move || {
-                    let Some(node) = weak.upgrade() else {
-                        return ClipGeometry::default();
-                    };
-                    let path = node.instance_node.borrow().resolve_local_clip_path(&node);
-                    if path.is_some() {
-                        work.clip.set(work.clip.get() + 1);
-                    }
-                    ClipGeometry(path.map(Rc::new))
-                },
-                &clip_deps,
-            ));
+        self.local_clip_geometry.replace_with_computed(
+            move || {
+                let Some(node) = weak.upgrade() else {
+                    return ClipGeometry::default();
+                };
+                let path = node.instance_node.borrow().resolve_local_clip_path(&node);
+                if path.is_some() {
+                    work.clip.set(work.clip.get() + 1);
+                }
+                ClipGeometry(path.map(Rc::new))
+            },
+            &clip_deps,
+            None,
+        );
         clip_deps.extend([
             self.local_clip_geometry.untyped(),
             self.presentation_transform_and_bounds.untyped(),
@@ -184,25 +185,25 @@ impl ExpandedNode {
         let local = self.local_clip_geometry.clone();
         let weak = Rc::downgrade(self);
         let work = ctx.presentation_work();
-        self.world_clip_geometry
-            .replace_with(LocalProperty::computed(
-                move || {
-                    let Some(node) = weak.upgrade() else {
-                        return ClipGeometry::default();
-                    };
-                    let path = if let Some(local) = local.get().0 {
-                        node.presentation_projection()
-                            .map(|p| p.project_path(&local, None))
-                    } else {
-                        let path = node.instance_node.borrow().resolve_effect_clip_path(&node);
-                        if path.is_some() {
-                            work.clip.set(work.clip.get() + 1);
-                        }
-                        path
-                    };
-                    ClipGeometry(path.map(Rc::new))
-                },
-                &clip_deps,
-            ));
+        self.world_clip_geometry.replace_with_computed(
+            move || {
+                let Some(node) = weak.upgrade() else {
+                    return ClipGeometry::default();
+                };
+                let path = if let Some(local) = local.get().0 {
+                    node.presentation_projection()
+                        .map(|p| p.project_path(&local, None))
+                } else {
+                    let path = node.instance_node.borrow().resolve_effect_clip_path(&node);
+                    if path.is_some() {
+                        work.clip.set(work.clip.get() + 1);
+                    }
+                    path
+                };
+                ClipGeometry(path.map(Rc::new))
+            },
+            &clip_deps,
+            None,
+        );
     }
 }

@@ -60,25 +60,23 @@ impl ExpandedNode {
             ]);
             deps
         };
-        self.affine_canvas_domain
-            .replace_with(LocalProperty::computed_with_cutoff_and_name(
-                move || {
-                    let transform = kurbo::Affine::from(local.get().transform);
-                    let affine = parent_domain.get()
-                        && transform.is_finite()
-                        && transform.determinant() != 0.;
-                    #[cfg(feature = "3d")]
-                    let affine = affine
-                        && spatial.0.get().unwrap_or_default().get_as_radians() == 0.
-                        && spatial.1.get().unwrap_or_default().get_as_radians() == 0.
-                        && spatial.2.get().unwrap_or_default().to_float() == 0.
-                        && spatial.3.get().is_none();
-                    affine
-                },
-                &deps,
-                bool::eq,
-                "canvas affine domain",
-            ));
+        self.affine_canvas_domain.replace_with_computed_cutoff(
+            move || {
+                let transform = kurbo::Affine::from(local.get().transform);
+                let affine =
+                    parent_domain.get() && transform.is_finite() && transform.determinant() != 0.;
+                #[cfg(feature = "3d")]
+                let affine = affine
+                    && spatial.0.get().unwrap_or_default().get_as_radians() == 0.
+                    && spatial.1.get().unwrap_or_default().get_as_radians() == 0.
+                    && spatial.2.get().unwrap_or_default().to_float() == 0.
+                    && spatial.3.get().is_none();
+                affine
+            },
+            &deps,
+            bool::eq,
+            "canvas affine domain",
+        );
 
         let parent_id = parent.as_ref().map(|p| p.id.to_u32());
         let parent = parent
@@ -96,35 +94,34 @@ impl ExpandedNode {
             local.untyped(),
             origin.untyped(),
         ];
-        self.canvas_local_placement
-            .replace_with(LocalProperty::computed_with_cutoff_and_name(
-                move || {
-                    let owner = owner.get();
-                    let mut result = CanvasLocalPlacement { owner, tab: None };
-                    if detached || owner.is_none() || !domain.get() || origin.get().is_some() {
-                        return result;
-                    }
-                    let local = local.get();
-                    // Reset at the actual allocated surface, not at every authored
-                    // Scroller: some backends share layers with nested scrollers.
-                    result.tab = if owner == parent_id {
-                        Some(local.cast_spaces())
-                    } else {
-                        let parent = parent.get();
-                        (parent.owner == owner)
-                            .then_some(parent.tab)
-                            .flatten()
-                            .map(|parent| TransformAndBounds {
-                                transform: parent.transform * local.transform,
-                                bounds: local.bounds,
-                            })
-                    };
-                    result
-                },
-                &deps,
-                CanvasLocalPlacement::eq,
-                "canvas local placement",
-            ));
+        self.canvas_local_placement.replace_with_computed_cutoff(
+            move || {
+                let owner = owner.get();
+                let mut result = CanvasLocalPlacement { owner, tab: None };
+                if detached || owner.is_none() || !domain.get() || origin.get().is_some() {
+                    return result;
+                }
+                let local = local.get();
+                // Reset at the actual allocated surface, not at every authored
+                // Scroller: some backends share layers with nested scrollers.
+                result.tab = if owner == parent_id {
+                    Some(local.cast_spaces())
+                } else {
+                    let parent = parent.get();
+                    (parent.owner == owner)
+                        .then_some(parent.tab)
+                        .flatten()
+                        .map(|parent| TransformAndBounds {
+                            transform: parent.transform * local.transform,
+                            bounds: local.bounds,
+                        })
+                };
+                result
+            },
+            &deps,
+            CanvasLocalPlacement::eq,
+            "canvas local placement",
+        );
 
         self.bind_canvas_paint_placement(ctx);
     }

@@ -96,6 +96,35 @@ pub(crate) enum PropertyType<T> {
     },
 }
 
+impl<T: PropertyValue> PropertyType<T> {
+    pub(super) fn computed(
+        evaluator: impl Fn() -> T + 'static,
+        cutoff: Option<Rc<dyn Fn(&T, &T) -> bool>>,
+    ) -> Self {
+        Self::Computed {
+            evaluator: Rc::new(super::shared_graph::owner_evaluator(evaluator)),
+            cutoff: cutoff.map(|predicate| Cutoff {
+                predicate,
+                initialized: false,
+            }),
+        }
+    }
+
+    fn cutoff_settler(&self) -> Option<Rc<dyn Fn(&PropertyTable, PropertyId) -> CutoffEvaluation>> {
+        matches!(
+            self,
+            Self::Computed {
+                cutoff: Some(_),
+                ..
+            }
+        )
+        .then(|| {
+            Rc::new(|table: &PropertyTable, id| table.update_value::<T>(id))
+                as Rc<dyn Fn(&PropertyTable, PropertyId) -> CutoffEvaluation>
+        })
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct Cutoff<T> {
     pub(super) predicate: Rc<dyn Fn(&T, &T) -> bool>,
@@ -288,17 +317,7 @@ impl PropertyTable {
         data: PropertyType<T>,
         debug_name: Option<&str>,
     ) -> PropertyId {
-        let is_cutoff = matches!(
-            &data,
-            PropertyType::Computed {
-                cutoff: Some(_),
-                ..
-            }
-        );
-        let cutoff_settler = is_cutoff.then(|| {
-            Rc::new(|table: &PropertyTable, id| table.update_value::<T>(id))
-                as Rc<dyn Fn(&PropertyTable, PropertyId) -> CutoffEvaluation>
-        });
+        let cutoff_settler = data.cutoff_settler();
 
         let id = {
             let Ok(mut sm) = self.property_map.try_borrow_mut() else {
@@ -540,32 +559,7 @@ impl PropertyTable {
             });
         });
 
-        let owner = self.work_owner(source_id);
-        self.queued_effects.borrow_mut().reassign(source_id, owner);
-        self.queued_cutoffs.borrow_mut().reassign(source_id, owner);
-
-        // Reconnect the new dependencies and enqueue any dirty upstream cutoffs.
-        self.connect_inbound(source_id);
-
-        if self.is_registered_effect(source_id) && self.is_cutoff(source_id) {
-            panic!("cutoff properties cannot be registered as effects");
-        }
-        if self.is_cutoff(source_id) && self.is_dirty(source_id) {
-            let defer = defer_unobserved_cutoff
-                && self.with_property_data_mut(source_id, |p| {
-                    p.outbound.is_empty()
-                        && p.invalidation_events.is_none()
-                        && p.typed_data::<T>().publisher.is_none()
-                        && p.typed_data::<T>().shared.is_none()
-                });
-            if !defer {
-                self.enqueue_cutoff(source_id);
-            }
-        }
-
-        // make sure dependencies of self
-        // know that something has changed
-        self.dirtify_outbound(source_id);
+        self.reconnect_replacement::<T>(source_id, defer_unobserved_cutoff);
 
         #[cfg(debug_assertions)]
         {
@@ -575,7 +569,6 @@ impl PropertyTable {
             names.insert(source_id, format!("{}", target_name));
         }
 
-        self.enqueue_effect_if_registered(source_id);
         {
             let mut names = self.diagnostic_names.borrow_mut();
             if let Some(name) = names.get(&target_id).cloned() {
@@ -587,6 +580,79 @@ impl PropertyTable {
         if !self.is_dirty(source_id) {
             self.publish_stored::<T>(source_id);
         }
+    }
+
+    // Only the stable destination enters the dependency lists. Drop the previous
+    // evaluator after disconnecting it, just as replacing from an existing slot does.
+    pub(super) fn install_computation<T: PropertyValue>(
+        &self,
+        id: PropertyId,
+        computation: PropertyType<T>,
+        dependencies: &[super::UntypedProperty],
+        name: Option<&str>,
+    ) {
+        let initial = T::default();
+        self.disconnect_inbound(id);
+        self.with_property_data_mut(id, |data| {
+            data.inbound.clear();
+            data.inbound.extend(dependencies.iter().map(|p| p.get_id()));
+            data.owner_graph = super::shared_graph::current_graph_id();
+            data.owner_scope = super::shared_graph::current_binding_scope();
+            data.dirty = true;
+            data.cutoff_settler = computation.cutoff_settler();
+            let typed = data.typed_data::<T>();
+            typed.value = initial;
+            typed.property_type = computation;
+        });
+        self.reconnect_replacement::<T>(id, false);
+        #[cfg(debug_assertions)]
+        {
+            let mut names = self.debug_names.borrow_mut();
+            if let Some(name) = name {
+                names.insert(id, name.to_owned());
+            } else {
+                names.remove(id);
+            }
+        }
+        self.diagnostic_names.borrow_mut().remove(&id);
+        if let Some(name) = name {
+            self.set_diagnostic_name(id, name);
+        }
+    }
+
+    fn reconnect_replacement<T: PropertyValue>(
+        &self,
+        id: PropertyId,
+        defer_unobserved_cutoff: bool,
+    ) {
+        let owner = self.work_owner(id);
+        self.queued_effects.borrow_mut().reassign(id, owner);
+        self.queued_cutoffs.borrow_mut().reassign(id, owner);
+
+        // Reconnect the new dependencies and enqueue any dirty upstream cutoffs.
+        self.connect_inbound(id);
+
+        if self.is_registered_effect(id) && self.is_cutoff(id) {
+            panic!("cutoff properties cannot be registered as effects");
+        }
+        if self.is_cutoff(id) && self.is_dirty(id) {
+            let defer = defer_unobserved_cutoff
+                && self.with_property_data_mut(id, |p| {
+                    p.outbound.is_empty()
+                        && p.invalidation_events.is_none()
+                        && p.typed_data::<T>().publisher.is_none()
+                        && p.typed_data::<T>().shared.is_none()
+                });
+            if !defer {
+                self.enqueue_cutoff(id);
+            }
+        }
+
+        // make sure dependencies of self
+        // know that something has changed
+        self.dirtify_outbound(id);
+
+        self.enqueue_effect_if_registered(id);
     }
 
     // re-computes the value if dirty
