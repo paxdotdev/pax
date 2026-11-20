@@ -7,6 +7,28 @@ use crate::scene_geometry::{
 };
 use kurbo::{Point, Rect};
 
+/// The browser moves this scroller's *children* in document space. Its clip
+/// and fixed overlays still receive viewport-space rays. Paint already makes
+/// this distinction; do not put this translation into the scene transforms.
+#[derive(Clone, Copy)]
+pub(super) struct PageInput {
+    pub scroller: u32,
+    pub delta: kurbo::Vec2,
+}
+
+impl PageInput {
+    pub fn contains(&self, node: &ExpandedNode) -> bool {
+        let mut ancestor = node.presentation_parent_node();
+        while let Some(parent) = ancestor {
+            if parent.id.to_u32() == self.scroller {
+                return true;
+            }
+            ancestor = parent.presentation_parent_node();
+        }
+        false
+    }
+}
+
 pub(super) struct InputQuery {
     pub candidates: HashSet<u32>,
     pub unknown: HashSet<u32>,
@@ -19,6 +41,20 @@ mod hit_testing_tests;
 mod tests;
 
 impl RuntimeContext {
+    pub(super) fn delegated_input_page(&self) -> Option<PageInput> {
+        let scroller = self.get_root_scroller_id()?;
+        let viewport = self.get_visual_viewport_state()?;
+        // clientX/Y are relative to the layout viewport; adding the pinch-zoom
+        // visual viewport offset as well would count the pan twice.
+        let delta = kurbo::Vec2::new(viewport.page_scroll_x, viewport.page_scroll_y);
+        (delta.is_finite() && delta != kurbo::Vec2::ZERO).then_some(PageInput { scroller, delta })
+    }
+
+    pub(crate) fn point_in_input_presentation(&self, node: &ExpandedNode, point: Point) -> Point {
+        self.delegated_input_page()
+            .filter(|page| page.contains(node))
+            .map_or(point, |page| point + page.delta)
+    }
     /// Invalidate conservative input coverage after non-reactive shape changes.
     /// This does not invalidate paint or run input/event callbacks.
     pub fn mark_node_input_dirty(&self, id: u32) {
@@ -34,6 +70,7 @@ impl RuntimeContext {
         &self,
         root: &Rc<ExpandedNode>,
         point: Point,
+        page: Option<PageInput>,
     ) -> Option<InputQuery> {
         #[cfg(test)]
         if self.input_query_unindexed.get() {
@@ -190,7 +227,21 @@ impl RuntimeContext {
         let (candidates, unknown, children) = {
             let mut scene = self.scene_geometry.borrow_mut();
             let input = &mut scene.input;
-            let candidates = input.candidates(point, &scrolls, &hosts);
+            let mut candidates = input.candidates(point, &scrolls, &hosts);
+            if let Some((page, ranks)) = page.and_then(|page| {
+                let root = input.records.get(&page.scroller)?;
+                Some((page, root.rank + 1..root.end))
+            }) {
+                // Keep both sets of geometry indexed in their original charts:
+                // scrolling moves the query point, not thousands of bounds.
+                candidates.retain(|id| !ranks.contains(&input.records[id].rank));
+                let document = input.candidates(point + page.delta, &scrolls, &hosts);
+                candidates.extend(
+                    document
+                        .into_iter()
+                        .filter(|id| ranks.contains(&input.records[id].rank)),
+                );
+            }
             let unknown: HashSet<_> = candidates
                 .iter()
                 .copied()

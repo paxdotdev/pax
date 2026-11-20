@@ -145,8 +145,8 @@ other routes keep their nav-sized inset and static logo.
 
 The page opens with the two-line heading “Build creative/native/portable/eye-catching
 user interfaces,” followed by “From a single Rust codebase,” the platform statement,
-and the install snippet. Experimental native
-Android/Windows/Linux targets and beta status are intentional launch messaging;
+and the install snippet. Windows, Linux, and Android carry inline “(alpha)”
+labels; the other targets are unmarked. As platform support evolves,
 check the release's target availability before publishing. The shared CLI-first
 snippet appears in both the hero and closing CTA, with AI onboarding in a
 secondary tab.
@@ -154,8 +154,8 @@ secondary tab.
 “A declarative language for interactive graphics” follows the hero, pairing a real
 template with its live result and explaining the Rust/Pax boundary. Paxflix's
 full-width fanout comes next, without a second runtime manifesto. The toolkit
-carousel precedes the reusable-component section. The live desktop oscilloscope
-now follows the Get started CTA and uses a linked capture on compact layouts;
+carousel precedes the reusable-component section. The live oscilloscope
+follows the Get started CTA at every width;
 the calculator is no longer embedded on the homepage.
 “A love letter to the pixel” pairs the acrostic with the project's influences,
 creative mission, and MIT / Apache-2.0 license. The closing CTA links to setup and
@@ -173,7 +173,8 @@ compact layouts stack the cube and inline source with an expand action.
 and linking to the standard library and component-authoring guide. Its copy lives
 in `ModularitySection`, separate from these background treatments. At widths of
 1,000px and above, its copy and circuit board share a row, with the board on the
-right. Below that breakpoint the board sits centered beneath the copy. The section's
+right. Below that breakpoint the board sits between the large introductory paragraph
+and the smaller paragraphs about wiring and authoring components. The section's
 ExampleHost lists the wrapper, board, package, pin, and logo templates/Rust sources,
 plus the board layout, motion, and signal-routing modules.
 Its `CircuitBoard` illustration assembles six named packages from reusable
@@ -250,11 +251,13 @@ compositor. Native label masking and canvas/native publication are separate;
 this optimization does not fix cross-layer drift when frames drop. See
 [spatial depth composition](../pax-docs/book/src/layout-responsiveness.md#rotating-flat-surfaces-in-3d).
 
-“Fluent in UI” and Paxflix live together in `RuntimeSection`, over a single
-continuous `rain-pane::WetPane` at half resolution. It captures only a dark
-Rectangle, never the selectable copy or live app. Three broad cyan,
-magenta, and yellow point lights sweep this shared `LightFrame` at different
-rates. Their radius follows the section's extent and their height broadens the
+“Fluent in UI” and Paxflix live together in `RuntimeSection`. Only the copy has
+a rain background: its padded text stack sets the height of a full-width
+`FluentRain` backdrop, and Paxflix follows on plain ink. The half-resolution
+`rain-pane::WetPane` captures only a dark rectangle, never the selectable copy
+or live app. Three broad cyan, magenta, and yellow point lights sweep the
+backdrop's `LightFrame` at different rates. Their radius follows the backdrop's
+extent and their height broadens the
 reflection footprint. The light frame prevents these lights from spilling into
 neighboring sections; the site's existing pointer light can still enter it.
 The rain and lights share one clock that holds while the panel is offscreen.
@@ -322,14 +325,12 @@ This is a website
 motion-design workaround, not a fix for the deferred foreground-compositing
 limitation in PAX-1041.
 
-The toolkit's example row embeds a live oscilloscope on desktop; below its
-900px breakpoint it uses a linked screenshot. `FramedStudy` spans the page's
-content gutters, with no rotation or simulated window chrome. On desktop its
-logical viewport grows from 1000×600 to 1600×600 as the host widens, giving the
-LED matrix more visible columns before scaling the whole instrument. The compact
-capture keeps its original 1000×600 aspect ratio. Scroll choreography only moves
-the cabinet vertically; it never resizes it. Its existing visibility handling pauses animation offscreen,
-but the initial scene still mounts. System reduced-motion integration is tracked
+The footer embeds a live oscilloscope. `FramedStudy` spans the content gutters,
+with no rotation or simulated window chrome. A wide host gives the matrix more
+columns, up to 1600×600 before scaling; a phone gets a taller cabinet with
+upright letters marching upward and the control pairs below the screen.
+The homepage mounts it on first approach and pauses its animation offscreen
+without discarding the visitor's settings. System reduced-motion integration is tracked
 in PAX-1048.
 
 The HTML background uses `package.metadata.pax.web.background_color` to match
@@ -371,9 +372,8 @@ yielded startup can reveal the initial viewport and progressively present the
 remainder, with native text appearing before artwork. Keep the loader setting,
 startup mode, and viewport dimensions the same when comparing measurements;
 the standalone Paxflix desktop route mounts the full 21-shelf catalogue.
-The desktop homepage also mounts one embedded instance each of Paxflix, the
-calculator, and the oscilloscope; scrolling does not mount or unmount them.
-Compact previews remain screenshot-only. Opening an example's route mounts a
+The homepage includes desktop Paxflix (a capture on compact layouts) and,
+on first approach, a responsive live oscilloscope. Opening an example's route mounts a
 single example without the homepage. See
 [resumable startup](../pax-docs/book/src/how-pax-runs.md#experimental-resumable-startup-on-web).
 
@@ -570,22 +570,21 @@ Back to Pax link. Each new demo session starts with fresh calculator state.
 Application logic remains in the canonical `examples/calculator` Cargo dependency.
 Capture provenance and refresh commands live in `assets/calculator/README.md`.
 
-## Linked creative example
+## Live creative example
 
 The oscilloscope fills the Get started content gutter below the CTA actions and
-above the footer. It remains live at desktop widths; compact layouts use the linked
-screenshot. The Get started source drawer includes its wrapper and application sources.
+above the footer links. It is playable inline on phones and desktops. The caption
+opens the full-screen route. The Get started source drawer includes its wrapper and application sources.
 
 `/oscilloscope/` is a generated document entry, with the same server-owned
 navigation policy as the other examples. It mounts only the oscilloscope,
-provides View Source, and has a Back to Pax link. Its compact homepage capture
-lives in `assets/playground/`; that directory's README describes how to refresh it.
+provides View Source, and has a Back to Pax link.
 Space Game is no longer included in the website's routes, assets, or Cargo
 dependencies; its canonical standalone fixture remains in `examples/fixtures/space-game`.
 
-All three routed examples still share the website's Wasm bundle. Screenshot-only
-presentation on compact layouts removes their homepage node trees, timers, nested
-scrollers, and rendering work; it does **not** split the initial download.
+All three routed examples still share the website's Wasm bundle. Using a
+screenshot for compact Paxflix removes its homepage nodes, timers and nested
+scrollers; it does **not** split the initial download.
 Desktop Paxflix and the oscilloscope retain one live homepage instance each. Independent example
 bundles would be a separate packaging improvement. Returning to the homepage
 does not retain the abandoned example's application state, except where the
@@ -633,8 +632,8 @@ Content and visual design history are archived in
 ## Increment Cube and language section
 
 `AuthoringSection` is the mounted “A declarative language for interactive graphics”
-introduction and cube stage. “Fluent in UI” follows in `RuntimeSection`, sharing
-its rain background with Paxflix. The dedicated cube
+introduction and cube stage. “Fluent in UI” follows in `RuntimeSection`, with
+its rain background ending before Paxflix. The dedicated cube
 viewer contains only `increment.pax` and `lib.rs`, selected from the canonical
 example's source list. Compact inline and expanded presentations share the
 cube selection; the desktop drawer starts open. Source changes reset the code

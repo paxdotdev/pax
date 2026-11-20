@@ -48,6 +48,7 @@ pub struct LedOscilloscope {
     pub foreground_scroll: Property<usize>,
     pub foreground_period: Property<usize>,
     pub compact: Property<bool>,
+    pub vertical: Property<bool>,
     pub margin: Property<f64>,
     pub display_width: Property<f64>,
     pub display_height: Property<f64>,
@@ -87,6 +88,8 @@ struct Layout {
     control_height: f64,
     diameter: f64,
     columns: usize,
+    rows: usize,
+    vertical: bool,
     compact: bool,
 }
 impl Layout {
@@ -95,8 +98,10 @@ impl Layout {
         let available_height = available_height
             .filter(|h| h.is_finite())
             .map(|h| h.max(1.));
-        let compact =
-            width < 1040. && !available_height.is_some_and(|h| width >= 800. && width >= h * 1.5);
+        let vertical = available_height.map_or(width < 600., |h| h > width);
+        let compact = vertical
+            || (width < 1040.
+                && !available_height.is_some_and(|h| width >= 800. && width >= h * 1.5));
         let margin = (width * 0.018)
             .clamp(10., 24.)
             .min(width * 0.04)
@@ -112,10 +117,13 @@ impl Layout {
         } else {
             width - 3. * margin - control_width
         };
-        let preferred_columns = if width < 600. { 28 } else { 56 };
+        let display_ratio = if vertical {
+            46. / ROWS as f64
+        } else {
+            ROWS as f64 / 56.
+        };
         let preferred_display_height =
-            (display_width - 2. * inset).max(1.) / preferred_columns as f64 * ROWS as f64
-                + 2. * inset;
+            (display_width - 2. * inset).max(1.) * display_ratio + 2. * inset;
         let preferred_diameter = ((control_width - 12.) / 4. * 0.64).clamp(32., 70.);
         let preferred_control_height = 2. * (preferred_diameter + 70.);
         let height = available_height.unwrap_or_else(|| {
@@ -139,15 +147,22 @@ impl Layout {
         let inset = inset.min(display_width * 0.25).min(display_height * 0.25);
         let available_matrix_width = (display_width - 2. * inset).max(1.);
         let available_matrix_height = (display_height - 2. * inset).max(1.);
-        // Keep the same 29-row font and square LED pitch at any host aspect ratio.
-        // Only the number of visible marquee columns changes; the buffer stays bounded.
-        let columns = (available_matrix_width * ROWS as f64 / available_matrix_height)
+        let (along, across) = if vertical {
+            (available_matrix_height, available_matrix_width)
+        } else {
+            (available_matrix_width, available_matrix_height)
+        };
+        let length = (along * ROWS as f64 / across)
             .round()
             .clamp(1., MAX_COLUMNS as f64) as usize;
-        let pitch =
-            (available_matrix_width / columns as f64).min(available_matrix_height / ROWS as f64);
+        let (columns, rows) = if vertical {
+            (ROWS, length)
+        } else {
+            (length, ROWS)
+        };
+        let pitch = (along / length as f64).min(across / ROWS as f64);
         let matrix_width = pitch * columns as f64;
-        let matrix_height = pitch * ROWS as f64;
+        let matrix_height = pitch * rows as f64;
         let control_x = if compact {
             margin
         } else {
@@ -174,6 +189,8 @@ impl Layout {
             control_height,
             diameter,
             columns,
+            rows,
+            vertical,
             compact,
         }
     }
@@ -247,12 +264,19 @@ impl LedOscilloscope {
             let resized = s.layout != layout;
             if resized {
                 s.layout = layout;
-                s.display.resize(layout.columns);
+                s.display.resize_axis(
+                    if layout.vertical {
+                        layout.rows
+                    } else {
+                        layout.columns
+                    },
+                    layout.vertical,
+                );
                 self.publish_layout(layout);
                 let mut off = Vec::new();
                 let mut highlights = Vec::new();
                 let pitch = layout.matrix_width / layout.columns as f64;
-                for y in 0..ROWS {
+                for y in 0..layout.rows {
                     for x in 0..layout.columns {
                         let cx = (x as f64 + 0.5) * pitch;
                         let cy = (y as f64 + 0.5) * pitch;
@@ -352,6 +376,7 @@ impl LedOscilloscope {
     }
     fn publish_layout(&mut self, l: Layout) {
         self.compact.set(l.compact);
+        self.vertical.set_if_neq(l.vertical);
         self.margin.set(l.margin);
         self.display_width.set(l.display_width);
         self.display_height.set(l.display_height);
@@ -371,6 +396,32 @@ impl LedOscilloscope {
 #[cfg(test)]
 mod visibility_tests {
     use super::*;
+
+    #[test]
+    fn cabinet_reflows_from_its_own_bounds_and_keeps_the_cell_budget() {
+        for (w, h, vertical) in [
+            (390., 790., true),
+            (700., 1000., true),
+            (1200., 1500., true),
+            (860., 460., false),
+            (1440., 600., false),
+        ] {
+            let layout = Layout::new(w, Some(h));
+            assert_eq!(layout.vertical, vertical);
+            if vertical {
+                assert!(layout.control_y >= layout.display_height + layout.margin);
+            } else {
+                assert!(layout.control_x >= layout.display_width + layout.margin);
+            }
+            assert!(layout.columns * layout.rows <= ROWS * MAX_COLUMNS);
+            assert!(
+                (layout.matrix_width / layout.columns as f64
+                    - layout.matrix_height / layout.rows as f64)
+                    .abs()
+                    < 1e-9
+            );
+        }
+    }
 
     #[test]
     fn animation_waits_for_actual_visibility_and_stops_before_proximity_exit() {

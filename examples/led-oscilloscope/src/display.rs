@@ -33,23 +33,45 @@ pub enum Cell {
 pub struct Display {
     pub columns: usize,
     pub cells: Vec<Cell>,
+    vertical: bool,
+    length: usize,
     foreground_columns: Vec<u32>,
+    foreground_rows: Vec<u32>,
 }
 impl Display {
     pub fn resize(&mut self, columns: usize) {
-        self.columns = columns.clamp(1, MAX_COLUMNS);
-        self.cells.resize(self.columns * ROWS, Cell::Off);
+        self.resize_axis(columns, false);
+    }
+    pub(crate) fn resize_axis(&mut self, length: usize, vertical: bool) {
+        self.length = length.clamp(1, MAX_COLUMNS);
+        self.vertical = vertical;
+        self.columns = if vertical { ROWS } else { self.length };
+        self.cells.resize(self.length * ROWS, Cell::Off);
     }
     pub fn set_text(&mut self, text: &str) {
         // Cache variable-width text as columns so animation only visits visible cells.
         self.foreground_columns.clear();
+        self.foreground_rows.clear();
         let top = (ROWS - 7 * GLYPH_SCALE) / 2;
+        let left = (ROWS - 5 * GLYPH_SCALE) / 2;
         for ch in normalize_message(text).chars() {
             if ch == ' ' {
                 self.foreground_columns.extend([0; SPACE_PITCH]);
+                self.foreground_rows.extend([0; 8 * GLYPH_SCALE * 2 / 3]);
                 continue;
             }
             let rows = glyph(ch);
+            // A vertical strip contains upright glyphs, not transposed text.
+            for row in rows {
+                let mut bits = 0;
+                for col in 0..5 {
+                    if row & (1 << (4 - col)) != 0 {
+                        bits |= ((1 << GLYPH_SCALE) - 1) << (left + col * GLYPH_SCALE);
+                    }
+                }
+                self.foreground_rows.extend([bits; GLYPH_SCALE]);
+            }
+            self.foreground_rows.extend([0; GLYPH_SCALE]);
             for column in 0..5 {
                 let mut bits = 0;
                 for (row, value) in rows.iter().enumerate() {
@@ -68,9 +90,35 @@ impl Display {
             .take(MAX_INK_COLUMNS)
             .map(|bits| bits & ((1 << ROWS) - 1))
             .collect();
+        // Reflow the horizontal drawing strip in upright, display-width panels.
+        self.foreground_rows.clear();
+        for panel in self.foreground_columns.chunks(ROWS) {
+            for y in 0..ROWS {
+                self.foreground_rows.push(
+                    panel
+                        .iter()
+                        .enumerate()
+                        .fold(0, |row, (x, col)| row | (((col >> y) & 1) << x)),
+                );
+            }
+        }
     }
     pub fn period(&self) -> usize {
-        self.foreground_columns.len() + 18
+        self.strip().len() + 18
+    }
+    fn strip(&self) -> &[u32] {
+        if self.vertical {
+            &self.foreground_rows
+        } else {
+            &self.foreground_columns
+        }
+    }
+    fn cell_index(&self, along: usize, across: usize) -> usize {
+        if self.vertical {
+            along * self.columns + across
+        } else {
+            across * self.columns + along
+        }
     }
     pub fn compose(
         &mut self,
@@ -87,11 +135,17 @@ impl Display {
         {
             let channel = 2 - index;
             let mut previous = None;
-            for x in 0..self.columns {
+            let velocity: f64 = [1.1, -0.8, 0.65][channel];
+            for x in 0..self.length {
                 let angle = x as f64
                     * [0.16, 0.22, 0.11][channel]
                     * frequency_multiplier(frequencies[channel])
-                    + phase * [1.1, -0.8, 0.65][channel]
+                    + phase
+                        * if self.vertical {
+                            velocity.abs()
+                        } else {
+                            velocity
+                        }
                     + channel as f64 * 2.1;
                 let y = (center + angle.sin() * amplitudes[channel].clamp(0., 1.) * (center - 1.))
                     .round() as usize;
@@ -99,19 +153,21 @@ impl Display {
                 // without fractional coverage or secondary dim edge cells.
                 let before: usize = previous.unwrap_or(y);
                 for row in before.min(y)..=before.max(y) {
-                    self.cells[row * self.columns + x] = color;
+                    let cell = self.cell_index(x, row);
+                    self.cells[cell] = color;
                 }
                 previous = Some(y);
             }
         }
         let period = self.period();
-        for x in 0..self.columns {
+        for x in 0..self.length {
             let source = foreground_column(x, scroll, period);
-            if let Some(&bits) = self.foreground_columns.get(source) {
+            if let Some(&bits) = self.strip().get(source) {
                 let mut remaining = bits;
                 while remaining != 0 {
                     let row = remaining.trailing_zeros() as usize;
-                    self.cells[row * self.columns + x] = Cell::Text;
+                    let cell = self.cell_index(x, row);
+                    self.cells[cell] = Cell::Text;
                     remaining &= remaining - 1;
                 }
             }
@@ -240,6 +296,43 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn portrait_f_faces_right_moves_up_one_row_and_wraps() {
+        let mut d = Display::default();
+        d.set_text("F L");
+        d.resize_axis(52, true);
+        let draw = |d: &mut Display, offset| d.compose(0., offset, [0.; 3], [0.5; 3]);
+        draw(&mut d, 0);
+        // F's long top stroke faces right; its short stem is on the left.
+        assert!((7..22).all(|x| d.cells[x] == Cell::Text));
+        assert_eq!(d.cells[18 * ROWS + 7], Cell::Text);
+        assert_ne!(d.cells[18 * ROWS + 21], Cell::Text);
+        assert_eq!(d.period(), 24 + 16 + 24 + 18);
+        let initial = d.cells.clone();
+        draw(&mut d, 1);
+        assert_eq!(d.cells[..51 * ROWS], initial[ROWS..]);
+        let period = d.period();
+        draw(&mut d, period);
+        assert_eq!(initial, d.cells);
+        // A resize switches strips without discarding the visitor's text.
+        d.resize(60);
+        assert_eq!(d.period(), 2 * LETTER_PITCH + SPACE_PITCH + 18);
+    }
+
+    #[test]
+    fn portrait_drawing_stays_upright_and_the_wave_baseline_runs_down_the_middle() {
+        let mut d = Display::default();
+        d.resize_axis(70, true);
+        d.set_drawing(&[1 << 4, 1 << 4, 1 << 5]);
+        d.compose(1.3, 0, [0.; 3], [0.5; 3]);
+        assert_eq!(&d.cells[4 * ROWS..4 * ROWS + 2], &[Cell::Text; 2]);
+        assert_eq!(d.cells[5 * ROWS + 2], Cell::Text);
+        assert!(d
+            .cells
+            .chunks_exact(ROWS)
+            .all(|row| row[ROWS / 2] == Cell::Cyan));
+    }
+
     #[test]
     fn marquee_wrap_and_narrow_crop_are_exact() {
         let mut a = Display::default();

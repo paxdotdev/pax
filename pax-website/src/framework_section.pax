@@ -4,16 +4,12 @@
     </ImportSettings>
     <Stacker id=framework_content width=100% autosize=true gutter=0px>
         ///#ignore
-        <Group width=100% height={(self.scope_height)px}>
+        <Group width=100% height={(self.scope_height)px} @viewport_proximity_change=self.approach>
             <FramedStudy width=100% height={(self.scope_height)px} content_height=bind:self.scope_height
-                url="/oscilloscope/" compact={self.compact}
-                label="TRY THE OSCILLOSCOPE  ↗" detail="Light, rhythm, and tactile controls."
+                url="/oscilloscope/"
+                label="OPEN FULL-SCREEN OSCILLOSCOPE  ↗" detail="Turn a knob, or tap the display to write your own message."
                 scene_progress={self.scene_progress}>
-                if self.compact {
-                    <Link width=100% height=100% url="/oscilloscope/" target=Target::Current>
-                        <NativeImage width=100% height=100% url="assets/playground/oscilloscope.jpg" fit=ImageFit::Paint/>
-                    </Link>
-                } else {
+                if self.scope_visited {
                     <LedOscilloscope id=live_oscilloscope width=100% height=100% message="DREAM IT. BUILD IT."/>
                 }
             </FramedStudy>
@@ -22,6 +18,5 @@
 </Group>
 
 @settings {
-    @mount: handle_mount
     @pre_render: handle_pre_render
 }

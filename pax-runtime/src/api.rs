@@ -164,21 +164,22 @@ impl NodeContext {
     /// `(0, 0)` is the local origin and `(1, 1)` is the opposite layout corner.
     /// A clipped or noninvertible perspective mapping returns nonfinite coordinates.
     pub fn local_point(&self, p: Point2<Window>) -> Point2<NodeLocal> {
-        if let Some(node) = self
-            .expanded_node
-            .upgrade()
-            .filter(|n| n.has_perspective_camera())
-        {
+        let node = self.expanded_node.upgrade();
+        let p = node.as_ref().map_or(p, |node| {
+            let point = self
+                .runtime_context
+                .point_in_input_presentation(node, kurbo::Point::new(p.x, p.y));
+            Point2::new(point.x, point.y)
+        });
+        if let Some(node) = node.as_ref().filter(|n| n.has_perspective_camera()) {
             let bounds = node.transform_and_bounds.get().bounds;
             return self
                 .runtime_context
-                .presented_local_point(&node, kurbo::Point::new(p.x, p.y))
+                .presented_local_point(node, kurbo::Point::new(p.x, p.y))
                 .map(|p| Point2::new(p.x / bounds.0, p.y / bounds.1))
                 .unwrap_or_else(|| Point2::new(f64::NAN, f64::NAN));
         }
-        let (node_transform, presentation_transform) = self
-            .expanded_node
-            .upgrade()
+        let (node_transform, presentation_transform) = node
             .map(|node| {
                 (
                     node.presentation_transform_and_bounds.get(),

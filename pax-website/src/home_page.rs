@@ -413,6 +413,12 @@ impl HomePage {
             include_str!("runtime_section.rs"),
         );
         runtime_sources.extend(section_sources(
+            "fluent_rain.pax",
+            include_str!("fluent_rain.pax"),
+            "fluent_rain.rs",
+            include_str!("fluent_rain.rs"),
+        ));
+        runtime_sources.extend(section_sources(
             "paxflix_showcase.pax",
             include_str!("paxflix_showcase.pax"),
             "paxflix_showcase.rs",
@@ -627,8 +633,10 @@ mod content_tests {
         assert_eq!(hero.matches("<GetStarted").count(), 1);
         assert_eq!(footer.matches("<GetStarted").count(), 1);
         assert!(include_str!("get_started.pax").contains("cargo install pax-cli"));
-        assert!(hero.contains("iPadOS"));
-        assert!(hero.contains("Other targets are in beta."));
+        assert!(hero.contains(
+            "macOS, Windows (alpha), Linux (alpha), iOS, iPadOS, Android (alpha), and the web."
+        ));
+        assert!(!hero.contains("Other targets are in beta."));
         assert!(!hero.contains("This website was built in Pax"));
         assert!(!include_str!("framework_section.pax").contains("Dream it. Build it."));
         assert!(!include_str!("authoring_section.pax").contains("artificial minds"));

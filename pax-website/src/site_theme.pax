@@ -32,6 +32,11 @@
         }
     }
     .editorial_lead {
+        _style_link: TextStyle {
+            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
+            font_size: {@viewport.width < 760 ? 19px : 23px}
+            fill: {SiteTheme::paper()}
+        }
         style: TextStyle {
             font: Font::Web(
                 "Manrope",

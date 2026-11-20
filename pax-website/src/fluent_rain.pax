@@ -1,0 +1,18 @@
+<LightFrame width=100% height=100% @viewport_proximity_change=self.visibility>
+    <ImportSettings><SiteTheme /></ImportSettings>
+    ///#ignore
+    if self.visible {
+        <Group width=0px height=0px layout_role=LayoutRole::Breakout @tick=self.animate/>
+    }
+    <LightSource x={(self.cyan_x)px} y={(self.cyan_y)px} anchor=50% width=1px height=1px
+        enabled={self.visible} z={(self.light_depth)px} radius={(self.light_radius)px} intensity=4 color=rgb(0, 255, 255)/>
+    <LightSource x={(self.magenta_x)px} y={(self.magenta_y)px} anchor=50% width=1px height=1px
+        enabled={self.visible} z={(self.light_depth)px} radius={(self.light_radius)px} intensity=4 color=rgb(255, 0, 255)/>
+    <LightSource x={(self.yellow_x)px} y={(self.yellow_y)px} anchor=50% width=1px height=1px
+        enabled={self.visible} z={(self.light_depth)px} radius={(self.light_radius)px} intensity=4 color=rgb(255, 255, 0)/>
+    <WetPane width=100% height=100% time={self.light_time} seed=41 half_resolution=true quiet=true>
+        <Rectangle class="site_ink" width=100% height=100%/>
+    </WetPane>
+</LightFrame>
+
+@settings { @mount: mount }

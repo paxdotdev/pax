@@ -2783,7 +2783,12 @@ impl RuntimeContext {
             return accum;
         };
         let _graph = self.property_graph.enter();
-        let input = self.prepare_input_query(&root_node, kurbo::Point::new(ray.x, ray.y));
+        let page = self.delegated_input_page();
+        let point = kurbo::Point::new(ray.x, ray.y);
+        let point = page
+            .filter(|p| p.contains(&root_node))
+            .map_or(point, |p| point + p.delta);
+        let input = self.prepare_input_query(&root_node, point, page);
         #[cfg(not(feature = "3d"))]
         let spatial_possible = false;
         #[cfg(feature = "3d")]
@@ -2793,13 +2798,14 @@ impl RuntimeContext {
         let mut depths = std::collections::HashMap::new();
         #[cfg(feature = "3d")]
         let mut has_spatial_hit = false;
-        let mut to_process = vec![(root_node, false, Affine::IDENTITY, 0.0, false)];
+        let mut to_process = vec![(root_node, false, Affine::IDENTITY, 0.0, false, point)];
         while let Some((
             node,
             clipped,
             active_scroll_transform,
             active_depth_offset,
             retained_for_exit,
+            point,
         )) = to_process.pop()
         {
             if node.is_render_source() {
@@ -2866,7 +2872,6 @@ impl RuntimeContext {
                 .has_perspective_camera()
                 .then(|| self.prepared_presentation(&node));
             let (geometry_hit, solid_depth) = if candidate {
-                let point = kurbo::Point::new(ray.x, ray.y);
                 if input.is_some() {
                     let record =
                         self.scene_geometry.borrow().input.records[&node.id.to_u32()].clone();
@@ -2931,7 +2936,7 @@ impl RuntimeContext {
                         depths.insert(
                             node.id,
                             (
-                                solid_depth.unwrap_or_else(|| plane.depth_at(ray.x, ray.y))
+                                solid_depth.unwrap_or_else(|| plane.depth_at(point.x, point.y))
                                     + if node.has_perspective_camera() {
                                         0.
                                     } else {
@@ -2948,6 +2953,9 @@ impl RuntimeContext {
             }
             let clipped = clipped || (!hit && clips_content);
             let retained_children = borrow!(node.exiting_children).clone();
+            let child_point = page
+                .filter(|p| p.scroller == node.id.to_u32())
+                .map_or(point, |p| point + p.delta);
             to_process.extend(
                 input
                     .as_ref()
@@ -2968,6 +2976,7 @@ impl RuntimeContext {
                             descendant_scroll_transform,
                             descendant_depth_offset,
                             retained_for_exit,
+                            child_point,
                         )
                     })
                     .rev(),

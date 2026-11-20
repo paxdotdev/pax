@@ -194,6 +194,51 @@ fn native_scroll(ctx: &RuntimeContext, node: &ExpandedNode, y: f64) {
 }
 
 #[test]
+fn delegated_page_keeps_the_host_clip_and_fixed_siblings_in_viewport_space() {
+    let calls = Rc::new(Cell::new(0));
+    let leaf = HitNode::new(vec![], true, false, None, calls.clone());
+    let mut host = HitNode::new(vec![leaf], true, true, None, calls.clone());
+    Rc::get_mut(&mut host).unwrap().scroll = true;
+    let fixed = HitNode::new(vec![], true, false, None, calls);
+    let (mut engine, root) = fixture(vec![host, fixed]);
+    let host = root.children.get()[0].clone();
+    let fixed = root.children.get()[1].clone();
+    let content = host.children.get()[0].clone();
+    place(&host, 0., 0., 400., 500.);
+    place(&content, 70., 4140., 120., 60.);
+    place(&fixed, 10., 10., 60., 60.);
+    let ctx = engine.runtime_context.clone();
+    ctx.set_root_scroller_id(Some(host.id.to_u32()));
+    ctx.set_visual_viewport_state(crate::VisualViewportState {
+        width: 400.,
+        height: 500.,
+        page_scroll_x: 35.,
+        page_scroll_y: 4000.,
+        ..Default::default()
+    });
+    native_scroll(&ctx, &host, 4000.);
+    engine.tick();
+    for point in [(50., 155.), (20., 20.), (50., 4155.)] {
+        let hits = query(&ctx, None, point, false);
+        assert_eq!(hits, oracle(&ctx, None, point, false));
+        assert_eq!(hits.contains(&content.id), point.1 == 155.);
+        assert_eq!(hits.contains(&fixed.id), point.1 == 20.);
+    }
+    let p = kurbo::Point::new(50., 155.);
+    assert_eq!(
+        ctx.point_in_input_presentation(&content, p),
+        kurbo::Point::new(85., 4155.)
+    );
+    assert_eq!(ctx.point_in_input_presentation(&host, p), p);
+    assert_eq!(ctx.point_in_input_presentation(&fixed, p), p);
+    let local = content
+        .get_node_context(&ctx)
+        .local_point(Point2::new(p.x, p.y));
+    assert!((local.x - 15. / 120.).abs() < 1e-8);
+    assert!((local.y - 15. / 60.).abs() < 1e-8);
+}
+
+#[test]
 fn native_scroll_reuses_descendant_input_bounds_at_both_collection_sizes() {
     for count in [32, 1024] {
         let calls = Rc::new(Cell::new(0));

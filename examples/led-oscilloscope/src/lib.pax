@@ -33,7 +33,7 @@
             <LedGlow id=led_glow width=100% height=100% pitch={self.lamp_pitch} strength=0.85>
                 <Path elements={self.lit_highlights} fill={paint: rgba(255,255,255,65), material: {Material::unlit()}}/>
                 <ForegroundInk width=100% height=100% pitch={self.lamp_pitch} scroll={self.foreground_scroll}
-                    period={self.foreground_period} saturation={self.saturation}>
+                    period={self.foreground_period} saturation={self.saturation} vertical={self.vertical}>
                     <Path elements={self.lettering} fill={paint: WHITE, material: {Material::unlit()}}/>
                 </ForegroundInk>
                 <Path elements={self.cyan} fill={paint: rgb(0,221,239), material: {Material::unlit()}}/>

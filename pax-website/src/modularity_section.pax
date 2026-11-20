@@ -4,16 +4,23 @@
         width={self.compact ? (100% - 48px) : 88%} autosize=true autosize_x=false autosize_y=true
         direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
         sizes={self.compact ? [] : [Some(48%), None]} gutter={self.compact ? 32px : 4%}>
-        <Stacker width=100% autosize=true gutter=24px>
+        <Stacker width=100% autosize=true gutter=24px
+            sizes={self.compact ? (@viewport.width < 760 ? [None, None, Some(370px)] : [None, None, Some(540px)]) : []}>
             ///#h2
             <Text class="editorial_title" width=100%>Plug, Extend, and Play</Text>
-            <Text class="editorial_lead" width=100%>Pax interfaces are built from reusable components. Like connecting pins on a circuit board, you wire their properties together with spreadsheet-like expressions. Change an input, and the connected values update reactively.</Text>
-            <Text class="editorial_body" width=100% markdown=true>This website uses those same building blocks—from reactive layouts and native scrollers to text, buttons, and shader effects. Many come ready to use in the [Pax standard library (`pax-std`)](https://docs.pax.dev/api/pax-std/index.html).</Text>
+            <Text class="editorial_lead" width=100% markdown=true>Pax interfaces are built from reusable components, like layouts, native scrollers, text, buttons, and shader effects. Many of these are available in the [Pax standard library](https://docs.pax.dev/api/pax-std/index.html).</Text>
+            ///#ignore
+            if self.compact {
+                <CircuitBoard width=100% height=100%/>
+            }
+            <Text class="editorial_body" width=100%>Connecting components together is like wiring pins together on a circuit board—predictable, modular, and deeply customizable.</Text>
             <Text class="editorial_body" width=100%>Your own components live in ordinary Rust modules, with Pax templates describing their composition. Build a widget, a layout, an effect, or an entire application section—and reuse it just like a standard-library component. 🐢</Text>
             <Text class="editorial_body" width=100% markdown=true>[Learn to build reusable components →](https://docs.pax.dev/components-composition.html#make-a-reusable-component)</Text>
         </Stacker>
         ///#ignore
-        <CircuitBoard width=100% height={@viewport.width < 760 ? 370px : 540px}/>
+        if !self.compact {
+            <CircuitBoard width=100% height=540px/>
+        }
     </Stacker>
     <Rectangle class="site_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 48px) : 88%} height=1px/>
     <Rectangle class="site_ink" width=100% height=100%/>

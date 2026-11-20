@@ -33,6 +33,8 @@ pub mod device_frame;
 #[cfg(feature = "app")]
 pub mod feature_gallery;
 #[cfg(feature = "app")]
+pub mod fluent_rain;
+#[cfg(feature = "app")]
 pub mod framework_section;
 #[cfg(feature = "app")]
 pub mod glass_action;

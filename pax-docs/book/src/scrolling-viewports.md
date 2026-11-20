@@ -760,7 +760,10 @@ scroll offset. Giving it `scroll_width=100% scroll_height=100%` clips its
 contents to the toolbar without introducing a second scroll range. Changing width,
 for example by rotating the phone, measures a new layout viewport.
 You can start a page swipe over painted content. Taps and other pointer events
-use the same viewport coordinates as the visible scene, even far down the page;
+use the same viewport coordinates as the visible scene, even far down the page.
+For a drag inside that content, pass the event position directly to
+`ctx.local_point(...)`; do not add the document scroll offset yourself. Fixed
+siblings and the root Scroller's own clip remain in viewport space, and
 a native control covered by another element still cannot be activated through it.
 
 For a toolbar that stays in place, keep it outside the Scroller as a sibling,

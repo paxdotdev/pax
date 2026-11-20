@@ -14,8 +14,8 @@ The controls form four vertical pairs. Each color has an amplitude knob above
 a frequency knob; frequency ranges from 0.25× to 4×, with the original wave
 spacing at the midpoint, 1×. RATE adjusts wave motion and marquee speed together.
 SATURATION beneath RATE defaults to zero (white) and blends the foreground to a vibrant
-rainbow at maximum. Each text or drawing column keeps its hue while scrolling;
-the rainbow repeats every 112 source columns and does not change with time.
+rainbow at maximum. Each strip of text or drawing keeps its hue while scrolling;
+the rainbow repeats every 112 steps along the travel axis and does not change with time.
 Scroll in the direction that moves a webpage down/right
 to increase; scroll up/left to decrease. Drag up/right to increase and down/left
 to decrease. Values are bounded; reversing direction at a limit responds immediately.
@@ -23,9 +23,11 @@ Mouse and touch drags keep their original target through release/cancel,
 including outside the hit region and across other controls. Releasing a knob
 over the LED display does not open the editor. The cabinet fills its assigned
 width and height, including the standalone window, with no outer margin or
-maximum-width cap. The four pairs sit beside the display at widths of at least
+maximum-width cap. In portrait the knobs sit below a tall display. Upright
+letters enter from the bottom, one below the next, and the waves travel upward.
+In landscape the marquee travels to the left. The four pairs sit beside the display at widths of at least
 1040 pixels, or in landscape containers at least 800 pixels wide with a 1.5:1
-aspect ratio; otherwise they move below it. The visible column count adapts to
+aspect ratio; otherwise they move below it. The visible grid adapts to
 the remaining display area, keeping the LEDs round and the text centered.
 
 Click or tap anywhere on the LED display to open its fading editor. The Text
@@ -60,9 +62,9 @@ Depend on this package with `default-features = false`, import
 The component uses both dimensions supplied by its host. Use `height=100%` to
 fill a viewport, or choose a panel height for an embed. For a suggested height
 based on width, use `LedOscilloscope::height(available_width)` in Rust. The
-website supplies an upright, unframed viewport that grows from 1000×600 to
-1600×600 logical pixels on wider desktops before scaling the cabinet, and a
-linked capture below its 900px breakpoint.
+website supplies an upright, unframed live cabinet at every width. The footer
+reserves its space on load, mounts it on first approach, and keeps its state
+when it scrolls away. A separate caption link opens the standalone route.
 The host-provided `paused`
 property can suspend updates while retaining the scene. Each instance owns its
 own display and controls. Motion starts when the panel enters the actual
@@ -75,19 +77,20 @@ tracked by [PAX-1048](https://linear.app/paxdev/issue/PAX-1048).
 Messages support ASCII letters (lowercase folds to uppercase), digits, spaces,
 and `. , ! : - + / ' ?`. Other characters are dropped; input is bounded to 256
 characters. The original 5×7 font is enlarged to 15×21 cells with three-LED
-strokes and three columns between letters. Spaces advance 12 columns, two-thirds
+strokes and three blank cells between letters. In landscape spaces advance 12 columns, two-thirds
 of a regular letter's 18-column advance. It is centered in 29 rows, with four
-clear rows above and below, and scrolls in integer columns. The complete message
-does not fit at once.
+clear rows above and below. In portrait the same upright glyphs are centered
+across 29 columns; each letter advances 24 rows, and a space advances 16.
+Drawings wider than the portrait display continue below in upright panels.
 
 ## Rendering
 
 `display.rs` composes a bounded row-major cell buffer. Text overwrites wave
 cells; there is no font rasterizer or continuous curve hiding behind the grid.
-The display fits up to 96 visible columns to its allocated area at a square
-cell pitch, retaining 29 rows at every size. The suggested-height helper aims
-for 56 columns, or 28 when the cabinet is narrower than 600 pixels.
-Text and drawn content share a cached column mask; content composition and
+The display fits up to 96 cells along its travel axis at a square cell pitch,
+with 29 across it. The suggested-height helper aims for 56 columns on wide
+cabinets or 46 visible rows below 600 pixels.
+Text and drawn content use cached strip masks; content composition and
 lamp appearance are independent. The signature pad keeps at most 8192 sampled
 points and rebuilds its smooth preview only after drawing or resizing. Its
 LED mask is rasterized once on OK, not on animation frames. Arbitrary image
@@ -100,7 +103,7 @@ animated paths publish only when the cell buffer changes, at most 30 times per
 second.
 
 `ForegroundInk` in `foreground.rs` colors the white foreground in one full-resolution
-shader pass. Its column address matches the display buffer, including message
+shader pass. Its row or column address matches the display buffer, including message
 wraparound. Saturation and scrolling change uniforms without creating a path
 for every rainbow color. The colored foreground then enters `LedGlow` with the
 wave paths, so the halo follows the lamp colors.
@@ -128,4 +131,4 @@ Shader support adds runtime code even when no effect is mounted. See the
 [shader container guide](../../pax-docs/book/src/compositing-effects.md#experimental-shader-containers)
 for caching, compositing, and backend restrictions.
 
-The same component supplies the website's creative-freedom headline panel.
+The same component supplies the website's Get started footer instrument.

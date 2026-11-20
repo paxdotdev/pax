@@ -612,9 +612,10 @@ generated template without writing files, use `--stdout`.
 The [LED Oscilloscope example](https://github.com/paxdotdev/pax/tree/main/examples/led-oscilloscope)
 separates a small logical display from its appearance. Rust samples three waves
 onto integer cells, then overwrites occupied cells with a bold bitmap marquee
-whose strokes are three LEDs thick. Its 15×21-cell letters are centered in a
-29-row display, with four clear rows above and below. Spaces advance two-thirds
-as far as letters; the cached text columns support this variable spacing without
+whose strokes are three LEDs thick. In landscape its 15×21-cell letters travel
+left across a 29-row display. In portrait the same upright letters stack in a
+29-column display and travel up with the waves; the control pairs sit below
+the screen. Spaces advance two-thirds as far as letters; cached strips support this spacing without
 laying out the message on every frame.
 Pax draws the resulting round lamps as a few paths grouped by color. This keeps
 the template tree small while preserving the individual bulbs and black gaps.
@@ -633,7 +634,7 @@ animation speed. SATURATION defaults to zero (white) and blends text and drawing
 to a rainbow. Mouse drags retain the pressed knob across other controls and outside
 the cabinet. Clicking the LED panel opens the editor; Escape dismisses it without
 applying changes, including while its web textbox has focus.
-The foreground shader uses source-message columns, so each column retains its
+The foreground shader uses positions along the marquee's axis, so each strip retains its
 hue as it scrolls, including when the message wraps. This uses one shader pass
 and changing uniforms rather than creating additional paths for every color.
 Click or tap the display to open its fading message editor. The native textbox
@@ -648,7 +649,7 @@ text and drawing drafts are retained independently. Both modes use the same
 foreground composition and scrolling. The editor uses [enter and exit transitions](animation-motion.md#enter-and-exit-transitions)
 and [native controls](accessibility-native-controls.md#a-small-editable-form).
 Narrow and portrait containers move the controls below the display; wide or
-short landscape containers keep them beside it. The visible column count fits
+short landscape containers keep them beside it. The visible cell count fits
 the available area without stretching the circular lamps. An example-owned `LedGlow` shader
 adds a soft colored halo and faint stationary grain underneath the original
 bulbs. It filters only the lit paths in two passes, keeping its capture size
