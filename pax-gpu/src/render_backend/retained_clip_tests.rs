@@ -3865,6 +3865,246 @@ fn retained_mask_source_clip_pages_pixels() {
     }
 }
 
+#[cfg(all(feature = "3d", feature = "shaders"))]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shader_effect_cells_match_direct_across_tiles_and_updates() {
+    use pax_runtime_api::{
+        math::{PlanarProjection, ProjectedPlane},
+        ShaderEffect, ShaderInput, ShaderParameter, ShaderParameterType, ShaderPass, ShaderProgram,
+        ShaderValue,
+    };
+    const fn spacing(padding: u32) -> ShaderParameter {
+        ShaderParameter {
+            name: "step",
+            ty: ShaderParameterType::CellSpacing { padding },
+        }
+    }
+    const PASS: ShaderPass = ShaderPass {
+        label: "cell comparison",
+        source: "
+        fn prepare_cell(c: vec2<i32>) -> vec4<f32> {
+            let p = (vec2<f32>(c) + 0.5) * parameters.step;
+            let ink = sample_input0(p);
+            let px = input0_pixel_size().x;
+            return vec4<f32>(ink.rgb * scene_ambient() + vec3<f32>(fract(px * 2.5) * 0.1), ink.a);
+        }
+        fn effect(p: vec2<f32>) -> vec4<f32> {
+            let c = vec2<i32>(floor(p / parameters.step));
+            let near = load_cell(c + vec2<i32>(-1, 1));
+            let far = load_cell(c + vec2<i32>(77, 0));
+            return vec4<f32>(near.rgb + far.rgb * 0.1, near.a);
+        }",
+        parameters: &[spacing(1)],
+        inputs: [ShaderInput::Subtree; 2],
+        downsample: 1,
+    };
+    static CACHED: ShaderProgram = ShaderProgram {
+        label: "prepared",
+        passes: &[PASS],
+    };
+    static DIRECT: ShaderProgram = ShaderProgram {
+        label: "oversized grid",
+        passes: &[ShaderPass {
+            parameters: &[spacing(u32::MAX)],
+            ..PASS
+        }],
+    };
+    let render = |program: &'static ShaderProgram, width: u32, tile_x: f32| {
+        let layer = MetalLayer::new();
+        let config = RenderConfig::new(true, width, 48, [1., 1.]);
+        let backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(layer.0.cast(), config)
+        })
+        .unwrap();
+        let device = backend.device.clone();
+        let mut renderer = WgpuRenderer::new(backend);
+        renderer.set_surface_transform(Transform2D::translation(-tile_x, 0.));
+        let mut frames = Vec::new();
+        for frame in 0..5 {
+            renderer.set_scene_lighting(crate::SceneLighting {
+                active: true,
+                ambient_is_authored: true,
+                ambient_color: if frame == 0 {
+                    Color::rgba(1., 0.2, 0.1, 1.)
+                } else {
+                    Color::rgba(0.1, 0.8, 1., 1.)
+                },
+                ..Default::default()
+            });
+            let plane = ProjectedPlane::affine(kurbo::Affine::translate((19.5, 8.25)))
+                .post_mapping(PlanarProjection([
+                    1.,
+                    0.,
+                    if frame >= 3 { 0.002 } else { 0. },
+                    0.,
+                    1.,
+                    0.,
+                    0.,
+                    0.,
+                    1.,
+                ]));
+            let effect = ShaderEffect {
+                program,
+                lighting: Some(Default::default()),
+                parameters: vec![vec![ShaderValue::Float(if frame >= 2 { 7. } else { 9. })]],
+                outset: 16.,
+            };
+            renderer.begin_projected_shader_effect(1, 0, &effect, plane, (96., 48.), &[], &[2]);
+            if frame != 4 {
+                renderer.begin_node(2, 0, 0);
+                renderer.save();
+                renderer.project(plane);
+                renderer.fill_path(
+                    rect(-30., -20., 130., 75.),
+                    Fill::Solid(if frame < 2 {
+                        Color::rgba(1., 0.8, 0.6, 1.)
+                    } else {
+                        Color::rgba(0.3, 0.4, 0.9, 1.)
+                    }),
+                );
+                renderer.restore();
+                renderer.end_node(2);
+            }
+            renderer.end_shader_effect();
+            renderer.request_screenshot_capture(frame);
+            renderer.flush();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            let stats = renderer.take_resource_churn_stats();
+            let expected = if frame == 4 {
+                0
+            } else if std::ptr::eq(program, &CACHED) {
+                2
+            } else {
+                1
+            };
+            assert_eq!(
+                stats.effect_passes, expected,
+                "{} frame {frame}",
+                program.label
+            );
+            frames.push(renderer.take_screenshot_capture(frame).unwrap().rgba);
+        }
+        assert_ne!(
+            frames[0], frames[1],
+            "scene lighting must reach prepared cells"
+        );
+        assert_ne!(
+            frames[1], frames[2],
+            "source and spacing must reach prepared cells"
+        );
+        assert_eq!(frames[3], frames[4]);
+        frames
+    };
+    let full = render(&DIRECT, 96, 0.);
+    assert_eq!(render(&CACHED, 96, 0.), full);
+    for offset in [0, 48] {
+        let tile = render(&CACHED, 48, offset as f32);
+        for (frame, reference) in tile.iter().zip(&full) {
+            for (row, full_row) in frame
+                .chunks_exact(48 * 4)
+                .zip(reference.chunks_exact(96 * 4))
+            {
+                let expected = &full_row[offset * 4..(offset + 48) * 4];
+                assert!(
+                    row.iter().zip(expected).all(|(a, b)| a.abs_diff(*b) <= 1),
+                    "tile at {offset}"
+                );
+            }
+        }
+    }
+}
+
+#[cfg(feature = "shaders")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shader_effect_cells_share_storage_in_pass_order() {
+    use pax_runtime_api::{
+        ShaderEffect, ShaderInput, ShaderParameter, ShaderParameterType, ShaderPass, ShaderProgram,
+        ShaderValue,
+    };
+    const PASS: ShaderPass = ShaderPass {
+        label: "two prepared fields",
+        parameters: &[ShaderParameter {
+            name: "step",
+            ty: ShaderParameterType::CellSpacing { padding: 0 },
+        }],
+        inputs: [ShaderInput::Subtree; 2],
+        downsample: 1,
+        source: "fn prepare_cell(c: vec2<i32>) -> vec4<f32> {
+            let p = (vec2<f32>(c) + 0.5) * parameters.step;
+            return sample_input0(p) * 0.5 + vec4<f32>(parameters.step / 32.0, 0.0, 0.0, 0.5);
+        }
+        fn effect(p: vec2<f32>) -> vec4<f32> {
+            return load_cell(vec2<i32>(floor(p / parameters.step)));
+        }",
+    };
+    static PROGRAM: ShaderProgram = ShaderProgram {
+        label: "ordered cell fields",
+        passes: &[
+            PASS,
+            ShaderPass {
+                inputs: [ShaderInput::Pass(0); 2],
+                ..PASS
+            },
+        ],
+    };
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 64, [1., 1.]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    for (frame, step) in [8., 12.].into_iter().enumerate() {
+        renderer.begin_shader_effect(
+            1,
+            0,
+            &ShaderEffect {
+                program: &PROGRAM,
+                lighting: None,
+                parameters: vec![
+                    vec![ShaderValue::Float(step)],
+                    vec![ShaderValue::Float(16.)],
+                ],
+                outset: 0.,
+            },
+            Transform2D::identity(),
+            (64., 64.),
+            &[],
+            &[2],
+        );
+        if frame == 0 {
+            renderer.begin_node(2, 0, 0);
+            renderer.fill_path(
+                rect(0., 0., 64., 64.),
+                Fill::Solid(Color::rgba(0., 1., 0., 1.)),
+            );
+            renderer.end_node(2);
+        }
+        renderer.end_shader_effect();
+        renderer.request_screenshot_capture(frame as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let image = renderer.take_screenshot_capture(frame as u32).unwrap();
+        assert_pixel(
+            &image,
+            32,
+            32,
+            [((step / 64. + 0.5) * 255.).round() as u8, 64, 0, 255],
+        );
+        let stats = renderer.take_resource_churn_stats();
+        assert_eq!(stats.effect_passes, 4);
+        assert_eq!(
+            stats.effect_texture_allocations,
+            if frame == 0 { 3 } else { 0 }
+        );
+    }
+}
+
 #[cfg(feature = "shaders")]
 #[test]
 #[ignore = "requires a macOS Metal device"]

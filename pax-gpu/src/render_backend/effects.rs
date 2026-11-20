@@ -1,10 +1,14 @@
 //! Bounded fragment-pass execution. Sources, pipelines and outputs have separate lifetimes so
 //! changing a uniform never recompiles a pipeline or records the source scene again.
+use super::effect_cells::{self, CellGrid, CellTexture};
 use super::*;
 use pax_runtime_api::{ShaderEffect, ShaderInput, ShaderParameterType, ShaderPass};
 use wgpu::util::DeviceExt;
 
 const MAX_EFFECT_BYTES: u64 = 256 * 1024 * 1024;
+
+// Row layout matches EffectDomain in effect.wgsl.
+pub(super) type EffectDomain = [[f32; 4]; 11];
 
 // All supported pass divisors divide 64. Keep enough spare capacity for small
 // resizes, and reclaim it once either axis shrinks substantially.
@@ -25,11 +29,13 @@ pub(super) fn storage_capacity(
 }
 
 pub(super) struct Effects {
-    layout: BindGroupLayout,
     composite_layout: BindGroupLayout,
     composite: RenderPipeline,
     sampler: wgpu::Sampler,
-    pipelines: HashMap<ShaderPass, RenderPipeline>,
+    pipelines: PassPipelines,
+    max_cell_dimension: u32,
+    cells: Option<CellTexture>,
+    output_bytes: u64,
     outputs: HashMap<u32, Output>,
 }
 
@@ -74,7 +80,7 @@ struct Output {
     recipe: &'static pax_runtime_api::ShaderProgram,
     source: Option<Texture>,
     capacity: [u32; 2],
-    domain: [[f32; 4]; 11],
+    domain: EffectDomain,
     domain_buffer: wgpu::Buffer,
     lighting: GpuEffectLighting,
     lighting_buffer: wgpu::Buffer,
@@ -118,14 +124,70 @@ fn sampler(binding: u32) -> wgpu::BindGroupLayoutEntry {
     }
 }
 
-pub(super) fn shader_source(pass: &ShaderPass) -> Result<String, String> {
+struct CompiledPass {
+    prepare: Option<RenderPipeline>,
+    shade: RenderPipeline,
+}
+
+struct PassPipelines {
+    cache: HashMap<(&'static ShaderPass, bool), CompiledPass>,
+    layout: BindGroupLayout,
+    cell_layout: BindGroupLayout,
+    format: TextureFormat,
+}
+
+impl PassPipelines {
+    fn get(
+        &mut self,
+        device: &wgpu::Device,
+        recipe: &'static ShaderPass,
+        prepared: bool,
+        stats: &mut crate::ResourceChurnStats,
+    ) -> &CompiledPass {
+        self.cache.entry((recipe, prepared)).or_insert_with(|| {
+            let source = shader_source(recipe, prepared)
+                .unwrap_or_else(|error| panic!("shader effect: {error}"));
+            // Both entry points use the same author's code and uniform schema.
+            // Validate and compile the module once when this recipe first appears.
+            let module = shader_module(device, recipe.label, &source);
+            let layouts = [&self.layout, &self.cell_layout];
+            let prepare = prepared.then(|| {
+                pipeline(
+                    device,
+                    &module,
+                    "fs_prepare_cells",
+                    recipe.label,
+                    &layouts[..1],
+                    effect_cells::FORMAT,
+                    1,
+                    false,
+                )
+            });
+            let count = if prepared { 2 } else { 1 };
+            let shade = pipeline(
+                device,
+                &module,
+                "fs_main",
+                recipe.label,
+                &layouts[..count],
+                self.format,
+                1,
+                false,
+            );
+            stats.effect_pipeline_compilations += count as u64;
+            CompiledPass { prepare, shade }
+        })
+    }
+}
+
+fn shader_source(pass: &ShaderPass, prepared: bool) -> Result<String, String> {
     let mut source = String::from("struct Parameters {\n");
     if pass.parameters.is_empty() {
         source.push_str("@align(16) @size(16) unused: f32,\n");
     }
     for parameter in pass.parameters {
         let ty = match parameter.ty {
-            ShaderParameterType::Float => "f32",
+            ShaderParameterType::Float | ShaderParameterType::CellSpacing { .. } => "f32",
             ShaderParameterType::Uint => "u32",
             ShaderParameterType::Vec2 => "vec2<f32>",
             ShaderParameterType::Vec4 => "vec4<f32>",
@@ -134,6 +196,10 @@ pub(super) fn shader_source(pass: &ShaderPass) -> Result<String, String> {
             "@align(16) @size(16) {}: {},\n",
             parameter.name, ty
         ));
+    }
+    let cells = effect_cells::declaration(pass);
+    if cells.is_some() {
+        source.push_str("pax_cell_rect: vec4<i32>,\n");
     }
     source.push_str("};\n@group(0) @binding(1) var<uniform> parameters: Parameters;\n");
     source.push_str(include_str!("scene_lighting.wgsl"));
@@ -167,6 +233,28 @@ pub(super) fn shader_source(pass: &ShaderPass) -> Result<String, String> {
         }
         source.push_str("}\n");
     }
+    if let Some((i, _)) = cells {
+        // Keep pixel-size queries inside prepare_cell anchored at the same
+        // location in both the table and direct evaluation paths.
+        source.push_str(&format!(
+            "fn pax_evaluate_cell(c: vec2<i32>) -> vec4<f32> {{
+            let previous = pax_effect_position;
+            pax_effect_position = (vec2<f32>(c) + 0.5) * parameters.{};
+            let value = prepare_cell(c);
+            pax_effect_position = previous;
+            return value;
+        }}\n",
+            pass.parameters[i].name
+        ));
+        if prepared {
+            source.push_str(include_str!("effect_cell_lookup.wgsl"));
+        } else {
+            source.push_str(
+                "fn load_cell(c: vec2<i32>) -> vec4<f32> {return pax_evaluate_cell(c); }\n",
+            );
+        }
+    }
+    source.push('\n');
     source.push_str(pass.source);
     let module = naga::front::wgsl::parse_str(&source)
         .map_err(|e| format!("{}: {}", pass.label, e.emit_to_string(&source)))?;
@@ -176,18 +264,19 @@ pub(super) fn shader_source(pass: &ShaderPass) -> Result<String, String> {
     )
     .validate(&module)
     .map_err(|e| format!("{}: {}", pass.label, e.emit_to_string(&source)))?;
-    // The wrapper owns exactly six resources. Naga permits unused declarations to alias
+    // The wrapper owns all resources. Naga permits unused declarations to alias
     // their bindings, so checking only the binding range would admit extra resources.
     let resources: Vec<_> = module
         .global_variables
         .iter()
         .filter_map(|(_, variable)| variable.binding.as_ref())
         .collect();
-    if module.entry_points.len() != 2
-        || resources.len() != 6
-        || resources
-            .iter()
-            .any(|binding| binding.group != 0 || binding.binding > 5)
+    if module.entry_points.len() != 2 + usize::from(prepared)
+        || resources.len() != 6 + usize::from(prepared)
+        || resources.iter().any(|binding| {
+            !(binding.group == 0 && binding.binding <= 5
+                || prepared && binding.group == 1 && binding.binding == 0)
+        })
     {
         return Err(format!(
             "{}: effect code cannot declare resources or entry points",
@@ -197,19 +286,23 @@ pub(super) fn shader_source(pass: &ShaderPass) -> Result<String, String> {
     Ok(source)
 }
 
+fn shader_module(device: &wgpu::Device, label: &str, source: &str) -> wgpu::ShaderModule {
+    device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some(label),
+        source: wgpu::ShaderSource::Wgsl(source.into()),
+    })
+}
+
 fn pipeline(
     device: &wgpu::Device,
-    source: &str,
+    shader: &wgpu::ShaderModule,
+    fragment: &str,
     label: &str,
     layouts: &[&BindGroupLayout],
     format: TextureFormat,
     samples: u32,
     composite: bool,
 ) -> RenderPipeline {
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some(label),
-        source: wgpu::ShaderSource::Wgsl(source.into()),
-    });
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some(label),
         bind_group_layouts: layouts,
@@ -219,14 +312,14 @@ fn pipeline(
         label: Some(label),
         layout: Some(&layout),
         vertex: wgpu::VertexState {
-            module: &shader,
+            module: shader,
             entry_point: Some("vs_main"),
             compilation_options: Default::default(),
             buffers: &[],
         },
         fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs_main"),
+            module: shader,
+            entry_point: Some(fragment),
             compilation_options: Default::default(),
             targets: &[Some(wgpu::ColorTargetState {
                 format,
@@ -286,9 +379,15 @@ impl Effects {
             entries: &[uniform(0), uniform(1), texture(2), sampler(3)],
         });
         let alpha = alpha_mask::sampling_layout(device);
+        let module = shader_module(
+            device,
+            "Premultiplied effect composition",
+            include_str!("effect_composite.wgsl"),
+        );
         let composite = pipeline(
             device,
-            include_str!("effect_composite.wgsl"),
+            &module,
+            "fs_main",
             "Premultiplied effect composition",
             &[&composite_layout, &alpha],
             backend.surface_config.format,
@@ -301,12 +400,39 @@ impl Effects {
             mag_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
+        let mut field = texture(0);
+        field.ty = wgpu::BindingType::Texture {
+            sample_type: wgpu::TextureSampleType::Float { filterable: false },
+            view_dimension: wgpu::TextureViewDimension::D2,
+            multisampled: false,
+        };
+        let cell_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Effect cell lookup"),
+            entries: &[field],
+        });
+        let can_render_cells = backend
+            .context
+            .adapter
+            .get_texture_format_features(effect_cells::FORMAT)
+            .allowed_usages
+            .contains(effect_cells::USAGE);
         Self {
-            layout,
+            max_cell_dimension: if can_render_cells {
+                device.limits().max_texture_dimension_2d
+            } else {
+                0
+            },
+            cells: None,
+            output_bytes: 0,
             composite_layout,
             composite,
             sampler,
-            pipelines: HashMap::new(),
+            pipelines: PassPipelines {
+                cache: HashMap::new(),
+                layout,
+                cell_layout,
+                format: backend.surface_config.format,
+            },
             outputs: HashMap::new(),
         }
     }
@@ -320,12 +446,22 @@ impl Effects {
     }
 
     pub(super) fn retain(&mut self, active: &HashSet<u32>) {
-        self.outputs.retain(|id, _| active.contains(id));
-        self.pipelines.retain(|recipe, _| {
+        self.outputs.retain(|id, output| {
+            if active.contains(id) {
+                true
+            } else {
+                self.output_bytes -= output.bytes;
+                false
+            }
+        });
+        self.pipelines.cache.retain(|(recipe, _), _| {
             self.outputs
                 .values()
                 .any(|o| o.recipe.passes.contains(recipe))
         });
+        if self.cells.is_some() && !self.pipelines.cache.keys().any(|(_, prepared)| *prepared) {
+            self.cells = None;
+        }
     }
 }
 
@@ -343,9 +479,14 @@ impl RenderBackend<'_> {
         stats: &mut crate::ResourceChurnStats,
     ) {
         let lighting = GpuEffectLighting::new(effect, scene_lighting);
-        let parameters = effect
+        let mut parameters = effect
             .encode_parameters()
             .unwrap_or_else(|error| panic!("shader effect {}: {error}", effect.program.label));
+        for (pass, bytes) in effect.program.passes.iter().zip(&mut parameters) {
+            if effect_cells::declaration(pass).is_some() {
+                bytes.resize(bytes.len() + 16, 0);
+            }
+        }
         let (source, rect) = if effect.program.samples_subtree() {
             let (texture, rect) = self
                 .retained_surfaces
@@ -425,26 +566,6 @@ impl RenderBackend<'_> {
             self.effects = Some(Effects::new(self));
         }
         let effects = self.effects.as_mut().unwrap();
-        for recipe in effect.program.passes {
-            if !effects.pipelines.contains_key(recipe) {
-                let source = shader_source(recipe).unwrap_or_else(|error| {
-                    panic!("shader effect {}: {error}", effect.program.label)
-                });
-                effects.pipelines.insert(
-                    recipe.clone(),
-                    pipeline(
-                        &self.device,
-                        &source,
-                        recipe.label,
-                        &[&effects.layout],
-                        self.surface_config.format,
-                        1,
-                        false,
-                    ),
-                );
-                stats.effect_pipeline_compilations += 1;
-            }
-        }
         if effects.outputs.get(&id).is_none_or(|o| {
             o.recipe != effect.program || o.source != source || o.capacity != capacity
         }) {
@@ -457,17 +578,20 @@ impl RenderBackend<'_> {
                         * u64::from(capacity[1].div_ceil(p.downsample))
                 })
                 .sum();
-            let used: u64 = effects
-                .outputs
-                .iter()
-                .filter(|(key, _)| **key != id)
-                .map(|(_, o)| o.bytes)
-                .sum();
+            let used = effects.output_bytes - effects.outputs.get(&id).map_or(0, |o| o.bytes);
             assert!(
                 used + required <= MAX_EFFECT_BYTES,
                 "shader effect {} exceeds the 256 MiB per-tile output budget",
                 effect.program.label
             );
+            effects.output_bytes = used + required;
+            if effects
+                .cells
+                .as_ref()
+                .is_some_and(|c| c.bytes() > MAX_EFFECT_BYTES - effects.output_bytes)
+            {
+                effects.cells = None;
+            }
             let domain_buffer = self
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -515,7 +639,7 @@ impl RenderBackend<'_> {
                 };
                 let binding = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some(recipe.label),
-                    layout: &effects.layout,
+                    layout: &effects.pipelines.layout,
                     entries: &[
                         wgpu::BindGroupEntry {
                             binding: 0,
@@ -626,41 +750,107 @@ impl RenderBackend<'_> {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some(effect.program.label),
             });
-        for ((pass, recipe), values) in output
-            .passes
-            .iter()
-            .zip(effect.program.passes)
-            .zip(&parameters)
-        {
-            self.queue.write_buffer(&pass.parameters, 0, values);
-            let mut render = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some(recipe.label),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &pass.view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
+        for (i, (pass, recipe)) in output.passes.iter().zip(effect.program.passes).enumerate() {
+            let values = &mut parameters[i];
+            let grid = CellGrid::for_pass(
+                recipe,
+                &effect.parameters[i],
+                &domain,
+                effects.max_cell_dimension,
+            );
+            let grid = grid.filter(|g| {
+                CellTexture::ensure(
+                    &mut effects.cells,
+                    &self.device,
+                    &effects.pipelines.cell_layout,
+                    g.size,
+                    MAX_EFFECT_BYTES - effects.output_bytes,
+                    stats,
+                )
             });
-            render.set_pipeline(&effects.pipelines[recipe]);
-            render.set_bind_group(0, &pass.binding, &[]);
-            let width = pixels[0].div_ceil(recipe.downsample);
-            let height = pixels[1].div_ceil(recipe.downsample);
-            render.set_viewport(0., 0., width as f32, height as f32, 0., 1.);
-            render.draw(0..3, 0..1);
-            stats.effect_passes += 1;
-            stats.effect_pixels += u64::from(width) * u64::from(height);
+            let pipelines = effects
+                .pipelines
+                .get(&self.device, recipe, grid.is_some(), stats);
+            let field = if let Some(grid) = grid {
+                let rect = [
+                    grid.origin[0],
+                    grid.origin[1],
+                    grid.size[0] as i32,
+                    grid.size[1] as i32,
+                ];
+                values
+                    .last_chunk_mut::<16>()
+                    .unwrap()
+                    .copy_from_slice(bytemuck::bytes_of(&rect));
+                let cells = effects.cells.as_ref().unwrap();
+                draw_pass(
+                    &mut encoder,
+                    "Effect cell preparation",
+                    &cells.view,
+                    grid.size,
+                    pipelines.prepare.as_ref().unwrap(),
+                    &pass.binding,
+                    None,
+                    stats,
+                );
+                Some(&cells.binding)
+            } else {
+                None
+            };
+            self.queue.write_buffer(&pass.parameters, 0, values);
+            let size = pixels.map(|v| v.div_ceil(recipe.downsample));
+            draw_pass(
+                &mut encoder,
+                recipe.label,
+                &pass.view,
+                size,
+                &pipelines.shade,
+                &pass.binding,
+                field,
+                stats,
+            );
         }
         output.signature = Some(signature);
         self.enqueue_command_buffer(encoder.finish());
     }
+}
+
+fn draw_pass(
+    encoder: &mut wgpu::CommandEncoder,
+    label: &str,
+    view: &TextureView,
+    size: [u32; 2],
+    pipeline: &RenderPipeline,
+    binding: &BindGroup,
+    field: Option<&BindGroup>,
+    stats: &mut crate::ResourceChurnStats,
+) {
+    let mut render = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some(label),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            view,
+            depth_slice: None,
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                store: wgpu::StoreOp::Store,
+            },
+        })],
+        depth_stencil_attachment: None,
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
+    });
+    render.set_pipeline(pipeline);
+    render.set_bind_group(0, binding, &[]);
+    if let Some(field) = field {
+        render.set_bind_group(1, field, &[]);
+    }
+    let [width, height] = size;
+    render.set_viewport(0., 0., width as f32, height as f32, 0., 1.);
+    render.draw(0..3, 0..1);
+    stats.effect_passes += 1;
+    stats.effect_pixels += u64::from(width) * u64::from(height);
 }
 
 #[cfg(test)]
@@ -681,7 +871,7 @@ mod tests {
                 inputs: [ShaderInput::Subtree; 2],
                 downsample: 1,
             };
-            let error = shader_source(&pass).expect_err("extra resources must be rejected");
+            let error = shader_source(&pass, false).expect_err("extra resources must be rejected");
             assert!(error.contains("extra-resource.wgsl: effect code cannot declare resources"));
         }
     }
@@ -689,14 +879,14 @@ mod tests {
     #[test]
     fn generated_uniform_layout_and_diagnostics() {
         let pass=ShaderPass {label:"user-color.wgsl",source:"fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p) * parameters.color; }",parameters:&[ShaderParameter {name:"color",ty:ShaderParameterType::Vec4}],inputs:[ShaderInput::Subtree;2],downsample:1};
-        shader_source(&pass).unwrap();
+        shader_source(&pass, false).unwrap();
         let mut invalid = pass.clone();
         invalid.source = "fn effect(p: vec2<f32>) -> vec4<f32> { return parameters.typo; }";
-        let error = shader_source(&invalid).unwrap_err();
+        let error = shader_source(&invalid, false).unwrap_err();
         assert!(error.contains("user-color.wgsl") && error.contains("typo"));
         invalid = pass;
         invalid.source="@compute @workgroup_size(1) fn extra() {} fn effect(p: vec2<f32>) -> vec4<f32> { return vec4<f32>(0.0); }";
-        assert!(shader_source(&invalid)
+        assert!(shader_source(&invalid, false)
             .unwrap_err()
             .contains("entry points"));
     }

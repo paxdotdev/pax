@@ -152,6 +152,12 @@ One host/shader parameter type. Every member occupies a 16-byte uniform slot.
 
 #### Variants
 ##### `Float`
+##### `CellSpacing` { `padding`: `u32` }
+Positive float spacing of a square grid in effect-local pixels. A pass may declare
+one grid. Implement `prepare_cell(cell: vec2<i32>) -> vec4<f32>` and use
+`load_cell(cell)` in `effect`. Padding is the maximum lookup radius in cells
+around the output's cell. Outlying lookups are evaluated directly.
+
 ##### `Uint`
 ##### `Vec2`
 ##### `Vec4`

@@ -110,9 +110,9 @@ impl PointillistPreset {
         }
     }
 
-    fn uniforms(&self) -> [V; 11] {
+    fn uniforms(&self, size: f32) -> [V; 11] {
         [
-            V::Float(self.spacing),
+            V::Float(size * self.spacing),
             V::Vec2(self.extent),
             V::Float(self.roundness),
             V::Float(self.jitter),
@@ -127,95 +127,83 @@ impl PointillistPreset {
     }
 }
 
+const fn parameter(name: &'static str, ty: T) -> ShaderParameter {
+    ShaderParameter { name, ty }
+}
+
+const MODE: ShaderParameter = parameter("mode", T::Uint);
+const PHASE: ShaderParameter = parameter("phase", T::Float);
+const SEED: ShaderParameter = parameter("seed", T::Uint);
+const SIZE: ShaderParameter = parameter("size", T::Float);
+
+const ORIENTATION: ShaderPass = ShaderPass {
+    label: "orientation.wgsl",
+    source: include_str!("orientation.wgsl"),
+    parameters: &[SIZE],
+    inputs: [ShaderInput::Subtree; 2],
+    downsample: 2,
+};
+
+const fn strokes(
+    label: &'static str,
+    source: &'static str,
+    parameters: &'static [ShaderParameter],
+) -> ShaderPass {
+    ShaderPass {
+        label,
+        source,
+        parameters,
+        inputs: [ShaderInput::Subtree, ShaderInput::Pass(0)],
+        downsample: 1,
+    }
+}
+
 static PAINT: ShaderProgram = ShaderProgram {
     label: "Surface anchored paint",
     passes: &[
-        ShaderPass {
-            label: "orientation.wgsl",
-            source: include_str!("orientation.wgsl"),
-            parameters: &[ShaderParameter {
-                name: "size",
-                ty: T::Float,
-            }],
-            inputs: [ShaderInput::Subtree; 2],
-            downsample: 2,
-        },
-        ShaderPass {
-            label: "strokes.wgsl",
-            source: concat!(
+        ORIENTATION,
+        strokes(
+            "strokes.wgsl",
+            concat!(
                 include_str!("brush_common.wgsl"),
                 include_str!("strokes.wgsl"),
                 include_str!("gauguin.wgsl"),
                 include_str!("van_gogh.wgsl"),
-                include_str!("pointillist.wgsl"),
                 include_str!("cezanne.wgsl"),
                 include_str!("impressionist.wgsl"),
             ),
-            parameters: &[
-                ShaderParameter {
-                    name: "mode",
-                    ty: T::Uint,
-                },
-                ShaderParameter {
-                    name: "phase",
-                    ty: T::Float,
-                },
-                ShaderParameter {
-                    name: "seed",
-                    ty: T::Uint,
-                },
-                ShaderParameter {
-                    name: "size",
-                    ty: T::Float,
-                },
-                ShaderParameter {
-                    name: "point_spacing",
-                    ty: T::Float,
-                },
-                ShaderParameter {
-                    name: "point_extent",
-                    ty: T::Vec2,
-                },
-                ShaderParameter {
-                    name: "point_roundness",
-                    ty: T::Float,
-                },
-                ShaderParameter {
-                    name: "point_jitter",
-                    ty: T::Float,
-                },
-                ShaderParameter {
-                    name: "point_direction",
-                    ty: T::Vec2,
-                },
-                ShaderParameter {
-                    name: "point_ground",
-                    ty: T::Float,
-                },
-                ShaderParameter {
-                    name: "point_white",
-                    ty: T::Vec2,
-                },
-                ShaderParameter {
-                    name: "point_white_chance",
-                    ty: T::Float,
-                },
-                ShaderParameter {
-                    name: "point_pigment",
-                    ty: T::Vec2,
-                },
-                ShaderParameter {
-                    name: "point_relief",
-                    ty: T::Float,
-                },
-                ShaderParameter {
-                    name: "point_motion",
-                    ty: T::Vec2,
-                },
+            &[MODE, PHASE, SEED, SIZE],
+        ),
+    ],
+};
+
+static POINTILLIST: ShaderProgram = ShaderProgram {
+    label: "Pointillist dabs",
+    passes: &[
+        ORIENTATION,
+        strokes(
+            "pointillist.wgsl",
+            concat!(
+                include_str!("brush_common.wgsl"),
+                include_str!("pointillist.wgsl"),
+            ),
+            &[
+                PHASE,
+                SEED,
+                SIZE,
+                parameter("point_spacing", T::CellSpacing { padding: 2 }),
+                parameter("point_extent", T::Vec2),
+                parameter("point_roundness", T::Float),
+                parameter("point_jitter", T::Float),
+                parameter("point_direction", T::Vec2),
+                parameter("point_ground", T::Float),
+                parameter("point_white", T::Vec2),
+                parameter("point_white_chance", T::Float),
+                parameter("point_pigment", T::Vec2),
+                parameter("point_relief", T::Float),
+                parameter("point_motion", T::Vec2),
             ],
-            inputs: [ShaderInput::Subtree, ShaderInput::Pass(0)],
-            downsample: 1,
-        },
+        ),
     ],
 };
 
@@ -224,30 +212,36 @@ impl Impressionist {
         let size = self.size.get().clamp(4., 32.) as f32;
         let mode = self.mode.get();
         let mut marks = vec![
-            V::Uint(mode.shader_value()),
             V::Float(self.phase.get() as f32),
             V::Uint(self.seed.get()),
             V::Float(size),
         ];
-        let preset = PointillistPreset::for_mode(&mode);
-        marks.extend(preset.uniforms());
         // Bound the sampling halo from the shader's reach, not the longest
         // brush at maximum size. Orientation samples another 0.4×size from
         // each accepted anchor. In Gauguin the farthest direct color tap
         // (1.5 + 0.25 spacings) is already inside that bound.
-        let reach = match mode {
+        let (program, reach) = match mode {
             ImpressionistMode::Signac | ImpressionistMode::Seurat => {
-                (1.55 * preset.spacing + 0.4) * size
+                let preset = PointillistPreset::for_mode(&mode);
+                marks.extend(preset.uniforms(size));
+                (&POINTILLIST, (1.55 * preset.spacing + 0.4) * size)
             }
-            ImpressionistMode::Gauguin => (1.75 * 1.35 + 0.4) * size,
-            _ => 96.,
+            _ => {
+                marks.insert(0, V::Uint(mode.shader_value()));
+                let reach = if mode == ImpressionistMode::Gauguin {
+                    (1.75 * 1.35 + 0.4) * size
+                } else {
+                    96.
+                };
+                (&PAINT, reach)
+            }
         };
         // Allow for filtering on the half-resolution orientation grid and
         // bucket changes so small size adjustments can reuse the capture.
         let outset = (8. * ((f64::from(reach) + 4.) / 8.).ceil()).min(96.);
         ShaderEffect {
             lighting: None,
-            program: &PAINT,
+            program,
             parameters: vec![vec![V::Float(size)], marks],
             outset,
         }
@@ -298,6 +292,29 @@ mod tests {
             assert_eq!(p.recipe().outset, expected);
             p.phase.set(9.);
             assert_eq!(p.recipe().outset, expected);
+        }
+    }
+
+    #[test]
+    fn pointillist_grid_follows_the_preset_and_current_brush_size() {
+        let painter = Impressionist::default();
+        for (mode, size, expected_spacing) in [
+            (ImpressionistMode::Signac, 64., Some(32. * 0.21)),
+            (ImpressionistMode::Seurat, 2., Some(4. * 0.12)),
+            (ImpressionistMode::Gauguin, 20., None),
+            (ImpressionistMode::Seurat, 16., Some(16. * 0.12)),
+        ] {
+            painter.mode.set(mode);
+            painter.size.set(size);
+            let recipe = painter.recipe();
+            let spacing = recipe.program.passes[1]
+                .parameters
+                .iter()
+                .zip(&recipe.parameters[1])
+                .find(|(parameter, _)| parameter.ty == T::CellSpacing { padding: 2 })
+                .map(|(_, value)| *value);
+            assert_eq!(spacing, expected_spacing.map(V::Float));
+            recipe.encode_parameters().unwrap();
         }
     }
 

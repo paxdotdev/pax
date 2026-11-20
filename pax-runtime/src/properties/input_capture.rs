@@ -97,6 +97,13 @@ struct Node {
 }
 
 impl Node {
+    fn payload_bytes(&self) -> usize {
+        std::mem::size_of::<Node>()
+            + std::mem::size_of::<Rc<Node>>()
+            + 6 * std::mem::size_of::<usize>()
+            + self.path_bytes()
+    }
+
     fn path_bytes(&self) -> usize {
         match &self.shape {
             HitShape::Path { path, .. } => std::mem::size_of_val(path.elements()),
@@ -149,7 +156,7 @@ pub struct CapturedInputView {
     // Stable incarnation slots and persistent child order let an edit preserve
     // unrelated geometry and routing indices. Only render children are traversed by hit tests.
     children: imbl::OrdMap<usize, Rc<Vec<usize>>>,
-    subtree_escapes: imbl::OrdMap<usize, usize>,
+    subtree_escapes: imbl::OrdSet<usize>,
 
     scroll_indices: imbl::OrdSet<usize>,
     #[cfg(test)]
@@ -519,7 +526,7 @@ impl CapturedInputView {
             }
             state.clipped &= !node.unclippable;
             state.skip |= !hit_invisible && node.exit;
-            if state.skip || (state.clipped && self.subtree_escapes[&index] == 0) {
+            if state.skip || (state.clipped && !self.subtree_escapes.contains(&index)) {
                 continue;
             }
             let can_hit = hit_invisible || !node.invisible;
@@ -569,7 +576,7 @@ impl CapturedInputView {
             }
             state.clipped |= !hit && node.clips;
             node.apply_scroll(&mut state, scroll_offsets, self.view)?;
-            if !state.clipped || self.subtree_escapes[&index] != 0 {
+            if !state.clipped || self.subtree_escapes.contains(&index) {
                 if let Some(children) = self.children.get(&index) {
                     pending.extend(children.iter().rev().map(|&child| (child, state)));
                 }
@@ -1039,6 +1046,7 @@ impl RuntimeContext {
         &self,
         limits: InputCaptureLimits,
         producer: &mut InputPublisher,
+        reuse: Option<(&CapturedInputView, &HashSet<u32>)>,
     ) -> Result<CapturedInputView, InputCaptureError> {
         let _graph = self.property_graph.enter();
         if matches!(
@@ -1059,16 +1067,26 @@ impl RuntimeContext {
         let view = NEXT_VIEW
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
             .map_err(|_| InputCaptureError::IdentityExhausted)?;
-        let mut nodes = Vec::new();
-        let mut template_parents = Vec::new();
-        let mut route_render_parents = Vec::new();
-        let mut routes: Vec<Weak<ExpandedNode>> = Vec::new();
-        let mut indices = HashMap::new();
+        let front = reuse.map(|(front, _)| front);
+        let mut nodes = front.map(|v| v.nodes.clone()).unwrap_or_default();
+        let mut children = front.map(|v| v.children.clone()).unwrap_or_default();
+        let mut scroll_indices = imbl::OrdSet::new();
+        // The presentation walk supplies hit order. Route-only ancestors supply
+        // event context, but must never acquire hittable child edges.
+        struct Visit {
+            key: usize,
+            parent: Option<usize>,
+            escapes_clip: bool,
+        }
+        let mut order = Vec::<Visit>::new();
+        let mut routes: Vec<Rc<ExpandedNode>> = Vec::new();
+        let mut seen = HashSet::new();
         let mut presentation_node_count = None;
         let mut payload_bytes = 0usize;
         let viewport = self.globals().viewport.get();
         let mut stack = borrow!(self.root_expanded_node)
             .upgrade()
+            .filter(|root| !root.is_render_source())
             .map(|root| vec![(root, None, false)])
             .unwrap_or_default();
         loop {
@@ -1076,134 +1094,142 @@ impl RuntimeContext {
                 if let Some((node, parent, exit)) = stack.pop() {
                     (node, parent, exit, false)
                 } else {
-                    presentation_node_count.get_or_insert(nodes.len());
-                    let mut next = None;
-                    while let Some(route) = routes.pop() {
-                        if let Some(node) = route.upgrade() {
-                            if !indices.contains_key(&Rc::as_ptr(&node)) {
-                                next = Some(node);
-                                break;
-                            }
-                        }
-                    }
+                    presentation_node_count.get_or_insert(order.len());
+                    let next = std::iter::from_fn(|| routes.pop())
+                        .find(|node| !seen.contains(&Rc::as_ptr(node)));
                     let Some(node) = next else {
                         break;
                     };
                     (node, None, false, true)
                 };
-            if !route_only && node.is_render_source() {
-                continue;
-            }
-            if nodes.len() >= limits.nodes {
+            if order.len() >= limits.nodes {
                 return Err(InputCaptureError::Capacity);
             }
             node.compute_flattened_projected_children();
-            let captured = producer.record(self, &node)?;
+            let index = order.len();
+            seen.insert(Rc::as_ptr(&node));
+            let template_parent = node.template_parent.upgrade();
+            let route_parent = route_only
+                .then(|| node.presentation_parent_node())
+                .flatten();
+            let parent_key = parent
+                .map(|i: usize| order[i].key)
+                .or_else(|| route_parent.as_ref().map(|p| p.id.to_u32() as usize));
+            let template_key = template_parent.as_ref().map(|p| p.id.to_u32() as usize);
+            // Keep unresolved lexical and presentation parents alive until their
+            // records exist. Published views retain only their IDs and weak mounts.
+            routes.extend(
+                template_parent
+                    .into_iter()
+                    .chain(route_parent)
+                    .filter(|p| !seen.contains(&Rc::as_ptr(p))),
+            );
+            let id = node.id.to_u32();
+            // Subscriptions cover reactive inputs. Incarnation and both parent
+            // relationships also govern the meaning of a retained record.
+            let retained = reuse.and_then(|(front, dirty)| {
+                let old = front.nodes.get(id as usize)?;
+                (!dirty.contains(&id)
+                    && old.mounted.as_ptr() == Rc::as_ptr(&node)
+                    && old.identity.mount_epoch == node.mount_epoch.get()
+                    && old.parent == parent_key
+                    && old.template_parent == template_key
+                    && old.retained_exit == retained_exit
+                    && producer.watches.get(&id)?.geometry.same_parent(&node))
+                .then(|| old.clone())
+            });
+            let record = match retained {
+                Some(record) => record,
+                None => {
+                    let mut record = producer.record(self, &node)?.node;
+                    record.parent = parent_key;
+                    record.template_parent = template_key;
+                    record.exit |= retained_exit;
+                    record.retained_exit = retained_exit;
+                    let record = Rc::new(record);
+                    nodes.0.insert(id as usize, record.clone());
+                    record
+                }
+            };
             payload_bytes = payload_bytes
-                .checked_add(captured.payload_bytes)
+                .checked_add(record.payload_bytes())
                 .ok_or(InputCaptureError::Capacity)?;
             if payload_bytes > limits.payload_bytes {
                 return Err(InputCaptureError::Capacity);
             }
-            let index = nodes.len();
-            indices.insert(Rc::as_ptr(&node), index);
-            template_parents.push(node.template_parent.clone());
-            routes.push(node.template_parent.clone());
-            let route_parent = route_only
-                .then(|| node.presentation_parent_node())
-                .flatten();
-            route_render_parents.push(route_parent.as_ref().map(Rc::downgrade));
-            if let Some(parent) = &route_parent {
-                routes.push(Rc::downgrade(parent));
+            let key = id as usize;
+            order.push(Visit {
+                key,
+                parent,
+                escapes_clip: record.unclippable,
+            });
+            if record.scroll.is_some() {
+                scroll_indices.insert(key);
             }
-            let mut record = captured.node;
-            record.parent = parent;
-            record.exit |= retained_exit;
-            record.retained_exit = retained_exit;
-            nodes.push(record);
-            if route_only {
-                continue;
+            let mut current = if route_only {
+                Vec::new()
+            } else {
+                node.presentation_children(self)
+            };
+            current.retain(|child| !child.is_render_source());
+            let ids = || current.iter().map(|child| child.id.to_u32() as usize);
+            if current.is_empty() {
+                if children.contains_key(&key) {
+                    children.remove(&key);
+                }
+            } else if !children
+                .get(&key)
+                .is_some_and(|old| old.iter().copied().eq(ids()))
+            {
+                children.insert(key, Rc::new(ids().collect()));
             }
             let exiting = borrow!(node.exiting_children);
-            stack.extend(
-                node.presentation_children(self)
-                    .into_iter()
-                    .rev()
-                    .map(|child| {
-                        let retained = exiting.iter().any(|old| Rc::ptr_eq(old, &child));
-                        (child, Some(index), retained)
-                    }),
-            );
+            stack.extend(current.into_iter().rev().map(|child| {
+                let retained = exiting.iter().any(|old| Rc::ptr_eq(old, &child));
+                (child, Some(index), retained)
+            }));
         }
-        // Projection can put a lexical parent elsewhere in render order. Resolve
-        // the complete captured map rather than assuming it is a render ancestor.
-        for ((record, parent), render_parent) in nodes
-            .iter_mut()
-            .zip(template_parents)
-            .zip(route_render_parents)
-        {
-            if let Some(parent) = parent.upgrade() {
-                record.template_parent = Some(
-                    *indices
-                        .get(&Rc::as_ptr(&parent))
-                        .ok_or(InputCaptureError::Unsettled("template_parent"))?,
-                );
-            }
-            if let Some(parent) = render_parent.and_then(|p| p.upgrade()) {
-                record.parent = Some(
-                    *indices
-                        .get(&Rc::as_ptr(&parent))
-                        .ok_or(InputCaptureError::Unsettled("render_parent"))?,
-                );
-            }
-        }
+        // Routes above were followed to closure, including lexical ancestors
+        // outside the presentation tree. Their node IDs are stable snapshot slots.
         if let Some(reason) = self.settled_surface_blocker() {
             return Err(InputCaptureError::Unsettled(reason));
         }
+        if reuse.is_some() {
+            producer.watches.retain(|&id, _| {
+                let key = id as usize;
+                if nodes
+                    .get(key)
+                    .is_some_and(|n| seen.contains(&n.mounted.as_ptr()))
+                {
+                    return true;
+                }
+                nodes.0.remove(&key);
+                children.remove(&key);
+                false
+            });
+        }
         let count = presentation_node_count.unwrap_or(0);
         payload_bytes = payload_bytes
-            .checked_add(nodes.len() * std::mem::size_of::<(u32, usize)>())
+            .checked_add(order.len() * std::mem::size_of::<(u32, usize)>())
             .ok_or(InputCaptureError::Capacity)?;
         if payload_bytes > limits.payload_bytes {
             return Err(InputCaptureError::Capacity);
         }
-        let keys: Vec<_> = nodes.iter().map(|node| node.identity.id as usize).collect();
-        let mut children = imbl::OrdMap::<usize, Rc<Vec<usize>>>::new();
-        let mut escapes: Vec<_> = nodes
-            .iter()
-            .map(|node| usize::from(node.unclippable))
-            .collect();
         for i in (0..count).rev() {
-            if let Some(parent) = nodes[i].parent {
-                escapes[parent] += escapes[i];
+            if let (Some(parent), true) = (order[i].parent, order[i].escapes_clip) {
+                order[parent].escapes_clip = true;
             }
         }
-        for i in 0..count {
-            if let Some(parent) = nodes[i].parent {
-                Rc::make_mut(children.entry(keys[parent]).or_default()).push(keys[i]);
-            }
-        }
-        for node in &mut nodes {
-            node.parent = node.parent.map(|i| keys[i]);
-            node.template_parent = node.template_parent.map(|i| keys[i]);
-        }
-        let scroll_indices = nodes
-            .iter()
-            .filter_map(|n| n.scroll.is_some().then_some(n.identity.id as usize))
-            .collect();
         Ok(CapturedInputView {
             application: self.property_graph.id(),
             view,
-            nodes: InputNodes(
-                nodes
-                    .into_iter()
-                    .map(|node| (node.identity.id as usize, Rc::new(node)))
-                    .collect(),
-            ),
-            root: (count > 0).then(|| keys[0]),
+            nodes,
+            root: (count > 0).then(|| order[0].key),
             children,
-
-            subtree_escapes: keys.iter().copied().zip(escapes).collect(),
+            subtree_escapes: order
+                .into_iter()
+                .filter_map(|visit| visit.escapes_clip.then_some(visit.key))
+                .collect(),
             scroll_indices,
             #[cfg(test)]
             query_work: Cell::new(0),
@@ -1228,6 +1254,13 @@ struct GeometryInputs {
 }
 
 impl GeometryInputs {
+    fn same_parent(&self, node: &ExpandedNode) -> bool {
+        self.parent_layout
+            .as_ref()
+            .map(|(parent, _)| parent.as_ptr())
+            == node.render_parent_node().as_ref().map(Rc::as_ptr)
+    }
+
     // Only geometry sources fired. A local primitive's shape and clip can be
     // reused across a pose change when both coordinate charts keep their
     // dimensions. Arbitrary shapes, posed meshes and scroll bases recapture.
@@ -1303,7 +1336,6 @@ impl GeometryInputs {
 pub(crate) struct InputCaptureRecord {
     node: Node,
     geometry_inputs: GeometryInputs,
-    payload_bytes: usize,
     template_parent: Option<InputIdentity>,
 }
 
@@ -1405,16 +1437,39 @@ impl RuntimeContext {
             view: 0,
         };
         InputCaptureRecord {
-            payload_bytes: std::mem::size_of::<Node>()
-                + std::mem::size_of::<Rc<Node>>()
-                + 6 * std::mem::size_of::<usize>()
-                + record.path_bytes(),
             geometry_inputs: GeometryInputs {
                 parent_layout,
                 projected_bounds: projected.bounds,
             },
             node: record,
             template_parent: node.template_parent.upgrade().map(identity),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum TopologyChange {
+    #[default]
+    None,
+    KnownOrigins,
+    UnknownOrigin,
+}
+
+#[derive(Default)]
+pub(super) struct CaptureChanges {
+    pub(super) dirty: HashSet<u32>,
+    topology: TopologyChange,
+}
+
+impl CaptureChanges {
+    pub(super) fn structure_changed(&mut self, origin: Option<u32>) {
+        if let Some(id) = origin {
+            self.dirty.insert(id);
+            if self.topology == TopologyChange::None {
+                self.topology = TopologyChange::KnownOrigins;
+            }
+        } else {
+            self.topology = TopologyChange::UnknownOrigin;
         }
     }
 }
@@ -1497,12 +1552,14 @@ impl InputPublisher {
             nodes: 100_000,
             payload_bytes: 128 * 1024 * 1024,
         };
-        let mut dirty = ctx
-            .input_capture_dirty
+        let CaptureChanges {
+            mut dirty,
+            topology,
+        } = ctx
+            .input_capture_changes
             .borrow_mut()
-            .take()
+            .replace(CaptureChanges::default())
             .unwrap_or_default();
-        *ctx.input_capture_dirty.borrow_mut() = Some(Default::default());
         let mut geometry = Vec::new();
         while let Some(key) = self.changes.pop() {
             let id = (key >> 1) as u32;
@@ -1512,8 +1569,18 @@ impl InputPublisher {
                 dirty.insert(id);
             }
         }
-        let topology_changed = ctx.input_capture_topology.replace(false);
-        if let Some(previous) = self.latest.clone().filter(|_| !topology_changed) {
+        // Membership and lexical routes can change far from the notifying node
+        // (slots, overlays, retained exits). Rediscover edges from the live tree;
+        // only invalidated or newly related bodies need new property reads.
+        if topology == TopologyChange::KnownOrigins {
+            dirty.extend(geometry);
+            return self.capture_topology(ctx, limits, Some(&dirty));
+        }
+        if let Some(previous) = self
+            .latest
+            .clone()
+            .filter(|_| topology == TopologyChange::None)
+        {
             // A world-space property can be invalidated throughout a subtree
             // whose resolved pose did not move. Keep the immutable body and its
             // dynamic read subscriptions if every potentially changed source
@@ -1527,7 +1594,7 @@ impl InputPublisher {
                     continue;
                 };
                 let Some(node) = ctx.get_expanded_node_by_eid(ExpandedNodeIdentifier(id)) else {
-                    return self.rebuild(ctx, limits);
+                    return self.capture_topology(ctx, limits, None);
                 };
                 if old.mounted.ptr_eq(&Rc::downgrade(&node))
                     && old.identity.mount_epoch == node.mount_epoch.get()
@@ -1559,7 +1626,7 @@ impl InputPublisher {
                     continue;
                 };
                 let Some(node) = ctx.get_expanded_node_by_eid(ExpandedNodeIdentifier(id)) else {
-                    return self.rebuild(ctx, limits);
+                    return self.capture_topology(ctx, limits, None);
                 };
                 let updated = self.record(ctx, &node)?;
                 let mut record = updated.node;
@@ -1569,7 +1636,7 @@ impl InputPublisher {
                     || old.template_parent != updated.template_parent.map(|id| id.id as usize)
                     || !record.mounted.ptr_eq(&old.mounted)
                 {
-                    return self.rebuild(ctx, limits);
+                    return self.capture_topology(ctx, limits, None);
                 }
                 next.payload_bytes = next.payload_bytes - old.path_bytes() + record.path_bytes();
                 if next.payload_bytes > limits.payload_bytes {
@@ -1592,18 +1659,22 @@ impl InputPublisher {
             self.latest = Some(next.clone());
             return Ok(next);
         }
-        self.rebuild(ctx, limits)
+        self.capture_topology(ctx, limits, None)
     }
 
-    fn rebuild(
+    fn capture_topology(
         &mut self,
         ctx: &RuntimeContext,
         limits: InputCaptureLimits,
+        dirty: Option<&HashSet<u32>>,
     ) -> Result<Rc<CapturedInputView>, InputCaptureError> {
-        self.latest = None;
-        self.watches.clear();
-        self.changes = Default::default();
-        let next = Rc::new(ctx.capture_input_view(limits, self)?);
+        let previous = self.latest.take().filter(|_| dirty.is_some());
+        let reuse = previous.as_deref().zip(dirty);
+        if reuse.is_none() {
+            self.watches.clear();
+            self.changes = Default::default();
+        }
+        let next = Rc::new(ctx.capture_input_view(limits, self, reuse)?);
         self.latest = Some(next.clone());
         Ok(next)
     }

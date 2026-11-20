@@ -9,6 +9,13 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderParameterType {
     Float,
+    /// Positive float spacing of a square grid in effect-local pixels. A pass may declare
+    /// one grid. Implement `prepare_cell(cell: vec2<i32>) -> vec4<f32>` and use
+    /// `load_cell(cell)` in `effect`. Padding is the maximum lookup radius in cells
+    /// around the output's cell. Outlying lookups are evaluated directly.
+    CellSpacing {
+        padding: u32,
+    },
     Uint,
     Vec2,
     Vec4,
@@ -205,6 +212,7 @@ impl ShaderEffect {
                         pass.label
                     ));
                 }
+                let mut has_grid = false;
                 let mut names = std::collections::HashSet::new();
                 let mut bytes = Vec::new();
                 for (parameter, value) in pass.parameters.iter().zip(values) {
@@ -219,7 +227,15 @@ impl ShaderEffect {
                             pass.label, parameter.name
                         ));
                     }
-                    if parameter.ty != value.ty() {
+                    if let ShaderParameterType::CellSpacing { .. } = parameter.ty {
+                        if has_grid || !matches!(value, ShaderValue::Float(v) if *v > 0.0) {
+                            return Err(format!(
+                                "pass {}: expected one positive cell spacing",
+                                pass.label
+                            ));
+                        }
+                        has_grid = true;
+                    } else if parameter.ty != value.ty() {
                         return Err(format!(
                             "pass {}: parameter {} expects {:?}, got {:?}",
                             pass.label,
@@ -294,6 +310,60 @@ mod tests {
         invalid.parameters[0][1] = ShaderValue::Vec2([f32::NAN, 0.]);
         assert!(invalid.encode_parameters().unwrap_err().contains("finite"));
     }
+    #[test]
+    fn cell_spacing_accepts_one_finite_positive_float() {
+        const SPACING: ShaderParameter = ShaderParameter {
+            name: "step",
+            ty: ShaderParameterType::CellSpacing { padding: 1 },
+        };
+        const PASS: ShaderPass = ShaderPass {
+            label: "cells",
+            source: "",
+            parameters: &[SPACING],
+            inputs: [ShaderInput::Subtree; 2],
+            downsample: 1,
+        };
+        static PROGRAM: ShaderProgram = ShaderProgram {
+            label: "grid",
+            passes: &[PASS],
+        };
+        static DUPLICATE: ShaderProgram = ShaderProgram {
+            label: "two grids",
+            passes: &[ShaderPass {
+                parameters: &[
+                    SPACING,
+                    ShaderParameter {
+                        name: "second",
+                        ..SPACING
+                    },
+                ],
+                ..PASS
+            }],
+        };
+        let mut effect = ShaderEffect {
+            program: &PROGRAM,
+            lighting: None,
+            parameters: vec![vec![ShaderValue::Float(8.)]],
+            outset: 0.,
+        };
+        assert_eq!(
+            &effect.encode_parameters().unwrap()[0][..4],
+            &8_f32.to_le_bytes()
+        );
+        for invalid in [
+            ShaderValue::Float(0.),
+            ShaderValue::Float(-1.),
+            ShaderValue::Float(f32::INFINITY),
+            ShaderValue::Uint(8),
+        ] {
+            effect.parameters[0][0] = invalid;
+            assert!(effect.encode_parameters().is_err());
+        }
+        effect.program = &DUPLICATE;
+        effect.parameters[0] = vec![ShaderValue::Float(8.); 2];
+        assert!(effect.encode_parameters().is_err());
+    }
+
     #[test]
     fn rejects_pass_cycles_and_invalid_support() {
         static CYCLE: ShaderProgram = ShaderProgram {

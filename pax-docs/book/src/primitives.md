@@ -448,11 +448,37 @@ Here `tint` would be a declared `Vec4` parameter. Coordinates are local logical
 pixels. `sample_input0(p)` and `sample_input1(p)` sample the declared inputs,
 returning transparent outside their capture domain. `input0_pixel_size()`
 reports the local-axis texel spacing, including transform scale and DPR.
-The engine supplies entry points, bind groups, and attachments. User code
-cannot add entry points or GPU resources. Intermediate textures use the
-surface color format; the final output must be premultiplied RGBA. There are
-no compute passes, history textures, external texture bindings, or raw-device
-callbacks in this slice.
+The engine supplies entry points, bind groups, and attachments. Image passes
+use the surface color format and the final output uses premultiplied RGBA.
+Custom shader code runs in fragment passes. Compute entry points, history
+textures, external bindings, and raw-device callbacks are unsupported.
+
+For effects that revisit a regular grid, declare one positive `Float` value
+with schema type `ShaderParameterType::CellSpacing { padding: 1 }`. Its value
+is the square cell width in local logical pixels. Implement `prepare_cell`
+and call `load_cell` from the image pass. For example, a shader with a cell
+spacing parameter named `spacing` can color each cell from its center.
+Rust code that exhaustively matches `ShaderParameterType` should map
+`CellSpacing { .. }` to the same WGSL `f32` representation as `Float`.
+
+```wgsl
+fn prepare_cell(c: vec2<i32>) -> vec4<f32> {
+    return sample_input0((vec2<f32>(c) + 0.5) * parameters.spacing);
+}
+fn effect(p: vec2<f32>) -> vec4<f32> {
+    return load_cell(vec2<i32>(floor(p / parameters.spacing)));
+}
+```
+
+Choose padding to cover the neighbors visited on each axis (zero suffices for
+the example). Cell values can use the current uniforms, either image input,
+and scene lighting. Define them solely from those inputs and the integer cell
+coordinate. Fragment derivatives depend on the invocation and are unsuitable
+inside `prepare_cell`. Inside this function, `input0_pixel_size()` measures the
+cell center. WGPU can prepare a draw-local, four-channel float texture and
+read its texels without filtering or color conversion. Outlying lookups,
+unbounded projections and grids that exceed the renderer's limits evaluate
+the same function directly. The table shares the tile's effect memory budget.
 
 `ShaderEffect.outset` is the maximum absolute local sampling displacement and output
 expansion on either axis for the **whole recipe**. Include support from consecutive passes.

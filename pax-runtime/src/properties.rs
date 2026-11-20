@@ -118,8 +118,7 @@ pub struct RuntimeContext {
     pub(crate) presentation: RefCell<crate::presentation::PresentationState>,
     pub(crate) presentation_order_generation: LocalProperty<u64>,
     pub(crate) startup: RefCell<crate::engine::startup::Startup>,
-    input_capture_dirty: RefCell<Option<HashSet<u32>>>,
-    input_capture_topology: Cell<bool>,
+    input_capture_changes: RefCell<Option<input_capture::CaptureChanges>>,
     captured_input_scopes: RefCell<Vec<Rc<input_capture::CapturedInputRouting>>>,
     captured_input_hover: RefCell<Option<input_capture::CapturedInputHover>>,
     pub(crate) replaying_startup_input: RefCell<Option<crate::engine::startup::StartupInput>>,
@@ -302,8 +301,7 @@ impl RuntimeContext {
             presentation: Default::default(),
             presentation_order_generation: LocalProperty::new(0),
             startup: Default::default(),
-            input_capture_dirty: Default::default(),
-            input_capture_topology: Default::default(),
+            input_capture_changes: Default::default(),
             captured_input_scopes: Default::default(),
             captured_input_hover: Default::default(),
             replaying_startup_input: Default::default(),
@@ -377,8 +375,7 @@ impl RuntimeContext {
             presentation: Default::default(),
             presentation_order_generation: LocalProperty::new(0),
             startup: Default::default(),
-            input_capture_dirty: Default::default(),
-            input_capture_topology: Default::default(),
+            input_capture_changes: Default::default(),
             captured_input_scopes: Default::default(),
             captured_input_hover: Default::default(),
             replaying_startup_input: Default::default(),
@@ -454,8 +451,7 @@ impl RuntimeContext {
             presentation: Default::default(),
             presentation_order_generation: LocalProperty::new(0),
             startup: Default::default(),
-            input_capture_dirty: Default::default(),
-            input_capture_topology: Default::default(),
+            input_capture_changes: Default::default(),
             captured_input_scopes: Default::default(),
             captured_input_hover: Default::default(),
             replaying_startup_input: Default::default(),
@@ -1530,7 +1526,9 @@ impl RuntimeContext {
 
     #[track_caller]
     fn mark_occlusion_dirty_with_origin(&self, node: Option<u32>) {
-        self.input_capture_topology.set(true);
+        if let Some(changes) = self.input_capture_changes.borrow_mut().as_mut() {
+            changes.structure_changed(node);
+        }
         self.scene_geometry.borrow_mut().input.topology_dirty = true;
         self.occlusion_dirty.set(true);
         let mut state = self.occlusion_state.borrow_mut();

@@ -1161,12 +1161,12 @@ compositions. The simulated paint relief is color shading, not actual surface
 geometry or scene lighting. Pale pigment stays within source coverage;
 transparent content does not acquire an opaque white background.
 
-The modes share one two-pass shader program. Signac and Seurat use the same
-pointillist brush function with preset values for spacing, proportions,
-roundness, position variation, direction, pigment, relief, and drift. Other brush
-families have distinct construction functions in that program. These internal
-preset controls are not yet individual public properties; `mode`, `size`,
-`seed`, and `phase` are the supported authoring controls.
+Every mode samples the source's orientation before painting at full resolution.
+Signac and Seurat share a pointillist brush with different spacing, shape,
+direction, pigment, relief, and drift. When enough pixels share each dab, WGPU
+prepares its center and axis once per draw. The brush still computes coverage
+and shading at each output pixel. The authoring controls are `mode`, `size`,
+`seed`, and `phase`.
 
 `seed` fixes surface anchors and seeds the directional fields. `phase` is an
 absolute **motion position**, not elapsed time owned by the shader. It drives
@@ -1180,11 +1180,10 @@ colors and contour alignment still respond to changing source content.
 There is no motion tracking or previous-frame state.
 Stopping phase updates freezes brush motion while source updates continue.
 Identical source content, mode, seed, size, and phase give identical output.
-Changing mode switches the treatment immediately; it does not morph one brush
-family into another. The modes share a pipeline. Animating phase can reuse an
-unchanged source capture. Changing the mode or brush size can resize it:
-shorter sweeps and pointillist dabs need fewer source pixels beyond the tile
-edge. The visible paint still renders at the same resolution.
+Changing mode switches the treatment immediately. Animating phase can reuse
+an unchanged source capture. Changing the mode or brush size can resize the
+capture because shorter sweeps and pointillist dabs need fewer source pixels
+beyond the tile edge. The visible paint still renders at the same resolution.
 `size` is an overall brush scale in local logical pixels, clamped to 4–32.
 Each mode applies its own proportions: a Seurat dot is smaller than a Gauguin
 sweep at the same setting. Size also scales directional patterns, including
@@ -1456,12 +1455,12 @@ the pinpoint cores. Cores follow the projected facet shapes, while long
 starburst rays share a fixed orientation in the effect's local viewing frame.
 Transforming the container also transforms those rays.
 
-The implementation uses one full-resolution pass. At `flare<=1`, it searches
-nine cells with at most nine anchor reads plus the source pixel. Larger flares
-expand the search, up to 121 cells at 5. Out-of-reach glints skip the anchor read;
-transparent anchors skip facet calculations and lighting. Remaining candidates
-sample up to eight eligible scene lights.
-There is no particle history or broad blur pass. Keep the container close to
+WGPU prepares source coverage and scene lighting once per reflector in a
+draw-local grid. A full-resolution pass combines those values with each
+pixel's distance from the reflector. It visits nine cells at `flare<=1` and
+up to 121 cells at `flare=5`. Source, light and parameter changes refresh
+the result. When the projected grid is too large to prepare efficiently,
+WGPU evaluates reflectors directly. Keep the container close to
 the artwork; capture size and display resolution affect cost. Support is bounded
 to `0.95 * spacing * max(1, flare)`. Capture padding is `4.75 * spacing + 12`
 local pixels per side: enough for the maximum flare plus a filtering allowance.
