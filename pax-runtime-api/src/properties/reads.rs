@@ -125,6 +125,32 @@ mod tests {
     }
 
     #[test]
+    fn refreshing_a_subscription_preserves_pending_reads_and_replaces_changed_branches() {
+        let a = LocalProperty::new(1_u32);
+        let b = LocalProperty::new(2_u32);
+        let source = a.clone();
+        let lazy = LocalProperty::computed(move || source.get(), &[a.untyped()]);
+        lazy.get();
+        let queue = DependencyEventQueue::default();
+        let mut watch = queue.watch(&[lazy.untyped(), b.untyped()], 7);
+        a.set(3);
+        watch.refresh(&[b.untyped(), lazy.untyped(), b.untyped()]);
+        assert_eq!(queue.pop(), Some(7));
+        assert!(queue.is_empty());
+        watch.refresh(&[lazy.untyped(), b.untyped()]);
+        assert_eq!(queue.pop(), Some(7));
+        lazy.get();
+        b.get();
+        watch.refresh(&[b.untyped()]);
+        // Settling the lazy source can have queued its former registration.
+        while queue.pop().is_some() {}
+        a.set(4);
+        assert!(queue.is_empty());
+        b.set(5);
+        assert_eq!(queue.pop(), Some(7));
+    }
+
+    #[test]
     fn overflow_and_unwind_restore_the_outer_scope() {
         let first = LocalProperty::new(1_u32);
         let second = LocalProperty::new(2_u32);

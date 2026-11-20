@@ -623,6 +623,29 @@ fn exercise_tile_lifecycle(incremental: bool, prepared: bool) {
         assert_eq!(renderer.flushed_surfaces.borrow().len(), 1);
         assert_eq!(renderer.flushed_surfaces.borrow()[0].1, 1);
 
+        // Both retained scenes changed. The visible submission leaves b ready
+        // to flush its latest drawing when demand crosses the tile boundary.
+        renderer.mark_render_surfaces_dirty(0, [0, 1]);
+        renderer.flush_visible_first(0, Rc::clone(&dirty));
+        assert_eq!(renderer.flushed_surfaces.borrow().len(), 1);
+        assert_eq!(renderer.flushed_surfaces.borrow()[0].1, 0);
+        assert!(!renderer.submit_deferred_surface(true));
+        layout.borrow_mut().surfaces[1].replay_priority = -1;
+        assert!(renderer.submit_deferred_surface(true));
+        assert_eq!(renderer.flushed_surfaces.borrow()[0].1, 1);
+        assert!(!renderer.submit_deferred_surface(false));
+        layout.borrow_mut().surfaces[1].replay_priority = 10;
+        renderer.mark_render_surfaces_dirty(0, [1]);
+        renderer.flush_visible_first(0, Rc::clone(&dirty));
+        assert!(renderer.submit_deferred_surface(false));
+        assert!(!renderer.submit_deferred_surface(false));
+
+        renderer.mark_render_surfaces_dirty(0, [1]);
+        renderer.flush_visible_first(0, Rc::clone(&dirty));
+        renderer.flush(0, Rc::clone(&dirty));
+        assert_eq!(renderer.flushed_surfaces.borrow()[0].1, 1);
+        assert!(!renderer.submit_deferred_surface(false));
+
         // Layout may change repeatedly while preparation is budget-blocked.
         // Retain the submitted backing until a complete replay is admitted.
         for width in [48, 56, 64] {

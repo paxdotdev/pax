@@ -1228,6 +1228,48 @@ struct GeometryInputs {
 }
 
 impl GeometryInputs {
+    // Only geometry sources fired. A local primitive's shape and clip can be
+    // reused across a pose change when both coordinate charts keep their
+    // dimensions. Arbitrary shapes, posed meshes and scroll bases recapture.
+    fn local_pose(&mut self, node: &Rc<ExpandedNode>, front: &Node) -> Option<Node> {
+        let instance = borrow!(node.instance_node);
+        if front.scroll.is_some()
+            || !instance.geometry_is_scroller_local()
+            || instance.scrolls_content(node)
+        {
+            return None;
+        }
+        #[cfg(feature = "3d")]
+        if matches!(front.shape, HitShape::Mesh(_)) {
+            return None;
+        }
+        let layout = node.transform_and_bounds.get();
+        let projected = node.presentation_transform_and_bounds.get();
+        if layout.bounds != front.bounds || projected.bounds != self.projected_bounds {
+            return None;
+        }
+        match (&mut self.parent_layout, node.render_parent_node()) {
+            (Some((source, old)), Some(parent)) if source.as_ptr() == Rc::as_ptr(&parent) => {
+                let current = parent.transform_and_bounds.get();
+                if old.bounds != current.bounds {
+                    return None;
+                }
+                *old = current;
+            }
+            (None, None) => {}
+            _ => return None,
+        }
+        let mut next = front.clone();
+        next.layout = layout;
+        next.transform = Affine::from(projected.transform);
+        #[cfg(feature = "3d")]
+        {
+            next.spatial = node.spatial_geometry.get();
+            next.geometry = node.presentation_geometry.get();
+        }
+        Some(next)
+    }
+
     fn unchanged(&self, node: &Rc<ExpandedNode>, front: &Node) -> bool {
         if node.transform_and_bounds.get() != front.layout {
             return false;
@@ -1379,8 +1421,8 @@ impl RuntimeContext {
 
 struct InputWatches {
     geometry: GeometryInputs,
-    _geometry_subscription: DependencyEventSubscription,
-    _other_subscription: DependencyEventSubscription,
+    geometry_subscription: DependencyEventSubscription,
+    other_subscription: DependencyEventSubscription,
 }
 
 /// Owns the incremental capture independently of the revision installed for input.
@@ -1420,14 +1462,20 @@ impl InputPublisher {
             source == layout || source == projected || Some(source) == parent
         });
         let key = u64::from(id) << 1;
-        self.watches.insert(
-            id,
-            InputWatches {
-                geometry: record.geometry_inputs.clone(),
-                _geometry_subscription: self.changes.watch(&geometry, key),
-                _other_subscription: self.changes.watch(&other, key | 1),
-            },
-        );
+        if let Some(watches) = self.watches.get_mut(&id) {
+            watches.geometry = record.geometry_inputs.clone();
+            watches.geometry_subscription.refresh(&geometry);
+            watches.other_subscription.refresh(&other);
+        } else {
+            self.watches.insert(
+                id,
+                InputWatches {
+                    geometry: record.geometry_inputs.clone(),
+                    geometry_subscription: self.changes.watch(&geometry, key),
+                    other_subscription: self.changes.watch(&other, key | 1),
+                },
+            );
+        }
         Ok(record)
     }
 
@@ -1470,6 +1518,7 @@ impl InputPublisher {
             // whose resolved pose did not move. Keep the immutable body and its
             // dynamic read subscriptions if every potentially changed source
             // is one of the checked geometry values and all still compare equal.
+            let mut poses = Vec::new();
             for id in geometry {
                 if dirty.contains(&id) {
                     continue;
@@ -1480,23 +1529,31 @@ impl InputPublisher {
                 let Some(node) = ctx.get_expanded_node_by_eid(ExpandedNodeIdentifier(id)) else {
                     return self.rebuild(ctx, limits);
                 };
-                if !old.mounted.ptr_eq(&Rc::downgrade(&node))
-                    || old.identity.mount_epoch != node.mount_epoch.get()
-                    || !self
-                        .watches
-                        .get(&id)
-                        .is_some_and(|w| w.geometry.unchanged(&node, old))
+                if old.mounted.ptr_eq(&Rc::downgrade(&node))
+                    && old.identity.mount_epoch == node.mount_epoch.get()
                 {
-                    dirty.insert(id);
+                    if let Some(watches) = self.watches.get_mut(&id) {
+                        if watches.geometry.unchanged(&node, old) {
+                            continue;
+                        }
+                        if let Some(updated) = watches.geometry.local_pose(&node, old) {
+                            poses.push((id, Rc::new(updated)));
+                            continue;
+                        }
+                    }
                 }
+                dirty.insert(id);
             }
-            if dirty.is_empty() {
+            if dirty.is_empty() && poses.is_empty() {
                 return Ok(previous);
             }
             let mut next = (*previous).clone();
             next.view = NEXT_VIEW
                 .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
                 .map_err(|_| InputCaptureError::IdentityExhausted)?;
+            for (id, record) in poses {
+                next.nodes.0.insert(id as usize, record);
+            }
             for id in dirty {
                 let Some(old) = previous.nodes.get(id as usize) else {
                     continue;

@@ -137,7 +137,9 @@ export function releaseCanvasBacking(canvas: HTMLCanvasElement) {
         // can leave the previous presentation visible during an animated entry.
         // Only leased WebGPU canvases have this marker. Do not acquire a GPU
         // context on an unused canvas or a canvas belonging to the CPU fallback.
-        if (canvas.hasAttribute("data-pax-surface-owners")) {
+        // A private surface owns an offscreen GPU target. Asking its DOM
+        // front for WebGPU here would permanently prevent bitmap presentation.
+        if (canvas.hasAttribute("data-pax-surface-owners") && !canvas.hasAttribute("data-pax-bitmap-front")) {
             const context = canvas.getContext("webgpu");
             if (context && "unconfigure" in context && typeof context.unconfigure === "function") {
                 context.unconfigure();

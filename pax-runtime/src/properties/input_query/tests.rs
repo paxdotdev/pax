@@ -923,3 +923,79 @@ fn displayed_capture_reuses_equal_geometry_and_honors_other_changes_in_the_same_
     let _scope = next.enter(ctx, &HashMap::new()).unwrap();
     assert!(!query(ctx, None, (110., 110.), false).contains(&node.id));
 }
+
+#[test]
+fn displayed_local_shapes_follow_parent_poses_and_match_fresh_capture() {
+    use crate::properties::input_capture::{CapturedInputView, InputPublisher};
+    let calls = Rc::new(Cell::new(0));
+    let leaf = HitNode::new(vec![], true, false, None, calls.clone());
+    let host = HitNode::new(vec![leaf.clone()], true, true, None, Default::default());
+    let mut scroller = HitNode::new(vec![], true, true, None, Default::default());
+    Rc::get_mut(&mut scroller).unwrap().scroll = true;
+    let (mut engine, root) = fixture(vec![host, scroller]);
+    let parent = root.children.get()[0].clone();
+    let child = parent.children.get()[0].clone();
+    let other = root.children.get()[1].clone();
+    place(&other, 101., 60., 40., 40.);
+    place(&parent, 40., 40., 50., 50.);
+    place(&child, 10., 10., 50., 50.);
+    engine.tick();
+    let mut publisher = InputPublisher::default();
+    let initial = publisher.capture(&engine.runtime_context).unwrap();
+    let targets = |view: &CapturedInputView, x, y| {
+        view.hit_targets((x, y).into(), &HashMap::new(), false)
+            .unwrap()
+            .into_iter()
+            .map(|t| (t.identity.id, t.identity.mount_epoch))
+            .collect::<Vec<_>>()
+    };
+    let old = targets(&initial, 51., 51.);
+    assert!(old.iter().any(|t| t.0 == child.id.to_u32()));
+    for (step, x) in [75., 55., 15., 40., 45., 50.].into_iter().enumerate() {
+        parent
+            .get_common_properties()
+            .borrow()
+            .x
+            .set(Some(Size::Pixels(x.into())));
+        #[cfg(feature = "3d")]
+        parent.get_common_properties().borrow().rotate_y.set(Some(
+            pax_runtime_api::Rotation::Degrees((step as f64 * 15.).into()),
+        ));
+        if step == 2 {
+            *leaf.shape.borrow_mut() = Some(Rect::new(1., 1., 7., 8.));
+            engine
+                .runtime_context
+                .mark_node_input_dirty(child.id.to_u32());
+        }
+        if step == 3 {
+            place(&child, 10., 10., 19., 45.);
+        }
+        if step == 4 {
+            crate::NodeRef::new(&child, &engine.runtime_context)
+                .move_to_append_child(&crate::NodeRef::new(&other, &engine.runtime_context))
+                .unwrap();
+        }
+        if step == 5 {
+            native_scroll(&engine.runtime_context, &other, 5.);
+        }
+        engine.tick();
+        calls.set(0);
+        let next = publisher.capture(&engine.runtime_context).unwrap();
+        if step < 4 {
+            assert_eq!(calls.get(), u64::from(step >= 2));
+        }
+        let fresh = InputPublisher::default()
+            .capture(&engine.runtime_context)
+            .unwrap();
+        for x in (15..151).step_by(3) {
+            for y in (35..104).step_by(3) {
+                assert_eq!(
+                    targets(&next, x as f64 + 0.5, y as f64 + 0.5),
+                    targets(&fresh, x as f64 + 0.5, y as f64 + 0.5),
+                    "step {step} at ({x}, {y})"
+                );
+            }
+        }
+        assert_eq!(targets(&initial, 51., 51.), old);
+    }
+}

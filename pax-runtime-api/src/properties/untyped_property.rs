@@ -84,7 +84,9 @@ impl DependencyReaders {
 
 #[doc(hidden)]
 pub struct DependencyEventSubscription {
-    _inner: std::rc::Rc<DependencyEventInner>,
+    inner: std::rc::Rc<DependencyEventInner>,
+    // Generational IDs do not keep captured properties alive.
+    sources: Vec<PropertyId>,
 }
 
 impl DependencyEventInner {
@@ -99,16 +101,19 @@ impl DependencyEventInner {
     }
 }
 
-impl DependencyEventQueue {
-    pub fn watch(&self, properties: &[UntypedProperty], key: u64) -> DependencyEventSubscription {
-        let subscription = std::rc::Rc::new(DependencyEventInner {
-            queue: std::rc::Rc::downgrade(&self.0),
-            key,
-            queued: std::cell::Cell::new(false),
-        });
+impl DependencyEventSubscription {
+    fn source_ids(properties: &[UntypedProperty]) -> Vec<PropertyId> {
+        let mut ids: Vec<_> = properties.iter().map(UntypedProperty::get_id).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        ids
+    }
+
+    fn register(inner: DependencyEventInner, sources: Vec<PropertyId>) -> Self {
+        let subscription = std::rc::Rc::new(inner);
         PROPERTY_TABLE.with(|table| {
-            for property in properties {
-                table.with_property_data_mut(property.id, |data| {
+            for &id in &sources {
+                table.with_property_data_mut(id, |data| {
                     let events = data
                         .invalidation_events
                         .get_or_insert_with(Default::default);
@@ -119,9 +124,50 @@ impl DependencyEventQueue {
                 });
             }
         });
-        DependencyEventSubscription {
-            _inner: subscription,
+        Self {
+            inner: subscription,
+            sources,
         }
+    }
+
+    /// Refresh a capture's reads, preserving the registration for an equal set.
+    pub fn refresh(&mut self, properties: &[UntypedProperty]) {
+        let sources = Self::source_ids(properties);
+        if sources == self.sources {
+            // A consumer can drain its notification while a lazy input is
+            // still dirty. Preserve the same wake-up as a fresh registration.
+            if !self.inner.queued.get()
+                && PROPERTY_TABLE.with(|table| {
+                    sources
+                        .iter()
+                        .any(|&id| table.with_property_data(id, |data| data.dirty))
+                })
+            {
+                self.inner.invalidate();
+            }
+        } else {
+            *self = Self::register(
+                DependencyEventInner {
+                    queue: self.inner.queue.clone(),
+                    key: self.inner.key,
+                    queued: std::cell::Cell::new(false),
+                },
+                sources,
+            );
+        }
+    }
+}
+
+impl DependencyEventQueue {
+    pub fn watch(&self, properties: &[UntypedProperty], key: u64) -> DependencyEventSubscription {
+        DependencyEventSubscription::register(
+            DependencyEventInner {
+                queue: std::rc::Rc::downgrade(&self.0),
+                key,
+                queued: std::cell::Cell::new(false),
+            },
+            DependencyEventSubscription::source_ids(properties),
+        )
     }
     /// Pops one bounded work unit. A retired subscription can leave a harmless
     /// stale key; the consumer separately validates mounted/source identity.

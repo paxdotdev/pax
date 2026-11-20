@@ -88,6 +88,18 @@ test('an already-unowned WebGPU canvas is unconfigured before immediate reuse', 
     assert.deepEqual(old.gpuContext.retiredAtSize, [[300, 200]]);
 });
 
+test('retiring an unused bitmap front preserves its context type for the next lease', () => {
+    const {pool} = harness(1);
+    const canvas = pool.checkout();
+    canvas.setAttribute('data-pax-bitmap-front', '');
+    canvas.setAttribute('data-pax-surface-owners', '1');
+    pool.release(canvas);
+    canvas.releaseOwner(0);
+    assert.deepEqual(canvas.contextRequests, []);
+    assert.equal(canvas.width, 1);
+    assert.equal(pool.checkout(), canvas);
+});
+
 test('the deferred availability notification cannot unconfigure a newly assigned surface', async () => {
     const h = harness(1);
     const old = h.pool.checkout();

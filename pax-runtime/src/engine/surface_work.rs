@@ -111,6 +111,9 @@ pub struct RenderWorkState {
     // held. Retry that reconciliation in the next display epoch.
     pub(super) retry_reconciliation: bool,
     pub(super) urgent_complete: bool,
+    // A draw may exhaust its CPU slice before the renderer can seal visible
+    // work. Give the host that opportunity before submitting offscreen pixels.
+    pub(super) yield_after_visible_draw: bool,
     // A frame boundary must not repeatedly put animation redraws ahead of
     // admitted incoming tiles. This is a turn, not a saved surface selection.
     pub(super) prefer_preparation: bool,
@@ -129,6 +132,7 @@ impl RenderWorkState {
         self.continue_epoch(epoch);
         self.setup_complete = false;
         self.urgent_complete = false;
+        self.yield_after_visible_draw = false;
         self.attempted_layers.clear();
     }
 
