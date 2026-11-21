@@ -347,12 +347,13 @@ use the screenshot link. The oscilloscope occupies its own centered study.
 `GlassAction` shares opal/obsidian paint and material helpers, with 5⅓px corners, from
 `SiteTheme`, without outline strokes. Opal has a soft response; obsidian has a
 narrow highlight with its strength limited to keep the white GitHub label readable.
-`SiteShell` supplies a viewport-space point light following mouse movement and touch
-start/move, outside section light frames, without capturing input or cancelling
-native scrolling; there is no global strip light. A unit ambient contribution
-preserves ordinary matte paints; native labels stay unlit. Base paints remain visible on CPU renderers, but dynamic
-lighting requires the GPU backend. These are opaque glass-like surfaces, not
-refractive glass. The GitHub icon's official source is
+The website root supplies a viewport-space point light following mouse and touch
+input on the homepage and oscilloscope route. The hero and footer actions, fixed
+nav’s Get Started button, and View Source tabs use that light to reveal a thin
+cyan, magenta, and yellow contour. The shader captures each painted face,
+including the source tab’s animated notch. Labels, links, and the GitHub icon
+stay outside the capture. CPU rendering and the standalone blog header draw the
+original faces directly. The GitHub icon's official source is
 recorded alongside the asset in `assets/branding/`.
 The nav is borderless and has no gradient overlay. Foreground surface ordering
 for a future soft edge is tracked in

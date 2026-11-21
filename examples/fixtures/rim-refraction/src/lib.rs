@@ -54,9 +54,9 @@ impl Example {
     }
     pub fn label_color(github: bool) -> Color {
         if github {
-            SiteTheme::paper()
+            SiteTheme::paper(false)
         } else {
-            SiteTheme::ink()
+            SiteTheme::ink(false)
         }
     }
     pub fn strip_percent(phase: f64) -> f64 {

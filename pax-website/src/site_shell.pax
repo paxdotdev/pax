@@ -3,11 +3,6 @@ if self.has_hero && !self.hide_nav && self.nav_logo_entry > 0.0 && @gpu {
     <Group width=0px height=0px @tick=self.advance_nav_light/>
 }
 <Group width=100% height=100%>
-    // Follow input in viewport space without affecting native scrolling.
-    <LightSource x={self.pointer_light_active ? (self.pointer_light_x)px : 65%}
-        y={self.pointer_light_active ? (self.pointer_light_y)px : 25%} anchor=50% width=1px height=1px
-        z=95px radius=480px intensity=0.9 color=WHITE/>
-    <AmbientLight intensity=1.0 color=WHITE/>
     <DynamicIslandSpacer inset=bind:self.safe_top/>
     <DynamicIslandSpacer edge=SafeAreaEdge::Bottom inset=bind:self.safe_bottom/>
     <DynamicIslandSpacer edge=SafeAreaEdge::Left inset=bind:self.safe_left/>
@@ -51,7 +46,4 @@ if self.has_hero && !self.hide_nav && self.nav_logo_entry > 0.0 && @gpu {
 @settings {
     @mount: handle_mount
     @pre_render: handle_pre_render
-    @mouse_move: move_pointer_light
-    @touch_start: touch_pointer_light
-    @touch_move: drag_pointer_light
 }

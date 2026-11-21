@@ -16,14 +16,18 @@
             sizes={self.compact ? [] : [Some(320px), Some(220px)]}>
             <Link width=100% height=52px url="https://docs.pax.dev/getting-started.html" target=Target::New>
                 <Text class="site_button_label" width=100% height=100%>Read the getting-started guide →</Text>
-                <Rectangle class="site_button_signal" width=100% height=100% corner_radius=6/>
+                <ButtonRim width=100% height=100% enabled=true>
+                    <Rectangle class="site_button_signal" width=100% height=100% corner_radius=6/>
+                </ButtonRim>
             </Link>
             <Link width=100% height=52px url="https://github.com/paxdotdev/pax/tree/main/examples" target=Target::New>
                 <Text class="site_button_outline_label" width=100% height=100%>Browse examples →</Text>
-                <Rectangle width=100% height=100% corner_radius=6 fill={SiteTheme::surface(self.light_mode)} stroke={
-                    paint: {SiteTheme::rule(self.light_mode)}
-                    width: 1px
-                }/>
+                <ButtonRim width=100% height=100% enabled=true>
+                    <Rectangle width=100% height=100% corner_radius=6 fill={SiteTheme::surface(self.light_mode)} stroke={
+                        paint: {SiteTheme::rule(self.light_mode)}
+                        width: 1px
+                    }/>
+                </ButtonRim>
             </Link>
         </Stacker>
         <Text class="editorial_note" width=100% markdown=true

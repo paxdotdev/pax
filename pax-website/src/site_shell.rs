@@ -1,7 +1,6 @@
 #![allow(unused_imports)]
 
 use crate::{SiteHeader, SiteLogo, SiteTheme};
-use pax_kit::math::Point2;
 use pax_kit::*;
 
 const COMPACT_BREAKPOINT_PX: f64 = 760.0;
@@ -27,11 +26,11 @@ mod tests {
     }
 
     #[test]
-    fn shell_keeps_pointer_lighting_without_a_strip() {
-        let shell = include_str!("site_shell.pax");
-        assert!(!shell.contains("<StripLight"));
-        assert!(shell.contains("<LightSource x={self.pointer_light_active"));
-        assert!(shell.contains("<AmbientLight intensity=1.0"));
+    fn site_keeps_pointer_lighting_without_a_strip() {
+        let routes = include_str!("lib.pax");
+        assert!(!routes.contains("<StripLight"));
+        assert!(routes.contains("<LightSource class=\"pointer_light\""));
+        assert!(routes.contains("<AmbientLight intensity=1"));
         assert!(!include_str!("glass_action.pax").contains("<StripLight"));
     }
 }
@@ -68,9 +67,6 @@ pub struct SiteShell {
     pub safe_right: Property<f64>,
     pub hero_present: Property<bool>,
     pub hero_docked: Property<bool>,
-    pub pointer_light_x: Property<f64>,
-    pub pointer_light_y: Property<f64>,
-    pub pointer_light_active: Property<bool>,
 }
 
 impl SiteShell {
@@ -134,38 +130,12 @@ impl SiteShell {
             .set(if shown { 1.0 } else { 0.0 });
     }
 
-    pub fn move_pointer_light(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
-        self.place_pointer_light(ctx, event.mouse.x, event.mouse.y);
-    }
-
     pub fn advance_nav_light(&mut self, ctx: &NodeContext) {
         // The hero clock pauses offscreen. Sample the runtime clock here instead;
         // a visibility-gated tick drives only the nav twin's shader uniforms.
         let (x, y) = crate::site_logo::idle_light_position(ctx.elapsed_time_millis() as f64);
         self.nav_light_x.local().set_if_neq(x);
         self.nav_light_y.local().set_if_neq(y);
-    }
-
-    pub fn touch_pointer_light(&mut self, ctx: &NodeContext, event: Event<TouchStart>) {
-        if let Some(touch) = event.touches.first() {
-            self.place_pointer_light(ctx, touch.x, touch.y);
-        }
-    }
-
-    pub fn drag_pointer_light(&mut self, ctx: &NodeContext, event: Event<TouchMove>) {
-        if let Some(touch) = event.touches.first() {
-            self.place_pointer_light(ctx, touch.x, touch.y);
-        }
-    }
-
-    fn place_pointer_light(&mut self, ctx: &NodeContext, x: f64, y: f64) {
-        let point = ctx.local_point(Point2::new(x, y));
-        let (width, height) = ctx.bounds_self.get();
-        // No capture or cancellation: lighting must not interfere with links,
-        // controls, or the browser's native touch scrolling.
-        self.pointer_light_x.local().set_if_neq(point.x * width);
-        self.pointer_light_y.local().set_if_neq(point.y * height);
-        self.pointer_light_active.local().set_if_neq(true);
     }
 
     pub fn handle_pre_render(&mut self, _ctx: &NodeContext) {

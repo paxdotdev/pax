@@ -4,6 +4,8 @@
         description: "Build creative, native, portable user interfaces with Rust and Pax, a free and open-source declarative UI language."
         index: true
     }>
+        <LightSource class="pointer_light"/>
+        <AmbientLight intensity=1 color=WHITE/>
         <SiteShell light_mode=bind:self.light_mode has_hero=true
             hide_nav={self.hero_source_open || self.source_overlay_open}>
             <HomePage light_mode=bind:self.light_mode scroll_y=bind:self.page_scroll_y hero_source_open=bind:self.hero_source_open
@@ -29,6 +31,8 @@
         description: "Play with light, lettering, and waveforms in a Pax-built instrument."
         index: false
     }>
+        <LightSource class="pointer_light"/>
+        <AmbientLight intensity=1 color=WHITE/>
         <PlaygroundPage light_mode={self.light_mode} />
     </Route>
     <Route default=true metadata=RouteMetadata {
@@ -36,10 +40,29 @@
         description: "This page could not be found."
         index: false
     }>
+        <LightSource class="pointer_light"/>
+        <AmbientLight intensity=1 color=WHITE/>
         <SiteShell light_mode=bind:self.light_mode>
             <NotFoundPage light_mode={self.light_mode} />
         </SiteShell>
     </Route>
 </Router>
 
-@settings { @mount: mount }
+@settings {
+    @mount: mount
+    @mouse_move: move_pointer_light
+    @touch_start: touch_pointer_light
+    @touch_move: drag_pointer_light
+
+    .pointer_light {
+        x: {self.pointer_light_active ? (self.pointer_light_x)px : 65%}
+        y: {self.pointer_light_active ? (self.pointer_light_y)px : 25%}
+        anchor: 50%
+        width: 1px
+        height: 1px
+        z: 95px
+        radius: 480px
+        intensity: 0.9
+        color: WHITE
+    }
+}

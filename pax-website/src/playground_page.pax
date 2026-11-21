@@ -12,7 +12,7 @@
         text="OSCILLOSCOPE / LIVE"
         style={font: {family: "Manrope", url: "/assets/fonts/Manrope.ttf"}, font_size: 11px,
             fill: {SiteTheme::muted(self.light_mode)}, align_horizontal: TextAlignHorizontal::Right, align_vertical: TextAlignVertical::Center}/>
-    <ExampleHost show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode} y=52px width=100% height={100% - 52px}
+    <ExampleHost source_tab_rim=true show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode} y=52px width=100% height={100% - 52px}
         title="LED Oscilloscope" sources={self.sources} drawer_open=bind:self.source_open>
         <Frame width=100% height=100%>
             <LedOscilloscope width=100% height=100% message="DREAM IT. BUILD IT."/>

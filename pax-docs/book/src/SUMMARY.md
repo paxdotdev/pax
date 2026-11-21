@@ -108,6 +108,7 @@
       - [media::native_image](api/pax-std/media/native_image.md)
       - [media::youtube_video](api/pax-std/media/youtube_video.md)
     - [reference](api/pax-std/reference.md)
+      - [reference::button_rim](api/pax-std/reference/button_rim.md)
       - [reference::example_host](api/pax-std/reference/example_host.md)
     - [shaders](api/pax-std/shaders.md)
       - [shaders::corona](api/pax-std/shaders/corona.md)

@@ -80,6 +80,8 @@ pub struct ExampleHost {
     pub show_theme_toggle: Property<bool>,
     /// Light drawer chrome, file tabs and edge handle. Independent of the code palette; default false.
     pub chrome_light_mode: Property<bool>,
+    /// Light the source tab contour with scoped direct lights (GPU, shaders feature). Defaults to false.
+    pub source_tab_rim: Property<bool>,
     /// Present the source viewer beside the preview (default true).
     /// When false, View Source still toggles `drawer_open`, but the caller must
     /// mount an `ExampleSourceViewer` elsewhere, such as above a page Scroller.
@@ -112,6 +114,7 @@ impl Default for ExampleHost {
             source_light_mode: Property::new(true),
             show_theme_toggle: Property::new(true),
             chrome_light_mode: Property::new(false),
+            source_tab_rim: Property::new(false),
             inline_source_viewer: Property::new(true),
             _drawer_width_px: Property::new(DESKTOP_DRAWER_WIDTH_PX),
             _drawer_progress: Property::new(0.0),
@@ -373,6 +376,8 @@ pub struct ExampleSourceViewer {
     pub show_theme_toggle: Property<bool>,
     /// Light drawer chrome, file tabs and edge handle. Independent of the code palette; default false.
     pub chrome_light_mode: Property<bool>,
+    /// Light the source tab contour with scoped direct lights (GPU, shaders feature). Defaults to false.
+    pub source_tab_rim: Property<bool>,
     /// Show the page-edge close tab (default true). Set false when the caller
     /// already supplies a persistent `ExampleSourceToggle`, as `ExampleHost` does.
     pub show_close_tab: Property<bool>,
@@ -393,6 +398,7 @@ impl Default for ExampleSourceViewer {
             source_light_mode: Property::new(true),
             show_theme_toggle: Property::new(true),
             chrome_light_mode: Property::new(false),
+            source_tab_rim: Property::new(false),
             show_close_tab: Property::new(true),
             _title_height: Property::default(),
             _active_source_markup: Property::default(),
@@ -478,6 +484,8 @@ fn source_selection_effect(
 pub struct ExampleSourceToggle {
     /// Draw a dark handle for use on light page surfaces (default false).
     pub chrome_light_mode: Property<bool>,
+    /// Light the source tab contour with scoped direct lights (GPU, shaders feature). Defaults to false.
+    pub source_tab_rim: Property<bool>,
     /// Two-way bind to the owning source viewer's open state.
     pub open: Property<bool>,
     // Animate a scalar, not PathElement commands (which interpolate discretely).

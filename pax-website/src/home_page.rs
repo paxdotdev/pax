@@ -166,6 +166,12 @@ impl HomePage {
             include_str!("site_shell.rs"),
         ));
         hero_sources.extend(section_sources(
+            "src/lib.pax",
+            include_str!("lib.pax"),
+            "src/lib.rs",
+            include_str!("lib.rs"),
+        ));
+        hero_sources.extend(section_sources(
             "src/site_header.pax",
             include_str!("site_header.pax"),
             "src/site_header.rs",

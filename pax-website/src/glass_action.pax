@@ -12,8 +12,10 @@
                 align_horizontal: TextAlignHorizontal::Center
             }>{self.label}</Text>
     </Group>
-    <Rectangle width=100% height=100% corner_radius=5.333 fill={
-        paint: {self.opal != self.light_mode ? SiteTheme::opal_paint() : SiteTheme::obsidian_paint()}
-        material: {self.opal != self.light_mode ? SiteTheme::opal() : SiteTheme::obsidian()}
-    }/>
+    <ButtonRim width=100% height=100% enabled=true>
+        <Rectangle width=100% height=100% corner_radius=5.333 fill={
+            paint: {self.opal != self.light_mode ? SiteTheme::opal_paint() : SiteTheme::obsidian_paint()}
+            material: {self.opal != self.light_mode ? SiteTheme::opal() : SiteTheme::obsidian()}
+        }/>
+    </ButtonRim>
 </Link>

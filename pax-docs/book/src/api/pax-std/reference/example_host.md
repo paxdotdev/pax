@@ -53,6 +53,11 @@ Type: `Property`<`bool`>
 
 Light drawer chrome, file tabs and edge handle. Independent of the code palette; default false.
 
+##### `source_tab_rim`
+Type: `Property`<`bool`>
+
+Light the source tab contour with scoped direct lights (GPU, shaders feature). Defaults to false.
+
 ##### `inline_source_viewer`
 Type: `Property`<`bool`>
 
@@ -148,6 +153,11 @@ Type: `Property`<`bool`>
 
 Draw a dark handle for use on light page surfaces (default false).
 
+##### `source_tab_rim`
+Type: `Property`<`bool`>
+
+Light the source tab contour with scoped direct lights (GPU, shaders feature). Defaults to false.
+
 ##### `open`
 Type: `Property`<`bool`>
 
@@ -198,6 +208,11 @@ Show the built-in palette switch (default true). Hide when the app owns the them
 Type: `Property`<`bool`>
 
 Light drawer chrome, file tabs and edge handle. Independent of the code palette; default false.
+
+##### `source_tab_rim`
+Type: `Property`<`bool`>
+
+Light the source tab contour with scoped direct lights (GPU, shaders feature). Defaults to false.
 
 ##### `show_close_tab`
 Type: `Property`<`bool`>

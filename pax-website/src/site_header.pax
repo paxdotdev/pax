@@ -31,7 +31,9 @@ if self.controls_visible {
                 </Link>
                 <Link width=100% height=100% url="https://docs.pax.dev/getting-started/" target=Target::New>
                     <Text class="nav_cta_label" width=100% height=100% selectable=false>Get Started</Text>
-                    <Rectangle fill={SiteTheme::signal(self.light_mode)} width=100% height=100%/>
+                    <ButtonRim width=100% height=100% enabled=true>
+                        <Rectangle fill={SiteTheme::signal(self.light_mode)} width=100% height=100%/>
+                    </ButtonRim>
                 </Link>
             </Stacker>
         } else {
@@ -41,7 +43,9 @@ if self.controls_visible {
             <Link x={100% - 20px} anchor_x=100% y=14px width=116px height=36px
                 url="https://docs.pax.dev/getting-started/" target=Target::New>
                 <Text class="nav_cta_label" width=100% height=100% selectable=false>Get Started</Text>
-                <Rectangle fill={SiteTheme::signal(self.light_mode)} width=100% height=100%/>
+                <ButtonRim width=100% height=100% enabled=true>
+                    <Rectangle fill={SiteTheme::signal(self.light_mode)} width=100% height=100%/>
+                </ButtonRim>
             </Link>
         }
         <Rectangle fill={paint: {SiteTheme::ink(self.light_mode)}, material: {Material::unlit()}} width=100% height=100%/>

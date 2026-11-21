@@ -359,6 +359,19 @@ the drawer as it opens, closes, or resizes, shrinking to a compact
 × tab while open; there is no separate close button inside the header. The native
 tab button supports keyboard focus and activation.
 
+Set `source_tab_rim=true` on an `ExampleHost` or a separately mounted
+`ExampleSourceViewer` to highlight the moving tab outline with a scoped point
+or strip light. The effect requires the `pax-kit/shaders` feature and a GPU
+renderer. CPU rendering keeps the ordinary tab face. To give another control
+the same one-pixel CMY rim, wrap its painted face in `ButtonRim` and place
+the native label and input control alongside it.
+
+```pax
+<ButtonRim width=120px height=40px enabled=true>
+    <Rectangle width=100% height=100% corner_radius=6 fill=BLACK/>
+</ButtonRim>
+```
+
 On desktop, the fixed-width drawer slides over the unchanged preview. After the
 opening animation reaches its endpoint, the host waits one UI tick and reserves
 the drawer's width in a single layout update. Closing restores the preview's
