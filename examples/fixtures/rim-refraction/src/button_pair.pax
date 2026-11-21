@@ -1,0 +1,4 @@
+<StudyButton x=0px width={50% - 6px} height=100% view={self.view}
+    label="Get Started" url="https://docs.pax.dev/getting-started/" github=false/>
+<StudyButton x=100% width={50% - 6px} height=100% view={self.view}
+    label="GitHub" url="https://github.com/paxdotdev/pax" github=true/>

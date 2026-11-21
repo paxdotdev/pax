@@ -4,7 +4,7 @@ use pax_runtime::api::{
     ShaderProgram, ShaderValue as V,
 };
 
-/// Experimental CMY contour glints from a caller-positioned spherical light.
+/// Experimental CMY contour glints from a caller-positioned sphere or scoped scene lights.
 ///
 /// By default, follows the alpha silhouette of GPU-rendered children. For internal
 /// contours in two-color artwork, set `surface_color` and `contrast_color` to its
@@ -23,8 +23,14 @@ pub struct RimRefraction {
     pub surface_color: Property<Option<Color>>,
     /// Unselected fill when surface_color is Some. Defaults to white; must differ from the surface.
     pub contrast_color: Property<Color>,
-    /// Neutral highlight color, white by default. Alpha scales the entire rim's strength.
+    /// Neutral highlight color, white by default. Alpha sets the scene-lit rim's
+    /// final blend opacity. In sphere mode it scales light strength before tone mapping.
     pub light_color: Property<Color>,
+    /// Use the container's scoped direct lights and camera. Defaults to false (caller-positioned sphere).
+    pub scene_lighting: Property<bool>,
+    /// Scene mode starts revealing the rim at this direct specular response, reaching full activation
+    /// 0.08 above it. Defaults to 0.30. Ambient light does not enter the threshold.
+    pub light_threshold: Property<f64>,
     /// Light X in container-local logical pixels. Defaults to 820.
     pub light_x: Property<f64>,
     /// Light Y in container-local logical pixels. Defaults to 185.
@@ -33,13 +39,13 @@ pub struct RimRefraction {
     pub light_depth: Property<f64>,
     /// Effective sphere radius, 1–160 local pixels. Defaults to 60; larger values broaden glints.
     pub light_radius: Property<f64>,
-    /// Light intensity, 0–6. Defaults to 5; zero bypasses the effect.
+    /// Caller-positioned sphere intensity, 0–6. Defaults to 5; zero bypasses the effect.
     pub brightness: Property<f64>,
     /// Tone-mapped contour tint strength, 0–1. Defaults to 0.795; zero disables the rim.
     pub intensity: Property<f64>,
     /// Inward contour footprint, 0–8 local pixels. Defaults to 3.4; zero disables the rim.
     pub rim_width: Property<f64>,
-    /// Angular CMY separation, 0–1. Defaults to 0.98; one spreads lobes by ±40 degrees.
+    /// Angular CMY separation, 0–1. Defaults to 0.98; one spreads the sphere-mode lobes by ±40 degrees.
     /// Zero overlaps all three into a neutral highlight at any saturation.
     pub dispersion: Property<f64>,
     /// Chromatic strength, 0–1. Defaults to 0.77; zero is neutral, one fully chromatic.
@@ -53,6 +59,8 @@ impl Default for RimRefraction {
             surface_color: Property::new(None),
             contrast_color: Property::new(Color::WHITE),
             light_color: Property::new(Color::WHITE),
+            scene_lighting: Property::new(false),
+            light_threshold: Property::new(0.30),
             light_x: Property::new(820.),
             light_y: Property::new(185.),
             light_depth: Property::new(340.),
@@ -89,6 +97,14 @@ static PROGRAM: ShaderProgram = ShaderProgram {
                 ty: T::Vec4,
             },
             ShaderParameter {
+                name: "scene_mode",
+                ty: T::Uint,
+            },
+            ShaderParameter {
+                name: "threshold",
+                ty: T::Float,
+            },
+            ShaderParameter {
                 name: "light",
                 ty: T::Vec4,
             },
@@ -114,14 +130,18 @@ impl RimRefraction {
     fn recipe(&self) -> ShaderEffect {
         let rgba = |c: Color| V::Vec4(c.to_rgba_0_1().map(|v| v as f32));
         let surface = self.surface_color.get();
+        let scene = self.scene_lighting.get();
+        let width = self.rim_width.get().clamp(0., 8.);
         ShaderEffect {
-            lighting: None,
+            lighting: scene.then(Default::default),
             program: &PROGRAM,
             parameters: vec![vec![
                 rgba(surface.clone().unwrap_or(Color::BLACK)),
                 rgba(self.contrast_color.get()),
                 V::Uint(surface.is_some() as u32),
                 rgba(self.light_color.get()),
+                V::Uint(scene as u32),
+                V::Float(self.light_threshold.get().max(0.) as f32),
                 V::Vec4([
                     self.light_x.get() as f32,
                     self.light_y.get() as f32,
@@ -132,15 +152,44 @@ impl RimRefraction {
                 V::Float(self.brightness.get().clamp(0., 6.) as f32),
                 V::Vec4([
                     self.intensity.get().clamp(0., 1.) as f32,
-                    self.rim_width.get().clamp(0., 8.) as f32,
+                    width as f32,
                     self.dispersion.get().clamp(0., 1.) as f32,
                     self.saturation.get().clamp(0., 1.) as f32,
                 ]),
             ]],
-            // Reserve the full contour footprint so width animation reuses captures.
-            outset: 9.,
+            // Light motion has fixed support. Keep the sphere mode's original width-animation envelope.
+            outset: if scene { width.ceil() + 1. } else { 9. },
         }
     }
 }
 
 effect_instance!(RimRefractionInstance, RimRefraction);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scene_lighting_is_opt_in_and_light_changes_keep_the_sampling_margin() {
+        let rim = RimRefraction::default();
+        assert!(rim.recipe().lighting.is_none());
+        assert_eq!(rim.recipe().outset, 9.);
+
+        rim.scene_lighting.set(true);
+        rim.rim_width.set(2.);
+        let recipe = rim.recipe();
+        assert!(recipe.lighting.is_some());
+        assert_eq!(recipe.outset, 3.);
+        assert!(recipe.encode_parameters().is_ok());
+
+        rim.light_threshold.set(0.65);
+        rim.light_x.set(-200.);
+        assert_eq!(rim.recipe().outset, recipe.outset);
+        rim.rim_width.set(3.4);
+        assert_eq!(rim.recipe().outset, 5.);
+
+        rim.scene_lighting.set(false);
+        assert!(rim.recipe().lighting.is_none());
+        assert_eq!(rim.recipe().outset, 9.);
+    }
+}

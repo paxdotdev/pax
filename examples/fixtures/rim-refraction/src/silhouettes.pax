@@ -1,0 +1,13 @@
+<Path x=24% anchor=50% y=50% width=40% height=110px fill={paint: {Example::face_paint(false)} material: {Example::face_material(false)}}
+    elements=[
+        PathElement::Point(0%, 62%), PathElement::Cubic(6%, 48%, 18%, 10%), PathElement::Point(28%, 8%),
+        PathElement::Line, PathElement::Point(36%, 36%), PathElement::Line, PathElement::Point(88%, 0%),
+        PathElement::Cubic(100%, 2%, 100%, 40%), PathElement::Point(98%, 56%),
+        PathElement::Line, PathElement::Point(62%, 96%), PathElement::Line, PathElement::Point(0%, 62%), PathElement::Close,
+        PathElement::Point(44%, 54%), PathElement::Line, PathElement::Point(61%, 72%),
+        PathElement::Line, PathElement::Point(76%, 40%), PathElement::Close
+    ]/>
+if @gpu {
+    <Ellipsoid x=76% y=50% anchor=50% width=34% height=82px depth=58px rotate=-14deg rotate_y={(self.phase * 360 + 24)deg}
+        color=rgb(94,103,113) material={Material::glossy(0.45)}/>
+}

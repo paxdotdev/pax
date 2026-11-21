@@ -4,7 +4,7 @@
 
 ## Structs
 ### `RimRefraction`
-Experimental CMY contour glints from a caller-positioned spherical light.
+Experimental CMY contour glints from a caller-positioned sphere or scoped scene lights.
 
 By default, follows the alpha silhouette of GPU-rendered children. For internal
 contours in two-color artwork, set `surface_color` and `contrast_color` to its
@@ -29,7 +29,19 @@ Unselected fill when surface_color is Some. Defaults to white; must differ from 
 ##### `light_color`
 Type: `Property`<[`Color`](../../../api/pax-runtime-api/color.md#color)>
 
-Neutral highlight color, white by default. Alpha scales the entire rim's strength.
+Neutral highlight color, white by default. Alpha sets the scene-lit rim's
+final blend opacity. In sphere mode it scales light strength before tone mapping.
+
+##### `scene_lighting`
+Type: `Property`<`bool`>
+
+Use the container's scoped direct lights and camera. Defaults to false (caller-positioned sphere).
+
+##### `light_threshold`
+Type: `Property`<`f64`>
+
+Scene mode starts revealing the rim at this direct specular response, reaching full activation
+0.08 above it. Defaults to 0.30. Ambient light does not enter the threshold.
 
 ##### `light_x`
 Type: `Property`<`f64`>
@@ -54,7 +66,7 @@ Effective sphere radius, 1–160 local pixels. Defaults to 60; larger values bro
 ##### `brightness`
 Type: `Property`<`f64`>
 
-Light intensity, 0–6. Defaults to 5; zero bypasses the effect.
+Caller-positioned sphere intensity, 0–6. Defaults to 5; zero bypasses the effect.
 
 ##### `intensity`
 Type: `Property`<`f64`>
@@ -69,7 +81,7 @@ Inward contour footprint, 0–8 local pixels. Defaults to 3.4; zero disables the
 ##### `dispersion`
 Type: `Property`<`f64`>
 
-Angular CMY separation, 0–1. Defaults to 0.98; one spreads lobes by ±40 degrees.
+Angular CMY separation, 0–1. Defaults to 0.98; one spreads the sphere-mode lobes by ±40 degrees.
 Zero overlaps all three into a neutral highlight at any saturation.
 
 ##### `saturation`

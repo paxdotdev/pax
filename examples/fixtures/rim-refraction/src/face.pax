@@ -1,0 +1,4 @@
+<Rectangle width=100% height=100% corner_radius=5.333 fill={
+    paint: {Example::face_paint(self.github)}
+    material: {Example::face_material(self.github)}
+}/>

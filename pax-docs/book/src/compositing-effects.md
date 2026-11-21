@@ -1505,6 +1505,41 @@ light surfaces as well as brighten dark ones.
 </RimRefraction>
 ```
 
+To let a pointer light or passing strip catch the contour, set
+`scene_lighting=true` and place the emitter in scope. In this example the
+point light sits over the center of a 56 px tall button and catches both its
+top and bottom edges. Moving the light sideways moves both glints with it.
+
+```pax
+<LightFrame width=320px height=56px>
+    <RimRefraction width=100% height=100% scene_lighting=true
+        rim_width=1 light_color=rgba(255, 255, 255, 75%) light_threshold=0.30 saturation=0.94>
+        <Rectangle width=100% height=100% corner_radius=5.333 fill=rgb(35, 38, 44)/>
+    </RimRefraction>
+    <LightSource x=50% y=50% anchor=50% width=1px height=1px
+        z=95px radius=480px intensity=0.9 color=WHITE/>
+</LightFrame>
+```
+
+At the captured contour the shader evaluates three slightly different bevel
+normals. Each lighting probe sums the scoped direct lights. The strongest
+of the three luminances starts revealing color at `light_threshold`, with a
+soft transition over the next 0.08 response units. Ambient illumination
+affects lit source materials only.
+Use `intensity` to adjust highlight strength. In scene mode, the alpha
+of `light_color` scales the final tint blend. The example blends a 1 px
+rim at 75% opacity while preserving the button's own alpha. A centered
+light produces similarly broad bands on opposite edges. The bands cycle
+through cyan, magenta and yellow as the glint travels over the artwork.
+Reversing the motion retraces the colors. Sphere position, depth, radius
+and brightness apply only in the default mode.
+
+A path's visible outline and transparent holes can both catch the light.
+Closely spaced or subpixel features can merge in the coverage samples. With
+the optional 3D feature, a captured opaque solid contributes its projected
+silhouette. The lighting probes lie on the container plane. Keep native
+labels, links' input surfaces and icons outside the filtered subtree.
+
 For internal contours in two-color artwork, set `surface_color=Some(BLACK)`
 and `contrast_color=WHITE`, matching its distinct opaque fills. Only the
 selected color receives the rim, including antialiased mixed pixels. Reverse
@@ -1515,7 +1550,9 @@ support arbitrary multicolor or gradient sources; alpha mode does.
 | --- | --- | --- |
 | `surface_color` | `None` | Alpha silhouette; `Some(color)` selects one fill |
 | `contrast_color` | White | Other fill in palette mode |
-| `light_color` | White | Neutral highlight color; alpha scales all glints |
+| `light_color` | White | Neutral highlight color. Alpha scales final tint opacity in scene mode and light strength in sphere mode. |
+| `scene_lighting` | false | Use scoped direct lights and the scene camera |
+| `light_threshold` | 0.30 | Nonnegative direct specular response at which the scene-lit rim starts to appear |
 | `light_x`, `light_y` | 820, 185 | Container-local logical pixels |
 | `light_depth` | 340 | 120–900 local pixels behind the surface |
 | `light_radius` | 60 | 1–160 local pixels; larger spheres broaden glints |
@@ -1532,9 +1569,17 @@ Zero dispersion overlaps the CMY lobes into neutral light; zero saturation also
 removes color. Color and tone-mapped exposure remain separate to avoid washing
 out the highlights on white surfaces.
 
-This is one full-resolution pass with a fixed 9-pixel sampling outset. It does
-not distort the silhouette or refract arbitrary scene content. The shared
-WGPU-only capture and CPU plain-child fallback limitations apply.
+Both modes use one full-resolution effect pass plus capture and composition.
+The pass reads the source pixel and up to four neighbors to find the edge.
+This lookup count is independent of the source path or mesh complexity.
+Sphere mode reserves 9 local pixels of sampling support. Scene mode reserves
+the rim width rounded up plus one local pixel. Moving a light keeps that
+margin fixed. Light-reactive child materials can require recapture even where
+the rim is below threshold. The glint changes surface color while preserving
+the silhouette and the backdrop. CPU rendering displays the ordinary children.
+
+Try `pax-cli run --path examples/fixtures/rim-refraction --target web` to
+compare the plain face, identity capture and CMY rim on both finishes.
 
 The former `Radiance.rim_*` controls and `light_radius` have moved here:
 `rim_intensity`, `rim_dispersion`, and `rim_saturation` become `intensity`,

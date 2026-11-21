@@ -1,0 +1,66 @@
+if @gpu && self.playing && self.visible && (self.subjects == 2 || self.light == 1 || self.light == 2) {
+    <Group width=0px height=0px @tick=self.advance/>
+}
+<Scroller id=scroll width=100% height=100% scroll_height={(Math::max(@viewport.height + 240, 840))px}>
+    <Stacker x=50% y={@viewport.width < 630 ? 44px : 90px} width={(Math::min(652, @viewport.width - 40))px} autosize=true gutter=16px>
+        ///#h1
+        <Text width=100% height=62px wrap=false style={font: "Georgia", font_size: {@viewport.width < 500 ? 42px : 54px}, fill: rgb(250,247,238)} text="Contour light"/>
+        <Text width=100% height=49px style={font: "Arial", font_size: 16px, fill: rgb(194,194,184)}
+            text="Hover over the middle of either button to light both edges. Move sideways to follow the color."/>
+        <Group id=subjects width=100% height={self.subjects == 0 ? 56px : 192px} @viewport_proximity_change=self.visibility>
+            <ButtonPair width=100% height=56px view={self.view}/>
+            ///#ignore
+            if self.subjects == 1 {
+                for row in 1..3 {
+                    <ButtonPair y={(row * 68)px} width=100% height=56px view={self.view}/>
+                }
+            }
+            ///#ignore
+            if self.subjects == 2 {
+                <Group y=64px width=100% height=128px>
+                    if @gpu && self.view != 2 {
+                        <RimRefraction width=100% height=100% scene_lighting=true rim_width=1 light_color=rgba(255, 255, 255, 75%)
+                            intensity={self.view == 0 ? 0.95 : 0.0} saturation=0.94>
+                            <Silhouettes width=100% height=100% phase={self.phase}/>
+                        </RimRefraction>
+                    } else {
+                        <Silhouettes width=100% height=100% phase={self.phase}/>
+                    }
+                </Group>
+            }
+        </Group>
+        <Group width=100% height=12px/>
+        <Group width=100% height=36px>
+            <Button class="control" width={50% - 6px} height=100% label={self.view == 0 ? "View · CMY rim" : (self.view == 1 ? "View · Identity" : "View · Plain")} @button_click=self.view/>
+            <Button class="control" x=100% width={50% - 6px} height=100% label={self.light == 0 ? "Light · Point" : (self.light == 1 ? "Light · Strip" : (self.light == 2 ? "Light · Both" : "Light · Ambient"))} @button_click=self.light/>
+        </Group>
+        <Group width=100% height=36px>
+            <Button class="control" width={50% - 6px} height=100% label={self.subjects == 0 ? "Two buttons" : (self.subjects == 1 ? "Six buttons" : "Path and solid")} @button_click=self.subjects/>
+            <Button class="control" x=100% width={50% - 6px} height=100% label={self.playing ? "Pause motion" : "Play motion"} @button_click=self.play/>
+        </Group>
+    </Stacker>
+</Scroller>
+<LightSource enabled={self.light == 0 || self.light == 2} x={self.input_seen ? (self.pointer_x)px : 65%} y={self.input_seen ? (self.pointer_y)px : 25%}
+    anchor=50% width=1px height=1px z=95px radius=480px intensity=0.9 color=WHITE/>
+<StripLight enabled={self.light == 1 || self.light == 2} x={(Example::strip_percent(self.phase))%} y=36% anchor=50% width=100% height=1px
+    rotate=-36deg z=58px radius=360px intensity=1.4 color=WHITE/>
+<AmbientLight intensity=1 color=WHITE/>
+<Rectangle width=100% height=100% fill=rgb(17,17,15)/>
+
+@settings {
+    .control {
+        color: rgb(42,43,39)
+        hover_color: rgb(61,63,56)
+        corner_radius: 5
+        style: TextStyle {
+            font: "Arial"
+            font_size: 14px
+            fill: rgb(230,231,220)
+            align_horizontal: TextAlignHorizontal::Center
+            align_vertical: TextAlignVertical::Center
+        }
+    }
+    @mouse_move: mouse
+    @touch_start: touch_start
+    @touch_move: touch_move
+}

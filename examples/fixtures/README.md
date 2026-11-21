@@ -33,6 +33,7 @@ accepts `fixtures/<name>` and `examples/fixtures/<name>`.
 | [increment](increment) | Minimal template-to-Rust click counter; still available as a CLI starter |
 | [game-of-life](game-of-life) | Editable grid and Rust simulation state |
 | [glow-buttons](glow-buttons) | Scoped lighting regression/study |
+| [rim-refraction](rim-refraction) | Light-thresholded CMY glints on linked buttons, a cutout path and a projected solid |
 | [loading-screen](loading-screen) | Custom startup component, cancellation, and coordinated native/canvas reveal |
 | [logo-corona](logo-corona) | Monochrome corona, animated logo stencil, and plain/treated comparison |
 | [logo-radiance](logo-radiance) | Moving point-light projection through the animated logo, with crisp source edges |
