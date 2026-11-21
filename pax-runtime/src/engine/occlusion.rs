@@ -387,6 +387,11 @@ struct OcclusionTopology {
 }
 
 impl OcclusionTopology {
+    fn ancestors(&self, id: u32) -> impl Iterator<Item = u32> + '_ {
+        let parent = |id: &u32| self.branches[*self.positions.get(id)?].parent;
+        std::iter::successors(parent(&id), parent)
+    }
+
     fn previous_order(&self, id: u32) -> Option<Occlusion> {
         let branch = &self.branches[*self.positions.get(&id)?];
         let range = &self.order[branch.order_start..branch.order_end];
@@ -493,7 +498,7 @@ pub(crate) struct OcclusionState {
     topology: OcclusionTopology,
     // Preserve removed coverage until its former native overlaps are repaired.
     removed: Vec<OcclusionRecord>,
-    // Exact inherited clip membership, rebuilt only when topology changes.
+    // Reverse index of inherited clips, keyed by stable node identity.
     // Animated clip geometry must not reconcile unrelated scroll islands.
     clip_dependents: HashMap<u32, Vec<u32>>,
     // Topology proof: these scrollers own clipped layers with no escaped or
@@ -881,15 +886,7 @@ fn refresh_container_membership(ctx: &RuntimeContext, state: &mut OcclusionState
         if !is_container && !unsafe_branch {
             continue;
         }
-        let parent_of = |id: u32| {
-            state
-                .topology
-                .positions
-                .get(&id)
-                .and_then(|&i| state.topology.branches[i].parent)
-        };
-        let mut parent = parent_of(id);
-        while let Some(ancestor) = parent {
+        for ancestor in state.topology.ancestors(id) {
             if state.owned_layers.contains_key(&ancestor) {
                 if is_container {
                     state
@@ -902,7 +899,6 @@ fn refresh_container_membership(ctx: &RuntimeContext, state: &mut OcclusionState
                     unsafe_branches.insert(ancestor);
                 }
             }
-            parent = parent_of(ancestor);
         }
     }
     for (&id, &layer) in &state.owned_layers {
@@ -917,23 +913,22 @@ fn refresh_container_membership(ctx: &RuntimeContext, state: &mut OcclusionState
             }
         }
     }
-    // Classification belongs to topology, not a per-frame subtree scan.
-    let owners: HashMap<_, _> = state
-        .isolated_scrollers
-        .iter()
-        .map(|(&id, &layer)| (layer, id))
-        .collect();
     for (&id, record) in &state.records {
-        if let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) {
-            let eligible = owners.get(&record.render_layer_id).is_some_and(|&owner| {
-                node.retained_native_placement()
+        refresh_local_compositing(ctx, state, id, record.render_layer_id);
+    }
+}
+
+fn refresh_local_compositing(ctx: &RuntimeContext, state: &OcclusionState, id: u32, layer: usize) {
+    if let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) {
+        let eligible = ctx.get_layer_scroller_owner(layer).is_some_and(|owner| {
+            let owner = owner.to_u32();
+            state.isolated_scrollers.get(&owner) == Some(&layer)
+                && borrow!(node.instance_node).geometry_is_scroller_local()
+                && node
+                    .retained_native_placement()
                     .is_some_and(|(id, _)| id == owner)
-                    && borrow!(node.instance_node).geometry_is_scroller_local()
-            });
-            if node.local_compositing.get() != eligible {
-                node.local_compositing.set(eligible);
-            }
-        }
+        });
+        node.local_compositing.set_if_neq(eligible);
     }
 }
 
@@ -1405,24 +1400,28 @@ fn try_reconcile_structure(
     for id in missing {
         state.removed.push(state.records.remove(&id).unwrap());
     }
+    let migrated = !walk.migrated.is_empty();
+    let mut removed_clips = HashSet::new();
     for record in std::mem::take(&mut state.removed) {
         include_old_overlaps(&record, ctx, affected);
+        if !migrated {
+            removed_clips.extend(record.clips);
+        }
         if record.path_bounds.is_some() && record.opacity > f64::EPSILON {
             if let Some(geometry) = &record.geometry {
                 *state.canvas_counts.entry(geometry.layer).or_default() -= 1;
             }
         }
     }
-    for dependents in state.clip_dependents.values_mut() {
-        dependents.retain(|id| walk.seen.contains(id));
+    for clip in removed_clips {
+        if let Some(dependents) = state.clip_dependents.get_mut(&clip) {
+            // Prune before indexing additions, including a remount with the same ID.
+            dependents.retain(|id| state.records.contains_key(id));
+        }
     }
     state.stats.records_retained += state.records.len() as u64;
     let added_ids: HashSet<_> = walk.added.keys().copied().collect();
-    let added_clip = walk.added.values().any(|record| record.clip.is_some());
     for (id, record) in walk.added {
-        for &clip in &record.clips {
-            state.clip_dependents.entry(clip).or_default().push(id);
-        }
         dirty.insert(id);
         state.records.insert(id, record);
     }
@@ -1431,6 +1430,16 @@ fn try_reconcile_structure(
     for (id, layer) in walk.changed_owners {
         state.owned_layers.insert(id, layer);
         ctx.register_layer_scroller_owner(layer, crate::ExpandedNodeIdentifier(id));
+        if !migrated {
+            if added_ids.contains(&id) {
+                // Preflight admitted a clipped, invertible owner. Its new
+                // containers below will clear leaf status on the relevant layer.
+                state.isolated_scrollers.insert(id, layer);
+                state.leaf_scroll_regions.insert(id);
+            } else if let Some(old_layer) = state.isolated_scrollers.get_mut(&id) {
+                *old_layer = layer;
+            }
+        }
         containers.insert(id);
     }
     walk.topology.assign_z_indices(&state.topology);
@@ -1451,7 +1460,6 @@ fn try_reconcile_structure(
             state.stats.orders_updated += 1;
         }
     }
-    let migrated = !walk.migrated.is_empty();
     for (id, (layer, clips)) in walk.migrated {
         let record = state.records.get_mut(&id).unwrap();
         // Keep the old geometry/coverage until the ordinary dirty-record path
@@ -1464,8 +1472,28 @@ fn try_reconcile_structure(
     state.stats.topology_nodes_visited += walk.inspected;
     state.stats.topology_nodes_reused += walk.reused;
     state.topology = walk.topology;
-    if migrated || added_clip || walk.inserted_layers > 0 {
+    if migrated {
         refresh_container_membership(ctx, state);
+    } else {
+        // Retained records kept their clip lineage and surface owner. Only
+        // new containers extend their ancestors' scroll-presentation work.
+        for id in added_ids {
+            let record = &state.records[&id];
+            for &clip in &record.clips {
+                state.clip_dependents.entry(clip).or_default().push(id);
+            }
+            if record.scrolls || record.clip.is_some() {
+                if let Some(owner) = ctx.get_layer_scroller_owner(record.render_layer_id) {
+                    state.leaf_scroll_regions.remove(&owner.to_u32());
+                }
+                for ancestor in state.topology.ancestors(id) {
+                    if state.owned_layers.contains_key(&ancestor) {
+                        state.scroll_containers.entry(ancestor).or_default().push(id);
+                    }
+                }
+            }
+            refresh_local_compositing(ctx, state, id, record.render_layer_id);
+        }
     }
     publish_layer_count(ctx, walk.next_layer);
     state.stats.structural_reconciliations += 1;

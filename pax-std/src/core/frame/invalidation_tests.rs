@@ -1,4 +1,5 @@
 use super::*;
+use crate::core::scroller::{ScrollerHost, ScrollerHostInstance};
 use crate::drawing::rectangle::{Rectangle, RectangleInstance};
 use pax_runtime::api::pax_value::ToFromPaxAny;
 use pax_runtime::api::{CommonProperties, Platform, Size, Variable, OS};
@@ -214,4 +215,109 @@ fn frame_parent_change_is_observed_independently_of_order() {
         .iter()
         .any(|p| p.parent_frame == Some(Some(fixture.root.id.to_u32()))));
     fixture.assert_content_dirty();
+}
+
+#[test]
+fn inserting_a_scroller_replays_the_shifted_surface_with_retained_paint() {
+    let ctx = Rc::new(crate::test_support::runtime_context_with_target(
+        (320.0, 240.0),
+        Platform::Web,
+        OS::Mac,
+    ));
+    let props = Frame::default();
+    let mut frame = args(props.clone());
+    frame.children = Some(RefCell::new(vec![RectangleInstance::instantiate(args(
+        Rectangle::default(),
+    ))]));
+    let mut scroller = args(ScrollerHost::default());
+    scroller.children = Some(RefCell::new(vec![FrameInstance::instantiate(frame)]));
+    let mut app = args(Frame::default());
+    app.component_template = Some(RefCell::new(vec![ScrollerHostInstance::instantiate(
+        scroller,
+    )]));
+    let root = ExpandedNode::initialize_root(ComponentInstance::instantiate(app), &ctx);
+    let settle = || {
+        root.recurse_update(&ctx);
+        for _ in 0..16 {
+            ctx.drain_node_effects();
+            if !ctx.take_occlusion_dirty() {
+                ctx.prepare_scene_geometry();
+                return;
+            }
+            pax_runtime::engine::occlusion::update_node_occlusion(&root, &ctx);
+        }
+        panic!("Frame placement did not settle");
+    };
+    settle();
+    let host = root.children.get()[0].clone();
+    let frame = host.children.get()[0].clone();
+    let leaf = frame.children.get()[0].clone();
+    let paint_revision = || ctx.canvas_geometry_for_node(&leaf).local_paint_revision;
+    let mut previous = paint_revision();
+    // An insertion ahead of this host shifts its slot. Repeat with a real
+    // clip change on the same tick to exercise both invalidation paths.
+    for clip_changed in [false, true] {
+        let old = frame.occlusion.get().render_layer_id;
+        assert_eq!(ctx.get_layer_scroller_owner(old), Some(host.id));
+        ctx.take_canvas_node_removals();
+        ctx.clear_canvas_node_dirty(&leaf.id);
+        let mut children = root.children.get();
+        children.extend(root.create_children_detached(
+            [(
+                ScrollerHostInstance::instantiate(args(ScrollerHost::default()))
+                    as Rc<dyn InstanceNode>,
+                root.stack.clone(),
+            )],
+            &ctx,
+            &Rc::downgrade(&root),
+        ));
+        root.children
+            .set(root.attach_children(children, &ctx, &root.parent_frame));
+        if clip_changed {
+            props.corner_radius.set(8.0);
+        }
+        settle();
+        let new = frame.occlusion.get().render_layer_id;
+        assert_eq!(new, old + 1);
+        assert_eq!(ctx.get_layer_scroller_owner(new), Some(host.id));
+        assert_eq!(leaf.occlusion.get().render_layer_id, new);
+        assert!(ctx
+            .take_canvas_node_removals()
+            .contains(&(old, leaf.id.to_u32())));
+        assert!(
+            ctx.is_canvas_node_dirty(&leaf.id),
+            "backend must replay the drawing"
+        );
+        let current = paint_revision();
+        assert_eq!(current != previous, clip_changed);
+        previous = current;
+    }
+}
+
+#[test]
+fn switching_clip_surfaces_dirties_paint_even_with_identical_geometry() {
+    let f = Fixture::mount();
+    let assign = |layer, owner| {
+        f.context.clear_layer_scroller_owners();
+        if let Some(id) = owner {
+            f.context.register_layer_scroller_owner(layer, id);
+        }
+        for n in [&f.frame, &f.nested, &f.leaves[0], &f.leaves[1]] {
+            n.occlusion.update(|o| {
+                o.render_layer_id = layer;
+                o.z_index += 1;
+            });
+        }
+        f.context.drain_node_effects();
+    };
+    for (layer, owner) in [
+        (1, Some(f.root.id)),
+        (1, Some(f.nested.id)),
+        (1, None),
+        (0, None),
+    ] {
+        f.clear();
+        assign(layer, owner);
+        f.assert_content_dirty();
+    }
 }

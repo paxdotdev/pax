@@ -1303,10 +1303,15 @@ record counts or a historical rebuild as work performed in the current frame.
 coverage records; `records_retained` counts reused records and `orders_updated`
 counts order-only assignments. `topology_nodes_visited` counts component inspections
 in structural preflight; `topology_nodes_reused` counts nodes copied from unchanged
-retained subtrees. Local edits preserve unaffected subtree boundaries and coverage
-in the shared runtime. Dense global paint order can still require renumbering
-unchanged nodes. Changes to layer ownership, clipping domains, or uncertain
-topology retain conservative reconciliation; this is not deferred mounting.
+retained subtrees. When an insertion adds an affine clip or a clipped scroller
+with its own invertible surface, the runtime indexes the new descendants under
+their inherited clips and updates the scrollers that contain them. Existing
+surfaces can change layer number while keeping their clip relationships,
+coverage, and paint geometry. Moving an existing subtree to another clip or
+surface reclassifies membership. Escaped content, shared scroll layers, and
+singular scroller transforms can require a full reconciliation.
+Dense paint order can still require assigning new z-indices to unchanged nodes.
+These counters describe work on mounted content.
 `records_updated`, `masks_evaluated`, and
 `mask_candidates` count localized work, including that following a retained
 structural reconciliation; a full rebuild can still be expensive when those

@@ -8,11 +8,17 @@ use pax_engine::*;
 use pax_message::{AnyCreatePatch, FramePatch};
 use pax_runtime::api::{bez_path_to_svg_path_data, Layer, Property, RenderContext};
 use pax_runtime::{
-    bind_content_autosize, BaseInstance, ExpandedNode, InstanceFlags, InstanceNode,
-    InstantiationArgs, RuntimeContext,
+    bind_content_autosize, BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags,
+    InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use_RefCell!();
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
+
+#[derive(PartialEq)]
+enum ClipSurface {
+    Scroller(ExpandedNodeIdentifier),
+    Layer(usize),
+}
 
 fn mark_canvas_descendants_dirty(expanded_node: &ExpandedNode, context: &Rc<RuntimeContext>) {
     for child in expanded_node.presentation_children(context).iter() {
@@ -403,15 +409,18 @@ impl InstanceNode for FrameInstance {
                                 pax_message::NativeMessage::FrameUpdate(patch),
                             );
                         }
-                        // Occlusion reconciliation updates retained canvas order
-                        // separately. A native z-index patch must not turn that
-                        // order-only change into re-recording the whole subtree.
+                        // A scroller keeps the same clip when an earlier scroller
+                        // takes its layer number. Reconciliation replays the new slot.
+                        let layer = expanded_node.occlusion.get().render_layer_id;
+                        let surface = cloned_context
+                            .get_layer_scroller_owner(layer)
+                            .map_or(ClipSurface::Layer(layer), ClipSurface::Scroller);
                         let canvas_clip = (
                             expanded_node.canvas_transform_and_bounds.get(),
                             clamped_radius,
                             properties._clip_content.local().get(),
                             expanded_node.computed_opacity.get(),
-                            expanded_node.occlusion.get().render_layer_id,
+                            surface,
                             expanded_node.parent_frame.get(),
                         );
                         let canvas_changed =

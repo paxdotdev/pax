@@ -592,7 +592,8 @@ fn shader_capture_uses_only_presented_startup_children() {
     assert!(effect.presentation_children(&ctx).is_empty());
     // A pending child has no assigned layer. Capturing it would incorrectly
     // reject a valid effect on a later canvas surface during early reveal.
-    let mut occlusion = effect.occlusion.get();
+    let assigned = effect.occlusion.get();
+    let mut occlusion = assigned;
     occlusion.render_layer_id = 1;
     effect.occlusion.set(occlusion);
     let mut renderer = RecordingRenderer {
@@ -601,6 +602,9 @@ fn shader_capture_uses_only_presented_startup_children() {
     };
     assert!(effect.render_shader_effect(&ctx, &mut renderer));
     assert_eq!(renderer.shader_children, vec![Vec::<u32>::new()]);
+    // The non-root layer above was synthesized for the pending-child check.
+    // Resume this root-surface fixture on its actual published layer.
+    effect.occlusion.set(assigned);
 
     for _ in 0..2000 {
         if !engine.startup_pending() {

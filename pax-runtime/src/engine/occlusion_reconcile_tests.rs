@@ -23,6 +23,7 @@ struct Probe {
     base: BaseInstance,
     kind: Kind,
     retained: bool,
+    placement_checks: std::cell::Cell<usize>,
 }
 
 fn args(children: Vec<Rc<dyn InstanceNode>>) -> InstantiationArgs {
@@ -58,10 +59,11 @@ fn make_probe(
     kind: Kind,
     children: Vec<Rc<dyn InstanceNode>>,
     retained: bool,
-) -> Rc<dyn InstanceNode> {
+) -> Rc<Probe> {
     Rc::new(Probe {
         kind,
         retained,
+        placement_checks: Default::default(),
         base: BaseInstance::new(
             args(children),
             InstanceFlags {
@@ -87,6 +89,7 @@ impl InstanceNode for Probe {
         &self.base
     }
     fn geometry_is_scroller_local(&self) -> bool {
+        self.placement_checks.set(self.placement_checks.get() + 1);
         self.retained
     }
     fn canvas_geometry_is_local(&self) -> bool {
@@ -799,10 +802,13 @@ fn add(parent: &Rc<ExpandedNode>, kind: Kind, ctx: &Rc<RuntimeContext>) -> Rc<Ex
 
 fn assert_full_rebuild_matches(root: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
     let membership = |state: &OcclusionState| {
-        let pairs = |map: &HashMap<u32, Vec<u32>>| -> HashSet<(u32, u32)> {
-            map.iter()
+        let pairs = |map: &HashMap<u32, Vec<u32>>| {
+            let mut pairs: Vec<_> = map
+                .iter()
                 .flat_map(|(&parent, children)| children.iter().map(move |&child| (parent, child)))
-                .collect()
+                .collect();
+            pairs.sort_unstable();
+            pairs
         };
         (
             pairs(&state.clip_dependents),
@@ -810,6 +816,8 @@ fn assert_full_rebuild_matches(root: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
             state.owned_layers.clone(),
             state.isolated_scrollers.clone(),
             state.leaf_scroll_regions.clone(),
+            state.unsafe_layers.clone(),
+            state.topology.order.clone(),
             state
                 .canvas_counts
                 .iter()
@@ -834,6 +842,8 @@ fn assert_full_rebuild_matches(root: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
                     n.presentation_cache_hash.get(),
                     record.clips.clone(),
                     record.render_layer_id,
+                    n.local_compositing.get(),
+                    record.coverage_bounds,
                 ),
             ))
         })
@@ -850,11 +860,16 @@ fn assert_full_rebuild_matches(root: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
         expected.len(),
         "local reconciliation must neither drop nor retain extra nodes"
     );
-    for (id, (order, mask, presentation, clips, layer)) in expected {
+    for (id, (order, mask, presentation, clips, layer, local, bounds)) in expected {
         let n = ctx
             .get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id))
             .unwrap();
         assert_eq!(n.occlusion.get(), order, "order for {id}");
+        assert_eq!(
+            n.local_compositing.get(),
+            local,
+            "local compositing eligibility for {id}"
+        );
         assert_eq!(n.native_mask_hash.get(), mask, "mask for {id}");
         assert_eq!(
             n.presentation_cache_hash.get(),
@@ -864,6 +879,21 @@ fn assert_full_rebuild_matches(root: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
         let state = ctx.occlusion_state.borrow();
         assert_eq!(state.records[&id].clips, clips, "clip lineage for {id}");
         assert_eq!(state.records[&id].render_layer_id, layer, "layer for {id}");
+        let rebuilt = state.records[&id].coverage_bounds;
+        if let (CoverageBounds::Finite(a), CoverageBounds::Finite(b)) = (rebuilt, bounds) {
+            // Cancelling a shared scroll through an affine inverse can round
+            // differently from retaining the original surface-space bounds.
+            let edges = |r: Rect| [r.x0, r.y0, r.x1, r.y1];
+            assert!(
+                edges(a)
+                    .into_iter()
+                    .zip(edges(b))
+                    .all(|(x, y)| (x - y).abs() <= 1.0e-9),
+                "coverage for {id}: retained {b:?}, rebuilt {a:?}"
+            );
+        } else {
+            assert_eq!(rebuilt, bounds, "coverage for {id}");
+        }
     }
 }
 
@@ -1314,6 +1344,7 @@ fn retained_exit_ticks_preserve_topology_until_children_are_removed() {
     clip_args.transition_config.exit_frame_count = 4;
     clip_args.transition_config.timeout_ms = 5_000;
     let clip: Rc<dyn InstanceNode> = Rc::new(Probe {
+        placement_checks: Default::default(),
         retained: false,
         kind: Kind::Clip,
         base: BaseInstance::new(
@@ -1796,6 +1827,45 @@ fn inserting_nested_scrollers_reassigns_existing_surfaces_and_preserves_displaye
 }
 
 #[test]
+fn leaf_admission_in_a_retained_scroller_matches_full_classification() {
+    let run = |full: bool| {
+        let (ctx, root) = mount(vec![retained_probe(Kind::Scroller, vec![])]);
+        let host = root.children.get()[0].children.get()[0].clone();
+        settle_occlusion_effects(&root, &ctx);
+        let leaves = host.create_children_detached(
+            [Kind::Canvas, Kind::Native]
+                .into_iter()
+                .map(|kind| (retained_probe(kind, vec![]), host.stack.clone())),
+            &ctx,
+            &Rc::downgrade(&host),
+        );
+        attach(&host, leaves.clone(), &ctx);
+        if full {
+            ctx.occlusion_state.borrow_mut().records.clear();
+            ctx.mark_occlusion_dirty();
+        }
+        settle_occlusion_effects(&root, &ctx);
+        assert!(leaves.iter().all(|leaf| leaf.local_compositing.get()));
+        let mask = leaves[1].native_mask_hash.get();
+        assert_ne!(mask, 0);
+        let before = ctx.occlusion_stats();
+        host.get_common_properties()
+            .borrow()
+            .x
+            .set(Some(Size::Pixels(25.into())));
+        settle_occlusion_effects(&root, &ctx);
+        assert_eq!(leaves[1].native_mask_hash.get(), mask);
+        let after = ctx.occlusion_stats();
+        (
+            mask,
+            after.records_updated - before.records_updated,
+            after.masks_evaluated - before.masks_evaluated,
+        )
+    };
+    assert_eq!(run(false), run(true));
+}
+
+#[test]
 fn shifted_scroller_layers_keep_coverage_indices_and_native_masks() {
     let shelf = || {
         retained_probe(
@@ -1920,6 +1990,95 @@ fn layer_renumber_repairs_concurrent_edits_and_transfer_to_the_vacated_number() 
     assert!(ctx
         .compositing_nodes_intersecting(old_layer, &region, true)
         .contains(&target.id.to_u32()));
+    assert_full_rebuild_matches(&root, &ctx);
+}
+
+#[test]
+fn adding_clipped_scrollers_extends_only_their_membership() {
+    let distant_canvas = make_probe(Kind::Canvas, vec![], true);
+    let (ctx, root) = mount(vec![
+        retained_probe(Kind::Scroller, vec![retained_probe(Kind::Native, vec![])]),
+        retained_probe(Kind::Scroller, vec![distant_canvas.clone()]),
+    ]);
+    let group = root.children.get()[0].clone();
+    let parent = group.children.get()[0].clone();
+    settle_occlusion_effects(&root, &ctx);
+    let removed = parent.children.get()[0].clone();
+    let checks = distant_canvas.placement_checks.get();
+    let before = ctx.occlusion_stats();
+    let clip = parent
+        .create_children_detached(
+            [(
+                retained_probe(
+                    Kind::Clip,
+                    vec![retained_probe(
+                        Kind::Scroller,
+                        vec![
+                            retained_probe(Kind::Canvas, vec![]),
+                            retained_probe(Kind::Native, vec![]),
+                        ],
+                    )],
+                ),
+                parent.stack.clone(),
+            )],
+            &ctx,
+            &Rc::downgrade(&parent),
+        )
+        .remove(0);
+    attach(&parent, vec![clip.clone()], &ctx);
+    settle_occlusion_effects(&root, &ctx);
+    assert_eq!(ctx.occlusion_stats().rebuilds, before.rebuilds);
+    assert_eq!(distant_canvas.placement_checks.get(), checks);
+    let child_host = clip.children.get()[0].clone();
+    {
+        let state = ctx.occlusion_state.borrow();
+        assert!(!state.leaf_scroll_regions.contains(&parent.id.to_u32()));
+        assert!(state.leaf_scroll_regions.contains(&child_host.id.to_u32()));
+        assert!(!state.clip_dependents[&parent.id.to_u32()].contains(&removed.id.to_u32()));
+        assert!(state.scroll_containers[&parent.id.to_u32()].contains(&child_host.id.to_u32()));
+    }
+    assert_full_rebuild_matches(&root, &ctx);
+    assert!(distant_canvas.placement_checks.get() > checks);
+}
+
+#[test]
+fn remount_before_settlement_replaces_the_leafs_old_clip_links() {
+    let (ctx, root) = mount(vec![retained_probe(
+        Kind::Scroller,
+        vec![
+            retained_probe(Kind::Clip, vec![retained_probe(Kind::Canvas, vec![])]),
+            retained_probe(Kind::Clip, vec![]),
+        ],
+    )]);
+    let host = root.children.get()[0].children.get()[0].clone();
+    let clips = host.children.get();
+    let leaf = clips[0].children.get()[0].clone();
+    settle_occlusion_effects(&root, &ctx);
+    let before = ctx.occlusion_stats();
+    attach(&clips[0], vec![], &ctx);
+    attach(&clips[1], vec![leaf.clone()], &ctx);
+    settle_occlusion_effects(&root, &ctx);
+    assert_eq!(ctx.occlusion_stats().rebuilds, before.rebuilds);
+    assert_full_rebuild_matches(&root, &ctx);
+}
+
+#[test]
+fn simultaneous_insertion_and_collapse_reclassify_the_existing_scroller() {
+    let (ctx, root) = mount(vec![retained_probe(
+        Kind::Scroller,
+        vec![retained_probe(Kind::Canvas, vec![])],
+    )]);
+    let group = root.children.get()[0].clone();
+    let host = group.children.get()[0].clone();
+    settle_occlusion_effects(&root, &ctx);
+    assert!(host.children.get()[0].local_compositing.get());
+    host.get_common_properties()
+        .borrow()
+        .scale_x
+        .set(Some(Size::Percent(0.into())));
+    add(&group, Kind::Scroller, &ctx);
+    settle_occlusion_effects(&root, &ctx);
+    assert!(!host.children.get()[0].local_compositing.get());
     assert_full_rebuild_matches(&root, &ctx);
 }
 
