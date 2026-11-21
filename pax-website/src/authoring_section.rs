@@ -1,4 +1,4 @@
-use crate::{LanguageBackdrop, SiteTheme};
+use crate::SiteTheme;
 use increment_cube::IncrementCube;
 use pax_kit::*;
 
@@ -43,19 +43,19 @@ impl AuthoringSection {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn painterly_backdrop_stops_before_the_cube_stage() {
-        let template = include_str!("authoring_section.pax");
-        assert_eq!(template.matches("<LanguageBackdrop").count(), 1);
-        assert!(!template.contains("<WetPane"));
-        assert!(!template.contains("Fluent in UI"));
-        let intro = template.find("id=authoring_intro").unwrap();
-        let intro_end = intro + template[intro..].find("</Group>").unwrap();
-        let backdrop = template.find("<LanguageBackdrop").unwrap();
-        let cube = template.find("id=cube_stage").unwrap();
-        assert!(intro < backdrop && backdrop < intro_end && intro_end < cube);
-        assert!(template[backdrop..intro_end].contains("layout_role=LayoutRole::Breakout"));
-        assert!(template.contains("<Rectangle class=\"site_ink\" width=100% height=100%/>"));
-        assert!(template.contains("<ExampleHost"));
-        assert!(template.contains("<ExampleSourceViewer"));
+    fn the_hero_curtain_ends_above_the_black_language_and_cube_section() {
+        let hero = include_str!("hero_section.pax");
+        assert_eq!(hero.matches("<HeroCurtain").count(), 1);
+        assert!(hero.contains("<HeroCurtain class=\"hero_sweep\" width=100% height=100%/>"));
+
+        let section = include_str!("authoring_section.pax");
+        assert!(!section.contains("<HeroCurtain"));
+        assert!(!section.contains("<Impressionist"));
+        assert!(!section.contains("<WetPane"));
+        assert!(section.contains("fill={paint: BLACK, material: {Material::unlit()}}"));
+        assert!(section.contains("id=authoring_intro"));
+        assert!(section.contains("id=cube_stage"));
+        assert!(section.contains("<ExampleHost"));
+        assert!(section.contains("<ExampleSourceViewer"));
     }
 }

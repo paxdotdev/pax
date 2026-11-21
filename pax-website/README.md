@@ -161,12 +161,19 @@ the calculator is no longer embedded on the homepage.
 mission and design influences. The closing CTA links to setup and
 examples, followed by the oscilloscope, then docs, GitHub, blog, community, and platform support.
 
-The language introduction has an edge-to-edge `LanguageBackdrop`: six CMY
-circles filtered with the hero's Signac impression
-treatment, composited at 16% opacity over ink. Its phase is fixed, so this
-background has no animation clock. Both source and output are clipped to the
-introduction, ending flush with the top of the example container. The cube stage
-has the plain ink background; the source viewer remains opaque.
+The [black sateen curtain](../examples/fixtures/curtain-panel/README.md) fills
+the hero behind the logo, headline, actions and install snippet, down to the
+bottom rule. The space below the install snippet matches the 62px gap from
+the CTA buttons to the top of the snippet box. The hero's `LightFrame` contains
+the cloth and the glass buttons.
+A neutral strip light follows the logo's reveal and idle sweep across the hero.
+The `.hero_sweep` settings bind the same artwork-space position and brightness
+to both components. The curtain maps that position onto its own width and height,
+while the logo uses it directly for its `Radiance` projection. The GPU cloth pass
+runs at half resolution and samples its declared solid color. Its clock pauses
+offscreen and resumes from the held pose. CPU rendering uses the plain cloth color.
+
+The language introduction and Increment Cube share a solid black background.
 Copy retains the page gutters. Desktop opens the cube's source drawer by default;
 compact layouts stack the cube and inline source with an expand action.
 “Plug, Extend, and Play” follows “Simple meets powerful,” introducing reactive composition
@@ -262,8 +269,7 @@ reflection footprint. The light frame prevents these lights from spilling into
 neighboring sections; the site's existing pointer light can still enter it.
 The rain and lights share one clock that holds while the panel is offscreen.
 No hidden-tab catch-up is performed. Water and animated lighting require the
-GPU backend; other renderers retain the plain dark surface. The impression
-filter similarly falls back to unfiltered, low-opacity circles on the CPU.
+GPU backend; other renderers retain the plain dark surface.
 System reduced-motion handling remains pending PAX-1048, as in the rain fixture.
 
 The opening sequence uses the outer native scroller as a shared clock.
@@ -283,7 +289,7 @@ use the screenshot link. The oscilloscope occupies its own centered study.
 
 `GlassAction` shares opal/obsidian paint and material helpers, with 5⅓px corners, from
 `SiteTheme`, without outline strokes. Opal has a soft response; obsidian has a
-narrow specular response. Buttons do not own lights or a separate lighting clock.
+narrow highlight with its strength limited to keep the white GitHub label readable.
 `SiteShell` supplies a viewport-space point light following mouse movement and touch
 start/move, outside section light frames, without capturing input or cancelling
 native scrolling; there is no global strip light. A unit ambient contribution
@@ -852,8 +858,9 @@ Headline motion stops while offscreen. The website has no pause button or
 automatic OS reduced-motion handling yet. The logo plays once on mount and
 replays when clicked or tapped at home; replay is disabled while visiting the nav.
 The hero owns one playhead for the 1440ms reveal and Radiance lighting, including
-click replay at home. The light returns to −20%, dims to 1.70, and idles between
-−20% and 120% every 12 seconds. The nav twin uses the same path and brightness,
+click replay at home. At 2100ms the light returns to (28, 233) in the
+920.72 × 463.95 artwork and dims to 1.70. Its 12-second idle sweep reaches
+(952, 177) halfway through the cycle. The nav twin uses the same path and brightness,
 but its own visibility-gated clock, so it keeps panning while the hero is paused
 offscreen. Each logo keeps its own Radiance capture through the portal transition,
 with the light volume scaling alongside that instance.

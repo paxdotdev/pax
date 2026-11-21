@@ -55,12 +55,12 @@ impl SiteTheme {
         })
     }
 
-    /// Crystalline black surface: quiet diffuse response and a narrow bright glint.
+    /// A narrow reflection on dark glass keeps the white label readable during the hero sweep.
     pub fn obsidian() -> Material {
         Material::custom(MaterialParams {
             ambient: Property::new(0.65),
             diffuse: Property::new(0.08),
-            specular: Property::new(3.8),
+            specular: Property::new(0.55),
             roughness: Property::new(0.025),
             metallic: Property::new(0.0),
             ..Default::default()

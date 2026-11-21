@@ -1,7 +1,7 @@
 use crate::SiteTheme;
 use pax_kit::*;
 
-/// Shared action surface, lit by the shell's ambient and pointer lights.
+/// Action surface lit by the shell lights and any direct light in its section.
 #[pax]
 #[file("glass_action.pax")]
 pub struct GlassAction {

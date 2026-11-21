@@ -23,7 +23,7 @@ pub struct Sateen {
 impl Default for Sateen {
     fn default() -> Self {
         Self {
-            phase: Property::new(0.16),
+            phase: Property::new(Self::INITIAL_PHASE),
             spacing: Property::new(187.),
             depth: Property::new(0.21),
             sheen: Property::new(0.25),
@@ -87,6 +87,9 @@ static IDENTITY_HALF: ShaderProgram = program(
 );
 
 impl Sateen {
+    /// The tuned starting pose, in turns of the draft cycle.
+    pub const INITIAL_PHASE: f64 = 0.16;
+
     fn recipe(&self, (w, h): (f64, f64)) -> ShaderEffect {
         let identity = self.identity.get();
         let mut values = vec![ShaderValue::Float(self.phase.get().rem_euclid(1.) as f32)];

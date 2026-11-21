@@ -1,4 +1,4 @@
-use crate::{site_shell::LogoNavigation, GetStarted, GlassAction, RotatingHeadline, SiteLogo, SiteTheme};
+use crate::{site_shell::LogoNavigation, GetStarted, GlassAction, HeroCurtain, RotatingHeadline, SiteLogo, SiteTheme};
 use pax_kit::*;
 
 #[pax]
@@ -182,8 +182,10 @@ impl HeroSection {
         let vertical_padding = self._vertical_padding.local();
         let update = move || {
             let width = width.get().0;
-            // Top inset plus bottom breathing room; desktop copy starts 56px lower.
-            vertical_padding.set_if_neq(if width < 900.0 { 104.0 } else { 160.0 });
+            // Match the CTA-to-card gap: stack gutter, CLI tab row, then the card gutter.
+            let card_gap = 26.0 + 28.0 + 8.0;
+            let top_inset = if width < 900.0 { 24.0 } else { 24.0 + 56.0 };
+            vertical_padding.set_if_neq(top_inset + card_gap);
             let text_width = if width < 900.0 {
                 width - 48.0
             } else {

@@ -1,0 +1,24 @@
+<Frame width=100% height=100% _raycastable=false @viewport_proximity_change=self.visibility>
+    if @gpu && self.visible {
+        <Group width=0px height=0px layout_role=LayoutRole::Breakout @mount=self.reset_clock @tick=self.animate/>
+    }
+    if @gpu {
+        <Sateen width=100% height=100% phase={self.phase}>
+            <Rectangle class="cloth_body"/>
+        </Sateen>
+        // Project the logo's artwork coordinates across the entire hero.
+        <LightSource shape=LightShape::Strip x={(100 * self.light_x / 920.72)%} y={(100 * self.light_y / 463.95)%}
+            anchor=50% width=900px height=1px rotate=-68deg z=340px intensity={self.brightness}
+            radius=2300px color=rgb(244, 239, 235)/>
+    } else {
+        <Rectangle class="cloth_body"/>
+    }
+</Frame>
+
+@settings {
+    @mount: mount
+    .cloth_body {
+        width: 100% height: 100% _raycastable: false
+        fill: {paint: rgb(19, 17, 20), material: {Material::unlit()}}
+    }
+}

@@ -20,7 +20,7 @@ amber and off to inspect the highlight. The native title remains selectable. **H
 Pause holds the current pose. Leaving the viewport also stops the cloth clock.
 System reduced-motion preferences are not exposed through a shared Pax API.
 
-The fixture-local `Sateen` shader declares its dark body colour as a solid input.
+The `Sateen` shader declares its dark body colour as a solid input.
 The Rectangle supplies geometry for native overlap and hit testing. The default fold spacing is 187 logical pixels, depth 0.21, sheen
 strength 0.25 and roughness 0.53. The host places a neutral strip light at
 64.6% across the panel and starts at half output resolution. A single
@@ -34,3 +34,8 @@ The identity pass receives the same phase updates during playback. **Resolution*
 switches between half and full resolution on each axis. Both shader views skip
 subtree capture and composite their output at the renderer’s backing density. The CPU web renderer shows the plain panel and
 title with the decorative clock stopped.
+
+The [website hero curtain](../../../pax-website/src/hero_curtain.pax)
+imports `curtain_panel::Sateen` with the crate’s default features disabled. Its
+host binds a strip light to the logo sweep and drives `phase` separately with
+`advance_draft`. A hero-wide `LightFrame` lets the strip also light the glass buttons.

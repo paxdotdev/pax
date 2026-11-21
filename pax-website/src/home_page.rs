@@ -114,6 +114,12 @@ impl HomePage {
             include_str!("hero_section.rs"),
         );
         hero_sources.extend(get_started_sources());
+        hero_sources.extend(section_sources(
+            "src/hero_curtain.pax",
+            include_str!("hero_curtain.pax"),
+            "src/hero_curtain.rs",
+            include_str!("hero_curtain.rs"),
+        ));
         hero_sources.push(ExampleSource {
             label: "src/home_page.pax".into(),
             language: "pax".into(),

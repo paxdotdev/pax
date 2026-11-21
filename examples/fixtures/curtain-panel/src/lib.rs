@@ -1,9 +1,35 @@
 use pax_kit::*;
 extern crate self as curtain_panel;
-mod sateen;
+pub mod sateen;
 pub use sateen::Sateen;
 
 pax_kit::runnable! { root: crate::Example }
+
+/// Playback speed used by the fixture and website for the passive side draft.
+pub const DEFAULT_DRAFT_SPEED: f64 = 1.95;
+
+/// Advance the cyclic cloth phase at the fixture’s desktop or compact cadence.
+/// Initialize `last_ms` when the visible clock mounts to resume the held pose.
+pub fn advance_draft(
+    ctx: &NodeContext,
+    last_ms: &Property<f64>,
+    phase: &Property<f64>,
+    speed: f64,
+) {
+    let now = ctx.elapsed_time_millis() as f64;
+    let elapsed = now - last_ms.get();
+    let hz = if ctx.viewport.get().width < 700. {
+        30.
+    } else {
+        60.
+    };
+    if elapsed >= 100. || elapsed < 0. {
+        last_ms.set(now);
+    } else if elapsed >= 1000. / hz - 1. {
+        last_ms.set(now);
+        phase.set((phase.get() + speed * elapsed / 11000.).rem_euclid(1.));
+    }
+}
 
 #[pax]
 #[file("lib.pax")]
@@ -40,7 +66,7 @@ impl Default for Example {
             half_resolution: cloth.half_resolution,
             spacing: cloth.spacing,
             depth: cloth.depth,
-            speed: Property::new(1.95),
+            speed: Property::new(DEFAULT_DRAFT_SPEED),
             roughness: cloth.roughness,
             sheen: cloth.sheen,
         }
@@ -57,20 +83,7 @@ impl Example {
     }
 
     pub fn advance(&mut self, ctx: &NodeContext) {
-        let now = ctx.elapsed_time_millis() as f64;
-        let elapsed = now - self.last_ms.get();
-        let hz = if ctx.viewport.get().width < 700. {
-            30.
-        } else {
-            60.
-        };
-        if elapsed >= 100. || elapsed < 0. {
-            self.last_ms.set(now);
-        } else if elapsed >= 1000. / hz - 1. {
-            self.last_ms.set(now);
-            self.phase
-                .set((self.phase.get() + self.speed.get() * elapsed / 11000.).rem_euclid(1.));
-        }
+        advance_draft(ctx, &self.last_ms, &self.phase, self.speed.get());
     }
 
     pub fn playback(&mut self, _: &NodeContext, _: Event<ButtonClick>) {

@@ -49,7 +49,7 @@ pub mod hero_section;
 #[cfg(feature = "app")]
 pub mod home_page;
 #[cfg(feature = "app")]
-pub mod language_backdrop;
+pub mod hero_curtain;
 #[cfg(feature = "app")]
 mod logo_portal;
 #[cfg(feature = "app")]
@@ -109,7 +109,7 @@ pub use hero_section::HeroSection;
 #[cfg(feature = "app")]
 pub use home_page::HomePage;
 #[cfg(feature = "app")]
-pub use language_backdrop::LanguageBackdrop;
+pub use hero_curtain::HeroCurtain;
 #[cfg(feature = "app")]
 pub use mobile_source_sheet::MobileSourceSheet;
 #[cfg(feature = "app")]
