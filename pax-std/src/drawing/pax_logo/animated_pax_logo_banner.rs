@@ -369,26 +369,33 @@ pub(crate) fn settled_banner_paths() -> [Vec<PathElement>; 6] {
 
 fn banner_path(drops: [f64; 5]) -> Vec<PathElement> {
     let drops = drops.map(|drop| drop.clamp(0.0, 1.08));
-    let top = [
-        Point::new(CURTAIN_ROPE_XS[0], BANNER_TOP_Y),
-        Point::new(CURTAIN_ROPE_XS[1], BANNER_TOP_Y),
-        Point::new(CURTAIN_ROPE_XS[2], BANNER_TOP_Y),
-        Point::new(CURTAIN_ROPE_XS[3], BANNER_TOP_Y),
-        Point::new(CURTAIN_ROPE_XS[4], BANNER_TIP_Y),
-    ];
-    let target_bottom = [
-        Point::new(CURTAIN_ROPE_XS[0], BANNER_BOTTOM_Y),
-        Point::new(CURTAIN_ROPE_XS[1], BANNER_BOTTOM_Y),
-        Point::new(CURTAIN_ROPE_XS[2], BANNER_BOTTOM_Y),
-        Point::new(CURTAIN_ROPE_XS[3], BANNER_BOTTOM_Y),
-        Point::new(CURTAIN_ROPE_XS[4], BANNER_TIP_Y),
-    ];
-    let bottom: [Point; 5] = std::array::from_fn(|index| {
-        let visible_drop = drops[index].max(0.000_5);
+    // The hem tapers to the next rope. Collapse the still-furled spans at that
+    // point so their antialiased edges cannot draw a line ahead of the fabric.
+    // The fifth rope shapes the hem's slack but the tip itself never drops.
+    let end = drops[..4]
+        .iter()
+        .rposition(|&d| d > 0.0)
+        .map_or(0, |i| i + 1);
+    let top: [Point; 5] = std::array::from_fn(|i| {
+        let rope = i.min(end);
         Point::new(
-            top[index].x,
-            lerp(top[index].y, target_bottom[index].y, visible_drop),
+            CURTAIN_ROPE_XS[rope],
+            if rope == 4 {
+                BANNER_TIP_Y
+            } else {
+                BANNER_TOP_Y
+            },
         )
+    });
+    let bottom: [Point; 5] = std::array::from_fn(|index| {
+        if index >= end {
+            top[index]
+        } else {
+            Point::new(
+                top[index].x,
+                lerp(BANNER_TOP_Y, BANNER_BOTTOM_Y, drops[index]),
+            )
+        }
     });
 
     let mut path = vec![
@@ -874,6 +881,28 @@ mod tests {
         ] {
             assert_eq!(banner_path(drops).len(), 14);
         }
+    }
+
+    #[test]
+    fn furled_spans_have_no_paintable_edge_ahead_of_the_hem() {
+        let mut drops = [0.0; 5];
+        for end in 0..4 {
+            let path = banner_path(drops);
+            let edge = Point::new(CURTAIN_ROPE_XS[end], BANNER_TOP_Y);
+            assert_eq!(path[2], point_element(edge));
+            assert_eq!(path[4], point_element(edge));
+            for span in end..4 {
+                let curve = 5 + 2 * (3 - span);
+                assert_eq!(path[curve], cubic_element(edge, edge));
+                assert_eq!(path[curve + 1], point_element(edge));
+            }
+            drops[end] = 0.5;
+        }
+        let path = banner_path(drops);
+        assert_eq!(
+            path[4],
+            point_element(Point::new(BANNER_TIP_X, BANNER_TIP_Y))
+        );
     }
 
     #[test]

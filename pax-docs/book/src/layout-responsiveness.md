@@ -55,6 +55,11 @@ so make important constraints explicit. A fixed-height card should declare
 that height; a wrapping paragraph usually needs a width and room to grow.
 Read [Text, Fonts, and Images](text-fonts-images.md) for text measurement.
 
+A group with a fixed pixel width and height keeps its local size when its
+parent resizes. Its position can still move, for example when centered with
+`x=50%`. If a binding switches the group's width from `200px` to `50%`,
+a synchronous read of a child's bounds uses the new width immediately.
+
 ### Position and alignment
 
 Percentage positions also supply a default anchor on the node's own bounds.

@@ -159,12 +159,13 @@ test('a held revision settles drawing feedback and waits for its fence before ad
             begin_render_work() {calls.push('begin');},
         };
         const presentation = {
-            awaitingFence: false, ready: false,
+            awaitingFence: false, ready: false, canSettleFeedback: () => true,
             receive(messages) {calls.push(...messages);},
             publish() {if (!this.ready) return false; this.awaitingFence = false; return true;},
         };
         const nativePool = {
-            beginTraceFrame() {}, sampleFrameInputs() {}, syncRenderSurfaceLayouts() {}, finishTextFrame() {},
+            beginTraceFrame() {}, observeFrameInputs() {calls.push('observe');},
+            sampleFrameInputs() {throw Error('held scene sampled application scroll');}, syncRenderSurfaceLayouts() {}, finishTextFrame() {},
         };
         const cooperativeRender = {beginFrame() {calls.push('draw'); ordinaryRenderPending = false;}};
         function initializeChassis() {}
@@ -175,14 +176,21 @@ test('a held revision settles drawing feedback and waits for its fence before ad
         export function run() {runFrame(currentChassis, currentMount);}
     `, {loader:'ts', format:'cjs'}).code, {calls, module, exports:module.exports});
     const {presentation, run} = module.exports;
+    presentation.canSettleFeedback = () => false;
     run();
-    assert.deepEqual(calls, ['settle', 'pose', 'begin', 'draw']);
+    run();
+    assert.deepEqual(calls, ['observe', 'observe'], 'a backed-up producer holds dirty feedback until the GPU progresses');
+    calls.length = 0;
+    presentation.canSettleFeedback = () => true;
+    run();
+    assert.deepEqual(calls, ['observe', 'settle', 'pose', 'begin', 'draw']);
     calls.length = 0;
     presentation.awaitingFence = true;
     run();
     run();
-    assert.deepEqual(calls, []);
+    assert.deepEqual(calls, ['observe', 'observe']);
+    calls.length = 0;
     presentation.ready = true;
     run();
-    assert.deepEqual(calls, ['ordinary frame']);
+    assert.deepEqual(calls, ['observe', 'ordinary frame']);
 });

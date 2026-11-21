@@ -103,6 +103,7 @@ export class NativeElementPool {
     // coordinator compares installed assignments to notify only changed layers.
     private surfacePlanPending = false;
     private surfaceCapacityPending = false;
+    private canvasOwners?: (number | null)[];
     private lastLayerCanvasPlanGeneration?: number;
     private lastLayerCanvasPlanDevicePixelRatio?: number;
     private lastSurfacePolicyRevision?: number;
@@ -295,6 +296,7 @@ export class NativeElementPool {
         this.invalidateSurfaceHostObservation();
         this.surfacePlanPending = false;
         this.surfaceCapacityPending = false;
+        this.canvasOwners = undefined;
         this.lastLayerCanvasPlanGeneration = undefined;
         this.lastLayerCanvasPlanDevicePixelRatio = undefined;
         this.activePageScrollScrollerId = undefined;
@@ -2034,20 +2036,29 @@ export class NativeElementPool {
         const admissionStart = this.surfaceTrace ? performance.now() : 0;
         const candidates: SurfaceCandidate[] = [];
         const owners = new Map<number, ScrollerWarmCandidate>();
-        for (const host of hosts.values()) {
-            const s = host.state;
-            for (const layer of this.layers.estimateScrollerIslandOwnedLayers(host.id, s.contentLayerId)) {
-                owners.set(layer, host);
+        const layerIds = this.canvasOwners ? Array.from(this.canvasOwners.keys()) : this.layers.layerIds();
+        if (this.canvasOwners) {
+            this.canvasOwners.forEach((id, layer) => {
+                const host = id == null ? undefined : hosts.get(id);
+                if (host) owners.set(layer, host);
+            });
+        } else {
+            for (const host of hosts.values()) {
+                for (const layer of this.layers.estimateScrollerIslandOwnedLayers(host.id, host.state.contentLayerId)) {
+                    owners.set(layer, host);
+                }
             }
+        }
+        for (const host of hosts.values()) {
             host.hosts.canvasHost.dataset.viewportVisible = String(
                 rectWidth(host.visibleBounds) > 0 && rectHeight(host.visibleBounds) > 0);
         }
         const pendingLayers = new Set<number>();
-        const liveLayers = new Set(this.layers.layerIds());
+        const liveLayers = new Set(layerIds);
         this.layerCanvasBasisCache?.forEach((_basis, id) => {
             if (!liveLayers.has(id)) this.layerCanvasBasisCache.delete(id);
         });
-        for (const layerId of this.layers.layerIds()) {
+        for (const layerId of layerIds) {
             const host = owners.get(layerId);
             const plan = this.candidatePlan(layerId, host?.state.presentationProjection ?? host?.state.transform?.slice(0, 4) ?? [1, 0, 0, 1], now, host?.coverageKey);
             if (!plan) { pendingLayers.add(layerId); continue; }
@@ -2079,7 +2090,7 @@ export class NativeElementPool {
         const resources = this.canvasPool?.capacitySnapshot();
         const density = this.backingPixelRatio();
         const shared = this.chassis!.schedule_surfaces({version: 2, now,
-            layers: this.layers.layerIds(),
+            layers: layerIds,
             capacity: Math.max(0, browserCanvasPoolBudget() - pendingCount - (resources?.retiring ?? 0)),
             resources: {viewportPixels: Math.ceil(window.innerWidth * density)
                     * Math.ceil(window.innerHeight * density),
@@ -2120,9 +2131,11 @@ export class NativeElementPool {
                 host = host.parentId == null ? undefined : hosts.get(host.parentId);
             }
         }
+        const pendingHosts = new Set(Array.from(pendingLayers, id => owners.get(id)));
         for (const host of hosts.values()) {
-            const pending = this.layers.estimateScrollerIslandOwnedLayers(host.id, host.state.contentLayerId)
-                .some(layer => pendingLayers.has(layer));
+            const pending = this.canvasOwners ? pendingHosts.has(host)
+                : this.layers.estimateScrollerIslandOwnedLayers(host.id, host.state.contentLayerId)
+                    .some(layer => pendingLayers.has(layer));
             if (pending) continue;
             // Canvas admission must never hide a visible native-only scroller,
             // or its controls when genuine GPU demand exceeds capacity.
@@ -2236,6 +2249,10 @@ export class NativeElementPool {
             || this.lastSurfacePolicyRevision !== policyRevision
             || this.lastLayerCanvasPlanDevicePixelRatio !== devicePixelRatio;
         if (planInputsChanged) {
+            if (this.mount?.hasAttribute("data-pax-private-tiles")) {
+                this.canvasOwners = this.chassis!.layer_canvas_owners();
+                this.layers.setCanvasOwners(this.canvasOwners);
+            }
             this.layerCanvasPlanCache.clear();
         }
         if (!continuation || planInputsChanged) this.invalidateSurfaceHostObservation();

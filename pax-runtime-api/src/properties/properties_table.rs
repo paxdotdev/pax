@@ -56,8 +56,10 @@ pub struct PropertyData {
     // for literals, only time variable
     pub dirty: bool,
     pub(super) invalidation_events: Option<Box<super::untyped_property::DependencyReaders>>,
-    // Type-erased entry point used to settle cutoff properties from the
-    // synchronous reactive worklist.
+    // Only this renderer-owned listener may observe a coalesced cutoff.
+    // A regular graph edge promotes the computation back to the eager queue.
+    paint_listener: Option<PropertyId>,
+    // Type-erased entry point used to settle cutoff properties from the worklist.
     pub(super) cutoff_settler: Option<Rc<dyn Fn(&PropertyTable, PropertyId) -> CutoffEvaluation>>,
 }
 
@@ -91,7 +93,7 @@ pub(crate) enum PropertyType<T> {
     Literal,
     Computed {
         // Information needed to recompute on change
-        evaluator: Rc<dyn Fn() -> T>,
+        evaluator: Rc<dyn Fn(PropertyId) -> T>,
         cutoff: Option<Cutoff<T>>,
     },
 }
@@ -99,6 +101,13 @@ pub(crate) enum PropertyType<T> {
 impl<T: PropertyValue> PropertyType<T> {
     pub(super) fn computed(
         evaluator: impl Fn() -> T + 'static,
+        cutoff: Option<Rc<dyn Fn(&T, &T) -> bool>>,
+    ) -> Self {
+        Self::computed_for_slot(move |_| evaluator(), cutoff)
+    }
+
+    pub(super) fn computed_for_slot(
+        evaluator: impl Fn(PropertyId) -> T + 'static,
         cutoff: Option<Rc<dyn Fn(&T, &T) -> bool>>,
     ) -> Self {
         Self::Computed {
@@ -152,6 +161,7 @@ pub(crate) struct PropertyTable {
     effect_properties: RefCell<HashSet<PropertyId>>,
     queued_effects: RefCell<super::work_queue::WorkQueue>,
     queued_cutoffs: RefCell<super::work_queue::WorkQueue>,
+    queued_paint: RefCell<super::work_queue::WorkQueue>,
     retirement_watchers: RefCell<
         HashMap<PropertyId, HashMap<(u64, u64), std::sync::Weak<super::shared_graph::GraphInbox>>>,
     >,
@@ -215,11 +225,16 @@ impl PropertyTable {
         shared: std::sync::Weak<super::shared_property::SharedCell<T>>,
         publisher: Rc<dyn Fn(&T)>,
     ) {
-        self.with_property_data_mut(id, |data| {
+        let promote = self.with_property_data_mut(id, |data| {
             let typed = data.typed_data::<T>();
             typed.shared = Some(shared);
             typed.publisher = Some(publisher);
+            data.paint_listener.take().is_some() && data.dirty
         });
+        if promote {
+            self.queued_paint.borrow_mut().remove(&id);
+            self.enqueue_cutoff(id);
+        }
     }
 
     pub(super) fn clear_shared<T: PropertyValue>(&self, id: PropertyId) {
@@ -345,6 +360,7 @@ impl PropertyTable {
                         transition_manager: None,
                     }),
                     outbound: Vec::with_capacity(0),
+                    paint_listener: None,
                     cutoff_settler,
                 }),
             };
@@ -516,6 +532,7 @@ impl PropertyTable {
         source_id: PropertyId,
         target_id: PropertyId,
         defer_unobserved_cutoff: bool,
+        paint_listener: Option<PropertyId>,
     ) {
         if source_id == target_id {
             return;
@@ -540,6 +557,12 @@ impl PropertyTable {
                         target_property_data.typed_data::<T>().property_type,
                         PropertyType::Literal
                     );
+                source_property_data.paint_listener =
+                    if source_property_data.typed_data::<T>().shared.is_none() {
+                        paint_listener
+                    } else {
+                        None
+                    };
                 source_property_data.cutoff_settler = target_property_data.cutoff_settler.clone();
                 source_property_data.owner_graph = target_property_data.owner_graph;
                 source_property_data.owner_scope = target_property_data.owner_scope.clone();
@@ -600,6 +623,7 @@ impl PropertyTable {
             data.owner_graph = super::shared_graph::current_graph_id();
             data.owner_scope = super::shared_graph::current_binding_scope();
             data.dirty = !literal;
+            data.paint_listener = None;
             data.cutoff_settler = binding.cutoff_settler();
             let typed = data.typed_data::<T>();
             typed.value = value;
@@ -632,6 +656,7 @@ impl PropertyTable {
         let owner = self.work_owner(id);
         self.queued_effects.borrow_mut().reassign(id, owner);
         self.queued_cutoffs.borrow_mut().reassign(id, owner);
+        self.queued_paint.borrow_mut().remove(&id);
 
         // Reconnect the new dependencies and enqueue any dirty upstream cutoffs.
         self.connect_inbound(id);
@@ -715,7 +740,7 @@ impl PropertyTable {
             // an invalid state (borrowed, in with_property_data closure, etc.)
             // as this function is provided by a user of the property system and
             // can do arbitrary sets/ gets/drops etc (that need the prop data)
-            let new_value = { evaluator() };
+            let new_value = evaluator(id);
             // Cutoff predicates are API callbacks too, so run them while the
             // property is present in the table for the same reason as evaluators.
             let cutoff_evaluation = match cutoff.as_ref() {
@@ -759,6 +784,7 @@ impl PropertyTable {
         let res = {
             self.unregister_effect(id);
             self.queued_cutoffs.borrow_mut().remove(&id);
+            self.queued_paint.borrow_mut().remove(&id);
             self.disconnect_outbound(id);
             self.disconnect_inbound(id);
             let Ok(mut sm) = self.property_map.try_borrow_mut() else {
@@ -823,7 +849,7 @@ impl PropertyTable {
 
     pub(crate) fn pending_effect_count(&self) -> usize {
         let owner = super::shared_graph::current_graph_id();
-        self.queued_effects.borrow().len(owner) + self.queued_cutoffs.borrow().len(owner)
+        self.queued_effects.borrow().len(owner) + self.pending_cutoffs(owner)
     }
 
     pub(crate) fn drain_effects(&self, max_iterations: usize) -> usize {
@@ -871,7 +897,10 @@ impl PropertyTable {
     ) -> usize {
         let mut work_ran = 0;
         while work_ran < max_iterations {
-            if let Some(id) = self.pop_queued_cutoff() {
+            let Some((id, cutoff)) = self.pop_queued_work() else {
+                break;
+            };
+            if cutoff {
                 if !self.has_live_entry(id)
                     || !self.is_cutoff(id)
                     || !self.is_dirty(id)
@@ -887,9 +916,6 @@ impl PropertyTable {
                 continue;
             }
 
-            let Some(id) = self.pop_queued_effect() else {
-                break;
-            };
             if !self.is_registered_effect(id) || !self.has_live_entry(id) {
                 continue;
             }
@@ -914,7 +940,10 @@ impl PropertyTable {
 
         let mut work_ran = 0;
         while work_ran < max_iterations {
-            if let Some(id) = self.pop_queued_cutoff() {
+            let Some((id, cutoff)) = self.pop_queued_work() else {
+                break;
+            };
+            if cutoff {
                 if !self.has_live_entry(id)
                     || !self.is_cutoff(id)
                     || !self.is_dirty(id)
@@ -940,9 +969,6 @@ impl PropertyTable {
                 continue;
             }
 
-            let Some(id) = self.pop_queued_effect() else {
-                break;
-            };
             report.popped += 1;
 
             if !self.is_registered_effect(id) {
@@ -973,10 +999,7 @@ impl PropertyTable {
             .queued_effects
             .borrow()
             .len(super::shared_graph::current_graph_id());
-        report.remaining_cutoffs = self
-            .queued_cutoffs
-            .borrow()
-            .len(super::shared_graph::current_graph_id());
+        report.remaining_cutoffs = self.pending_cutoffs(super::shared_graph::current_graph_id());
         report.budget_exhausted =
             work_ran == max_iterations && (report.remaining > 0 || report.remaining_cutoffs > 0);
         report.top_effects = effect_counts.into_iter().collect();
@@ -1020,22 +1043,43 @@ impl PropertyTable {
             .push(id, self.work_owner(id));
     }
 
-    fn pop_queued_effect(&self) -> Option<PropertyId> {
-        self.queued_effects
+    fn pending_cutoffs(&self, owner: Option<u64>) -> usize {
+        self.queued_cutoffs.borrow().len(owner) + self.queued_paint.borrow().len(owner)
+    }
+
+    fn pop_queued_work(&self) -> Option<(PropertyId, bool)> {
+        let owner = super::shared_graph::current_graph_id();
+        if let Some(id) = self.queued_cutoffs.borrow_mut().pop(owner) {
+            return Some((id, true));
+        }
+        if let Some(id) = self.queued_effects.borrow_mut().pop(owner) {
+            return Some((id, false));
+        }
+        self.queued_paint
             .borrow_mut()
-            .pop(super::shared_graph::current_graph_id())
+            .pop(owner)
+            .map(|id| (id, true))
     }
 
     pub(crate) fn enqueue_cutoff(&self, id: PropertyId) {
-        self.queued_cutoffs
-            .borrow_mut()
-            .push(id, self.work_owner(id));
-    }
-
-    fn pop_queued_cutoff(&self) -> Option<PropertyId> {
-        self.queued_cutoffs
-            .borrow_mut()
-            .pop(super::shared_graph::current_graph_id())
+        let (owner, listener, paint_only) = self.with_property_data(id, |data| {
+            (
+                data.owner_graph,
+                data.paint_listener,
+                data.paint_listener.is_some_and(|listener| {
+                    data.outbound.iter().all(|&observer| observer == listener)
+                }),
+            )
+        });
+        if paint_only {
+            self.queued_cutoffs.borrow_mut().remove(&id);
+            self.queued_paint.borrow_mut().push(id, owner);
+        } else {
+            if listener.is_some() {
+                self.queued_paint.borrow_mut().remove(&id);
+            }
+            self.queued_cutoffs.borrow_mut().push(id, owner);
+        }
     }
 
     fn work_enabled(&self, id: PropertyId) -> bool {

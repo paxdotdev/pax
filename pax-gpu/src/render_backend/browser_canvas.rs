@@ -17,11 +17,22 @@ impl BrowserCanvasLease {
         width: u32,
         height: u32,
     ) -> Result<Self, anyhow::Error> {
-        let private = canvas
-            .has_attribute("data-pax-bitmap-front")
-            .then(|| web_sys::OffscreenCanvas::new(width, height))
-            .transpose()
-            .map_err(|error| anyhow::anyhow!("private WebGPU canvas: {error:?}"))?;
+        let private = if canvas.has_attribute("data-pax-bitmap-front") {
+            let output = canvas
+                .get_context("bitmaprenderer")
+                .map_err(|error| anyhow::anyhow!("bitmap presentation context: {error:?}"))?;
+            anyhow::ensure!(output.is_some(), "bitmap presentation context unavailable");
+            let target = web_sys::OffscreenCanvas::new(width, height)
+                .map_err(|error| anyhow::anyhow!("private WebGPU canvas: {error:?}"))?;
+            anyhow::ensure!(
+                js_sys::Reflect::get(target.as_ref(), &"transferToImageBitmap".into())
+                    .is_ok_and(|method| method.is_function()),
+                "private canvas bitmap transfer unavailable"
+            );
+            Some(target)
+        } else {
+            None
+        };
         let presentation =
             CanvasPresentation::new(canvas.id(), canvas.get_attribute("data-surface-generation"));
         if private.is_none() {

@@ -33,7 +33,7 @@ export class SurfaceCoordinator {
         return true;
     }
 
-    // Optional publication compares the visible assignments at submission and
+    // WebGPU publication compares the visible assignments at submission and
     // display. A newly visible tile can invalidate a frame even when every
     // previously submitted canvas still belongs to the same lease.
     presentationCoverage(): string | undefined {

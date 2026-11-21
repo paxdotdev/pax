@@ -7,13 +7,15 @@ import {transformSync} from 'esbuild';
 // Run the real host attachment and frame paths, with fake chassis/DOM endpoints.
 // The schedulers are real: this catches accidentally routing surface completions
 // through requestFrameFlush even when each scheduler's unit tests pass.
-function harness(search = "") {
+function harness(search = "", webGpu = false) {
+    let gpuReady = true, publications = 0;
     const tasks = [], microtasks = [], frames = [], calls = {tick: 0, layout: 0, render: 0};
     let pool, pending = false, exhausted = false, warm = false, duringRender, time = 0, renderCost = 0;
     let browserScroll = 0, observedScroll = 0, publishedScroll = 0;
     class Pool {
         constructor() { pool = this; }
         attach() {}
+        presentationCoverage() { return "visible"; }
         setPostAsyncInterruptFlush(fn) { this.interrupt = fn; }
         setSurfaceWorkWake(fn) { this.capacity = fn; }
         observeFrameInputs() {observedScroll = browserScroll;}
@@ -53,6 +55,7 @@ function harness(search = "") {
         return module.exports;
     }
     function dependency(name) {
+        if (name === './classes/web-presentation') return load('classes/web-presentation');
         if (name === './classes/native-element-pool') return {NativeElementPool: Pool};
         if (name === './pools/object-manager') return {ObjectManager: class {}};
         if (name.startsWith('./utils/') && /(?:frame-scheduler|cooperative-render|startup-scheduler|shared-work-budget)$/.test(name)) {
@@ -71,13 +74,18 @@ function harness(search = "") {
     `);
     const draw = () => { calls.render++; time += renderCost; duringRender?.(); return {
         pending: exhausted || warm, visible_pending: exhausted, allowance_exhausted: exhausted}; };
-    const chassis = {set_property_waker() {}, activate_application() {},
+    const chassis = {set_property_waker() {},
+        web_submission_fence: () => webGpu ? 1n : undefined,
+        web_submission_complete: () => gpuReady,
+        set_displayed_scroll_reader() {}, prepare_displayed_input: () => true,
+        publish_displayed_input() { publications++; }, activate_application() {},
         startup_pending: () => false, startup_input_pending: () => false,
         set_surface_ready_callback(fn) { this.complete = fn; },
         has_pending_properties: () => pending, render_work_is_settled: () => !pending,
         tick: () => { calls.tick++; pending = false; return []; },
         begin_render_work() {}, continue_render_work() {}, service_render_work: draw, present_ready_surfaces: draw, render: draw};
-    const controls = host.testAttach(chassis, {});
+    const mount = {setAttribute() {}, addEventListener() {}};
+    const controls = host.testAttach(chassis, mount);
     controls.frame();
     Object.assign(calls, {tick: 0, layout: 0, render: 0});
     function drain() {
@@ -87,6 +95,7 @@ function harness(search = "") {
         }
     }
     return {pool, chassis, calls, controls, drain, tasks, microtasks,
+        gpuReady: ready => gpuReady = ready, publications: () => publications,
         pending: value => pending = value, exhausted: value => exhausted = value, warm: value => warm = value,
         duringRender: fn => duringRender = fn, renderCost: value => renderCost = value,
         scroll: value => browserScroll = value,
@@ -193,4 +202,23 @@ test('completion during presentation gets a host continuation without an applica
     assert.deepEqual(h.calls, {tick: 0, layout: 2, render: 2});
     h.controls.frame(); h.drain();
     assert.deepEqual(h.calls, {tick: 1, layout: 3, render: 3});
+});
+
+test('the ordinary WebGPU URL holds one animation sample and observes the latest scroll through a late fence', () => {
+    const h = harness('', true);
+    assert.equal(h.publications(), 1, 'initial display establishes the input view');
+    h.gpuReady(false);
+    h.controls.frame();
+    for (const position of [240, 80, 400]) {
+        h.scroll(position);
+        h.controls.frame();
+        assert.deepEqual(h.scrollState(), {observedScroll: position, publishedScroll: 0});
+    }
+    assert.equal(h.calls.tick, 1);
+    assert.equal(h.publications(), 1);
+    h.gpuReady(true);
+    h.controls.frame();
+    assert.equal(h.publications(), 2);
+    assert.equal(h.calls.tick, 2);
+    assert.deepEqual(h.scrollState(), {observedScroll: 400, publishedScroll: 400});
 });

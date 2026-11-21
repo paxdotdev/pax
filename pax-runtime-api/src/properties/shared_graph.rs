@@ -139,7 +139,9 @@ pub(super) fn current_binding_scope() -> Option<std::rc::Weak<BindingScopeInner>
 
 // A local evaluator belongs to the graph that created it, even if another
 // application on the same UI thread happens to drain the shared effect queue.
-pub(super) fn owner_evaluator<T: 'static>(evaluator: impl Fn() -> T + 'static) -> impl Fn() -> T {
+pub(super) fn owner_evaluator<T: 'static>(
+    evaluator: impl Fn(super::private::PropertyId) -> T + 'static,
+) -> impl Fn(super::private::PropertyId) -> T {
     let owner = ACTIVE_GRAPH.with(|active| {
         active
             .borrow()
@@ -147,7 +149,7 @@ pub(super) fn owner_evaluator<T: 'static>(evaluator: impl Fn() -> T + 'static) -
             .map(|graph| Rc::downgrade(&graph.inner))
     });
     let scope = ACTIVE_SCOPE.with(|active| active.borrow().clone());
-    move || {
+    move |id| {
         let graph = owner.as_ref().map(|owner| PropertyGraph {
             inner: owner
                 .upgrade()
@@ -159,7 +161,7 @@ pub(super) fn owner_evaluator<T: 'static>(evaluator: impl Fn() -> T + 'static) -
         // reviving it; attach() treats a closed/missing owner as detached.
         let previous = ACTIVE_SCOPE.with(|active| active.replace(scope.clone()));
         let _scope = BindingScopeGuard { previous };
-        evaluator()
+        evaluator(id)
     }
 }
 

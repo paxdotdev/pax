@@ -2670,6 +2670,10 @@ impl ExpandedNode {
         self.parent_binding_sources.borrow_mut().take();
         self.layout_binding_generation
             .set(self.layout_binding_generation.get().wrapping_add(1));
+        #[cfg(feature = "3d")]
+        if self.attached.get() > 0 {
+            self.bind_motion_listener(ctx);
+        }
         if let Some(parent) = self.render_parent_node() {
             ctx.logical_children_changed(&parent);
         }
@@ -3044,7 +3048,7 @@ impl ExpandedNode {
         // A settings rebind can replace paint property handles on the same occurrence.
         self.local_coverage_alpha.set(None);
         #[cfg(feature = "3d")]
-        self.bind_retained_motion(ctx);
+        self.refresh_retained_motion_mode(ctx);
         self.bind_presentation_inputs(ctx);
         self.bind_input_listener(ctx);
         let wheel_events = self.get_common_properties().borrow().wheel_events.clone();
@@ -3780,6 +3784,10 @@ impl ExpandedNode {
         self.property_binding_scope.borrow().resume();
         let _scope = self.property_binding_scope.borrow().enter();
         if self.attached.get() == 0 {
+            // Only now is a missing render parent a viewport root. Projected
+            // children can be constructed well before their attachment is known.
+            #[cfg(feature = "3d")]
+            self.bind_motion_listener(context);
             let settings_phase = context.startup_phase("mount.imported_settings");
             if context.startup.borrow().is_active() {
                 // A projected child can have been constructed before its owner's

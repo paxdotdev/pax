@@ -168,6 +168,9 @@ pub async fn prepare_renderer() -> Result<PreparedWebRenderer, JsValue> {
     let mut shared = None;
     let mut limit = 2048;
     if !browser.use_cpu_fallback() {
+        // Probe the application's actual target before choosing the GPU family.
+        // A direct DOM swap chain alone cannot establish bitmap presentation.
+        probe.set_attribute("data-pax-bitmap-front", "")?;
         match RenderBackend::to_canvas_with_context(
             probe.clone(),
             RenderConfig::new(false, 1, 1, [1.0, 1.0])
@@ -655,31 +658,35 @@ fn canvas_host_signature(canvas: &HtmlCanvasElement) -> String {
 }
 
 fn canvas_host_owner_signature(canvas: &HtmlCanvasElement) -> String {
+    let parent = canvas.parent_element();
+    let role = parent.as_ref().and_then(|p| p.get_attribute("data-role"));
+    if role.as_deref() == Some("scroller-canvas-host") {
+        // The plan and native overlay can be on different revisions. Check
+        // the physical parent again after asynchronous GPU initialization.
+        return parent
+            .and_then(|p| p.get_attribute("data-scroller-id"))
+            .map_or_else(String::new, |id| format!("scroller:{id}"));
+    }
     if let Some(signature) = canvas.get_attribute("data-host-signature") {
-        if !signature.is_empty() {
+        if !signature.is_empty() && !signature.starts_with("scroller:") {
             return signature;
         }
     }
-    let parent = canvas.parent_element();
-    let parent_role = parent
-        .as_ref()
-        .and_then(|node| node.get_attribute("data-role"));
-    let scroller_id = parent
-        .as_ref()
-        .and_then(|node| node.get_attribute("data-scroller-id"));
-    if let (Some(role), Some(scroller_id)) = (parent_role, scroller_id) {
-        return format!("{role}:{scroller_id}");
+    if let (Some(role), Some(id)) = (
+        &role,
+        parent
+            .as_ref()
+            .and_then(|p| p.get_attribute("data-scroller-id")),
+    ) {
+        return format!("{role}:{id}");
     }
-    parent
-        .as_ref()
-        .and_then(|node| node.get_attribute("data-role"))
-        .or_else(|| {
-            parent
-                .as_ref()
-                .and_then(|node| node.get_attribute("pax_id"))
-        })
-        .or_else(|| parent.as_ref().and_then(|node| node.get_attribute("class")))
-        .unwrap_or_default()
+    role.or_else(|| {
+        parent
+            .as_ref()
+            .and_then(|node| node.get_attribute("pax_id"))
+    })
+    .or_else(|| parent.as_ref().and_then(|node| node.get_attribute("class")))
+    .unwrap_or_default()
 }
 
 #[cfg(test)]

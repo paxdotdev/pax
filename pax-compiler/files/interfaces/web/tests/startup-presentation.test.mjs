@@ -39,6 +39,7 @@ function harness(holdPresentation = false) {
         let startupRenderStarted = false;
         let ordinaryRenderPending = false;
         const presentation = undefined;
+        let pendingViewportResize;
         const mountYieldEnabled = true, perfTraceEnabled = false;
         const frameScheduler = {suspended: false};
         let startupWork = state;

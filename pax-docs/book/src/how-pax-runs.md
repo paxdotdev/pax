@@ -160,6 +160,11 @@ evaluation when that value has not been read or its effect drained between
 the writes. This does not make a sequence of arbitrary property writes an
 atomic transaction.
 
+When only the renderer subscribes to canvas placement, queued placement work
+runs after ordinary layout effects. A synchronous geometry read still resolves
+the current pose immediately. An additional reactive subscriber keeps eager
+placement notifications.
+
 Before returning native updates for a frame, the runtime settles geometry and
 compositing assignments together. If assigning layers triggers effects that
 mount more nodes, it reconciles again without advancing time or repeating
@@ -210,8 +215,10 @@ only when their grid membership changes; exact query bounds stay current.
 In builds with the `3d` feature, the standard Rectangle, Ellipse, Line, Path,
 Ellipsoid, and opaque Cuboid body also separate content effects from inherited
 movement. A local pose change schedules its affected subtree once at the settled
-geometry boundary. Moving a parent therefore preserves unchanged local paint
-geometry and avoids rerunning each child's paint-content effect. Components and
+geometry boundary. Each render root observes viewport motion directly and
+propagates it to its descendants. A child whose own layout changes on resize
+also observes its new local pose. Moving a parent therefore preserves unchanged
+local paint geometry and avoids rerunning each child's paint-content effect. Components and
 control-flow nodes use the same placement notification path; no author-specified
 grouping is needed. Local content edits and resizing still invalidate their
 respective caches.
@@ -653,20 +660,31 @@ owns the platform transport and graphics resources; the dispatcher delivers
 decoded input to the engine. Each engine session has its own gesture and scroll
 history, so remounting does not inherit a previous session's input state.
 
-The web chassis has an experimental WebGPU presentation mode for investigating
-alignment during motion. Add `?pax_web_presentation=1` to the application URL
-to try it. After initial presentation, the renderer prepares changed canvas
-tiles privately. The host waits for GPU completion and checks the visible
-tile assignments before showing the pixels with their native placements and
-pointer geometry. This lets a button and its drawn backplate hold their previous
-position together when a frame is late. While visible drawing is pending,
-the host can settle changes raised by drawing or input at the current animation
-time. It admits the next animation tick after the current revision reaches the
-display. Native scrolling continues to supply the scroll offset used for hit
-testing. Moving a native scroller carries its clipped children with it.
-Scroll-driven animation can still change a child's own placement. While a
-revision is pending, the host retains the latest scroller geometry and offsets
-between ordered native updates. An ordinary redraw on a tiled WebGPU layer
+On the web, applications using WebGPU present native elements, canvas tiles,
+and pointer geometry together after the initial mount. The renderer prepares
+changed tiles privately. When the GPU finishes, the host checks that the
+visible tile assignments still match, then installs the pixels, native updates,
+and hit geometry in one browser turn. A late frame can leave a button and its
+drawn backplate at their previous position for longer. The button still accepts
+input at that displayed position.
+
+During resize, a retained tile keeps its displayed size and position until its
+replacement bitmap is ready. The browser can clip the old scene to a smaller
+viewport while the engine prepares the new layout. When removing a scroller
+renumbers the canvas layers, the renderer prepares each tile for its incoming
+scroller. The outgoing scroller keeps its displayed pixels and hit targets until
+the browser publishes the replacement scene.
+
+While visible drawing is pending, the host can settle changes raised by drawing
+or input at the current animation time. It admits the next animation tick after
+publication. A responsive branch replacement can include thousands of ordered
+native updates. The host keeps the whole change and samples the latest pending
+viewport resize at the next admitted tick. Native scrolling still moves clipped
+children and supplies their displayed offsets for hit testing. The application
+receives the latest sampled scroll position with its next tick. The Vello CPU
+fallback presents its raster updates directly through Canvas2D.
+
+An ordinary redraw on a tiled WebGPU layer
 submits visible tiles first. An offscreen tile retains its drawing and becomes urgent
 if scrolling exposes it. Moving a primitive with a local hit shape can reuse
 that shape at its new projected position. Resizing the primitive or changing
@@ -688,7 +706,8 @@ text and image rendering. The detailed boundaries belong in
 
 On the web, Pax tries WebGPU by default, including on iPhone Safari and in
 both iPad Safari browsing modes. **Vello CPU** is the portable software
-fallback when WebGPU is absent or adapter/device initialization fails.
+fallback when WebGPU, its private canvas target, or bitmap presentation is
+unavailable, or when adapter/device initialization fails.
 Selection finishes before application initialization and template
 mounting. CPU rasterizes into reusable pixel buffers; Canvas2D presents the
 finished pixels. Native browser text and controls remain native on either path.
