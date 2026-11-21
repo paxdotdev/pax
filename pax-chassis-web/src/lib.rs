@@ -2006,6 +2006,17 @@ impl PaxChassisWeb {
             .layer_canvas_plan_generation()
     }
 
+    // Layer indices can be reused before the native batch that moves their
+    // overlays is published. Export the destination for the entire plan at once.
+    pub fn layer_canvas_owners(&self) -> JsValue {
+        let engine = self.engine.borrow();
+        let ctx = &engine.runtime_context;
+        let owners: Vec<_> = (0..ctx.layer_count.get())
+            .map(|layer| ctx.get_layer_scroller_owner(layer).map(|id| id.to_u32()))
+            .collect();
+        js_value_serde::to_value(&owners)
+    }
+
     pub fn surface_policy_revision(&self) -> u32 {
         self.surface_policy.revision()
     }

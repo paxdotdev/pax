@@ -27,6 +27,15 @@ function appendPreservingState(parent: Element, child: Element) {
 
 export class RenderLayerManager {
     private layers?: Layer[];
+    // Private WebGPU surfaces follow the incoming engine topology. The native
+    // overlays in layers follow the topology currently displayed by the browser.
+    private preparationLayers: Layer[] = [];
+    private canvasOwners?: readonly (number | null)[];
+
+    setCanvasOwners(owners: readonly (number | null)[]) {
+        this.canvasOwners = owners;
+    }
+
     private canvasMap?: Map<string, HTMLCanvasElement>;
     private canvasPool?: CanvasPool;
     public parent?: Element;
@@ -444,6 +453,9 @@ export class RenderLayerManager {
     }
 
     cleanUp(){
+        for (const layer of this.preparationLayers ?? []) layer.detachCanvases();
+        this.preparationLayers = [];
+        this.canvasOwners = undefined;
         this.disposeMaskImages();
         if(this.layers != undefined){
             this.layers.forEach((layer) => {
@@ -468,7 +480,28 @@ export class RenderLayerManager {
         onRetired?: (layerIds: number[]) => void,
     ) {
         const retired: number[] = [];
-        this.layers?.forEach((layer, layerId) => {
+        let layers = this.layers ?? [];
+        if (this.canvasOwners) {
+            layers = this.preparationLayers;
+            while (layers.length > this.canvasOwners.length) {
+                const layer = layers.pop()!;
+                layer.detachCanvases();
+                retired.push(layers.length);
+            }
+            this.canvasOwners.forEach((owner, id) => {
+                let layer = layers[id];
+                if (!layer) {
+                    layer = new Layer(this.objectManager);
+                    layer.buildCanvases(id, this.canvasMap!, this.canvasPool);
+                    layer.setCanvasZIndex("0");
+                    layers.push(layer);
+                }
+                const host = id === 0 ? this.parent : owner == null ? undefined
+                    : this.scrollerIslandHosts.get(owner)?.canvasHost;
+                if (layer.setCanvasParent(host, owner)) retired.push(id);
+            });
+        }
+        layers.forEach((layer, layerId) => {
             let plan = planProvider ? planProvider(layerId) ?? undefined : undefined;
             layer.setCanvasPlan(plan);
             if (layer.retireUnusedCanvases()) {
@@ -481,7 +514,7 @@ export class RenderLayerManager {
             onRetired?.(retired);
         }
         const work: {priority: number; install: () => void}[] = [];
-        [...(this.layers ?? [])]
+        [...layers]
             .sort((a, b) => a.canvasLayoutPriority() - b.canvasLayoutPriority())
             .forEach(layer => layer.syncCanvasLayout((priority, install) => work.push({priority, install})));
         work.sort((a, b) => a.priority - b.priority).forEach(item => item.install());

@@ -1,5 +1,8 @@
 use super::*;
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 #[test]
 fn test_literal_set_get() {
@@ -55,6 +58,44 @@ fn test_computed_dependent_on_literal() {
     assert_eq!(prop_2.get(), 10);
     prop_1.set(3);
     assert_eq!(prop_2.get(), 15);
+}
+
+#[test]
+fn optional_inputs_follow_the_evaluated_slot_after_replacement() {
+    let active = LocalProperty::new(false);
+    let input = LocalProperty::new(1);
+    let computation = {
+        let (active, input) = (active.clone(), input.clone());
+        LocalProperty::computed_with_optional_inputs(
+            &[active.untyped()],
+            [input.untyped()],
+            move |[select_input]| {
+                let enabled = active.get();
+                select_input(enabled);
+                if enabled {
+                    input.get()
+                } else {
+                    0
+                }
+            },
+        )
+    };
+    assert_eq!(computation.get(), 0);
+    let copied = LocalProperty::new(-1);
+    copied.replace_with(computation.clone());
+    active.set(true);
+    assert_eq!(copied.get(), 1);
+    input.set(2);
+    assert_eq!(copied.get(), 2);
+    assert_eq!(computation.get(), 2);
+    active.set(false);
+    assert_eq!(computation.get(), 0);
+    drop(computation);
+    active.set(true);
+    input.set(3);
+    assert_eq!(copied.get(), 3);
+    input.set(4);
+    assert_eq!(copied.get(), 4);
 }
 
 #[test]
@@ -651,6 +692,106 @@ fn test_replacement_preserves_cutoff_semantics() {
     drain_effects(10);
     assert_eq!(effect_runs.get(), baseline_runs + 1);
     assert_eq!(seen.get(), 0);
+}
+
+#[test]
+fn paint_cutoffs_settle_after_layout_but_read_the_current_pose_immediately() {
+    let source = LocalProperty::new(0);
+    let next = LocalProperty::new(0);
+    let samples = Rc::new(RefCell::new(Vec::new()));
+    let placement = LocalProperty::new(0);
+    let paint = LocalProperty::computed(
+        {
+            let placement = placement.clone();
+            move || {
+                placement.get();
+            }
+        },
+        &[placement.untyped()],
+    );
+    let cutoff = LocalProperty::computed_with_cutoff(
+        {
+            let source = source.clone();
+            let samples = samples.clone();
+            move || {
+                let value = source.get();
+                samples.borrow_mut().push(value);
+                value
+            }
+        },
+        &[source.untyped()],
+        i32::eq,
+    );
+    placement.replace_with_paint_cutoff(cutoff, &paint, false);
+    register_effect_property(&paint);
+    let layout = LocalProperty::computed(
+        {
+            let next = next.clone();
+            let source = source.clone();
+            move || source.set(next.get())
+        },
+        &[next.untyped()],
+    );
+    register_effect_property(&layout);
+    drain_effects(10);
+    samples.borrow_mut().clear();
+
+    source.set(1);
+    next.set(2);
+    let report = drain_effects_with_report(1);
+    assert_eq!((report.ran, report.remaining_cutoffs), (1, 1));
+    assert!(samples.borrow().is_empty());
+    assert_eq!(drain_effects(10), 2);
+    assert_eq!(&*samples.borrow(), &[2]);
+
+    source.set(3);
+    assert_eq!(placement.get(), 3);
+    source.set(4);
+    drain_effects(10);
+    assert_eq!(&*samples.borrow(), &[2, 3, 4]);
+}
+
+#[test]
+fn adding_an_ordinary_observer_promotes_already_queued_paint() {
+    let source = LocalProperty::new(0);
+    let placement = LocalProperty::new(0);
+    let paint = LocalProperty::new(());
+    let cutoff = LocalProperty::computed_with_cutoff(
+        {
+            let source = source.clone();
+            move || source.get()
+        },
+        &[source.untyped()],
+        i32::eq,
+    );
+    placement.replace_with_paint_cutoff(cutoff, &paint, false);
+    drain_effects(10);
+    source.set(1);
+    let regular = LocalProperty::computed(
+        {
+            let placement = placement.clone();
+            move || placement.get()
+        },
+        &[placement.untyped()],
+    );
+    let effect = LocalProperty::computed(|| {}, &[]);
+    register_effect_property(&effect);
+    let report = drain_effects_with_report(1);
+    assert_eq!(
+        (
+            report.cutoffs_evaluated,
+            report.ran,
+            report.remaining_cutoffs
+        ),
+        (1, 0, 0)
+    );
+    assert_eq!(regular.get(), 1);
+    drain_effects(10);
+    source.set(2);
+    effect.invalidate();
+    assert_eq!(drain_effects_with_report(1).cutoffs_evaluated, 1);
+    assert_eq!(regular.get(), 2);
+    drain_effects(10);
 }
 
 #[test]

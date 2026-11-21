@@ -6,7 +6,7 @@ import {transformSync} from 'esbuild';
 
 const source = readFileSync(new URL('../src/classes/web-presentation.ts', import.meta.url), 'utf8');
 
-function harness() {
+function harness(onApply = () => {}) {
     const log = [];
     const listeners = new Map();
     const root = {
@@ -19,6 +19,12 @@ function harness() {
         isConnected = true;
         dataset = {surfaceGeneration: '1', surfaceContentRevision: '1'};
         style = {removeProperty() {}};
+        ownerDocument = {createElement: () => new Canvas()};
+        after(front) { this.front = front; }
+        remove() { this.isConnected = false; }
+        addEventListener(name, handler) { this.retirement = handler; }
+        removeEventListener() { this.retirement = undefined; }
+        retire() { this.retirement({target:this}); this.retirement = undefined; }
         closest() { return root; }
         getContext() { return {transferFromImageBitmap: image => log.push('draw ' + image.name)}; }
         submit(name) {
@@ -38,7 +44,7 @@ function harness() {
     };
     const applied = [];
     const owner = new module.exports.WebPresentation(root, chassis,
-        messages => messages.forEach(msg => { applied.push(msg); log.push(Object.keys(msg)[0]); }),
+        messages => messages.forEach(msg => { applied.push(msg); log.push(Object.keys(msg)[0]); onApply(msg); }),
         () => state.coverage, () => []);
     owner.settled();
     log.length = 0;
@@ -91,6 +97,29 @@ test('a late fence holds its native prefix, image and input and preserves later 
     assert.deepEqual(log.slice(-2), ['ButtonDelete', 'input']);
 });
 
+test('a retained tile publishes its CSS rectangle with its bitmap after a late fence', () => {
+    const {canvas, owner, state} = harness();
+    const rect = () => [canvas.front.style.left, canvas.front.style.top, canvas.front.style.width, canvas.front.style.height];
+    Object.assign(canvas.dataset, {tileOriginX:'5', tileOriginY:'8', logicalWidth:'100', logicalHeight:'60'});
+    canvas.submit('initial');
+    owner.settled();
+    state.complete = 1n;
+    assert.equal(owner.publish(), true);
+    const initial = ['5px', '8px', '100px', '60px'];
+    assert.deepEqual(rect(), initial);
+
+    Object.assign(canvas.dataset, {tileOriginX:'7', tileOriginY:'9', logicalWidth:'80', logicalHeight:'55',
+        surfaceContentRevision:'2'});
+    state.fence = 2n;
+    canvas.submit('resized');
+    owner.settled();
+    assert.equal(owner.publish(), false);
+    assert.deepEqual(rect(), initial);
+    state.complete = 2n;
+    assert.equal(owner.publish(), true);
+    assert.deepEqual(rect(), ['7px', '9px', '80px', '55px']);
+});
+
 test('a changed visible assignment invalidates the old completion and retains native order', () => {
     const {canvas, owner, state, log} = harness();
     owner.receive([{ButtonCreate: {}}]);
@@ -124,15 +153,36 @@ test('a newly required tile invalidates coverage even if a prepared lease is sti
     assert.deepEqual(log, ['close keep']);
 });
 
-test('exceeding the proof budget stops before applying any part of the retained prefix', () => {
-    const {canvas, owner, state, log} = harness();
-    canvas.submit('pending');
+test('a large responsive replacement survives a late fence and a coverage retry in order', () => {
+    const {canvas, owner, state, applied, log} = harness();
+    const replacement = [];
+    for (let id = 1; id <= 2500; id++) {
+        replacement.push({TextCreate: {id}}, {TextUpdate: {id, content: 'x'.repeat(1024)}});
+    }
+    assert.equal(owner.canSettleFeedback(), true);
+    owner.receive(replacement);
+    assert.equal(owner.canSettleFeedback(), false);
+    canvas.submit('old coverage');
     owner.settled();
-    assert.throws(() => owner.receive(Array.from({length: 2049}, () => ({ButtonUpdate: {}}))), /budget/);
-    state.complete = 1n;
-    owner.publish();
-    assert.equal(owner.stopped, true);
-    assert.deepEqual(log, ['close pending']);
+    const command = {ScrollerUpdate: {id: 0, scroll_y: 0}};
+    owner.receive([command, command]);
+    assert.equal(owner.publish(), false);
+    assert.deepEqual(applied, []);
+    state.complete = state.fence;
+    state.coverage = 'resized';
+    canvas.dataset.surfaceGeneration = '2';
+    assert.equal(owner.publish(), false);
+    assert.deepEqual(log, ['close old coverage']);
+    assert.equal(owner.canSettleFeedback(), true);
+    canvas.submit('new coverage');
+    state.fence++;
+    owner.settled();
+    assert.equal(owner.publish(), false);
+    assert.deepEqual(applied, []);
+    state.complete = state.fence;
+    assert.equal(owner.publish(), true);
+    assert.deepEqual(applied, [...replacement, command, command]);
+    assert.deepEqual(log.slice(-2), ['draw new coverage', 'input']);
 });
 
 test('missing visible coverage holds an armed revision until it can seal', () => {
@@ -145,4 +195,36 @@ test('missing visible coverage holds an armed revision until it can seal', () =>
     assert.equal(owner.publish(), false);
     state.complete = 1n;
     assert.equal(owner.publish(), true);
+});
+
+test('a native delete that retires its canvas during publication releases its queued image', () => {
+    const {canvas, owner, state, log} = harness(() => { canvas.isConnected = false; });
+    canvas.submit('retired island');
+    owner.receive([{ScrollerDelete: 7}]);
+    owner.settled();
+    state.complete = state.fence;
+    assert.equal(owner.publish(), true);
+    assert.deepEqual(log, ['ScrollerDelete', 'close retired island', 'input']);
+});
+
+test('a recycled submission endpoint keeps its outgoing bitmap visible through a late ownership change', () => {
+    const {canvas, owner, state, log} = harness();
+    canvas.submit('outgoing');
+    owner.settled();
+    state.complete = 1n;
+    owner.publish();
+    const outgoing = canvas.front;
+    canvas.retire();
+    canvas.dataset.surfaceGeneration = '2';
+    canvas.submit('incoming');
+    state.fence = 2n;
+    owner.settled();
+    assert.equal(owner.publish(), false);
+    assert.ok(outgoing.isConnected);
+    assert.equal(canvas.front, outgoing);
+    state.complete = 2n;
+    assert.equal(owner.publish(), true);
+    assert.equal(outgoing.isConnected, false);
+    assert.ok(canvas.front.isConnected);
+    assert.deepEqual(log.slice(-2), ['draw incoming', 'input']);
 });

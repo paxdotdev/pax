@@ -24,7 +24,7 @@ function load(file) {
     const source = readFileSync(new URL(`../src/classes/${file}.ts`, import.meta.url), 'utf8');
     vm.runInNewContext(transformSync(source, {loader: 'ts', format: 'cjs'}).code, {
         module, exports: module.exports, HTMLElement: Element, performance,
-        require: name => name === './surface-host-policy' ? surfaceRequire(name) : ({releaseCanvasBacking() {}}),
+        require: name => name === './layer' ? {Layer} : name === './surface-host-policy' ? surfaceRequire(name) : ({releaseCanvasBacking() {}}),
     });
     return module.exports;
 }
@@ -254,6 +254,22 @@ test('content-origin recenter preserves painted coverage without a new lease or 
     assert.notEqual(canvas.dataset.surfaceContentRevision, revision);
 });
 
+test('preparing a retained private tile preserves the displayed rectangle', () => {
+    const h = harness(1), layer = h.layers[1];
+    layer.native.parentElement.dataset.paxPrivateTiles = '';
+    layer.setCanvasPlan(plan(surface('tile')));
+    layer.syncCanvasLayout();
+    const canvas = h.map.get('tile');
+    Object.assign(canvas.style, {left:'0px', top:'0px', width:'100px', height:'100px'});
+    layer.setCanvasPlan(plan({...surface('tile'), left:5, top:8, width:80, height:60,
+        surfaceSignature:'80x60', transformSignature:'5,8'}));
+    layer.syncCanvasLayout();
+    assert.deepEqual([canvas.dataset.tileOriginX, canvas.dataset.tileOriginY,
+        canvas.dataset.logicalWidth, canvas.dataset.logicalHeight], ['5', '8', '80', '60']);
+    assert.deepEqual([canvas.style.left, canvas.style.top, canvas.style.width, canvas.style.height],
+        ['0px', '0px', '100px', '100px']);
+});
+
 test('same-ID geometry and allocation metadata update in place; settled no-ops stay idle', () => {
     const h = harness(1);
     const layer = h.layers[1];
@@ -284,4 +300,35 @@ test('same-ID geometry and allocation metadata update in place; settled no-ops s
         layer.syncCanvasLayout();
         assert.equal(configurations, previous + 1);
     }
+});
+
+test('prepared tiles follow the incoming scroller while native overlays keep their displayed parents', () => {
+    const h = harness(2);
+    const m = h.manager;
+    m.preparationLayers = [];
+    m.canvasMap = h.map;
+    m.objectManager = {getFromPool: () => new Element(), returnToPool() {}};
+    m.parent = new Element();
+    const drawer = h.layers[1].native.parentElement;
+    const survivor = h.layers[2].native.parentElement;
+    m.scrollerIslandHosts = new Map([[9, {canvasHost:drawer}], [7, {canvasHost:survivor}]]);
+    m.setCanvasOwners([null, 9, 7]);
+    const plans = [plan(), plan(surface('slot-1')), plan(surface('slot-2'))];
+    m.syncLayerCanvasLayouts(id => plans[id]);
+    assert.equal(h.map.get('slot-1').parentElement, drawer);
+    const old = h.map.get('slot-1');
+
+    m.setCanvasOwners([null, 7]);
+    m.syncLayerCanvasLayouts(id => plans[id]);
+    assert.equal(h.map.has('slot-2'), false);
+    assert.equal(old.parentElement, undefined);
+    assert.equal(h.map.get('slot-1').parentElement, survivor);
+    assert.equal(h.layers[1].native.parentElement, drawer);
+
+    const displayedOwner = h.map.get('slot-1');
+    m.scrollerIslandHosts.set(11, {canvasHost:survivor});
+    m.setCanvasOwners([null, 11]);
+    m.syncLayerCanvasLayouts(id => plans[id]);
+    assert.equal(displayedOwner.parentElement, undefined);
+    assert.notEqual(h.map.get('slot-1').dataset.surfaceGeneration, displayedOwner.dataset.surfaceGeneration);
 });

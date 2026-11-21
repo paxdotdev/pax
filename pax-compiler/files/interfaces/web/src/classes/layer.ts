@@ -14,6 +14,7 @@ export class Layer {
     renderLayerId?: number;
     objectManager: ObjectManager;
     private visibleCanvasParent?: Element;
+    private canvasOwner?: number | null;
     private canvases: Map<string, HTMLCanvasElement>;
     private canvasZIndex: string;
     private islandOnly: boolean;
@@ -35,6 +36,14 @@ export class Layer {
         canvasMap: Map<string, HTMLCanvasElement>,
         canvasPool?: CanvasPool,
     ) {
+        this.buildCanvases(renderLayerId, canvasMap, canvasPool);
+        this.native = this.objectManager.getFromPool(DIV);
+        this.native.className = NATIVE_OVERLAY_CLASS;
+        this.native.style.zIndex = String(renderLayerId * 2 + 1);
+        this.attachToParents(parent, parent);
+    }
+
+    buildCanvases(renderLayerId: number, canvasMap: Map<string, HTMLCanvasElement>, canvasPool?: CanvasPool) {
         this.renderLayerId = renderLayerId;
         this.canvasMap = canvasMap;
         this.canvasPool = canvasPool;
@@ -42,10 +51,15 @@ export class Layer {
         // creating root canvases for them until they are claimed by a scroller host.
         this.islandOnly = renderLayerId > 0;
         this.canvasZIndex = String(renderLayerId * 2);
-        this.native = this.objectManager.getFromPool(DIV);
-        this.native.className = NATIVE_OVERLAY_CLASS;
-        this.native.style.zIndex = String(renderLayerId * 2 + 1);
-        this.attachToParents(parent, parent);
+    }
+
+    setCanvasParent(parent?: Element, owner?: number | null): boolean {
+        // A pooled host div can survive a change of logical scroller.
+        const retiring = this.canvases.size > 0 && (this.visibleCanvasParent !== parent || this.canvasOwner !== owner);
+        this.canvasOwner = owner;
+        if (retiring) this.detachCanvases(true);
+        this.visibleCanvasParent = parent;
+        return retiring;
     }
 
     setCanvasZIndex(zIndex: string) {
@@ -56,12 +70,7 @@ export class Layer {
     }
 
     attachToParents(canvasParent: Element, nativeParent: Element) {
-        if (this.visibleCanvasParent !== canvasParent && this.canvases.size > 0) {
-            // A new scroller host is a new content owner. Do not expose the old
-            // retained pixels or reconfigure its still-live GPU surface in place.
-            this.detachCanvases(true);
-        }
-        this.visibleCanvasParent = canvasParent;
+        this.setCanvasParent(canvasParent);
         if (this.native != undefined && this.native.parentElement !== nativeParent) {
             nativeParent.appendChild(this.native);
         }
@@ -188,6 +197,7 @@ export class Layer {
                     canvas.dataset.surfaceGeneration = String(++nextSurfaceGeneration);
                     if (visibleHost?.closest("[data-pax-private-tiles]")) canvas.dataset.paxBitmapFront = "";
                     else delete canvas.dataset.paxBitmapFront;
+                    canvas.style.display = canvas.dataset.paxBitmapFront === undefined ? "" : "none";
                     // Object-manager reuse can reset inline styles. Reassert the
                     // WebGPU presentation gate before publishing a new assignment,
                     // including the interval before its async lease is acquired.
@@ -236,6 +246,9 @@ export class Layer {
         });
         this.canvases.clear();
         this.islandOnly = false;
+        this.canvasPlan = undefined;
+        this.canvasOwner = undefined;
+        this.visibleCanvasParent = undefined;
         this.lastPlanSignature = undefined;
         this.lastVisibleHost = undefined;
 
@@ -251,9 +264,13 @@ export class Layer {
         canvas: HTMLCanvasElement,
         descriptor: SurfaceCanvasDescriptor,
     ) {
+        const left = String(descriptor.left), top = String(descriptor.top);
+        const width = String(descriptor.width), height = String(descriptor.height);
         if (canvas.dataset.surfaceSignature !== descriptor.surfaceSignature
             || canvas.dataset.transformSignature !== descriptor.transformSignature
-            || canvas.dataset.hostSignature !== descriptor.hostSignature) {
+            || canvas.dataset.hostSignature !== descriptor.hostSignature
+            || canvas.dataset.tileOriginX !== left || canvas.dataset.tileOriginY !== top
+            || canvas.dataset.logicalWidth !== width || canvas.dataset.logicalHeight !== height) {
             canvas.dataset.surfaceContentRevision = String(++nextSurfaceContentRevision);
             canvas.dataset.surfacePreparedAt = String(performance.now());
             delete canvas.dataset.surfacePreparationLatency;
@@ -263,10 +280,10 @@ export class Layer {
         canvas.id = descriptor.id;
         canvas.dataset.layerId = String(this.renderLayerId);
         canvas.dataset.tileKey = descriptor.key;
-        canvas.dataset.tileOriginX = String(descriptor.left);
-        canvas.dataset.tileOriginY = String(descriptor.top);
-        canvas.dataset.logicalWidth = String(descriptor.width);
-        canvas.dataset.logicalHeight = String(descriptor.height);
+        canvas.dataset.tileOriginX = left;
+        canvas.dataset.tileOriginY = top;
+        canvas.dataset.logicalWidth = width;
+        canvas.dataset.logicalHeight = height;
         if (descriptor.backingWidth != null && descriptor.backingHeight != null) {
             canvas.dataset.expectedBackingWidth = String(descriptor.backingWidth);
             canvas.dataset.expectedBackingHeight = String(descriptor.backingHeight);
@@ -278,10 +295,13 @@ export class Layer {
         if (descriptor.hostSignature) {
             canvas.dataset.hostSignature = descriptor.hostSignature;
         }
-        canvas.style.top = `${descriptor.top}px`;
-        canvas.style.left = `${descriptor.left}px`;
-        canvas.style.width = `${descriptor.width}px`;
-        canvas.style.height = `${descriptor.height}px`;
+        // The presenter installs a private tile’s display rectangle with its bitmap.
+        if (canvas.dataset.paxBitmapFront === undefined) {
+            canvas.style.top = `${descriptor.top}px`;
+            canvas.style.left = `${descriptor.left}px`;
+            canvas.style.width = `${descriptor.width}px`;
+            canvas.style.height = `${descriptor.height}px`;
+        }
         // Layer ownership can move between the root surface stack and a nested scroller island.
         // Persist the chosen local z-order so later tile/layout syncs do not silently lift canvases
         // back above the native overlay inside the island host.
@@ -289,6 +309,9 @@ export class Layer {
     }
 
     private prepareCanvasForRelease(canvas: HTMLCanvasElement) {
+        if (canvas.dataset.paxBitmapFront !== undefined) {
+            canvas.dispatchEvent(new Event('pax-tile-retirement'));
+        }
         if (canvas.dataset.surfaceTrace === '1') {
             canvas.dataset.surfaceRetiredId = canvas.id;
             canvas.dataset.surfaceRetiredRevision = canvas.dataset.surfaceContentRevision;

@@ -27,7 +27,7 @@ impl Default for RetainedMotion {
 }
 
 impl ExpandedNode {
-    pub(crate) fn bind_retained_motion(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
+    pub(crate) fn refresh_retained_motion_mode(&self, ctx: &RuntimeContext) {
         let instance = self.instance_node.borrow();
         self.motion_retained.set(
             ctx.retained_motion.borrow().enabled
@@ -39,6 +39,9 @@ impl ExpandedNode {
                     Layer::Canvas | Layer::DontCare
                 ),
         );
+    }
+
+    pub(crate) fn bind_motion_listener(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
         // A non-retained ancestor may still move retained descendants. Observe
         // local pose at every tree node, never inherited world placement here.
         if !ctx.retained_motion.borrow().enabled {

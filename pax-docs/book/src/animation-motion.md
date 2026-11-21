@@ -711,6 +711,8 @@ These are deeper source references after the small examples here.
 
 The reusable logo enables `click_to_replay` by default: clicking or tapping
 restarts its 1440ms motion through the same `progress` property, even mid-play.
+The banner opens from left to right. The part still waiting to unfurl draws
+no edge, including when the logo supplies the source for a glow.
 Use `progress=bind:logo_progress` when a parent scrubber should stay synchronized.
 Set `click_to_replay=false` when an external timeline owns playback, or for an
 inert finished pose:

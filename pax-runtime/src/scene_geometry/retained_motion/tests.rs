@@ -356,6 +356,17 @@ fn a_detached_flight_tracks_its_moving_destination_at_fixed_progress() {
 fn reparenting_and_viewport_motion_keep_placement_current() {
     let (mut engine, parent, children, _) = fixture(true, 3);
     let ctx = engine.runtime_context.clone();
+    // Pin the containing frame so its children's local layout has no reason
+    // to move when the viewport translates.
+    let parent_props = parent.get_common_properties();
+    parent_props
+        .borrow()
+        .width
+        .set(Some(Size::Pixels(400.0.into())));
+    parent_props
+        .borrow()
+        .height
+        .set(Some(Size::Pixels(240.0.into())));
     let moved = children[0].clone();
     let destination = children[1].clone();
     crate::NodeRef::new(&moved, &ctx)
@@ -378,6 +389,15 @@ fn reparenting_and_viewport_motion_keep_placement_current() {
     value.transform =
         pax_runtime_api::math::Transform2::translate(pax_runtime_api::math::Vector2::new(50., 20.));
     viewport.set(value);
+    ctx.drain_node_effects();
+    let motion = ctx.retained_motion.borrow();
+    assert!(motion
+        .dirty
+        .contains(&parent.render_parent_node().unwrap().id));
+    assert!(children
+        .iter()
+        .all(|child| !motion.dirty.contains(&child.id)));
+    drop(motion);
     engine.tick();
     assert_ne!(ctx.canvas_geometry_for_node(&moved).world_transform, before);
     assert_eq!(

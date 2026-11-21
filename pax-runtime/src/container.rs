@@ -570,22 +570,33 @@ impl ContainerDimensions {
         let common = common.borrow();
         let (width, height) = (common.width.clone(), common.height.clone());
         let measured = node.measured_size.clone();
-        let deps = [
-            width.untyped(),
-            height.untyped(),
-            measured.untyped(),
-            dependency,
-        ];
-        LocalProperty::computed(
-            move || {
-                let size = measured.get();
-                crate::layout::resolve_layout_bounds(
-                    width.get().or(size.map(|s| Size::Pixels(s.0.into()))),
-                    height.get().or(size.map(|s| Size::Pixels(s.1.into()))),
-                    extent(),
-                )
+        LocalProperty::computed_with_optional_inputs(
+            &[width.untyped(), height.untyped()],
+            [measured.untyped(), dependency],
+            move |[use_measurement, use_extent]| {
+                let (mut width, mut height) = (width.get(), height.get());
+                let needs_measurement = width.is_none() || height.is_none();
+                use_measurement(needs_measurement);
+                if needs_measurement {
+                    if let Some((w, h)) = measured.get() {
+                        width = width.or(Some(Size::Pixels(w.into())));
+                        height = height.or(Some(Size::Pixels(h.into())));
+                    }
+                }
+
+                // Keep the normal invalidation path through every active input so
+                // even a cached grandchild can be read immediately after a resize.
+                match (width, height) {
+                    (Some(Size::Pixels(w)), Some(Size::Pixels(h))) => {
+                        use_extent(false);
+                        (w.to_float(), h.to_float())
+                    }
+                    _ => {
+                        use_extent(true);
+                        crate::layout::resolve_layout_bounds(width, height, extent())
+                    }
+                }
             },
-            &deps,
         )
     }
 
@@ -1112,6 +1123,91 @@ mod tests {
         child_common.borrow().layout_role.set(None);
         context.drain_node_effects();
         assert_eq!(effect_runs.get(), breakout_baseline + 1);
+    }
+
+    #[test]
+    fn fixed_bounds_isolate_descendants_and_reconnect_on_the_first_read() {
+        let leaf = TestDirectNode::instantiate(direct_node_args(vec![]));
+        let stage = TestDirectNode::instantiate(direct_node_args(vec![leaf]));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
+        let root = ExpandedNode::initialize_root(
+            ComponentInstance::instantiate(component_args(Some(vec![stage]), None)),
+            &context,
+        );
+        let stage = root.children.get()[0].clone();
+        let leaf = stage.children.get()[0].clone();
+        let root_props = root.get_common_properties();
+        let stage_props = stage.get_common_properties();
+        let px = |v: i32| Some(Size::Pixels(v.into()));
+        let pc = |v: i32| Some(Size::Percent(v.into()));
+        root_props.borrow().width.set(px(400));
+        root_props.borrow().height.set(px(300));
+        root_props.borrow().padding_x.set(px(10));
+        stage_props.borrow().x.set(pc(50));
+        let authored = LocalProperty::new(px(200));
+        let binding = authored.clone();
+        stage_props
+            .borrow()
+            .width
+            .replace_with(LocalProperty::computed(
+                move || binding.get(),
+                &[authored.untyped()],
+            ));
+        stage_props.borrow().height.set(px(100));
+        leaf.get_common_properties().borrow().width.set(pc(50));
+        let runs = Rc::new(Cell::new(0));
+        let observed = {
+            let runs = runs.clone();
+            let bounds = leaf.layout_bounds.clone();
+            let deps = [bounds.untyped()];
+            LocalProperty::computed(
+                move || {
+                    runs.set(runs.get() + 1);
+                    bounds.get()
+                },
+                &deps,
+            )
+        };
+        assert_eq!(observed.get(), (100., 100.));
+        assert_eq!(leaf.transform_and_bounds.get().transform.m[4], 100.);
+        root_props.borrow().width.set(px(600));
+        stage.measured_size.set(Some((70., 80.)));
+        assert_eq!(observed.get(), (100., 100.));
+        assert_eq!(runs.get(), 1);
+        assert_eq!(leaf.transform_and_bounds.get().transform.m[4], 200.);
+
+        // Read only the cached descendant. No tick, effect drain, or intervening
+        // read of the stage is needed to activate a newly selected source.
+        authored.set(pc(50));
+        root_props.borrow().width.set(px(620));
+        assert_eq!(observed.get(), (150., 100.));
+        root_props.borrow().width.set(px(420));
+        assert_eq!(observed.get(), (100., 100.));
+        authored.set(Some(Size::Combined((-20).into(), 50.into())));
+        assert_eq!(observed.get(), (90., 100.));
+        authored.set(None);
+        assert_eq!(observed.get(), (35., 100.));
+        let measured_runs = runs.get();
+        root_props.borrow().width.set(px(500));
+        assert_eq!(observed.get(), (35., 100.));
+        assert_eq!(runs.get(), measured_runs);
+        stage.measured_size.set(None);
+        assert_eq!(observed.get(), (240., 100.));
+        stage_props.borrow().height.set(None);
+        stage.measured_size.set(Some((80., 90.)));
+        authored.set(px(60));
+        assert_eq!(observed.get(), (30., 90.));
+        stage.measured_size.set(None);
+        assert_eq!(observed.get(), (30., 300.));
+
+        stage_props.borrow().height.set(px(100));
+        assert_eq!(observed.get(), (30., 100.));
+        let fixed_runs = runs.get();
+        root_props.borrow().width.set(px(700));
+        root_props.borrow().height.set(px(400));
+        stage.measured_size.set(Some((120., 120.)));
+        assert_eq!(observed.get(), (30., 100.));
+        assert_eq!(runs.get(), fixed_runs);
     }
 
     #[test]

@@ -71,6 +71,39 @@ impl<T: PropertyValue> LocalProperty<T> {
         Self::computed_with_config(evaluator, dependents, None, None)
     }
 
+    /// Builds an engine computation with permanent inputs and individually selectable inputs.
+    /// Enable or disable each optional input before its conditional read on every
+    /// evaluation. Active inputs invalidate downstream caches synchronously. Each
+    /// optional input must be distinct from all other inputs.
+    #[doc(hidden)]
+    pub fn computed_with_optional_inputs<const N: usize>(
+        required: &[UntypedProperty],
+        optional: [UntypedProperty; N],
+        evaluator: impl Fn([&dyn Fn(bool); N]) -> T + 'static,
+    ) -> Self {
+        let inbound: Vec<_> = required.iter().map(UntypedProperty::get_id).collect();
+        for (i, input) in optional.iter().enumerate() {
+            assert!(!inbound.contains(&input.id) && optional[..i].iter().all(|p| p.id != input.id));
+        }
+        let computation = PropertyType::computed_for_slot(
+            move |id| {
+                PROPERTY_TABLE.with(|table| {
+                    let selectors = optional.each_ref().map(|input| {
+                        move |enabled| table.set_optional_input(id, input.id, enabled)
+                    });
+                    evaluator(selectors.each_ref().map(|select| select as &dyn Fn(bool)))
+                })
+            },
+            None,
+        );
+        Self::new_from_untyped(UntypedProperty::new(
+            T::default(),
+            inbound,
+            computation,
+            None,
+        ))
+    }
+
     /// Creates a computed property with a propagation cutoff.
     ///
     /// The predicate receives the last accepted value and the newly evaluated
@@ -249,6 +282,7 @@ impl<T: PropertyValue> LocalProperty<T> {
                 self.untyped.id,
                 target.untyped.id,
                 false,
+                None,
             )
         })
     }
@@ -313,8 +347,28 @@ impl<T: PropertyValue> LocalProperty<T> {
                 self.untyped.id,
                 target.untyped.id,
                 true,
+                None,
             )
         })
+    }
+
+    /// Installs engine paint geometry. Queued placement can settle after layout
+    /// while its only subscriber is the renderer's listener. Reads stay synchronous.
+    #[doc(hidden)]
+    pub fn replace_with_paint_cutoff(
+        &self,
+        target: Self,
+        listener: &LocalProperty<()>,
+        defer_unobserved: bool,
+    ) {
+        PROPERTY_TABLE.with(|table| {
+            table.replace_property_keep_outbound_connections::<T>(
+                self.untyped.id,
+                target.untyped.id,
+                defer_unobserved,
+                Some(listener.untyped.id),
+            )
+        });
     }
 
     /// Casts this property to its untyped version.

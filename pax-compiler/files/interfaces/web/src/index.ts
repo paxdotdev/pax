@@ -229,6 +229,7 @@ let currentChassis: PaxChassisWeb | null = null;
 let currentMount: Element | null = null;
 let currentExtensionlessUrl: string | null = null;
 let teardownEventListeners: (() => void) | null = null;
+let pendingViewportResize: (() => void) | undefined;
 let teardownResizeHandler: (() => void) | null = null;
 let teardownHiddenTabPump: (() => void) | null = null;
 let teardownRouteLocationSync: (() => void) | null = null;
@@ -515,8 +516,7 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element, session
 }
 
 function attachChassis(chassis: PaxChassisWeb, mount: Element) {
-    if (!liveSession?.options.loader && new URLSearchParams(window.location.search).get("pax_web_presentation") === "1"
-        && chassis.web_submission_fence() !== undefined) {
+    if (!liveSession?.options.loader && chassis.web_submission_fence() !== undefined) {
         presentation = new WebPresentation(mount, chassis, messages => processMessages(messages, chassis, objectManager),
             () => nativePool.presentationCoverage(), () => nativePool.displayedScrollOffsets());
     }
@@ -675,7 +675,7 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
         let height = nativePool.hasActivePageScrollDelegation() ? window.innerHeight : rect.height;
         return { width, height };
     };
-    let resizeHandler = () => {
+    const applyResize = () => {
         // Use the layout viewport as the authoritative app size. Do not relayout the entire scene
         // during iOS Safari toolbar collapse: delegated page scroll should reveal more of the page
         // through the browser-owned visual viewport, not by continuously changing engine layout.
@@ -704,6 +704,16 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
             },
         }, undefined);
     };
+    // Resolve responsive control flow once per admitted scene. While its
+    // pixels are pending, repeated viewport changes only replace the sample.
+    const resizeHandler = () => {
+        if (presentation && (ordinaryRenderPending || presentation.awaitingFence)) {
+            pendingViewportResize = applyResize;
+        } else {
+            pendingViewportResize = undefined;
+            applyResize();
+        }
+    };
     window.addEventListener('resize', resizeHandler);
     let resizeObserver = typeof ResizeObserver === "undefined"
         ? null
@@ -712,6 +722,7 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
         });
     resizeObserver?.observe(mount);
     teardownResizeHandler = () => {
+        pendingViewportResize = undefined;
         window.removeEventListener('resize', resizeHandler);
         resizeObserver?.disconnect();
     };
@@ -900,7 +911,7 @@ function runStartupFrame(chassis: PaxChassisWeb, mount: Element) {
 }
 
 function runFrame(chassis: PaxChassisWeb, mount: Element) {
-    if (frameScheduler.suspended || frameInProgress || presentation?.stopped || chassis !== currentChassis || mount !== currentMount) {
+    if (frameScheduler.suspended || frameInProgress || chassis !== currentChassis || mount !== currentMount) {
         return;
     }
     if (mountYieldEnabled && !startupPresented) {
@@ -919,7 +930,7 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
         nativePool.beginTraceFrame(renderEpoch);
         initializeChassis(chassis, mount);
         if (presentation?.awaitingFence) {
-            nativePool.sampleFrameInputs();
+            nativePool.observeFrameInputs();
             nativePool.syncRenderSurfaceLayouts(true);
             if (!presentation.publish()) {
                 if (presentation.awaitingFence) return;
@@ -928,14 +939,15 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             }
         }
         if (ordinaryRenderPending) {
-            nativePool.sampleFrameInputs();
             if (presentation) {
+                nativePool.observeFrameInputs();
                 nativePool.syncRenderSurfaceLayouts(true);
                 if (chassis.render_work_is_settled()) {
                     chassis.continue_render_work(renderEpoch);
                 } else {
                     // A drawing hook or new input can invalidate geometry while a
                     // revision is incomplete. Reconcile the same animation sample.
+                    if (!presentation.canSettleFeedback()) return;
                     presentation.receive(chassis.settle_render_feedback());
                     nativePool.syncRenderSurfaceLayouts();
                     chassis.begin_render_work(renderEpoch);
@@ -944,6 +956,7 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
                 nativePool.finishTextFrame();
                 return;
             }
+            nativePool.sampleFrameInputs();
             if (!chassis.has_pending_properties() && chassis.render_work_is_settled()) {
                 // Finish required visible drawing before another tick invalidates
                 // its setup. Optional warm work must not freeze the frame clock.
@@ -958,6 +971,8 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             }
         }
         withProfileMeasure("renderLoopFrame", () => {
+            pendingViewportResize?.();
+            pendingViewportResize = undefined;
             if (chassis.startup_input_pending()) chassis.replay_startup_input();
             nativePool.sampleFrameInputs();
             const messages = withProfileMeasure("tick", () => {

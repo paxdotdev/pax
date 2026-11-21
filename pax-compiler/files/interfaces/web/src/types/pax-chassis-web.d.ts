@@ -140,6 +140,7 @@ export class PaxChassisWeb {
 * @param {number} layer
 * @returns {any}
 */
+  layer_canvas_owners(): (number | null)[];
   get_layer_canvas_plan(layer: number): any;
   get_layer_canvas_plan_for_transform(layer: number, a: number, b: number, c: number, d: number, now: number): any;
   schedule_surfaces(snapshot: any): any;
@@ -221,6 +222,7 @@ export interface InitOutput {
   readonly paxchassisweb_designtime_tick: (a: number) => void;
   readonly paxchassisweb_tick: (a: number) => number;
   readonly paxchassisweb_render: (a: number) => void;
+  readonly paxchassisweb_layer_canvas_owners: (a: number) => any;
   readonly paxchassisweb_layer_canvas_plan_generation: (a: number) => number;
   readonly paxchassisweb_get_layer_canvas_plan: (a: number, b: number) => number;
   readonly paxchassisweb_request_layer_screenshot: (a: number, b: number, c: number) => void;

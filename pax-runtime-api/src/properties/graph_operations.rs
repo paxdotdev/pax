@@ -51,17 +51,51 @@ impl PropertyTable {
     // NOTE: does NOT modify the inbound list
     pub fn disconnect_inbound(&self, id: PropertyId) {
         self.with_property_data_mut(id, |property_data| {
-            for inbound_id in &property_data.inbound {
-                self.with_property_data_mut(*inbound_id, |property_dependency| {
-                    // connect_inbound appends one edge per inbound occurrence. Remove
-                    // one matching edge here too, preserving the remaining scheduling
-                    // order. Short-lived handler contexts usually own the last edge;
-                    // searching backward avoids scanning every mounted sibling.
-                    if let Some(index) = property_dependency.outbound.iter().rposition(|s| s == &id)
-                    {
-                        property_dependency.outbound.remove(index);
-                    }
-                });
+            for &source in &property_data.inbound {
+                self.disconnect_edge(source, id);
+            }
+        });
+    }
+
+    fn disconnect_edge(&self, source: PropertyId, dependent: PropertyId) {
+        self.with_property_data_mut(source, |data| {
+            // Remove one edge per inbound occurrence, preserving scheduling order.
+            // Short-lived handler contexts usually own the last edge.
+            if let Some(index) = data
+                .outbound
+                .iter()
+                .rposition(|&output| output == dependent)
+            {
+                data.outbound.remove(index);
+            }
+        });
+    }
+
+    fn connect_edge(&self, source: PropertyId, dependent: PropertyId) {
+        let queue_cutoff = self.with_property_data_mut(source, |data| {
+            data.outbound.push(dependent);
+            data.dirty && data.cutoff_settler.is_some()
+        });
+        if queue_cutoff {
+            self.enqueue_cutoff(source);
+        }
+    }
+
+    // Only the evaluating slot changes its subscriptions. replace_with can copy
+    // the same evaluator into several slots whose active edges differ.
+    pub(super) fn set_optional_input(&self, id: PropertyId, source: PropertyId, enabled: bool) {
+        self.with_property_data_mut(id, |data| {
+            let existing = data.inbound.iter().position(|&input| input == source);
+            match (enabled, existing) {
+                (true, None) => {
+                    data.inbound.push(source);
+                    self.connect_edge(source, id);
+                }
+                (false, Some(index)) => {
+                    data.inbound.remove(index);
+                    self.disconnect_edge(source, id);
+                }
+                _ => {}
             }
         });
     }
@@ -77,13 +111,7 @@ impl PropertyTable {
         // disconnect_inbound does, without allocating a temporary ID vector.
         self.with_property_data(id, |property_data| {
             for &inbound_id in &property_data.inbound {
-                let queue_cutoff = self.with_property_data_mut(inbound_id, |property_dependency| {
-                    property_dependency.outbound.push(id);
-                    property_dependency.dirty && property_dependency.cutoff_settler.is_some()
-                });
-                if queue_cutoff {
-                    self.enqueue_cutoff(inbound_id);
-                }
+                self.connect_edge(inbound_id, id);
             }
         });
     }

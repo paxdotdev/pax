@@ -215,15 +215,12 @@ impl ExpandedNode {
         );
         let instance = self.instance_node.borrow();
         let flags = instance.base().flags();
-        if flags.layer == crate::api::Layer::DontCare
-            && (flags.is_component || flags.is_slot || flags.invisible_to_slot)
-        {
-            // A template or control-flow wrapper has no paint. Its first reader
-            // can initialize the same cutoff that paint listeners use eagerly.
-            self.canvas_transform_and_bounds
-                .replace_with_lazy(placement);
-        } else {
-            self.canvas_transform_and_bounds.replace_with(placement);
-        }
+        let paintless = flags.layer == crate::api::Layer::DontCare
+            && (flags.is_component || flags.is_slot || flags.invisible_to_slot);
+        self.canvas_transform_and_bounds.replace_with_paint_cutoff(
+            placement,
+            &self.changed_listener,
+            paintless,
+        );
     }
 }
