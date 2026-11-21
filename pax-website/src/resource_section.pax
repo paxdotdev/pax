@@ -36,7 +36,7 @@
             text={"[Docs](https://docs.pax.dev/) · [GitHub](https://github.com/paxdotdev/pax) · [Blog]("
                 + (@target.web ? "/blog/" : "https://pax.dev/blog/")
                 + ") · [Community](https://discord.com/invite/Eq8KWAUc6b) · [Platform support](https://docs.pax.dev/targets-build-deploy.html)"}/>
-        <Text class="editorial_note" width={self.compact ? 100% : 74%}>Pax is in active development. APIs and capabilities continue to evolve; check platform support for the targets and features your project needs.</Text>
+        <Text class="editorial_note" width={self.compact ? 100% : 74%}>Pax targets macOS, Windows (alpha), Linux (alpha), iOS, iPadOS, Android (alpha), and the web. Pax is in active development; APIs and capabilities continue to evolve.</Text>
     </Stacker>
     <Rectangle class="site_rule" x=50% y=0px width={self.compact ? (100% - 48px) : 88%} height=1px/>
     <Rectangle class="site_ink" width=100% height=100%/>

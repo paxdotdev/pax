@@ -62,7 +62,7 @@ mod tests {
         let headline = include_str!("rotating_headline.pax");
         assert!(!headline.contains(">with Rust</Text>"));
         let hero = include_str!("hero_section.pax");
-        assert!(hero.contains("From a single Rust codebase, ship to native macOS"));
+        assert!(hero.contains("Declare UIs in Pax and write logic in Rust. Ship to native mobile, desktop, and web from a single codebase."));
         assert!(hero.contains("self.font_px * 2.52"));
     }
 }

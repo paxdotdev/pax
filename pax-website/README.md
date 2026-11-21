@@ -144,8 +144,8 @@ other routes keep their nav-sized inset and static logo.
 ## Homepage content
 
 The page opens with the two-line heading “Build creative/native/portable/eye-catching
-user interfaces,” followed by “From a single Rust codebase,” the platform statement,
-and the install snippet. Windows, Linux, and Android carry inline “(alpha)”
+user interfaces,” followed by the Pax/Rust introduction and the install snippet.
+The Get started section lists individual targets. Windows, Linux, and Android carry inline “(alpha)”
 labels; the other targets are unmarked. As platform support evolves,
 check the release's target availability before publishing. The shared CLI-first
 snippet appears in both the hero and closing CTA, with AI onboarding in a
@@ -157,8 +157,8 @@ full-width fanout comes next, without a second runtime manifesto. The toolkit
 carousel precedes the reusable-component section. The live oscilloscope
 follows the Get started CTA at every width;
 the calculator is no longer embedded on the homepage.
-“A love letter to the pixel” pairs the acrostic with the project's influences,
-creative mission, and MIT / Apache-2.0 license. The closing CTA links to setup and
+“A love letter to the pixel” pairs the acrostic with the project's open-source
+mission and design influences. The closing CTA links to setup and
 examples, followed by the oscilloscope, then docs, GitHub, blog, community, and platform support.
 
 The language introduction has an edge-to-edge `LanguageBackdrop`: six CMY
@@ -741,8 +741,8 @@ normal Text nodes determine the paragraph's position.
 
 `OpenSourceSection` follows the modularity section and precedes the final CTA.
 It connects Pax's free-and-open-source identity with the project's
-creative mission; the MIT / Apache-2.0 license and inline GitHub link live here rather than repeating in the
-footer. The footer links to platform support and notes that APIs and capabilities evolve.
+creative mission and closes with a link to the Pax repository. The footer links
+to platform support and notes that APIs and capabilities evolve.
 The section and its lettering are inspectable through their own ExampleHost.
 
 `Acrostic` uses four retained cyclic tapes containing MAKE, PLAY, OPEN, FREE,

@@ -633,9 +633,10 @@ mod content_tests {
         assert_eq!(hero.matches("<GetStarted").count(), 1);
         assert_eq!(footer.matches("<GetStarted").count(), 1);
         assert!(include_str!("get_started.pax").contains("cargo install pax-cli"));
-        assert!(hero.contains(
+        assert!(footer.contains(
             "macOS, Windows (alpha), Linux (alpha), iOS, iPadOS, Android (alpha), and the web."
         ));
+        assert!(!hero.contains("(alpha)"));
         assert!(!hero.contains("Other targets are in beta."));
         assert!(!hero.contains("This website was built in Pax"));
         assert!(!include_str!("framework_section.pax").contains("Dream it. Build it."));

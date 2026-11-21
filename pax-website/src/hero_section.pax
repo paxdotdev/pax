@@ -30,7 +30,7 @@ if self._logo_started && !self._logo_return_pending && self.logo_visible && self
             <Group width=100% height={(self.font_px * 2.52)px}>
                 <RotatingHeadline id=hero_heading width=100% height=100% font_px={self.font_px} playing={self.exit_progress < 100}/>
             </Group>
-            <Text class="hero_copy" width=100%>From a single Rust codebase, ship to native macOS, Windows (alpha), Linux (alpha), iOS, iPadOS, Android (alpha), and the web.</Text>
+            <Text class="hero_copy" width=100%>Declare UIs in Pax and write logic in Rust. Ship to native mobile, desktop, and web from a single codebase.</Text>
             <Stacker width=100% height=56px direction=StackerDirection::Horizontal gutter=12px>
                 <GlassAction width=100% height=100% label="Get Started" url="https://docs.pax.dev/getting-started/" opal=true/>
                 <GlassAction width=100% height=100% label="GitHub" url="https://github.com/paxdotdev/pax" github=true/>
