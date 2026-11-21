@@ -7,6 +7,7 @@ use pax_kit::*;
 #[pax]
 #[file("framed_study.pax")]
 pub struct FramedStudy {
+    pub light_mode: Property<bool>,
     pub url: Property<String>,
     pub label: Property<String>,
     pub detail: Property<String>,
@@ -85,7 +86,8 @@ mod tests {
         assert!(section.contains("url=\"/oscilloscope/\""));
         assert!(!section.contains("space-game"));
         assert_eq!(section.matches("<FramedStudy").count(), 1);
-        assert!(section.contains("<FramedStudy width=100%"));
+        let frame = section.split_once("<FramedStudy ").unwrap().1.split_once('>').unwrap().0;
+        assert!(frame.contains("width=100%"));
     }
 
     #[test]

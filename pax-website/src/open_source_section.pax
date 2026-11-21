@@ -1,15 +1,15 @@
 <Group width=100% height=100%>
-    <ImportSettings><SiteTheme /></ImportSettings>
+    <ImportSettings><SiteTheme light_mode={self.light_mode} /></ImportSettings>
     <Stacker id=open_source_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=40px>
         <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter={self.compact ? 40px : 6%}
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
             sizes={self.compact ? [] : [Some(48%), None]}>
             ///#ignore
-            <Acrostic width=100% height={(self.artwork_height)px} columns={self.compact ? 6 : 7}/>
+            <Acrostic light_mode={self.light_mode} width=100% height={(self.artwork_height)px} columns={self.compact ? 6 : 7}/>
             <Stacker width=100% autosize=true gutter=24px>
                 ///#h2
                 <Text class="editorial_title" width=100%>A love letter to the pixel</Text>
-                <Text class="editorial_lead" width=100%>Pax is open source. Its grammar, compiler, and rendering engine were designed and made free to empower your imagination.</Text>
+                <Text class="editorial_lead" width=100%>Pax is free and open source. Its grammar, compiler, and rendering engine were designed to empower your imagination.</Text>
                 <Text class="editorial_body" width=100%>Pax borrows its design from prior art spanning from HTML, to Visual Basic, to Flash, to React, to XAML, to Delphi, to the Nintendo Entertainment System. From this melting pot of the past, Pax draws its arrow towards the future.</Text>
                 <Text class="editorial_body" width=100%>Pax's goal is twofold: to empower more of humanity to create software, and to unlock the screen as a medium for art.</Text>
                 <Text class="editorial_body" width=100% markdown=true>[Check out Pax on GitHub.](https://github.com/paxdotdev/pax)</Text>

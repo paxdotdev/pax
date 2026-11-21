@@ -15,7 +15,7 @@
                 FontStyle::Normal,
                 FontWeight::ExtraBold)
             font_size: 22px
-            fill: {SiteTheme::paper()}
+            fill: {SiteTheme::paper(false)}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -29,7 +29,7 @@
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: 9px
-            fill: {SiteTheme::muted()}
+            fill: {SiteTheme::muted(false)}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left

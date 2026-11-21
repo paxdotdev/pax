@@ -43,6 +43,16 @@ Type: `Property`<`bool`>
 Use Solarized Light (default) instead of Dark inside the code pane only.
 The moon/sun switch edits this value; use `bind:` to share it deliberately.
 
+##### `show_theme_toggle`
+Type: `Property`<`bool`>
+
+Show the built-in palette switch (default true). Hide when the app owns the theme.
+
+##### `chrome_light_mode`
+Type: `Property`<`bool`>
+
+Light drawer chrome, file tabs and edge handle. Independent of the code palette; default false.
+
 ##### `inline_source_viewer`
 Type: `Property`<`bool`>
 
@@ -129,10 +139,15 @@ A page-edge source tab, bound to the owning viewer's open state.
 
 Place at `x=100%`, with 112px width when closed and 28px when open, and 34px
 height. Its native button remains keyboard-operable in either state.
-The white tab morphs its convex left-pointing tip into a concave notch on
+The tab morphs its convex left-pointing tip into a concave notch on
 opening. The shape stays within its bounds, with a fixed leftmost edge.
 
 #### Properties
+##### `chrome_light_mode`
+Type: `Property`<`bool`>
+
+Draw a dark handle for use on light page surfaces (default false).
+
 ##### `open`
 Type: `Property`<`bool`>
 
@@ -141,7 +156,7 @@ Two-way bind to the owning source viewer's open state.
 ---
 
 ### `ExampleSourceViewer`
-Reusable source panel with fixed black/white chrome and a Solarized code pane.
+Reusable source panel with independently configurable chrome and a Solarized code pane.
 
 It fills the bounds supplied by its caller, not the global viewport. For a
 full-screen presentation, mount it above (outside) the page Scroller and bind
@@ -172,7 +187,17 @@ Close control writes false; the caller decides how to dismiss the viewer.
 ##### `source_light_mode`
 Type: `Property`<`bool`>
 
-True (default) selects Solarized Light; false selects Dark. Chrome stays black/white.
+True (default) selects Solarized Light; false selects Dark.
+
+##### `show_theme_toggle`
+Type: `Property`<`bool`>
+
+Show the built-in palette switch (default true). Hide when the app owns the theme.
+
+##### `chrome_light_mode`
+Type: `Property`<`bool`>
+
+Light drawer chrome, file tabs and edge handle. Independent of the code palette; default false.
 
 ##### `show_close_tab`
 Type: `Property`<`bool`>

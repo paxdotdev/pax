@@ -49,6 +49,9 @@ fn effect(p: vec2<f32>) -> vec4<f32> {
     let quiet = mix(0.55, 1.0, smoothstep(0.18, 0.56, p.x / parameters.extent.x));
     let energy = traced * parameters.sheen * quiet * mix(0.47, 1.0, recess);
     let sheen = (vec3<f32>(1.0) - exp(-energy)) * 0.44;
-    let body = source.rgb * mix(0.40, 1.24, recess);
+    // Pale cloth needs shallower shadows to keep dark foreground type legible.
+    let tint = parameters.body_color.rgb;
+    let pale = smoothstep(0.15, 0.85, dot(tint, vec3<f32>(0.2126, 0.7152, 0.0722)));
+    let body = source.a * tint * mix(mix(0.40, 0.91, pale), mix(1.24, 1.02, pale), recess);
     return vec4<f32>(body + sheen * source.a, source.a);
 }

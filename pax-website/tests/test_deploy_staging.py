@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import deploy_staging as deploy
+from prepare_production import assemble
 
 
 class StagingRelease(unittest.TestCase):
@@ -26,7 +27,7 @@ class StagingRelease(unittest.TestCase):
             {"concrete_path": path} for path in ("/", "/future/demo", None)]}))
         self.write("index.html", self.html)
         self.write("future/demo/index.html", self.html)
-        self.write("ai/index.html", "Static AI guide")
+        self.write("ai/index.html", "<html><head></head><body>Static AI guide</body></html>")
         self.write("blog/index.html", "Unpublished local draft")
 
     def write(self, key, text):
@@ -46,9 +47,16 @@ class StagingRelease(unittest.TestCase):
             for key in ("pax-interface-web.css", "pax-interface-web.js", "pax-cartridge"):
                 self.assertIn(f'"{prefix}{key}"', html)
             self.assertEqual((self.web / name).read_text(), self.html)
+        for key in ("entries/index.html", "entries/future/demo/index.html", "public/ai/index.html"):
+            html = (work / key).read_text()
+            self.assertEqual(html.count('src="/site-analytics/consent.js"'), 1)
+            self.assertNotIn("googletagmanager.com", html)
+        for name in ("consent.js", "consent.css"):
+            self.assertTrue((work / "public/site-analytics" / name).is_file())
         self.assertTrue((work / "runtime/snippets/nested/init.js").is_file())
         self.assertFalse((work / "public/pax-interface-web.css").exists())
-        self.assertEqual(set(public), {"ai/index.html", "route-metadata.json"})
+        self.assertEqual(set(public), {"ai/index.html", "route-metadata.json",
+                                       "site-analytics/consent.js", "site-analytics/consent.css"})
         self.write("index.html", self.html + "<p>New copy</p>")
         self.assertEqual(prefix, self.prepare()[1])
         for key in ("pax-interface-web.css", "split_application.wasm", "snippets/nested/init.js"):
@@ -68,6 +76,21 @@ class StagingRelease(unittest.TestCase):
         (self.web / "snippets/nested/init.js").unlink()
         with self.assertRaisesRegex(ValueError, "missing runtime import"):
             self.prepare()
+
+    def test_production_adds_only_the_first_party_gate_once_per_document(self):
+        self.write("ai/index.html", "<html><head></head><body>AI guide</body></html>")
+        output = self.base / "production"
+        assemble(self.web, output)
+        for name in ("index.html", "future/demo/index.html", "ai/index.html"):
+            html = (output / name).read_text()
+            self.assertEqual(html.count('src="/site-analytics/consent.js"'), 1)
+            self.assertNotIn("googletagmanager.com", html)
+            self.assertNotIn("consent.js", (self.web / name).read_text())
+        self.assertTrue((output / "site-analytics/consent.js").is_file())
+        self.assertTrue((output / "site-analytics/consent.css").is_file())
+        self.assertFalse((output / "blog").exists())
+        with self.assertRaisesRegex(ValueError, "new output"):
+            assemble(self.web, output)
 
     def publisher(self, fail_on=None, origin_path=""):
         calls = []
@@ -97,7 +120,8 @@ class StagingRelease(unittest.TestCase):
         invalidation = next(args for args in calls if "create-invalidation" in args)
         self.assertEqual(set(invalidation[invalidation.index("--paths") + 1:invalidation.index("--query")]),
                          {"/", "/index.html", "/future/demo", "/future/demo/", "/future/demo/index.html",
-                          "/ai", "/ai/", "/ai/index.html", "/route-metadata.json"})
+                          "/ai", "/ai/", "/ai/index.html", "/route-metadata.json",
+                          "/site-analytics/consent.js", "/site-analytics/consent.css"})
         self.assertIn("invalidation-completed", calls[-1])
 
     def test_no_promotion_after_origin_mismatch_or_upload_failure(self):

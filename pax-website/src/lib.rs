@@ -7,6 +7,8 @@ pub mod acrostic;
 #[cfg(feature = "app")]
 mod ai_prompt;
 #[cfg(feature = "app")]
+mod analytics;
+#[cfg(feature = "app")]
 pub mod authoring_section;
 #[cfg(feature = "app")]
 pub mod brand_mark;
@@ -141,7 +143,15 @@ pub use site_theme::SiteTheme;
 #[main]
 #[file("lib.pax")]
 pub struct Example {
+    pub light_mode: Property<bool>,
     pub page_scroll_y: Property<f64>,
     pub hero_source_open: Property<bool>,
     pub source_overlay_open: Property<bool>,
+}
+
+#[cfg(feature = "app")]
+impl Example {
+    pub fn mount(&mut self, ctx: &NodeContext) {
+        site_theme::connect_preference(ctx, &self.light_mode);
+    }
 }

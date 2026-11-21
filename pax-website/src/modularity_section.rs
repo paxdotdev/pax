@@ -4,6 +4,7 @@ use pax_kit::*;
 #[pax]
 #[file("modularity_section.pax")]
 pub struct ModularitySection {
+    pub light_mode: Property<bool>,
     pub compact: Property<bool>,
     pub content_height: Property<f64>,
     pub _height_bound: Property<bool>,

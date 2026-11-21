@@ -1,0 +1,62 @@
+<Group width=100% height=100% @click=self.select_source>
+    <Text class="example_host_tab_label" x=50% y=50% width={100% - 16px} height=18px selectable=false
+        wrap=false clip=true>{source.label}</Text>
+    if self.index == self.selected {
+        <Path class="example_host_tab_active" width=100% height=100%/>
+    }
+    if self.index != self.selected {
+        <Path class="example_host_tab_idle" width=100% height=100%/>
+    }
+</Group>
+
+@settings {
+    .example_host_tab_label {
+        style: TextStyle {
+            font: Font::Web(
+                "Manrope",
+                "assets/fonts/Manrope.ttf",
+                FontStyle::Normal,
+                FontWeight::Medium)
+            font_size: 11px
+            fill: {(self.index == self.selected) != self.chrome_light_mode ? BLACK : WHITE}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+            underline: false
+        }
+    }
+    .example_host_tab_active {
+        fill: {self.chrome_light_mode ? BLACK : WHITE}
+        elements: [
+            PathElement::Point(0%, 100%),
+            PathElement::Line,
+            PathElement::Point(2.5%, 17%),
+            PathElement::Quadratic(2.5%, 0%),
+            PathElement::Point(5%, 0%),
+            PathElement::Line,
+            PathElement::Point(95%, 0%),
+            PathElement::Quadratic(97.5%, 0%),
+            PathElement::Point(97.5%, 17%),
+            PathElement::Line,
+            PathElement::Point(100%, 100%),
+            PathElement::Close
+        ]
+    }
+    .example_host_tab_idle {
+        fill: {self.chrome_light_mode ? rgb(229, 229, 225) : rgb(38, 38, 38)}
+        elements: [
+            PathElement::Point(0%, 100%),
+            PathElement::Line,
+            PathElement::Point(2.5%, 17%),
+            PathElement::Quadratic(2.5%, 0%),
+            PathElement::Point(5%, 0%),
+            PathElement::Line,
+            PathElement::Point(95%, 0%),
+            PathElement::Quadratic(97.5%, 0%),
+            PathElement::Point(97.5%, 17%),
+            PathElement::Line,
+            PathElement::Point(100%, 100%),
+            PathElement::Close
+        ]
+    }
+}

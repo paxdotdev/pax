@@ -5,6 +5,7 @@ use pax_kit::*;
 #[pax]
 #[file("feature_gallery/studies.pax")]
 pub struct FeatureStudy {
+    pub light_mode: Property<bool>,
     pub kind: Property<String>,
     pub progress: Property<f64>,
     pub alternate: Property<bool>,

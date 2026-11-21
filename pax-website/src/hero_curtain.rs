@@ -4,6 +4,7 @@ use pax_kit::*;
 #[pax]
 #[file("hero_curtain.pax")]
 pub struct HeroCurtain {
+    pub light_mode: Property<bool>,
     pub light_x: Property<f64>,
     pub light_y: Property<f64>,
     pub brightness: Property<f64>,

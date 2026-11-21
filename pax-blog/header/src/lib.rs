@@ -7,6 +7,7 @@ pax_kit::runnable! { root: crate::SiteHeader, init: init_header }
 
 pub fn init_header(_: &InitContext) -> AppResult<SiteHeader> {
     Ok(SiteHeader {
+        owns_theme: Property::new(true),
         show_logo: Property::new(true),
         controls_visible: Property::new(true),
         font_url: Property::new("/blog/_pax/header/assets/fonts/Manrope.ttf".into()),

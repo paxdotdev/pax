@@ -5,6 +5,7 @@ use pax_kit::*;
 #[pax]
 #[file("glass_action.pax")]
 pub struct GlassAction {
+    pub light_mode: Property<bool>,
     pub label: Property<String>,
     pub url: Property<String>,
     pub opal: Property<bool>,

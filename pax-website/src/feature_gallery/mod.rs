@@ -25,6 +25,7 @@ const OUTER_SCROLL_SETTLE_MILLIS: f64 = 150.0;
 #[pax]
 #[file("feature_gallery/card.pax")]
 pub struct FeatureCard {
+    pub light_mode: Property<bool>,
     pub art_scale: Property<f64>,
     pub category: Property<String>,
     pub title: Property<String>,
@@ -421,6 +422,7 @@ fn normalize_loop_scroll(scroll_x: f64, content_width: f64) -> f64 {
 #[file("feature_gallery/gallery.pax")]
 #[custom(Default)]
 pub struct FeatureGallery {
+    pub light_mode: Property<bool>,
     pub content_height: Property<f64>,
     pub _height_bound: Property<bool>,
     pub outer_scroll_y: Property<f64>,
@@ -433,6 +435,7 @@ pub struct FeatureGallery {
 impl Default for FeatureGallery {
     fn default() -> Self {
         Self {
+            light_mode: Property::new(false),
             content_height: Property::new(0.0),
             _height_bound: Property::new(false),
             outer_scroll_y: Property::new(0.0),

@@ -3,7 +3,9 @@ use pax_kit::*;
 
 #[pax]
 #[file("nav_logo.pax")]
-pub struct NavLogo {}
+pub struct NavLogo {
+    pub light_mode: Property<bool>,
+}
 
 #[cfg(test)]
 mod tests {
@@ -16,7 +18,7 @@ mod tests {
         assert!(!nav.contains("<AnimatedPaxLogo"));
         let hero = include_str!("hero_section.pax");
         assert!(hero.contains("<SiteLogo id=hero_logo"));
-        assert!(hero.contains("@click=self.replay_logo"));
+        assert!(hero.contains("light_mode=bind:self.light_mode"));
         let shell = include_str!("site_shell.pax");
         assert!(shell.contains("<SiteLogo id=nav_portal_logo"));
         assert!(shell.contains("progress=1 click_to_replay=false"));

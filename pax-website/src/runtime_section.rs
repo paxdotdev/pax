@@ -8,6 +8,7 @@ const COMPACT_BREAKPOINT_PX: f64 = 760.0;
 #[pax]
 #[file("runtime_section.pax")]
 pub struct RuntimeSection {
+    pub light_mode: Property<bool>,
     pub content_height: Property<f64>,
     pub _height_bound: Property<bool>,
     pub compact: Property<bool>,
@@ -24,7 +25,7 @@ mod tests {
         let (copy, rest) = intro.split_once("</Group>").unwrap();
         assert!(copy.contains(">Fluent in UI</Text>"));
         assert!(
-            copy.contains("<FluentRain width=100% height=100% layout_role=LayoutRole::Breakout")
+            copy.contains("<FluentRain light_mode={self.light_mode} width=100% height=100% layout_role=LayoutRole::Breakout")
         );
         assert!(!copy.contains("<PaxflixShowcase"));
         assert!(rest.contains("<PaxflixShowcase"));
@@ -62,7 +63,9 @@ mod tests {
         let headline = include_str!("rotating_headline.pax");
         assert!(!headline.contains(">with Rust</Text>"));
         let hero = include_str!("hero_section.pax");
-        assert!(hero.contains("Declare UIs in Pax and write logic in Rust. Ship to native mobile, desktop, and web from a single codebase."));
+        assert!(hero.contains(">Declare UIs in Pax and write logic in Rust.</Text>"));
+        assert!(hero
+            .contains(">Ship to native mobile, desktop, and web from a single codebase.</Text>"));
         assert!(hero.contains("self.font_px * 2.52"));
     }
 }

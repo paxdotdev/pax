@@ -6,7 +6,7 @@
     // reservation. Full-screen presentations keep it inside the viewport.
     // Drawer chrome must not contribute moving overflow to ancestor autosize.
     if self.inline_source_viewer || !self.drawer_open {
-        <ExampleSourceToggle x={self.inline_source_viewer && !self._compact_drawer ? (100% - (self._drawer_width_px * self._drawer_progress)px) : 100%}
+        <ExampleSourceToggle chrome_light_mode={self.chrome_light_mode} x={self.inline_source_viewer && !self._compact_drawer ? (100% - (self._drawer_width_px * self._drawer_progress)px) : 100%}
             y={self.inline_source_viewer && self._compact_drawer && self.drawer_open ? 0px : 24px}
             width={self.drawer_open ? 28px : 112px} layout_role=LayoutRole::Breakout
             height={self.inline_source_viewer && self._compact_drawer && self.drawer_open ? 24px : 34px} open=bind:self.drawer_open/>
@@ -33,7 +33,8 @@
     if self.inline_source_viewer && (self.drawer_open || self._drawer_progress > 0.001) {
         <ExampleSourceViewer x={100% - (self._drawer_width_px * self._drawer_progress)px} y=0px width={(self._drawer_width_px)px} height=100%
             anchor_x=0% anchor_y=0% layout_role=LayoutRole::Breakout title={self.title} sources={self.sources} selected_source=bind:self.selected_source
-            open=bind:self.drawer_open source_light_mode=bind:self.source_light_mode show_close_tab=false/>
+            open=bind:self.drawer_open source_light_mode=bind:self.source_light_mode show_close_tab=false
+            show_theme_toggle={self.show_theme_toggle} chrome_light_mode={self.chrome_light_mode}/>
     }
     if !(self.inline_source_viewer && self._compact_drawer && (self.drawer_open || self._drawer_progress > 0.001)) {
         <Group x=0px y=0px width={100% - (self._preview_reserved_width_px)px} height=100% anchor_x=0% anchor_y=0%>

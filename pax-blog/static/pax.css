@@ -8,6 +8,16 @@ html:root, html:root[data-theme="dark"] {
   --sans-serif-font: 'Manrope', system-ui, sans-serif;
   --header-font: 'Manrope', system-ui, sans-serif;
 }
+html:root[data-pax-theme="light"] {
+  color-scheme: light;
+  --background-color: #fcf9f2;
+  --text-color: #171715;
+  --text-color-high-contrast: #171715;
+  --meta-color: #555550;
+  --primary-color: #171715;
+  --divider-color: #ccc9c1;
+}
+html[data-pax-theme="light"] .pax-home img { filter: invert(1); }
 @font-face {
   font-family: 'Manrope';
   src: url('_pax/header/assets/fonts/Manrope.ttf') format('truetype');
@@ -18,9 +28,9 @@ body { font-family: var(--sans-serif-font); margin: 0; }
 h1, h2, h3 { letter-spacing: -0.035em; }
 h1 { line-height: 1.12; }
 article { line-height: 1.75; }
-pre { border: 1px solid #41413d; }
+pre { border: 1px solid var(--divider-color); }
 time { font-family: ui-monospace, monospace; }
-a:focus-visible { outline: 2px solid #fcf9f2; outline-offset: 5px; }
+a:focus-visible { outline: 2px solid var(--text-color); outline-offset: 5px; }
 .pax-site-header {
   position: sticky;
   top: 0;
@@ -28,7 +38,7 @@ a:focus-visible { outline: 2px solid #fcf9f2; outline-offset: 5px; }
   height: 80px;
   padding-top: env(safe-area-inset-top, 0px);
   box-sizing: content-box;
-  background: #11110f;
+  background: var(--background-color);
 }
 .pax-header-fallback, .pax-header-mount {
   position: absolute;
@@ -43,15 +53,15 @@ a:focus-visible { outline: 2px solid #fcf9f2; outline-offset: 5px; }
   padding: 0 40px 0 38px;
   box-sizing: border-box;
 }
-.pax-home { display: flex; width: 111.13px; height: 56px; align-items: center; }
+.pax-home { padding: 0; border: 0; background: transparent; cursor: pointer; display: flex; width: 111.13px; height: 56px; align-items: center; }
 .pax-home img { width: 100%; height: 100%; object-fit: cover; margin: 0; }
 .pax-header-links { display: flex; align-items: center; gap: 8px; width: 480px; }
-.pax-header-links a { display: grid; place-items: center; height: 40px; font: 600 13px 'Manrope', sans-serif; text-decoration: none; color: #b3b3b3; }
+.pax-header-links a { display: grid; place-items: center; height: 40px; font: 600 13px 'Manrope', sans-serif; text-decoration: none; color: var(--meta-color); }
 .pax-header-links a:nth-child(1) { width: 58px; }
 .pax-header-links a:nth-child(2) { width: 74px; }
 .pax-header-links a:nth-child(3) { width: 78px; }
 .pax-header-links a:nth-child(4) { width: 88px; }
-.pax-header-links .pax-get-started { flex: 1; background: #fcf9f2; color: #11110f; font-weight: 700; }
+.pax-header-links .pax-get-started { flex: 1; background: var(--text-color); color: var(--background-color); font-weight: 700; }
 /* Keep real HTML links in the accessibility tree. Keyboard focus restores the
    fallback visually; Pax handles ordinary pointer/touch input once ready. */
 [data-pax-ready="true"]:not([data-html-focus="true"]) .pax-header-fallback { clip-path: inset(50%); pointer-events: none; }
@@ -61,7 +71,7 @@ body > .content { padding-top: 64px; min-height: 60vh; }
 .article-title, .page-header { font-size: clamp(36px, 5vw, 60px); font-weight: 800; margin-top: 24px; line-height: 1.1; }
 .body { font-size: 18px; }
 .body p { margin-block: 1.25em; }
-.body blockquote { color: #fcf9f2; border-color: #555; }
+.body blockquote { color: var(--text-color); border-color: var(--divider-color); }
 #skip-link { z-index: 30; }
 @media (max-width: 759px) {
   .pax-site-header, .pax-header-fallback, .pax-header-mount { height: 64px; }

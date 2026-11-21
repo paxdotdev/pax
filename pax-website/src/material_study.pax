@@ -14,7 +14,7 @@
     </LightFrame>
     <Text class="demo_note" x=20px y={100% - 71px} width={100% - 40px} height=20px>MATTE / METALLIC / GLOSSY</Text>
     <Slider x=20px y={100% - 40px} width={100% - 40px} height=20px min=0 max=1 step=0.01 value=bind:self.light_position
-        accent={SiteTheme::paper()} background={SiteTheme::raised()}/>
+        accent={SiteTheme::paper(false)} background={SiteTheme::raised(false)}/>
 </Group>
 
 @settings {

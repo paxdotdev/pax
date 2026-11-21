@@ -23,13 +23,13 @@
                 PathElement::Line,
                 PathElement::Point(92%, 75%)
             ]/>
-        <Ellipse  x=8% y=25% width=9px height=9px anchor=50% fill={paint: {SiteTheme::paper()}, material: {Material::unlit()}}/>
-        <Ellipse  x=92% y=75% width=9px height=9px anchor=50% fill={paint: {SiteTheme::paper()}, material: {Material::unlit()}}/>
-        <Ellipse  x=64% y=10% width=6px height=6px anchor=50% fill={paint: {SiteTheme::surface()}, material: {Material::unlit()}} stroke={material: {Material::unlit()},
+        <Ellipse  x=8% y=25% width=9px height=9px anchor=50% fill={paint: {SiteTheme::paper(false)}, material: {Material::unlit()}}/>
+        <Ellipse  x=92% y=75% width=9px height=9px anchor=50% fill={paint: {SiteTheme::paper(false)}, material: {Material::unlit()}}/>
+        <Ellipse  x=64% y=10% width=6px height=6px anchor=50% fill={paint: {SiteTheme::surface(false)}, material: {Material::unlit()}} stroke={material: {Material::unlit()},
             paint: rgb(160, 160, 160)
             width: 1px
         }/>
-        <Ellipse  x=22% y=90% width=6px height=6px anchor=50% fill={paint: {SiteTheme::surface()}, material: {Material::unlit()}} stroke={material: {Material::unlit()},
+        <Ellipse  x=22% y=90% width=6px height=6px anchor=50% fill={paint: {SiteTheme::surface(false)}, material: {Material::unlit()}} stroke={material: {Material::unlit()},
             paint: rgb(160, 160, 160)
             width: 1px
         }/>
@@ -40,7 +40,7 @@
     </Group>
     <Text class="demo_note" x=20px y={100% - 89px} width={100% - 40px} height=20px>DRAW RANGE / SCRUB TO EXPLORE</Text>
     <Slider x=20px y={100% - 64px} width={100% - 40px} height=20px min=0 max=1 step=0.001 value={self.progress}
-        accent={SiteTheme::paper()} background={SiteTheme::raised()} @slider_change=self.scrub/>
+        accent={SiteTheme::paper(false)} background={SiteTheme::raised(false)} @slider_change=self.scrub/>
     <Group x=20px y={100% - 33px} width={100% - 40px} height=24px @click=self.toggle>
         <Text class="demo_note" width=100% height=100% selectable=false>{self.playing ? "PAUSE  Ⅱ" : "PLAY  →"}</Text>
     </Group>

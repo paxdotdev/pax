@@ -15,7 +15,16 @@ checkout `9be02e878` (the website/startup work did not change Paxflix source).
   tablet-sized viewport. Only the application content below the 52px route
   header is retained; the website supplies the tablet bezel.
 
-Regenerate using this checkout's CLI and the actual native apps:
+The light-mode laptop, phone, and compact tablet use separate captures of the
+same live web catalog in its light theme. The laptop shows the scrolled catalog;
+the other two open on the featured film. To refresh all three from a running
+local website build (with Playwright and Chrome available), run from the repo root:
+
+```sh
+PAX_SITE_URL=http://127.0.0.1:56615 node pax-website/tools/capture_paxflix_light.cjs
+```
+
+Regenerate the native dark captures using this checkout's CLI and the actual native apps:
 
 ```sh
 source ~/.zshrc

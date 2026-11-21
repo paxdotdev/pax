@@ -36,10 +36,10 @@
                                 } else {
                                     <Rectangle width=100% height=100% fill={paint: @gradient {
                                         linear: {start: [0%, 100%] end: [100%, 0%]}
-                                        0%: rgb(255, 112, 173)
-                                        38%: rgb(255, 192, 95)
-                                        68%: rgb(117, 225, 198)
-                                        100%: rgb(142, 160, 255)
+                                        0%: {self.light_mode ? SiteTheme::daylight_ink(0) : rgb(255, 112, 173)}
+                                        38%: {self.light_mode ? rgb(102, 73, 199) : rgb(255, 192, 95)}
+                                        68%: {self.light_mode ? SiteTheme::daylight_ink(1) : rgb(117, 225, 198)}
+                                        100%: {self.light_mode ? SiteTheme::daylight_ink(2) : rgb(142, 160, 255)}
                                     } material: {Material::unlit()}}/>
                                 }
                             </Group>
@@ -64,14 +64,14 @@
                                 // A stable reflector field glints under the moving scene light.
                                 <Flashy width=100% height=100% phase=0 seed=40 spacing=10 brightness=1.0 flare=5.0>
                                     for cluster in self.clusters key cluster.byte_start {
-                                        <HeroLetter x={(cluster.x * 100)px} y={(self.baseline * 100)px}
+                                        <HeroLetter light_mode={self.light_mode} x={(cluster.x * 100)px} y={(self.baseline * 100)px}
                                             width=100px height=100px cluster={cluster} ordinal={cluster.ordinal}
                                             font_px=100 cap_height={self.cap_height} kind=4 time_ms={self.letter_ms}/>
                                     }
                                 </Flashy>
                                 <LightSource x={(self.light_x * 100)px} y={((self.baseline - self.cap_height * 0.5) * 100)px}
                                     width=1px height=1px anchor=0px z={(self.font_px * 0.95)px} radius={(self.font_px * 5)px} intensity=6.0
-                                    color=rgb(240, 248, 255) layout_role=LayoutRole::Breakout/>
+                                    color={self.light_mode ? RotatingHeadline::glint_color(self.light_x, self.run_width) : rgb(240, 248, 255)} layout_role=LayoutRole::Breakout/>
                             </LightFrame>
                         } else {
                             // Filter the moving paint first, then clip it with the original letter coverage.
@@ -89,12 +89,12 @@
                                                         end: {[(RotatingHeadline::pigment_x(self.pigment_phase, i) * 100.0)%, (RotatingHeadline::pigment_y(self.pigment_phase, i) / 1.5 * 100.0)%]}
                                                         radius: {self.font_px * 0.9}
                                                     }
-                                                    0%: {RotatingHeadline::pigment_color(i, 1.0)}
-                                                    35%: {RotatingHeadline::pigment_color(i, 0.95)}
-                                                    100%: {RotatingHeadline::pigment_color(i, 0.0)}
+                                                    0%: {RotatingHeadline::pigment_color(i, 1.0, self.light_mode)}
+                                                    35%: {RotatingHeadline::pigment_color(i, 0.95, self.light_mode)}
+                                                    100%: {RotatingHeadline::pigment_color(i, 0.0, self.light_mode)}
                                                 } material: {Material::unlit()}}/>
                                             }
-                                            <Rectangle width=100% height=100% fill={paint: {SiteTheme::paper()} material: {Material::unlit()}}/>
+                                            <Rectangle width=100% height=100% fill={paint: {self.light_mode ? rgb(44, 69, 121) : SiteTheme::paper(false)} material: {Material::unlit()}}/>
                                         } else {
                                             // Fixed diagonal strips; light travels through their gradients without resizing the capture.
                                             for i in 0..18 {
@@ -106,29 +106,29 @@
                                                             start: {[(100.0 * (RotatingHeadline::star_phase(self.pigment_phase, i) * (1.0 + RotatingHeadline::star_tail(i)) - RotatingHeadline::star_tail(i)))%, 50%]}
                                                             end: {[(100.0 * RotatingHeadline::star_phase(self.pigment_phase, i) * (1.0 + RotatingHeadline::star_tail(i)))%, 50%]}
                                                         }
-                                                        0%: rgba(255, 255, 255, 0)
-                                                        25%: rgba(255, 255, 255, 35)
-                                                        65%: rgba(255, 255, 255, 128)
-                                                        82%: rgba(255, 255, 255, 230)
-                                                        94%: WHITE
-                                                        100%: rgba(255, 255, 255, 0)
+                                                        0%: {self.light_mode ? RotatingHeadline::pigment_color(i, 0, true) : rgba(255, 255, 255, 0)}
+                                                        25%: {self.light_mode ? RotatingHeadline::pigment_color(i, 0.13725490196078433, true) : rgba(255, 255, 255, 35)}
+                                                        65%: {self.light_mode ? RotatingHeadline::pigment_color(i, 0.5019607843137255, true) : rgba(255, 255, 255, 128)}
+                                                        82%: {self.light_mode ? RotatingHeadline::pigment_color(i, 0.9019607843137255, true) : rgba(255, 255, 255, 230)}
+                                                        94%: {self.light_mode ? SiteTheme::daylight_light(i) : SiteTheme::paper(false)}
+                                                        100%: {self.light_mode ? RotatingHeadline::pigment_color(i, 0, true) : rgba(255, 255, 255, 0)}
                                                     } material: {Material::unlit()}}/>
                                             }
-                                            <Rectangle width=100% height=100% fill={paint: rgba(255, 255, 255, 84) material: {Material::unlit()}}/>
+                                            <Rectangle width=100% height=100% fill={paint: {self.light_mode ? rgb(62, 77, 118) : rgba(255, 255, 255, 84)} material: {Material::unlit()}}/>
                                         }
                                     </Impressionist>
                                 } else {
                                     // Colorful ink keeps the letter mask and motion on software rendering.
                                     <Rectangle width=100% height=100% fill={paint: @gradient {
                                         linear: {start: [0%, 100%] end: [100%, 0%]}
-                                        0%: {RotatingHeadline::pigment_color(0, 1.0)}
-                                        50%: {RotatingHeadline::pigment_color(2, 1.0)}
-                                        100%: {RotatingHeadline::pigment_color(4, 1.0)}
+                                        0%: {RotatingHeadline::pigment_color(0, 1.0, self.light_mode)}
+                                        50%: {RotatingHeadline::pigment_color(2, 1.0, self.light_mode)}
+                                        100%: {RotatingHeadline::pigment_color(4, 1.0, self.light_mode)}
                                     } material: {Material::unlit()}}/>
                                 }
                                 <Group width=100% height=100%>
                                     for cluster in self.clusters key cluster.byte_start {
-                                        <HeroLetter x={(cluster.x * self.font_px)px} y={(self.baseline * self.font_px)px}
+                                        <HeroLetter light_mode={self.light_mode} x={(cluster.x * self.font_px)px} y={(self.baseline * self.font_px)px}
                                             width={(self.font_px)px} height={(self.font_px)px} cluster={cluster} ordinal={cluster.ordinal}
                                             font_px={self.font_px} cap_height={self.cap_height} kind={RotatingHeadline::treatment_kind(self.word_index)} time_ms={self.letter_ms}/>
                                     }
@@ -150,7 +150,7 @@
         style: TextStyle {
             font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::ExtraBold)
             font_size: {(self.font_px)px}
-            fill: {SiteTheme::paper()}
+            fill: {SiteTheme::paper(self.light_mode)}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left

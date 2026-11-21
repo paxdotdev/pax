@@ -18,6 +18,7 @@ pub struct HeroCluster {
 #[pax]
 #[file("hero_letter.pax")]
 pub struct HeroLetter {
+    pub light_mode: Property<bool>,
     pub cluster: Property<HeroCluster>,
     pub ordinal: Property<usize>,
     pub font_px: Property<f64>,
@@ -40,13 +41,15 @@ impl HeroLetter {
         // only on identity; motion never reconstructs their paths.
         let kind = self.kind.local();
         let ordinal = self.ordinal.local();
-        let deps = [kind.untyped(), ordinal.untyped()];
+        let light = self.light_mode.local();
+        let deps = [kind.untyped(), ordinal.untyped(), light.untyped()];
         self.paint.replace_with(LocalProperty::computed(
-            move || letter_paint(kind.get(), ordinal.get()),
+            move || letter_paint(kind.get(), ordinal.get(), light.get()),
             &deps,
         ));
         let kind = self.kind.local();
-        let deps = [kind.untyped()];
+        let light = self.light_mode.local();
+        let deps = [kind.untyped(), light.untyped()];
         self.material.replace_with(LocalProperty::computed(
             move || {
                 if kind.get() == 1 {
@@ -61,7 +64,7 @@ impl HeroLetter {
                         ..Default::default()
                     })
                 } else if kind.get() == 4 {
-                    Material::frosted(0.8)
+                    Material::frosted(if light.get() { 0.42 } else { 0.8 })
                 } else {
                     Material::unlit()
                 }
@@ -100,15 +103,18 @@ impl HeroLetter {
     }
 }
 
-fn letter_paint(kind: usize, index: usize) -> Paint {
+fn letter_paint(kind: usize, index: usize, light: bool) -> Paint {
     if kind == 4 {
         // A quiet cool body leaves headroom for the shared light's frosted sheen.
         // Partial alpha suggests surface translucency without claiming backdrop refraction.
-        let stops = [
+        let stops = if light {
+            // Blue-violet glass keeps a readable silhouette between bright glints.
+            [(0.0, [0.23, 0.40, 0.66, 1.0]), (0.42, [0.22, 0.28, 0.58, 1.0]), (1.0, [0.30, 0.16, 0.49, 1.0])]
+        } else { [
             (0.0, [0.65, 0.70, 0.75, 0.94]),
             (0.42, [0.50, 0.56, 0.64, 0.92]),
             (1.0, [0.38, 0.45, 0.54, 0.94]),
-        ]
+        ] }
         .into_iter()
         .map(|(position, rgba)| GradientStop {
             position: Size::Percent((position * 100.).into()),
@@ -122,7 +128,7 @@ fn letter_paint(kind: usize, index: usize) -> Paint {
         });
     }
     if kind != 1 && kind != 2 {
-        return Paint::Solid(SiteTheme::paper());
+        return Paint::Solid(SiteTheme::paper(false));
     }
     if kind == 2 {
         // The bouncing treatment uses individual colors without reflective bands or lighting.

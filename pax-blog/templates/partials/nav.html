@@ -1,9 +1,9 @@
 {# HTML remains the keyboard/screen-reader navigation and the startup fallback. #}
 <header class="pax-site-header" data-pax-header>
     <nav class="pax-header-fallback" aria-label="Main navigation">
-        <a class="pax-home no-hover-padding" href="/" aria-label="Pax home">
+        <button class="pax-home pax-theme-toggle" type="button" aria-label="Toggle light or dark appearance">
             <img src="{{ get_url(path='_pax/header/assets/branding/pax-logo.png') }}" alt="Pax" width="111" height="56">
-        </a>
+        </button>
         <div class="pax-header-links">
             <a class="no-hover-padding" href="{{ get_url(path='/') }}">Blog</a>
             <a class="pax-desktop-link no-hover-padding" href="https://docs.pax.dev/" target="_blank" rel="noopener">Docs</a>

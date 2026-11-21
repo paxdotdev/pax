@@ -1,4 +1,5 @@
 use crate::SiteTheme;
+use led_oscilloscope::LedGlow;
 use pax_kit::*;
 
 const WORDS: [&str; 5] = ["MAKE", "PLAY", "OPEN", "FREE", "CODE"];
@@ -26,6 +27,7 @@ pub struct RowJourney {
 #[pax]
 #[file("acrostic.pax")]
 pub struct Acrostic {
+    pub light_mode: Property<bool>,
     pub columns: Property<usize>,
     pub glyphs: Property<Vec<AcrosticGlyph>>,
     pub phases: Property<Vec<f64>>,
@@ -37,6 +39,7 @@ pub struct Acrostic {
     pub ready: Property<bool>,
     pub moving: Property<bool>,
     pub word_index: Property<usize>,
+    pub hue: Property<usize>,
     pub phase_ms: Property<f64>,
     pub _visible: Property<bool>,
     pub _last_ms: Property<f64>,
@@ -131,6 +134,7 @@ impl Acrostic {
                     .set(journeys.iter().map(|journey| journey.slot).collect());
                 self.journeys.set(journeys);
                 self.word_index.set(next);
+                self.hue.set((self.hue.get() + 1) % 3);
                 self.phase_ms.set(0.0);
                 self.light.set(0.0);
                 self.moving.set(true);
@@ -145,6 +149,8 @@ impl Acrostic {
 #[file("acrostic_row.pax")]
 #[has_helpers]
 pub struct AcrosticRow {
+    pub hue: Property<usize>,
+    pub light_mode: Property<bool>,
     pub glyphs: Property<Vec<AcrosticGlyph>>,
     pub phase: Property<f64>,
     pub selected: Property<usize>,
@@ -164,7 +170,7 @@ impl AcrosticRow {
     }
 
     pub fn radiance_tint(light: f64) -> Color {
-        let mut paper = SiteTheme::paper().to_rgba_0_1();
+        let mut paper = SiteTheme::paper(false).to_rgba_0_1();
         // Fade emitted light, not the opaque letter face, on the existing envelope.
         paper[3] = light.clamp(0.0, 1.0) * 0.36;
         Color::from_rgba_0_1(paper)
@@ -184,13 +190,18 @@ impl AcrosticRow {
         wrap(slot as f64 + phase + 1.0) - 1.0
     }
 
-    pub fn ink(light: f64) -> Color {
-        let paper = SiteTheme::paper().to_rgba_0_1();
+    pub fn ink(light: f64, light_mode: bool, hue: usize) -> Color {
+        let paper = if light_mode { SiteTheme::daylight_ink(hue) } else { SiteTheme::paper(false) }.to_rgba_0_1();
+        let base = if light_mode {
+            [0.83, 0.82, 0.79]
+        } else {
+            [0.19, 0.19, 0.18]
+        };
         let t = light.clamp(0.0, 1.0);
         Color::from_rgba_0_1([
-            0.19 + (paper[0] - 0.19) * t,
-            0.19 + (paper[1] - 0.19) * t,
-            0.18 + (paper[2] - 0.18) * t,
+            base[0] + (paper[0] - base[0]) * t,
+            base[1] + (paper[1] - base[1]) * t,
+            base[2] + (paper[2] - base[2]) * t,
             1.0,
         ])
     }
@@ -272,7 +283,7 @@ mod tests {
             let tint = AcrosticRow::radiance_tint(light).to_rgba_0_1();
             assert!((tint[3] - light * 0.36).abs() < 1e-6);
             assert!(tint[3] <= 0.36 + 1e-6);
-            assert_eq!(AcrosticRow::ink(light).to_rgba_0_1()[3], 1.0);
+            assert_eq!(AcrosticRow::ink(light, false, 0).to_rgba_0_1()[3], 1.0);
         }
         for (cell, expected_px) in [
             (40.0, 14.4),

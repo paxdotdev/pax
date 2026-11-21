@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 
-const demos = ['paxflix', 'calculator', 'led-oscilloscope', 'space-game'];
+const demos = ['paxflix', 'calculator', 'led-oscilloscope', 'increment-cube', 'rain-pane', 'curtain-panel'];
 function dependencyGraph(manifest) {
     const metadata = JSON.parse(execFileSync('cargo', [
         'metadata', '--manifest-path', fileURLToPath(manifest), '--format-version', '1',

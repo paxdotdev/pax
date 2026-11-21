@@ -38,15 +38,15 @@
             <Text x=15px y=10px width=110px height=42px style={
                 font: {family: "Manrope", url: "assets/fonts/Manrope.ttf"}
                 font_size: 32px
-                fill: {self.alternate ? rgb(24, 24, 24) : WHITE}
+                fill: {self.light_mode ? rgb(39, 66, 75) : (self.alternate ? rgb(24, 24, 24) : WHITE)}
             }>Aa</Text>
             <Text class="note" x=16px y=72px width=164px height=16px style={
                 font: {family: "Manrope", url: "assets/fonts/Manrope.ttf"}
                 font_size: 10px
-                fill: {self.alternate ? rgb(45, 45, 45) : rgb(185, 185, 185)}
-            }>{self.alternate ? "paper / round" : "ink / square"}</Text>
+                fill: {self.light_mode ? rgb(68, 89, 94) : (self.alternate ? rgb(45, 45, 45) : rgb(185, 185, 185))}
+            }>{self.alternate ? (self.light_mode ? "sea glass / round" : "paper / round") : (self.light_mode ? "paper / square" : "ink / square")}</Text>
             <Ellipse x=161px y=32px width=18px height=18px anchor=50%
-                fill={paint: {self.alternate ? BLACK : WHITE}, material: {Material::unlit()}}/>
+                fill={paint: {self.light_mode ? rgb(83, 146, 153) : (self.alternate ? BLACK : WHITE)}, material: {Material::unlit()}}/>
             <Rectangle class={self.alternate ? ["panel", "selected"] : "panel"} width=100% height=100%/>
         </Group>
         <Text class="note" x=46px y=122px width=226px height=16px>{self.kind == "classes" ? "class = state" : "one component · two themes"}</Text>
@@ -74,15 +74,15 @@
         // Authored paint illustrations keep the carousel independent of live lighting.
         <Group x=12px y=10px width=264px height=104px>
             <Ellipse x=17% y=54% width=66px height=66px anchor=50% fill={
-                paint: @gradient { 0%: rgb(170, 170, 170), 100%: rgb(90, 90, 90), }
+                paint: @gradient { 0%: {self.light_mode ? rgb(169, 182, 184) : rgb(170, 170, 170)}, 100%: {self.light_mode ? rgb(228, 231, 229) : rgb(90, 90, 90)}, }
                 material: {Material::unlit()}
             }/>
             <Ellipse x=50% y=54% width=66px height=66px anchor=50% fill={
-                paint: @gradient { 0%: rgb(60, 60, 60), 40%: rgb(200, 200, 200), 52%: WHITE, 65%: rgb(85, 85, 85), 100%: rgb(130, 130, 130), }
+                paint: @gradient { 0%: {self.light_mode ? rgb(224, 231, 231) : rgb(60, 60, 60)}, 40%: {self.light_mode ? rgb(146, 167, 173) : rgb(200, 200, 200)}, 52%: {self.light_mode ? rgb(82, 133, 148) : WHITE}, 65%: {self.light_mode ? rgb(245, 251, 250) : rgb(85, 85, 85)}, 100%: {self.light_mode ? rgb(173, 193, 196) : rgb(130, 130, 130)}, }
                 material: {Material::unlit()}
             }/>
             <Ellipse x=83% y=54% width=66px height=66px anchor=50% fill={
-                paint: @gradient { 0%: WHITE, 18%: rgb(220, 220, 220), 40%: rgb(105, 105, 105), 100%: rgb(35, 35, 35), }
+                paint: @gradient { 0%: {self.light_mode ? rgb(82, 133, 148) : WHITE}, 18%: {self.light_mode ? rgb(248, 252, 250) : rgb(220, 220, 220)}, 40%: {self.light_mode ? rgb(215, 225, 225) : rgb(105, 105, 105)}, 100%: {self.light_mode ? rgb(163, 183, 189) : rgb(35, 35, 35)}, }
                 material: {Material::unlit()}
             }/>
         </Group>
@@ -155,10 +155,10 @@
         <Group x=144px y=63px width=94px height=94px anchor=50% rotate={(self.progress * 90)deg}>
             <Rectangle width=100% height=100% corner_radius=24 fill={
                 paint: @gradient {
-                    0%: rgb(32, 32, 32),
-                    45%: rgb(150, 150, 150),
-                    70%: WHITE,
-                    100%: rgb(70, 70, 70),
+                    0%: {self.light_mode ? rgb(197, 224, 227) : rgb(32, 32, 32)},
+                    45%: {self.light_mode ? rgb(248, 244, 224) : rgb(150, 150, 150)},
+                    70%: {self.light_mode ? rgb(82, 133, 148) : WHITE},
+                    100%: {self.light_mode ? rgb(245, 215, 222) : rgb(70, 70, 70)},
                 }
                 material: {Material::unlit()}
             }/>
@@ -248,9 +248,9 @@
                 <Text class="note" x=10px y=75px width=96px height=18px>{i == 0 ? "moving light" : "fixed light"}</Text>
                 <Group x=1px y=1px width=110px height=72px>
                     <Ellipse x={i == 0 ? ((10 + self.progress * 80)%) : 85%} y=4px width=5px height=5px
-                        fill={paint: WHITE, material: {Material::unlit()}}/>
+                        fill={paint: {self.light_mode ? rgb(82, 133, 148) : WHITE}, material: {Material::unlit()}}/>
                     <Ellipse x=50% y=50% width=58px height=58px anchor=50% fill={
-                        paint: @gradient { 0%: rgb(210, 210, 210), 35%: rgb(120, 120, 120), 100%: rgb(55, 55, 55), }
+                        paint: @gradient { 0%: {self.light_mode ? rgb(45, 45, 45) : rgb(210, 210, 210)}, 35%: {self.light_mode ? rgb(135, 135, 135) : rgb(120, 120, 120)}, 100%: {self.light_mode ? rgb(200, 200, 200) : rgb(55, 55, 55)}, }
                         material: {Material::unlit()}
                     }/>
                 </Group>
@@ -309,8 +309,8 @@
                 for i in 0..7 {
                     <Rectangle x={(i * 36)px} width=16px height=160px fill={
                         paint: @gradient {
-                            0%: WHITE,
-                            100%: rgb(75, 75, 75),
+                            0%: {self.light_mode ? rgb(82, 133, 148) : WHITE},
+                            100%: {self.light_mode ? rgb(180, 180, 180) : rgb(75, 75, 75)},
                         }
                         material: {Material::unlit()}
                     }/>
@@ -352,7 +352,7 @@
         <Text class="note" x=107px y=12px width=70px height=18px>ROUND</Text>
         <Text class="note" x=198px y=12px width=70px height=18px>SQUARE</Text>
         <Path x=34px y=44px width=52px height=72px fill=[] stroke={
-            paint: WHITE
+            paint: {self.light_mode ? rgb(82, 133, 148) : WHITE}
             width: 9px
             cap: StrokeCap::Butt
             join: StrokeJoin::Miter
@@ -361,7 +361,7 @@
             elements=[PathElement::Point(0%, 85%), PathElement::Line, PathElement::Point(50%, 10%), PathElement::Line,
                 PathElement::Point(100%, 85%)]/>
         <Path x=118px y=44px width=52px height=72px fill=[] stroke={
-            paint: WHITE
+            paint: {self.light_mode ? rgb(82, 133, 148) : WHITE}
             width: 9px
             cap: StrokeCap::Round
             join: StrokeJoin::Round
@@ -370,7 +370,7 @@
             elements=[PathElement::Point(0%, 85%), PathElement::Line, PathElement::Point(50%, 10%), PathElement::Line,
                 PathElement::Point(100%, 85%)]/>
         <Path x=202px y=44px width=52px height=72px fill=[] stroke={
-            paint: WHITE
+            paint: {self.light_mode ? rgb(82, 133, 148) : WHITE}
             width: 9px
             cap: StrokeCap::Square
             join: StrokeJoin::Bevel
@@ -435,42 +435,42 @@
     @mount: mount
     .paper {
         fill: {
-            paint: rgb(244, 244, 240)
+            paint: {self.light_mode ? rgb(108, 150, 158) : rgb(244, 244, 240)}
             material: {Material::unlit()}
         }
     }
     .muted {
         fill: {
-            paint: rgb(132, 132, 132)
+            paint: {self.light_mode ? rgb(151, 164, 165) : rgb(132, 132, 132)}
             material: {Material::unlit()}
         }
     }
     .rule {
         fill: {
-            paint: rgb(80, 80, 80)
+            paint: {self.light_mode ? rgb(175, 175, 175) : rgb(80, 80, 80)}
             material: {Material::unlit()}
         }
     }
     .grid {
         fill: {
-            paint: rgba(255, 255, 255, 12)
+            paint: {self.light_mode ? rgba(0, 0, 0, 12) : rgba(255, 255, 255, 12)}
             material: {Material::unlit()}
         }
     }
     .panel {
         fill: {
-            paint: rgb(28, 28, 28)
+            paint: {self.light_mode ? rgb(251, 250, 246) : rgb(28, 28, 28)}
             material: {Material::unlit()}
         }
         stroke: {
-            paint: rgb(100, 100, 100)
+            paint: {self.light_mode ? rgb(158, 174, 174) : rgb(100, 100, 100)}
             width: 1px
             material: {Material::unlit()}
         }
     }
     .selected {
         fill: {
-            paint: rgb(235, 235, 230)
+            paint: {self.light_mode ? rgb(208, 231, 231) : rgb(235, 235, 230)}
             material: {Material::unlit()}
         }
         corner_radius: 16
@@ -478,7 +478,7 @@
     .wire {
         fill: []
         stroke: {
-            paint: rgb(125, 125, 125)
+            paint: {self.light_mode ? rgb(130, 130, 130) : rgb(125, 125, 125)}
             width: 1px
             material: {Material::unlit()}
         }
@@ -486,7 +486,7 @@
     .trace {
         fill: []
         stroke: {
-            paint: rgb(244, 244, 240)
+            paint: {self.light_mode ? rgb(108, 150, 158) : rgb(244, 244, 240)}
             width: 2.5px
             cap: StrokeCap::Round
             material: {Material::unlit()}
@@ -495,7 +495,7 @@
     .guide {
         fill: []
         stroke: {
-            paint: rgb(100, 100, 100)
+            paint: {self.light_mode ? rgb(158, 174, 174) : rgb(100, 100, 100)}
             width: 1px
             material: {Material::unlit()}
         }
@@ -504,7 +504,7 @@
         style: {
             font: "monospace"
             font_size: 12px
-            fill: rgb(240, 240, 235)
+            fill: {self.light_mode ? rgb(15, 15, 20) : rgb(240, 240, 235)}
             align_vertical: TextAlignVertical::Center
         }
     }
@@ -512,7 +512,7 @@
         style: {
             font: {family: "Manrope", url: "assets/fonts/Manrope.ttf"}
             font_size: 10px
-            fill: rgb(165, 165, 165)
+            fill: {self.light_mode ? rgb(90, 90, 90) : rgb(165, 165, 165)}
             align_vertical: TextAlignVertical::Center
         }
     }
@@ -520,7 +520,7 @@
         style: {
             font: {family: "Manrope", url: "assets/fonts/Manrope.ttf"}
             font_size: 25px
-            fill: rgb(240, 240, 235)
+            fill: {self.light_mode ? rgb(15, 15, 20) : rgb(240, 240, 235)}
             align_vertical: TextAlignVertical::Center
         }
     }

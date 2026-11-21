@@ -386,14 +386,30 @@ a duplicate subheading. The horizontally scrollable tab strip reserves space
 below the tabs for the platform scrollbar, keeping it clear of their click targets.
 That scrollbar lane shares the code pane's background. The switch changes only
 the code pane and its scrollbar lane between Solarized Light (the default) and
-Solarized Dark; the surrounding chrome stays black and white. Set
+Solarized Dark; the surrounding chrome is dark by default. Set
 `source_light_mode=false` on a host to start in Dark mode, or use
 `source_light_mode=bind:theme_light` when several hosts should deliberately share
 a parent's Boolean property (initialize it to `true` for Light). This updates
 every bound viewer, including separately mounted mobile presentations; it does
 not couple their selected tabs or open state. Otherwise each host keeps its own choice while
 mounted, including closing and reopening the drawer; the choice is not saved
-across page reloads. The palettes use the
+across page reloads.
+
+For an app-wide theme, set `show_theme_toggle=false` to omit the local switch
+and give the heading its space back. Drive `source_light_mode` from the parent
+and optionally set `chrome_light_mode` to the same value to theme the drawer,
+tabs and edge handle too. Both properties work independently of whether a
+switch is visible. For example:
+
+```pax
+<ExampleHost title="My example" sources={self.sources} show_theme_toggle=false
+    source_light_mode={self.light_mode} chrome_light_mode={self.light_mode}>
+    <MyExample />
+</ExampleHost>
+```
+
+Apply the same settings to a separately mounted `ExampleSourceViewer`.
+The palettes use the
 [canonical Solarized colors](https://ethanschoonover.com/solarized/), including
 their deliberately subdued comments, rather than a high-contrast variant.
 Only the selected source file is syntax-highlighted. Switching tabs or palettes

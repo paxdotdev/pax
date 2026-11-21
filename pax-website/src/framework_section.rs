@@ -7,6 +7,7 @@ use pax_kit::*;
 #[pax]
 #[file("framework_section.pax")]
 pub struct FrameworkSection {
+    pub light_mode: Property<bool>,
     pub content_height: Property<f64>,
     pub _height_bound: Property<bool>,
     pub scope_height: Property<f64>,

@@ -52,6 +52,7 @@ fn render_ai_document(markdown: &str) -> String {
   <title>Build with Pax — AI guide</title>
   <link rel="canonical" href="https://www.pax.dev/ai/">
   <link rel="alternate" type="text/markdown" href="/ai.md" title="Raw Markdown">
+  <script src="/ai/appearance.js"></script>
   <style>
     :root {{
       color-scheme: dark;
@@ -114,6 +115,12 @@ fn render_ai_document(markdown: &str) -> String {
       tab-size: 4;
     }}
 
+    @media screen {{
+      :root[data-pax-theme="light"] {{ color-scheme: light; background: #fcf9f2; color: #171715; }}
+      :root[data-pax-theme="light"] :is(a, code) {{ color: #171715; }}
+      :root[data-pax-theme="light"] :is(p, li) {{ color: #555550; }}
+      :root[data-pax-theme="light"] pre {{ background: #f1eee7; border-color: #ccc9c1; }}
+    }}
     @media print {{
       :root {{ color-scheme: light; background: white; color: black; }}
       a, p, li, code {{ color: black; }}

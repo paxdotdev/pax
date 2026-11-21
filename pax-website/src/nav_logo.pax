@@ -1,1 +1,1 @@
-<StaticPaxLogo background_mode=LogoBackgroundMode::Dark fill={SiteTheme::ink()} letter_fill={SiteTheme::paper()}/>
+<StaticPaxLogo background_mode=LogoBackgroundMode::Dark fill={SiteTheme::ink(self.light_mode)} letter_fill={SiteTheme::paper(self.light_mode)}/>

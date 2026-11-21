@@ -4,7 +4,7 @@ if self._logo_started && !self._logo_return_pending && self.logo_visible && self
 }
 <LightFrame width=100% height=100%>
     <ImportSettings>
-        <SiteTheme />
+        <SiteTheme light_mode={self.light_mode} />
     </ImportSettings>
     <Stacker id=hero_content x=50% y=24px width={self.compact ? (100% - 48px) : 88%} autosize=true autosize_x=false autosize_y=true 
         direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal} gutter={self.compact ? 32px : 6%} 
@@ -12,34 +12,37 @@ if self._logo_started && !self._logo_return_pending && self.logo_visible && self
         ///#ignore
         <Group width=100% height={self.compact ? (self.logo_width * 463.95 / 920.72)px : 300px}>
             // Match the headline's visible cap height, including its centered line-box inset.
-            <Group id=hero_logo_home x=0px y={self.compact ? 0px : (56 + self.font_px * 0.28)px}
+            <Group id=hero_logo_home x=0px y={self.compact ? 0px : (self.headline_cap_top - 24)px}
                 width={(self.logo_width)px} height={(self.logo_width * 463.95 / 920.72)px}
                 anchor_x=0px anchor_y=0px layout_role=LayoutRole::Breakout @mount=self.bind_logo_portal>
                 <Group x=50% y={50% - (self.portal_lift * self.portal_departure)px} anchor=50% width=100% height=100%
                     scale={(100 * (1 - (1 - self.portal_scale) * self.portal_departure))%}
                     rotate={(-18 * self.portal_departure)deg}>
-                <SiteLogo id=hero_logo class="hero_sweep" width=100% height=100% progress={self.logo_progress} click_to_replay=false
+                <SiteLogo id=hero_logo light_mode=bind:self.light_mode class="hero_sweep" width=100% height=100% progress={self.logo_progress} click_to_replay=false
                     radiance_enabled={self.radiance_enabled}
-                    @viewport_proximity_change=self.logo_visibility
-                    @click=self.replay_logo/>
+                    @viewport_proximity_change=self.logo_visibility/>
                 </Group>
             </Group>
         </Group>
         <Stacker y={self.compact ? 0px : 56px} width=100% autosize=true gutter=26px>
             <Group width=100% height={(self.font_px * 2.52)px}>
-                <RotatingHeadline id=hero_heading width=100% height=100% font_px={self.font_px} playing={self.exit_progress < 100}/>
+                <RotatingHeadline light_mode={self.light_mode} id=hero_heading width=100% height=100% font_px={self.font_px} playing={self.exit_progress < 100}/>
             </Group>
-            <Text class="hero_copy" width=100%>Declare UIs in Pax and write logic in Rust. Ship to native mobile, desktop, and web from a single codebase.</Text>
-            <Stacker width=100% height=56px direction=StackerDirection::Horizontal gutter=12px>
-                <GlassAction width=100% height=100% label="Get Started" url="https://docs.pax.dev/getting-started/" opal=true/>
-                <GlassAction width=100% height=100% label="GitHub" url="https://github.com/paxdotdev/pax" github=true/>
+            <Stacker width=100% autosize=true gutter=12px>
+                <Text class="hero_copy" width=100%>Declare UIs in Pax and write logic in Rust.</Text>
+                <Text class="hero_copy" width=100%>Combine responsive layouts, UI controls, animations, 3D, lighting, materials, and shaders into coherent scenes with a simple, declarative language.</Text>
+                <Text class="hero_copy" width=100%>Ship to native mobile, desktop, and web from a single codebase.</Text>
             </Stacker>
-            <GetStarted width=100% height={(self.get_started_height)px} ai=false
+            <Stacker width=100% height=56px direction=StackerDirection::Horizontal gutter=12px>
+                <GlassAction light_mode={self.light_mode} width=100% height=100% label="Get Started" url="https://docs.pax.dev/getting-started/" opal=true/>
+                <GlassAction light_mode={self.light_mode} width=100% height=100% label="GitHub" url="https://github.com/paxdotdev/pax" github=true/>
+            </Stacker>
+            <GetStarted light_mode={self.light_mode} width=100% height={(self.get_started_height)px} ai=false placement="hero"
                 content_height=bind:self.get_started_height/>
         </Stacker>
     </Stacker>
-    <Rectangle x=50% y={100% - 1px} width={self.compact ? (100% - 48px) : 88%} height=1px anchor_x=50% fill={SiteTheme::rule()}/>
-    <HeroCurtain class="hero_sweep" width=100% height=100%/>
+    <Rectangle x=50% y={100% - 1px} width={self.compact ? (100% - 48px) : 88%} height=1px anchor_x=50% fill={SiteTheme::rule(self.light_mode)}/>
+    <HeroCurtain light_mode={self.light_mode} class="hero_sweep" width=100% height=100%/>
 </LightFrame>
 
 @settings {
@@ -54,7 +57,7 @@ if self._logo_started && !self._logo_return_pending && self.logo_visible && self
         style: TextStyle {
             font: Font::Web("Manrope", "assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
             font_size: {self.compact ? 16px : 18px}
-            fill: {SiteTheme::muted()}
+            fill: {SiteTheme::muted(self.light_mode)}
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
         }

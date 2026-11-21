@@ -8,13 +8,16 @@ use paxflix::Paxflix;
 
 #[pax]
 #[file("not_found_page.pax")]
-pub struct NotFoundPage {}
+pub struct NotFoundPage {
+    pub light_mode: Property<bool>,
+}
 
 /// Full-page demo, entered through a document navigation on web so its only
 /// Paxflix instance participates in the initial yielded mount.
 #[pax]
 #[file("paxflix_page.pax")]
 pub struct PaxflixPage {
+    pub light_mode: Property<bool>,
     pub safe_top: Property<f64>,
     pub safe_bottom: Property<f64>,
     pub safe_left: Property<f64>,
@@ -25,6 +28,7 @@ pub struct PaxflixPage {
 #[pax]
 #[file("calculator_page.pax")]
 pub struct CalculatorPage {
+    pub light_mode: Property<bool>,
     pub safe_top: Property<f64>,
     pub safe_bottom: Property<f64>,
     pub safe_left: Property<f64>,
@@ -35,6 +39,8 @@ pub struct CalculatorPage {
 #[pax]
 #[file("playground_page.pax")]
 pub struct PlaygroundPage {
+    pub light_mode: Property<bool>,
+    pub source_open: Property<bool>,
     pub sources: Property<Vec<ExampleSource>>,
     pub safe_top: Property<f64>,
     pub safe_bottom: Property<f64>,
@@ -43,7 +49,8 @@ pub struct PlaygroundPage {
 }
 
 impl PlaygroundPage {
-    pub fn mount(&mut self, _ctx: &NodeContext) {
+    pub fn mount(&mut self, ctx: &NodeContext) {
+        crate::analytics::watch_drawer(ctx, &self.source_open, "oscilloscope");
         let files = [
             (
                 "led-oscilloscope/src/lib.pax",

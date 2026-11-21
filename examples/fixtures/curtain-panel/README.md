@@ -20,7 +20,7 @@ amber and off to inspect the highlight. The native title remains selectable. **H
 Pause holds the current pose. Leaving the viewport also stops the cloth clock.
 System reduced-motion preferences are not exposed through a shared Pax API.
 
-The `Sateen` shader declares its dark body colour as a solid input.
+The `Sateen` shader uses a solid input for coverage, without capturing a subtree. Its `body_color` property tints the fabric (black sateen by default); for ivory cloth, set `body_color=rgb(247, 244, 237)` and match the CPU fallback rectangle.
 The Rectangle supplies geometry for native overlap and hit testing. The default fold spacing is 187 logical pixels, depth 0.21, sheen
 strength 0.25 and roughness 0.53. The host places a neutral strip light at
 64.6% across the panel and starts at half output resolution. A single

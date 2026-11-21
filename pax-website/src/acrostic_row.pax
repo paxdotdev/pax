@@ -5,11 +5,11 @@
             width={(self.cell_px * 0.92)px} height={(self.row_height - self.cell_px * 0.08)px} elements={glyph.elements}
             opacity={self.lit_overlay && glyph.slot == self.selected ? 0 : 1}
             smoothing=PathSmoothing::None fill={
-                paint: {AcrosticRow::ink(glyph.slot == self.selected ? self.light : 0.0)}
+                paint: {AcrosticRow::ink(glyph.slot == self.selected ? self.light : 0.0, self.light_mode, self.hue)}
                 material: {Material::unlit()}
             }
             stroke={
-                paint: {AcrosticRow::ink(glyph.slot == self.selected ? self.light : 0.0)}
+                paint: {AcrosticRow::ink(glyph.slot == self.selected ? self.light : 0.0, self.light_mode, self.hue)}
                 width: {(self.cell_px * 0.025)px}
                 join: StrokeJoin::Round
                 material: {Material::unlit()}

@@ -7,6 +7,8 @@ const CLI_COMMANDS: &str = "cargo install pax-cli\npax-cli create my-app\ncd my-
 #[pax]
 #[file("get_started.pax")]
 pub struct GetStarted {
+    pub light_mode: Property<bool>,
+    pub placement: Property<String>,
     pub ai: Property<bool>,
     pub compact: Property<bool>,
     pub content_height: Property<f64>,
@@ -107,7 +109,16 @@ impl GetStarted {
         let current_revision = self._copy_revision.clone();
         let status = self.status.clone();
         let copying = self.copying.clone();
+        let action = if self.ai.get() {
+            "copy_ai_prompt"
+        } else {
+            "copy_install"
+        };
+        let placement = self.placement.get();
         let result = ctx.write_clipboard_text(&self.active_text(), move |result| {
+            if result.is_ok() {
+                crate::analytics::action(action, &placement);
+            }
             if current_revision.get() != revision {
                 return;
             }
@@ -128,6 +139,7 @@ impl GetStarted {
     }
 
     pub fn open_codex(&mut self, ctx: &NodeContext, _event: Event<ButtonClick>) {
+        crate::analytics::action("open_in_codex", &self.placement.get());
         ctx.navigate_to(
             &crate::ai_prompt::codex_url(crate::ai_prompt::IDEAS[self._idea_index.get()]),
             NavigationTarget::Current,

@@ -54,6 +54,15 @@ export async function enhanceHeader(header, loadPax) {
 
 if (typeof document !== 'undefined') {
     const header = document.querySelector('[data-pax-header]');
+    const root = document.documentElement;
+    try { root.dataset.theme = root.dataset.paxTheme = localStorage.getItem('pax-site-theme') || 'dark'; } catch { /* optional storage */ }
+    header?.querySelector('.pax-theme-toggle')?.addEventListener('click', () => {
+        // Once mounted, the Pax root handles this and persists its own choice.
+        if (!window.dispatchEvent(new Event('pax-toggle-theme', {cancelable: true}))) return;
+        const theme = root.dataset.paxTheme === 'light' ? 'dark' : 'light';
+        root.dataset.theme = root.dataset.paxTheme = theme;
+        try { localStorage.setItem('pax-site-theme', theme); } catch { /* optional storage */ }
+    });
     if (header) void enhanceHeader(header, () => new Promise((resolve, reject) => {
         const script = document.createElement('script');
         script.src = new URL('_pax/header/pax-interface-web.js', import.meta.url).href;

@@ -1,5 +1,5 @@
 <LightFrame width=100% height=100% @viewport_proximity_change=self.visibility>
-    <ImportSettings><SiteTheme /></ImportSettings>
+    <ImportSettings><SiteTheme light_mode={self.light_mode} /></ImportSettings>
     ///#ignore
     if self.visible {
         <Group width=0px height=0px layout_role=LayoutRole::Breakout @tick=self.animate/>

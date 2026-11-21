@@ -4,6 +4,7 @@ use pax_kit::*;
 #[pax]
 #[file("open_source_section.pax")]
 pub struct OpenSourceSection {
+    pub light_mode: Property<bool>,
     pub content_height: Property<f64>,
     pub compact: Property<bool>,
     pub artwork_height: Property<f64>,

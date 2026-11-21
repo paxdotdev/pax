@@ -7,12 +7,12 @@
                     url: "assets/fonts/Manrope.ttf"
                 }
                 font_size: 12px
-                fill: {SiteTheme::paper()}
+                fill: {SiteTheme::paper(false)}
                 align_horizontal: TextAlignHorizontal::Center
                 align_vertical: TextAlignVertical::Center
             }>TRY THE CALCULATOR  ↗</Text>
-        <Rectangle width=100% height=100% fill={SiteTheme::surface()} stroke={
-            paint: {SiteTheme::rule()}
+        <Rectangle width=100% height=100% fill={SiteTheme::surface(false)} stroke={
+            paint: {SiteTheme::rule(false)}
             width: 1px
         }/>
     </Link>

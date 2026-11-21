@@ -20,7 +20,7 @@ RUNTIME = {
     "pax-interface-web.js", "pax-interface-web.css", "pax-cartridge.js", "pax-cartridge_bg.wasm",
     "__wasm_split.js", "pax-split-loader.js", "split_application.wasm", "pax-fonts.json", "pax-web-config.json",
 }
-RESERVED = {"www", "build", "288", "_pax"}
+RESERVED = {"www", "build", "288", "_pax", "site-analytics"}
 
 
 def rewrite_entry(html, prefix, key):
@@ -93,6 +93,23 @@ def prepare(web, work):
     for key in entries:
         entry = work / "entries" / key
         entry.write_text(rewrite_entry(entry.read_text(), prefix, key))
+    # Both release packagers consume this snapshot. Local CLI output stays untagged.
+    head = (WEBSITE.parent / "scripts/ga-snippet.partial.html").read_text()
+    for group, names in (("entries", entries), ("public", public)):
+        for key in names:
+            if key.endswith(".html"):
+                path = work / group / key
+                html = path.read_text()
+                if html.count("</head>") != 1 or "site-analytics/consent.js" in html:
+                    raise ValueError(f"Unexpected document head in {key}")
+                path.write_text(html.replace("</head>", head + "</head>"))
+    assets = WEBSITE.parent / "pax-blog/static/site-analytics"
+    for name in ("consent.js", "consent.css"):
+        key = "site-analytics/" + name
+        target = work / "public" / key
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(assets / name, target)
+        public.append(key)  # Mutable URLs must also be revalidated by CloudFront.
     return prefix, entries, public
 
 

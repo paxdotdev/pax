@@ -13,8 +13,8 @@
                         width: 1.5px
                     }
                         elements={[PathElement::Point(0%, 76%), PathElement::Cubic(30%, (i * 12)%, 60%, 12%), PathElement::Point(100%, 60%)]}/>
-                    <Ellipse  x=65% y=45px width=44px height=44px fill={paint: {SiteTheme::muted()}, material: {Material::unlit()}} opacity=0.3/>
-                    <Rectangle  width=100% height=100% corner_radius=10 fill={paint: {SiteTheme::raised()}, material: {Material::unlit()}}/>
+                    <Ellipse  x=65% y=45px width=44px height=44px fill={paint: {SiteTheme::muted(false)}, material: {Material::unlit()}} opacity=0.3/>
+                    <Rectangle  width=100% height=100% corner_radius=10 fill={paint: {SiteTheme::raised(false)}, material: {Material::unlit()}}/>
                 </Group>
             }
         </Stacker>

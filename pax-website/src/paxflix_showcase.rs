@@ -6,6 +6,7 @@ use paxflix::Paxflix;
 #[pax]
 #[file("paxflix_showcase.pax")]
 pub struct PaxflixShowcase {
+    pub light_mode: Property<bool>,
     pub content_height: Property<f64>,
     pub compact: Property<bool>,
     pub layout_ready: Property<bool>,

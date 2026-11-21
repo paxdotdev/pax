@@ -25,10 +25,10 @@ copy_button = false
 full_content_in_feed = false
 allowed_domains = [
     { directive = "font-src", domains = ["'self'", "data:"] },
-    { directive = "img-src", domains = ["'self'", "data:", "blob:"] },
-    { directive = "script-src", domains = ["'self'", "'wasm-unsafe-eval'"] },
+    { directive = "img-src", domains = ["'self'", "data:", "blob:", "https://www.googletagmanager.com", "https://*.google-analytics.com"] },
+    { directive = "script-src", domains = ["'self'", "'wasm-unsafe-eval'", "https://www.googletagmanager.com"] },
     { directive = "style-src", domains = ["'self'", "'unsafe-inline'"] },
-    { directive = "connect-src", domains = ["'self'", "ws:"] },
+    { directive = "connect-src", domains = ["'self'", "ws:", "https://www.googletagmanager.com", "https://*.google-analytics.com", "https://analytics.google.com", "https://*.analytics.google.com"] },
 ]
 menu = [
     { name = "Pax", url = "/", root_relative = true },

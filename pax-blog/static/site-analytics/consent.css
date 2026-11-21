@@ -1,0 +1,30 @@
+#pax-analytics-settings {
+    position: fixed;
+    z-index: 2147483646;
+    left: max(12px, env(safe-area-inset-left));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    box-sizing: border-box;
+    max-width: min(23rem, calc(100% - 24px));
+    margin: 0;
+    padding: 0;
+    border: 1px solid #55554f;
+    border-radius: 8px;
+    background: #191918;
+    color: #faf8f0;
+    font: 14px/1.45 system-ui, sans-serif;
+    text-align: left;
+    color-scheme: dark;
+}
+#pax-analytics-settings summary { cursor: pointer; padding: 6px 12px; font-size: 12px; }
+#pax-analytics-settings[open] summary { padding: 12px 16px 0; font-size: 14px; font-weight: 600; }
+#pax-analytics-settings p { margin: 8px 16px 12px; color: #dfded9; font: inherit; }
+#pax-analytics-settings div { display: flex; gap: 8px; margin: 0 16px 14px; }
+#pax-analytics-settings button {
+    flex: 1; min-height: 40px; cursor: pointer; border: 1px solid #686861;
+    border-radius: 5px; background: #282826; color: inherit; font: inherit;
+}
+#pax-analytics-settings button[aria-pressed="true"] { border-color: #faf8f0; }
+#pax-analytics-settings :focus-visible { outline: 2px solid #f4ce77; outline-offset: 2px; }
+/* Don't cover the loader, or reserve space in the Pax scene. */
+body:has(#mount):not(:has([data-pax-loading="active"])) #pax-analytics-settings { visibility: hidden; }
+@media print { #pax-analytics-settings { display: none; } }

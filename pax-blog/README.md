@@ -38,7 +38,7 @@ The navigation's single source is `pax-website/src/site_header.{rs,pax}`.
 The website's `SiteShell` composes it alongside the homepage logo-transfer
 destination. `pax-blog/header` is only a runnable host with a local Cargo path
 dependency on `pax-website`; it does not contain another header implementation.
-Changing the shared component requires rebuilding both applications.
+Changing the shared component requires rebuilding both applications. The logo switches light/dark appearance, including the static article. The blog restores the homepage’s same-origin `pax-site-theme` preference; its HTML fallback works even if the header bundle fails.
 The dependency disables the website's default `app` feature, omitting its
 application entry point, split-Wasm loader, non-header modules, four demo
 dependencies, and custom shader support. `SiteHeader`, `NavLogo`, and `SiteTheme`
@@ -79,6 +79,10 @@ is rejected. Stage a release header for a clean integrated preview without that
 development connection.
 
 The blog's ordinary HTML remains readable and scrollable throughout startup.
+Blog documents built for the production or staging blog URL load the shared,
+opt-in [website analytics control](../pax-website/README.md#website-and-blog-analytics)
+directly from their own static assets. The header runnable and local/draft
+previews do not load it. The website’s staging publisher does not publish blog files.
 The mount uses `init_web` without page-scroll/history ownership and handles
 `pax-navigate` as document navigation. The HTML header is the startup/error
 fallback and remains the keyboard/screen-reader navigation after enhancement;

@@ -12,6 +12,7 @@ pub(crate) fn idle_light_position(elapsed_ms: f64) -> (f64, f64) {
 #[pax]
 #[file("site_logo.pax")]
 pub struct SiteLogo {
+    pub light_mode: Property<bool>,
     pub radiance_enabled: Property<bool>,
     pub light_x: Property<f64>,
     pub light_y: Property<f64>,
@@ -22,6 +23,10 @@ pub struct SiteLogo {
 }
 
 impl SiteLogo {
+    pub fn toggle_theme(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
+        self.light_mode.set(!self.light_mode.get());
+    }
+
     pub fn hover(&mut self, ctx: &NodeContext, _: Event<MouseOver>) {
         ctx.set_cursor(cursor::CursorStyle::Pointer);
     }

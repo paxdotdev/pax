@@ -70,6 +70,63 @@ To smoke-test an upgrade, reload an existing staging tab normally and check
 that the hero actually paints; a fresh tab or hero text in the DOM alone can
 miss a stale stylesheet.
 
+### Website and blog analytics
+
+The ordinary local web build does not include analytics. Staging and production
+use the same first-party consent control and the same GA4 stream.
+To prepare production website files **without deploying**, build the release
+above and run the following with a new output directory:
+
+```sh
+python3 pax-website/tools/prepare_production.py /path/to/new-website-package
+```
+
+This packages the same versioned runtime and standalone route documents as
+staging, with one analytics consent control on each HTML page (including
+the static AI guide). The blog is excluded; its production Zola template uses
+the same script from `pax-blog/static/site-analytics/`. Neither the loader,
+embedded examples, native apps, nor the blog's Pax header configure GA.
+
+Only top-level documents on **https://www.pax.dev** and **https://staging.pax.dev** offer analytics. The
+visitor can allow or decline, and reopen **Analytics settings** at any time.
+The choice is stored per origin: granting it on staging does not grant it
+on production. The website and blog on the same origin share it. Until granted,
+no Google tag is fetched and no actions are queued. With consent, stream
+`G-MG3GLRDHYR` receives its normal pageview for each document load; URL queries
+and fragments are omitted. Ads and Google Signals are disabled. Withdrawing
+disables the tag and removes this site's host-only GA cookies.
+
+**To test a staging cut:** open the published staging page, choose **Allow
+analytics**, then open **View Source** or copy the install command. In GA4 →
+Admin → Data display → [DebugView](https://support.google.com/analytics/answer/7201382),
+look for the staging `page_view` and `view_source` or `copy_install`. Staging
+sets `debug_mode: true` on the tag; production omits it. This flag alone does
+not exclude staging traffic from regular reports. To keep developer traffic
+out of those reports but visible in DebugView, test and then activate GA4’s
+[Developer Traffic exclusion filter](https://support.google.com/analytics/answer/13296662).
+The publisher does not change GA settings or publish the independently owned blog.
+
+| Website event | When it fires | `placement` |
+| --- | --- | --- |
+| `copy_install` / `copy_ai_prompt` | Clipboard write **succeeded** | `hero` or `footer` |
+| `open_in_codex` | Visitor requested the handoff (not proof the app opened) | `hero` or `footer` |
+| `view_source` | A closed drawer opened; not a mount, resize, or default-open cube | Section identifier |
+
+No clipboard contents, prompts, deep links, or per-frame/scroll events are passed
+by the app. **Before the first analytics-enabled staging or production cut**, in GA Admin → Data streams,
+turn off Enhanced Measurement (especially outbound clicks, form interactions,
+and history-based pageviews) so it does not add events or capture link URLs
+outside this list. Register `placement` as an event-scoped custom dimension if
+you want to break down reports by hero/footer/section. Verify a consenting
+homepage → demo → blog visit in DebugView; expect three pageviews. See
+[Google's pageview guide](https://developers.google.com/analytics/devguides/collection/ga4/views)
+and [basic consent mode](https://developers.google.com/tag-platform/security/concepts/consent-mode).
+
+Offline acceptance: build the production blog (`python3 pax-blog/blog.py build`),
+then run `PAX_TEST_SITE=/path/to/new-website-package node --test pax-website/tests/analytics-smoke.cjs`
+with Playwright and Chrome available. It serves the actual packaged documents
+to Chrome by request interception; test visits never reach Google or production.
+
 To preview the same hero on Apple targets, run one of these commands:
 
 ```sh
@@ -317,12 +374,11 @@ If the compact home already overlaps the future nav, departure waits for 32px of
 scroll. Animated transforms leave the reserved home and section layout unchanged.
 
 The shell retains its 64px/80px responsive nav and safe-area insets. Pages without
-a hero show the static `NavLogo`. The hero logo replays on click and on a scroll
+a hero show the static `NavLogo`. The hero logo replays on a scroll
 return from the nav. A return holds the intro's initial pose during the portal
 trip, then replays the full unfurl and lighting sequence once the hero home is
 reached. Departures into the nav and source-drawer hiding do not trigger the
-intro; reversing an unfinished return cancels it. The nav twin
-requests a scroll back to the top. The nav twin uses the completed logo and the
+intro; reversing an unfinished return cancels it. Clicking the hero or nav logo switches appearance without moving the page. The nav twin uses the completed logo and the
 same slow 12-second Radiance sweep as the hero, without replaying its intro.
 It samples the runtime clock independently of the offscreen hero's paused
 playhead; its light updates run only while the nav twin is entering, docked, or
@@ -426,7 +482,7 @@ the march does not catch up for time spent paused.
 
 Carousel vector fills and outlines explicitly use `Material::unlit()`; empty
 hit surfaces have no paint. The material and scoped-lighting cards are labeled
-illustrations, using authored grayscale gradients and a moving position marker
+illustrations, using authored gradients (silver and sea-glass tones on paper) and a moving position marker
 instead of live lights. This avoids lighting-dependent tile invalidation from
 the shell's strip/pointer lights and removes the cards' local light emitters;
 it does not eliminate the rail's animation, layout, or compositing work.
@@ -436,7 +492,7 @@ desktop, 48px below 760px). Two non-interactive `NativeImage` overlays reuse
 `assets/branding/carousel-edge-fade.svg`, mirrored on the right, outside the
 horizontal scroll host. On web this preserves per-pixel alpha over both native
 text and rendered scroller content; a canvas gradient's native coverage estimate
-would flatten that fade. The image uses `SiteTheme::ink()`'s `#11110f`; keep the
+would flatten that fade. The image follows `SiteTheme::ink(light_mode)` in both palettes; keep the
 asset aligned if the page background changes. These decorations do not change
 scroll capture, card hit targets, or the marquee's mounting policy.
 
@@ -566,7 +622,8 @@ location; it is a standalone section, not part of `AuthoringSection`. Keep the b
 with that copy when integrating PAX-1080.
 The mission/acrostic section follows modularity. **Get started** contains the
 shared CLI-first tabbed snippet and guide actions, then the oscilloscope, then
-the footer links.
+the footer links. The gap below the last line mirrors the gap above “Build” in
+the hero, including the logo row when the hero stacks on smaller screens.
 
 The calculator no longer mounts on the homepage or contributes source tabs to
 its drawers. Its existing `/calculator/` URL remains available. Like `/paxflix/`,
@@ -606,12 +663,21 @@ requests for these families. Manrope is also bundled in `pax-std/assets/fonts/`
 for standalone ExampleHost and demo use; the identical website asset merges into
 one output file. Keep these copies and their license aligned.
 
-The shared `ExampleHost` drawer offers canonical Solarized Dark and Light through
-a moon/sun pill switch beside the close control. Solarized applies only to the
-code pane; the surrounding chrome stays black and white. Light is the default.
-Every website host and mobile viewer explicitly binds to HomePage's single
-`source_light` preference, so toggling any viewer updates them all. The choice
-survives closing/reopening drawers but is not persisted across page reloads.
+## Appearance
+
+The logo is a keyboard-operable light/dark switch. Dark is the initial appearance.
+A root-owned Boolean drives the page’s `SiteTheme` settings imports, both hero
+materials, source drawers, and the live Paxflix profile switch (in either direction).
+On web, the same-origin preference is restored on reload and on the blog and demo routes.
+Paxflix swaps its device captures and bezels without recoloring movie photography. The circuit board keeps its black packages; a warmer ambient fill and green solder mask distinguish its daylight presentation. The oscilloscope keeps its original colors.
+
+With a local build running and Playwright available, run
+`PAX_SITE_URL=http://127.0.0.1:<port> node --test pax-website/tests/theme-smoke.cjs`
+from the repository root to exercise both logos, the drawer, Paxflix, and preference persistence.
+
+Website hosts omit their own moon/sun switch (`show_theme_toggle=false`).
+Both the Solarized code palette and the source chrome follow the page. Other
+ExampleHost consumers still default to light code, dark chrome and a visible switch.
 Source selections and open states remain independent. Syntax accent colors stay consistent across modes.
 The title shares a top-aligned row with the controls and wraps to its measured
 height; the source tabs follow below it. Filenames appear only in the tabs.
@@ -699,8 +765,7 @@ The source drawer includes the path loader, generated geometry, and letter compo
 The selectable “Build” prefix occupies only its 2.75em slot, leaving the
 transparent native text over the animated word available for direct selection.
 
-Eye-catching composes `Material::frosted(0.8)` on cool translucent-looking gradient
-letters with the reusable `Flashy` shader. One scoped scene `LightSource` drives
+Eye-catching composes frosted gradient letters with the reusable `Flashy` shader. On dark, a neutral key lights cool glass at frost strength 0.8. On light, the same key sweeps from cyan through magenta to gold over blue-violet glass at strength 0.42. The hero and docked logo use Radiance’s CMY prism in light mode. One scoped scene `LightSource` drives
 both the material sheen and the shader’s narrow facet reflections; the long
 starburst rays retain a shared orientation. Light depth and radius scale with
 font size because scene lights measure those distances in world pixels. The facet phase stays zero, so the moving light alone triggers the
@@ -767,7 +832,9 @@ The graphic pauses its clock offscreen. There is no visible vocabulary legend
 or playback control; these are decorative outlines, not selectable vector text
 or a complete accessibility audit.
 System reduced-motion integration remains tracked separately in PAX-1048.
-The grayscale-to-white, unlit paints work on GPU and CPU. On GPU, the four
+In light mode, successive words cycle through cyan, magenta, and amber. The colored face is retained on CPU; on GPU a single column-sized instance of the oscilloscope’s two-pass `LedGlow` softens a brighter rim during each hold. No Radiance pass runs in this mode.
+
+In dark mode, the grayscale-to-white, unlit paints work on GPU and CPU. On GPU, the four
 selected letters also receive a restrained `Radiance` treatment: emitted-light
 opacity follows the same illumination envelope with a 36% strength multiplier
 (the actual rays are dimmer after attenuation), with a reach of 36% of a cell
@@ -859,9 +926,9 @@ the independently animated glyphs retain their original clipping behavior.
 
 Headline motion stops while offscreen. The website has no pause button or
 automatic OS reduced-motion handling yet. The logo plays once on mount and
-replays when clicked or tapped at home; replay is disabled while visiting the nav.
+replays when it returns home from the nav.
 The hero owns one playhead for the 1440ms reveal and Radiance lighting, including
-click replay at home. At 2100ms the light returns to (28, 233) in the
+the return replay. At 2100ms the light returns to (28, 233) in the
 920.72 × 463.95 artwork and dims to 1.70. Its 12-second idle sweep reaches
 (952, 177) halfway through the cycle. The nav twin uses the same path and brightness,
 but its own visibility-gated clock, so it keeps panning while the hero is paused

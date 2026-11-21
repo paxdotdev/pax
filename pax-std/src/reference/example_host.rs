@@ -76,6 +76,10 @@ pub struct ExampleHost {
     /// Use Solarized Light (default) instead of Dark inside the code pane only.
     /// The moon/sun switch edits this value; use `bind:` to share it deliberately.
     pub source_light_mode: Property<bool>,
+    /// Show the built-in palette switch (default true). Hide when the app owns the theme.
+    pub show_theme_toggle: Property<bool>,
+    /// Light drawer chrome, file tabs and edge handle. Independent of the code palette; default false.
+    pub chrome_light_mode: Property<bool>,
     /// Present the source viewer beside the preview (default true).
     /// When false, View Source still toggles `drawer_open`, but the caller must
     /// mount an `ExampleSourceViewer` elsewhere, such as above a page Scroller.
@@ -106,6 +110,8 @@ impl Default for ExampleHost {
             selected_source: Property::new(0),
             drawer_open: Property::new(false),
             source_light_mode: Property::new(true),
+            show_theme_toggle: Property::new(true),
+            chrome_light_mode: Property::new(false),
             inline_source_viewer: Property::new(true),
             _drawer_width_px: Property::new(DESKTOP_DRAWER_WIDTH_PX),
             _drawer_progress: Property::new(0.0),
@@ -341,7 +347,7 @@ fn preview_layout_step(
     (arrived, reserved)
 }
 
-/// Reusable source panel with fixed black/white chrome and a Solarized code pane.
+/// Reusable source panel with independently configurable chrome and a Solarized code pane.
 ///
 /// It fills the bounds supplied by its caller, not the global viewport. For a
 /// full-screen presentation, mount it above (outside) the page Scroller and bind
@@ -361,8 +367,12 @@ pub struct ExampleSourceViewer {
     pub selected_source: Property<usize>,
     /// Close control writes false; the caller decides how to dismiss the viewer.
     pub open: Property<bool>,
-    /// True (default) selects Solarized Light; false selects Dark. Chrome stays black/white.
+    /// True (default) selects Solarized Light; false selects Dark.
     pub source_light_mode: Property<bool>,
+    /// Show the built-in palette switch (default true). Hide when the app owns the theme.
+    pub show_theme_toggle: Property<bool>,
+    /// Light drawer chrome, file tabs and edge handle. Independent of the code palette; default false.
+    pub chrome_light_mode: Property<bool>,
     /// Show the page-edge close tab (default true). Set false when the caller
     /// already supplies a persistent `ExampleSourceToggle`, as `ExampleHost` does.
     pub show_close_tab: Property<bool>,
@@ -381,6 +391,8 @@ impl Default for ExampleSourceViewer {
             selected_source: Property::default(),
             open: Property::default(),
             source_light_mode: Property::new(true),
+            show_theme_toggle: Property::new(true),
+            chrome_light_mode: Property::new(false),
             show_close_tab: Property::new(true),
             _title_height: Property::default(),
             _active_source_markup: Property::default(),
@@ -458,12 +470,14 @@ fn source_selection_effect(
 ///
 /// Place at `x=100%`, with 112px width when closed and 28px when open, and 34px
 /// height. Its native button remains keyboard-operable in either state.
-/// The white tab morphs its convex left-pointing tip into a concave notch on
+/// The tab morphs its convex left-pointing tip into a concave notch on
 /// opening. The shape stays within its bounds, with a fixed leftmost edge.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[file("reference/example_source_toggle.pax")]
 pub struct ExampleSourceToggle {
+    /// Draw a dark handle for use on light page surfaces (default false).
+    pub chrome_light_mode: Property<bool>,
     /// Two-way bind to the owning source viewer's open state.
     pub open: Property<bool>,
     // Animate a scalar, not PathElement commands (which interpolate discretely).
@@ -875,7 +889,11 @@ mod tests {
         let first = ExampleHost::default();
         let sibling = ExampleHost::default();
         assert!(first.source_light_mode.get());
-        assert!(ExampleSourceViewer::default().source_light_mode.get());
+        assert!(first.show_theme_toggle.get());
+        assert!(!first.chrome_light_mode.get());
+        let viewer = ExampleSourceViewer::default();
+        assert!(viewer.source_light_mode.get() && viewer.show_theme_toggle.get());
+        assert!(!viewer.chrome_light_mode.get());
         first.selected_source.set(3);
         first.source_light_mode.set(false);
         assert!(sibling.source_light_mode.get());
@@ -918,71 +936,9 @@ mod tests {
 // Internal source tab used by `ExampleHost`.
 #[pax]
 #[engine_import_path("pax_engine")]
-#[inlined(
-<Group width=100% height=100% @click=self.select_source>
-    <Text class="example_host_tab_label" x=50% y=50% width={100% - 16px} height=18px selectable=false
-        wrap=false clip=true>{source.label}</Text>
-    if self.index == self.selected {
-        <Path class="example_host_tab_active" width=100% height=100%/>
-    }
-    if self.index != self.selected {
-        <Path class="example_host_tab_idle" width=100% height=100%/>
-    }
-</Group>
-
-@settings {
-    .example_host_tab_label {
-        style: TextStyle {
-            font: Font::Web(
-                "Manrope",
-                "assets/fonts/Manrope.ttf",
-                FontStyle::Normal,
-                FontWeight::Medium)
-            font_size: 11px
-            fill: {self.index == self.selected ? BLACK : WHITE}
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Center
-            align_multiline: TextAlignHorizontal::Center
-            underline: false
-        }
-    }
-    .example_host_tab_active {
-        fill: WHITE
-        elements: [
-            PathElement::Point(0%, 100%),
-            PathElement::Line,
-            PathElement::Point(2.5%, 17%),
-            PathElement::Quadratic(2.5%, 0%),
-            PathElement::Point(5%, 0%),
-            PathElement::Line,
-            PathElement::Point(95%, 0%),
-            PathElement::Quadratic(97.5%, 0%),
-            PathElement::Point(97.5%, 17%),
-            PathElement::Line,
-            PathElement::Point(100%, 100%),
-            PathElement::Close
-        ]
-    }
-    .example_host_tab_idle {
-        fill: rgb(38, 38, 38)
-        elements: [
-            PathElement::Point(0%, 100%),
-            PathElement::Line,
-            PathElement::Point(2.5%, 17%),
-            PathElement::Quadratic(2.5%, 0%),
-            PathElement::Point(5%, 0%),
-            PathElement::Line,
-            PathElement::Point(95%, 0%),
-            PathElement::Quadratic(97.5%, 0%),
-            PathElement::Point(97.5%, 17%),
-            PathElement::Line,
-            PathElement::Point(100%, 100%),
-            PathElement::Close
-        ]
-    }
-}
-)]
+#[file("reference/example_host_source_tab.pax")]
 pub struct ExampleHostSourceTab {
+    pub chrome_light_mode: Property<bool>,
     // Source represented by this tab.
     pub source: Property<ExampleSource>,
     // Source index represented by this tab.

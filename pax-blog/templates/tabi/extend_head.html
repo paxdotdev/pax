@@ -5,6 +5,9 @@
 
 <link rel="icon" href="{{ get_url(path='_pax/header/assets/branding/pax-favicon.ico') }}">
 <script type="module" src="{{ get_url(path='pax-header.js', cachebust=true) }}"></script>
+{% if config.base_url in ["https://www.pax.dev/blog", "https://staging.pax.dev/blog"] and not page?.draft and not section?.draft %}
+<script defer src="{{ get_url(path='site-analytics/consent.js', cachebust=true) }}"></script>
+{% endif %}
 {% if page?.draft or config.base_url is starting_with(pat="http://127.0.0.1") or config.base_url is starting_with(pat="http://localhost") %}
 <meta name="robots" content="noindex, nofollow">
 {% endif %}

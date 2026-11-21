@@ -1,15 +1,17 @@
 if self.controls_visible {
     <Group width=100% height=100%>
         <ImportSettings>
-            <SiteTheme />
+            <SiteTheme light_mode={self.light_mode} />
         </ImportSettings>
         if self.show_logo {
-            <Link x={self.compact ? 18px : 38px} y=50% anchor_x=0px anchor_y=50%
-                width={self.compact ? 95.26px : 111.13px} height={self.compact ? 48px : 56px}
-                url="/" target=Target::Current>
-                <NavLogo width=920.72px height=463.95px
+            <Group x={self.compact ? 18px : 38px} y=50% anchor_x=0px anchor_y=50%
+                width={self.compact ? 95.26px : 111.13px} height={self.compact ? 48px : 56px}>
+                <Button width=100% height=100% label={self.light_mode ? "Switch to dark mode" : "Switch to light mode"}
+                    color=TRANSPARENT hover_color=TRANSPARENT outline={width: 0px} style={fill: TRANSPARENT}
+                    @button_click=self.toggle_theme/>
+                <NavLogo light_mode={self.light_mode} width=920.72px height=463.95px
                     scale={((self.compact ? 48 : 56) / 463.95 * 100)%}/>
-            </Link>
+            </Group>
         }
         if !self.compact {
             <Stacker x={100% - 40px} anchor_x=100% y=20px width=480px height=40px
@@ -29,7 +31,7 @@ if self.controls_visible {
                 </Link>
                 <Link width=100% height=100% url="https://docs.pax.dev/getting-started/" target=Target::New>
                     <Text class="nav_cta_label" width=100% height=100% selectable=false>Get Started</Text>
-                    <Rectangle fill={SiteTheme::signal()} width=100% height=100%/>
+                    <Rectangle fill={SiteTheme::signal(self.light_mode)} width=100% height=100%/>
                 </Link>
             </Stacker>
         } else {
@@ -39,10 +41,10 @@ if self.controls_visible {
             <Link x={100% - 20px} anchor_x=100% y=14px width=116px height=36px
                 url="https://docs.pax.dev/getting-started/" target=Target::New>
                 <Text class="nav_cta_label" width=100% height=100% selectable=false>Get Started</Text>
-                <Rectangle fill={SiteTheme::signal()} width=100% height=100%/>
+                <Rectangle fill={SiteTheme::signal(self.light_mode)} width=100% height=100%/>
             </Link>
         }
-        <Rectangle fill={paint: {SiteTheme::ink()}, material: {Material::unlit()}} width=100% height=100%/>
+        <Rectangle fill={paint: {SiteTheme::ink(self.light_mode)}, material: {Material::unlit()}} width=100% height=100%/>
     </Group>
 }
 
@@ -52,7 +54,7 @@ if self.controls_visible {
         style: TextStyle {
             font: {Font::Web("Manrope", self.font_url, FontStyle::Normal, FontWeight::SemiBold)}
             font_size: 13px
-            fill: {SiteTheme::muted()}
+            fill: {SiteTheme::muted(self.light_mode)}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center
@@ -62,7 +64,7 @@ if self.controls_visible {
         style: TextStyle {
             font: {Font::Web("Manrope", self.font_url, FontStyle::Normal, FontWeight::Bold)}
             font_size: 13px
-            fill: {SiteTheme::ink()}
+            fill: {SiteTheme::ink(self.light_mode)}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center

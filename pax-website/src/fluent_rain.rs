@@ -5,6 +5,7 @@ use rain_pane::WetPane;
 #[pax]
 #[file("fluent_rain.pax")]
 pub struct FluentRain {
+    pub light_mode: Property<bool>,
     pub visible: Property<bool>,
     pub light_time: Property<f64>,
     pub cyan_x: Property<f64>,

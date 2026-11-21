@@ -1,5 +1,5 @@
 <Group width=100% height=100%>
-    <ImportSettings><SiteTheme /></ImportSettings>
+    <ImportSettings><SiteTheme light_mode={self.light_mode} /></ImportSettings>
     <Stacker id=modularity_content x={self.compact ? 24px : 6%} anchor_x=0% y=80px
         width={self.compact ? (100% - 48px) : 88%} autosize=true autosize_x=false autosize_y=true
         direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
@@ -11,7 +11,7 @@
             <Text class="editorial_lead" width=100% markdown=true>Pax interfaces are built from reusable components, like layouts, native scrollers, text, buttons, and shader effects. Many of these are available in the [Pax standard library](https://docs.pax.dev/api/pax-std/index.html).</Text>
             ///#ignore
             if self.compact {
-                <CircuitBoard width=100% height=100%/>
+                <CircuitBoard light_mode={self.light_mode} width=100% height=100%/>
             }
             <Text class="editorial_body" width=100%>Connecting components together is like wiring pins together on a circuit board—predictable, modular, and deeply customizable.</Text>
             <Text class="editorial_body" width=100%>Your own components live in ordinary Rust modules, with Pax templates describing their composition. Build a widget, a layout, an effect, or an entire application section—and reuse it just like a standard-library component. 🐢</Text>
@@ -19,7 +19,7 @@
         </Stacker>
         ///#ignore
         if !self.compact {
-            <CircuitBoard width=100% height=540px/>
+            <CircuitBoard light_mode={self.light_mode} width=100% height=540px/>
         }
     </Stacker>
     <Rectangle class="site_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 48px) : 88%} height=1px/>

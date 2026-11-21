@@ -7,12 +7,12 @@
                     url: "assets/fonts/Manrope.ttf"
                 }
                 font_size: 12px
-                fill: {SiteTheme::paper()}
+                fill: {SiteTheme::paper(self.light_mode)}
                 align_horizontal: TextAlignHorizontal::Center
                 align_vertical: TextAlignVertical::Center
             }>{"TRY PAXFLIX  ↗"}</Text>
-        <Rectangle width=100% height=100% fill={SiteTheme::surface()} stroke={
-            paint: {SiteTheme::rule()}
+        <Rectangle width=100% height=100% fill={SiteTheme::surface(self.light_mode)} stroke={
+            paint: {SiteTheme::rule(self.light_mode)}
             width: 1px
         }/>
     </Link>
@@ -22,27 +22,27 @@
             <Group id=front_tablet x=640px y=406px anchor=50% width=1048px height=812px scale=76% rotate=0deg>
                 if self.compact {
                     <Link width=100% height=100% url="/paxflix/" target=Target::Current>
-                        <DeviceFrame width=100% height=100% kind="tablet">
-                            <NativeImage width=100% height=100% url="assets/paxflix/tablet.jpg" fit=ImageFit::Paint/>
+                        <DeviceFrame light_mode={self.light_mode} width=100% height=100% kind="tablet">
+                            <NativeImage width=100% height=100% url={self.light_mode ? "assets/paxflix/tablet-light.jpg" : "assets/paxflix/tablet.jpg"} fit=ImageFit::Paint/>
                         </DeviceFrame>
                     </Link>
                 } else {
-                    <DeviceFrame width=100% height=100% kind="tablet">
-                        <Paxflix id=live_paxflix width=100% height=100% embedded=true disable_keyboard=true disable_card_entrances=true/>
+                    <DeviceFrame light_mode={self.light_mode} width=100% height=100% kind="tablet">
+                        <Paxflix light_mode=bind:self.light_mode id=live_paxflix width=100% height=100% embedded=true disable_keyboard=true disable_card_entrances=true/>
                     </DeviceFrame>
                 }
             </Group>
             <Group id=phone_wing x=1118px y=346px anchor=50% width=390px height=844px scale=62% rotate=8deg>
                 <Link width=100% height=100% url="/paxflix/" target=Target::Current>
-                    <DeviceFrame width=100% height=100% kind="phone" edge_to_edge=true>
-                        <NativeImage width=100% height=100% url="assets/paxflix/ios.jpg" fit=ImageFit::Paint/>
+                    <DeviceFrame light_mode={self.light_mode} width=100% height=100% kind="phone" edge_to_edge=true>
+                        <NativeImage width=100% height=100% url={self.light_mode ? "assets/paxflix/phone-light.jpg" : "assets/paxflix/ios.jpg"} fit=ImageFit::Paint/>
                     </DeviceFrame>
                 </Link>
             </Group>
             <Group id=desktop_wing x=385px y=312px anchor=50% width=1280px height=844px scale=56% rotate=-7deg>
                 <Link width=100% height=100% url="/paxflix/" target=Target::Current>
-                    <DeviceFrame width=100% height=100% kind="desktop">
-                        <NativeImage width=100% height=100% url="assets/paxflix/macos.jpg" fit=ImageFit::Paint/>
+                    <DeviceFrame light_mode={self.light_mode} width=100% height=100% kind="desktop">
+                        <NativeImage width=100% height=100% url={self.light_mode ? "assets/paxflix/laptop-light.jpg" : "assets/paxflix/macos.jpg"} fit=ImageFit::Paint/>
                     </DeviceFrame>
                 </Link>
             </Group>

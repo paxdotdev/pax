@@ -1,6 +1,6 @@
 <Group width=100% height=100%>
     <ImportSettings>
-        <SiteTheme />
+        <SiteTheme light_mode={self.light_mode} />
     </ImportSettings>
     <Stacker id=footer_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=40px>
         <Stacker width={self.compact ? 100% : 74%} autosize=true gutter=24px>
@@ -9,7 +9,7 @@
             <Text class="editorial_lead" width=100%>Start with a running project, change something, and make it yours.</Text>
             <Text class="editorial_body" width=100%>The getting-started guide walks you through workstation setup, creating your first project, and running it.</Text>
         </Stacker>
-        <GetStarted width=100% height={(self.get_started_height)px} ai=false
+        <GetStarted light_mode={self.light_mode} width=100% height={(self.get_started_height)px} ai=false placement="footer"
             content_height=bind:self.get_started_height/>
         <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=16px
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
@@ -20,8 +20,8 @@
             </Link>
             <Link width=100% height=52px url="https://github.com/paxdotdev/pax/tree/main/examples" target=Target::New>
                 <Text class="site_button_outline_label" width=100% height=100%>Browse examples →</Text>
-                <Rectangle width=100% height=100% corner_radius=6 fill={SiteTheme::surface()} stroke={
-                    paint: {SiteTheme::rule()}
+                <Rectangle width=100% height=100% corner_radius=6 fill={SiteTheme::surface(self.light_mode)} stroke={
+                    paint: {SiteTheme::rule(self.light_mode)}
                     width: 1px
                 }/>
             </Link>
@@ -29,7 +29,7 @@
         <Text class="editorial_note" width=100% markdown=true
             text="Using a coding agent? [Read the AI getting-started guide](/ai/) for setup, examples, and a working feedback loop."/>
         ///#ignore
-        <FrameworkSection width=100% height={(self.oscilloscope_height)px}
+        <FrameworkSection light_mode={self.light_mode} width=100% height={(self.oscilloscope_height)px}
             content_height=bind:self.oscilloscope_height/>
         <Rectangle class="site_rule" width=100% height=1px/>
         <Text class="editorial_body" width=100% markdown=true

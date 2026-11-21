@@ -46,13 +46,13 @@ pub(crate) struct LogoNavigation {
     pub hidden: Property<bool>,
     pub portal_progress: Property<f64>,
     pub nav_logo_width: LocalProperty<f64>,
-    pub home_request: Property<u64>,
 }
 impl Store for LogoNavigation {}
 
 #[pax]
 #[file("site_shell.pax")]
 pub struct SiteShell {
+    pub light_mode: Property<bool>,
     pub has_hero: Property<bool>,
     pub hide_nav: Property<bool>,
     pub nav_shown: Property<bool>,
@@ -61,7 +61,6 @@ pub struct SiteShell {
     pub nav_logo_entry: Property<f64>,
     pub nav_light_x: Property<f64>,
     pub nav_light_y: Property<f64>,
-    pub home_request: Property<u64>,
     pub compact: Property<bool>,
     pub safe_top: Property<f64>,
     pub safe_bottom: Property<f64>,
@@ -96,7 +95,6 @@ impl SiteShell {
             hidden: self.hide_nav.clone(),
             portal_progress: self.portal_progress.clone(),
             nav_logo_width,
-            home_request: self.home_request.clone(),
         })
         .expect("the mounted site shell owns its navigation store");
         let bounds = ctx.bounds_self.clone();
@@ -202,9 +200,4 @@ impl SiteShell {
         self.hero_present.get() && self.hero_docked.get()
     }
 
-    pub fn return_to_hero(&mut self, _ctx: &NodeContext, _: Event<Click>) {
-        self.home_request
-            .local()
-            .update(|request| *request = request.wrapping_add(1));
-    }
 }

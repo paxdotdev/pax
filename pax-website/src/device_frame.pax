@@ -23,7 +23,7 @@
                 slot()
             </Group>
             <Rectangle width=100% height=100% fill={
-                paint: rgb(38, 38, 38)
+                paint: {self.light_mode ? rgb(190, 193, 196) : rgb(38, 38, 38)}
                 material: {Material::unlit()}
             }/>
         </Frame>
@@ -37,47 +37,47 @@
                 }/>
             <Rectangle x=50% y={self.edge_to_edge ? (100% - 20px) : (100% - 13px)} width={self.edge_to_edge ? 100px : 72px}
                 height={self.edge_to_edge ? 4px : 3px} anchor_x=50% corner_radius=2 fill={
-                    paint: {self.edge_to_edge ? BLACK : SiteTheme::muted()}
+                    paint: {self.edge_to_edge ? BLACK : SiteTheme::muted(self.light_mode)}
                     material: {Material::unlit()}
                 }/>
         }
-        <Frame x={self.edge_to_edge ? 8px : 12px} y={self.edge_to_edge ? 8px : (self.kind == "phone" ? 42px : 30px)}
+        <Frame x={self.edge_to_edge ? 8px : 12px} y={self.edge_to_edge ? (self.light_mode ? 48px : 8px) : (self.kind == "phone" ? 42px : 30px)}
             width={self.edge_to_edge ? (100% - 16px) : (100% - 24px)}
-            height={self.edge_to_edge ? (100% - 16px) : (self.kind == "phone" ? (100% - 70px) : (100% - 44px))}
+            height={self.edge_to_edge ? (100% - (self.light_mode ? 56px : 16px)) : (self.kind == "phone" ? (100% - 70px) : (100% - 44px))}
             corner_radius={self.edge_to_edge ? 34 : (self.kind == "phone" ? 26 : 10)}>
             slot()
             <Rectangle width=100% height=100% fill={
-                paint: {SiteTheme::surface()}
+                paint: {SiteTheme::surface(self.light_mode)}
                 material: {Material::unlit()}
             }/>
         </Frame>
         if self.kind != "phone" {
             <Ellipse x=50% y=14px width=4px height=4px anchor=50% fill={
-                paint: {SiteTheme::muted()}
+                paint: {SiteTheme::muted(self.light_mode)}
                 material: {Material::unlit()}
             }/>
         }
         if self.kind == "desktop" {
             <Rectangle x=-5% y={100% - 2px} width=110% height=10px corner_radius=[1, 1, 8, 8] fill={
-                paint: rgb(74, 74, 74)
+                paint: {self.light_mode ? rgb(178, 181, 184) : rgb(74, 74, 74)}
                 material: {Material::unlit()}
             }/>
             <Rectangle x=40% y={100% - 2px} width=20% height=3px corner_radius=2 fill={
-                paint: rgb(24, 24, 24)
+                paint: {self.light_mode ? rgb(130, 133, 137) : rgb(24, 24, 24)}
                 material: {Material::unlit()}
             }/>
         }
         <Rectangle x=4px y=4px width={100% - 8px} height={100% - 8px} corner_radius={self.kind == "phone" ? 39 : 20} fill={
-            paint: {SiteTheme::ink()}
+            paint: {self.light_mode ? rgb(215, 217, 219) : SiteTheme::ink(false)}
             material: {Material::unlit()}
         }
             stroke={
                 material: {Material::unlit()}
-                paint: rgb(70, 70, 70)
+                paint: {self.light_mode ? rgb(236, 237, 238) : rgb(70, 70, 70)}
                 width: 1px
             }/>
         <Rectangle width=100% height=100% corner_radius={self.kind == "phone" ? 43 : 24} fill={
-            paint: rgb(38, 38, 38)
+            paint: {self.light_mode ? rgb(190, 193, 196) : rgb(38, 38, 38)}
             material: {Material::unlit()}
         }
             stroke={

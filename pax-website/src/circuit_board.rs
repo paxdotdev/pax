@@ -40,6 +40,7 @@ pub struct CircuitSignal {
 #[pax]
 #[file("circuit_board.pax")]
 pub struct CircuitBoard {
+    pub light_mode: Property<bool>,
     pub compact: Property<bool>,
     pub board_width: Property<f64>,
     pub board_height: Property<f64>,

@@ -3,28 +3,28 @@
     if self.compact_sources && self.hero_source_open {
         <MobileSourceSheet width=100% height=100% y=0px anchor_y=0px mounted_count=bind:self.source_sheets_mounted>
             <ExampleSourceViewer width=100% height=100% title="Build user interfaces" sources={self.hero_sources} open=bind:self.hero_source_open
-                selected_source=bind:self.hero_source_selected source_light_mode=bind:self.source_light/>
+                selected_source=bind:self.hero_source_selected show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode}/>
         </MobileSourceSheet>
     }
     ///#ignore
     if self.compact_sources && self.runtime_source_open {
         <MobileSourceSheet width=100% height=100% y=0px anchor_y=0px mounted_count=bind:self.source_sheets_mounted>
             <ExampleSourceViewer width=100% height=100% title="Paxflix" sources={self.runtime_sources} open=bind:self.runtime_source_open
-                selected_source=bind:self.runtime_source_selected source_light_mode=bind:self.source_light/>
+                selected_source=bind:self.runtime_source_selected show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode}/>
         </MobileSourceSheet>
     }
     ///#ignore
     if self.authoring_source_open {
         <MobileSourceSheet width=100% height=100% y=0px anchor_y=0px mounted_count=bind:self.source_sheets_mounted>
             <ExampleSourceViewer width=100% height=100% title="Increment Cube" sources={self.authoring_sources} open=bind:self.authoring_source_open
-                selected_source=bind:self.authoring_source_selected source_light_mode=bind:self.source_light/>
+                selected_source=bind:self.authoring_source_selected show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode}/>
         </MobileSourceSheet>
     }
     ///#ignore
     if self.compact_sources && self.modularity_source_open {
         <MobileSourceSheet width=100% height=100% y=0px anchor_y=0px mounted_count=bind:self.source_sheets_mounted>
             <ExampleSourceViewer width=100% height=100% title="Plug, Extend, and Play" sources={self.modularity_sources} open=bind:self.modularity_source_open
-                selected_source=bind:self.modularity_source_selected source_light_mode=bind:self.source_light/>
+                selected_source=bind:self.modularity_source_selected show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode}/>
         </MobileSourceSheet>
     }
     ///#ignore
@@ -32,7 +32,7 @@
         <MobileSourceSheet width=100% height=100% y=0px anchor_y=0px mounted_count=bind:self.source_sheets_mounted>
             <ExampleSourceViewer width=100% height=100% title="Simple meets powerful" sources={self.feature_gallery_sources}
                 open=bind:self.gallery_source_open selected_source=bind:self.gallery_source_selected
-                source_light_mode=bind:self.source_light/>
+                show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode}/>
         </MobileSourceSheet>
     }
     ///#ignore
@@ -40,14 +40,14 @@
         <MobileSourceSheet width=100% height=100% y=0px anchor_y=0px mounted_count=bind:self.source_sheets_mounted>
             <ExampleSourceViewer width=100% height=100% title="A love letter to the pixel" sources={self.open_source_sources}
                 open=bind:self.open_source_source_open selected_source=bind:self.open_source_source_selected
-                source_light_mode=bind:self.source_light/>
+                show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode}/>
         </MobileSourceSheet>
     }
     ///#ignore
     if self.compact_sources && self.resource_source_open {
         <MobileSourceSheet width=100% height=100% y=0px anchor_y=0px mounted_count=bind:self.source_sheets_mounted>
             <ExampleSourceViewer width=100% height=100% title="Get started" sources={self.resource_sources} open=bind:self.resource_source_open
-                selected_source=bind:self.resource_source_selected source_light_mode=bind:self.source_light/>
+                selected_source=bind:self.resource_source_selected show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode}/>
         </MobileSourceSheet>
     }
     ///#ignore
@@ -58,39 +58,39 @@
         <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=0px>
             <ExampleHost width=100% height={(self.hero_span)px} title="Build user interfaces" sources={self.hero_sources}
                 drawer_open=bind:self.hero_source_open inline_source_viewer={!self.compact_sources}
-                selected_source=bind:self.hero_source_selected source_light_mode=bind:self.source_light>
-                <HeroSection content_height=bind:self.hero_height scroll_y=bind:self.scroll_y radiance_enabled=true
+                selected_source=bind:self.hero_source_selected show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode}>
+                <HeroSection light_mode=bind:self.light_mode content_height=bind:self.hero_height headline_cap_top=bind:self.headline_cap_top scroll_y=bind:self.scroll_y radiance_enabled=true
                     exit_progress={self.hero_exit}/>
             </ExampleHost>
-            <AuthoringSection width=100% height={(self.authoring_span)px} content_height=bind:self.authoring_height
-                sources={self.authoring_sources} selected_source=bind:self.authoring_source_selected source_light=bind:self.source_light
+            <AuthoringSection light_mode={self.light_mode} width=100% height={(self.authoring_span)px} content_height=bind:self.authoring_height
+                sources={self.authoring_sources} selected_source=bind:self.authoring_source_selected
                 source_open=bind:self.authoring_source_open/>
             <ExampleHost width=100% height={(self.runtime_span)px} title="Paxflix" sources={self.runtime_sources}
                 drawer_open=bind:self.runtime_source_open inline_source_viewer={!self.compact_sources}
-                selected_source=bind:self.runtime_source_selected source_light_mode=bind:self.source_light>
-                <RuntimeSection content_height=bind:self.runtime_height scene_progress={self.runtime_progress}/>
+                selected_source=bind:self.runtime_source_selected show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode}>
+                <RuntimeSection light_mode=bind:self.light_mode content_height=bind:self.runtime_height scene_progress={self.runtime_progress}/>
             </ExampleHost>
             <ExampleHost width=100% height={(Math::max(760, self.gallery_height))px} title="Simple meets powerful"
                 sources={self.feature_gallery_sources} drawer_open=bind:self.gallery_source_open
                 inline_source_viewer={!self.compact_sources} selected_source=bind:self.gallery_source_selected
-                source_light_mode=bind:self.source_light>
-                <FeatureGallery content_height=bind:self.gallery_height outer_scroll_y={self.scroll_y}/>
+                show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode}>
+                <FeatureGallery light_mode={self.light_mode} content_height=bind:self.gallery_height outer_scroll_y={self.scroll_y}/>
             </ExampleHost>
             <ExampleHost width=100% height={(Math::max(400, self.modularity_height))px} title="Plug, Extend, and Play" sources={self.modularity_sources}
                 drawer_open=bind:self.modularity_source_open inline_source_viewer={!self.compact_sources}
-                selected_source=bind:self.modularity_source_selected source_light_mode=bind:self.source_light>
-                <ModularitySection content_height=bind:self.modularity_height/>
+                selected_source=bind:self.modularity_source_selected show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode}>
+                <ModularitySection light_mode={self.light_mode} content_height=bind:self.modularity_height/>
             </ExampleHost>
             <ExampleHost width=100% height={(Math::max(400, self.open_source_height))px} title="A love letter to the pixel"
                 sources={self.open_source_sources} drawer_open=bind:self.open_source_source_open
                 inline_source_viewer={!self.compact_sources} selected_source=bind:self.open_source_source_selected
-                source_light_mode=bind:self.source_light>
-                <OpenSourceSection content_height=bind:self.open_source_height/>
+                show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode}>
+                <OpenSourceSection light_mode={self.light_mode} content_height=bind:self.open_source_height/>
             </ExampleHost>
             <ExampleHost width=100% height={(Math::max(400, self.resource_height))px} title="Get started" sources={self.resource_sources}
                 drawer_open=bind:self.resource_source_open inline_source_viewer={!self.compact_sources}
-                selected_source=bind:self.resource_source_selected source_light_mode=bind:self.source_light>
-                <ResourceSection content_height=bind:self.resource_height/>
+                selected_source=bind:self.resource_source_selected show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode}>
+                <ResourceSection light_mode={self.light_mode} content_height=bind:self.resource_height bottom_gap={self.headline_cap_top}/>
             </ExampleHost>
         </Stacker>
     </Scroller>

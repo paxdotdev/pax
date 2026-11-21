@@ -4,11 +4,13 @@ use pax_kit::*;
 #[pax]
 #[file("hero_section.pax")]
 pub struct HeroSection {
+    pub light_mode: Property<bool>,
     pub get_started_height: Property<f64>,
     pub content_height: Property<f64>,
     pub _height_bound: Property<bool>,
     pub compact: Property<bool>,
     pub font_px: Property<f64>,
+    pub headline_cap_top: Property<f64>,
     pub logo_width: Property<f64>,
     pub logo_progress: Property<f64>,
     pub radiance_enabled: Property<bool>,
@@ -63,8 +65,6 @@ impl HeroSection {
                 move || (nav_width.get() * 1.35 / width.get().max(1.0)).min(1.0),
                 &deps,
             ));
-            let scroll_y = self.scroll_y.clone();
-            ctx.subscribe(&[nav.home_request.untyped()], move || scroll_y.set(0.0));
         }
     }
 
@@ -123,12 +123,6 @@ impl HeroSection {
         self._light_last_ms.set(ctx.elapsed_time_millis() as f64);
     }
 
-    pub fn replay_logo(&mut self, ctx: &NodeContext, _: Event<Click>) {
-        self._logo_return_pending.set(false);
-        self.playhead_ms.set(0.0);
-        self._logo_started.set(true);
-        self._light_last_ms.set(ctx.elapsed_time_millis() as f64);
-    }
 
     fn update_logo_return(&mut self, ctx: &NodeContext, now: f64) {
         let docked = self.logo_docked.get();
@@ -178,6 +172,7 @@ impl HeroSection {
         let width = ctx.bounds_self.clone();
         let deps = [width.untyped()];
         let font_px = self.font_px.local();
+        let headline_cap_top = self.headline_cap_top.local();
         let logo_width = self.logo_width.local();
         let vertical_padding = self._vertical_padding.local();
         let update = move || {
@@ -192,7 +187,8 @@ impl HeroSection {
                 width * 0.88 * 0.66
             };
             // Reserve the widest first line (Build eye-catching) for every word.
-            font_px.set_if_neq((text_width / 10.4).clamp(23.0, 90.0));
+            let font_size = (text_width / 10.4).clamp(23.0, 90.0);
+            font_px.set_if_neq(font_size);
             let target_logo_width = if width < 900.0 {
                 // Reserve View Source's 112px width and a 24px gap on the shared top row.
                 ((width - 48.0).min(300.0) * 0.8).min((width - 184.0).max(1.0))
@@ -200,6 +196,13 @@ impl HeroSection {
                 width * 0.88 * 0.28
             };
             logo_width.set_if_neq(target_logo_width);
+            // In the stacked layout the logo and its gutter precede the first line.
+            let above_heading = if width < 900.0 {
+                target_logo_width * 463.95 / 920.72 + 32.0
+            } else {
+                0.0
+            };
+            headline_cap_top.set_if_neq(top_inset + above_heading + font_size * 0.28);
         };
         update();
         ctx.subscribe(&deps, update);

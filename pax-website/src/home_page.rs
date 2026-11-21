@@ -6,6 +6,7 @@ use pax_kit::*;
 #[pax]
 #[file("home_page.pax")]
 pub struct HomePage {
+    pub light_mode: Property<bool>,
     pub scroll_y: Property<f64>,
     pub hero_span: Property<f64>,
     pub authoring_span: Property<f64>,
@@ -18,7 +19,6 @@ pub struct HomePage {
     pub compact_sources: Property<bool>,
     pub hero_source_selected: Property<usize>,
     // All source presentations explicitly share this page-scoped preference.
-    pub source_light: Property<bool>,
     pub runtime_source_open: Property<bool>,
     pub runtime_source_selected: Property<usize>,
     pub authoring_source_open: Property<bool>,
@@ -34,6 +34,7 @@ pub struct HomePage {
     pub resource_source_open: Property<bool>,
     pub resource_source_selected: Property<usize>,
     pub hero_height: Property<f64>,
+    pub headline_cap_top: Property<f64>,
     pub modularity_height: Property<f64>,
     pub runtime_height: Property<f64>,
     pub gallery_height: Property<f64>,
@@ -82,7 +83,17 @@ impl HomePage {
         };
         update_story();
         ctx.subscribe(&deps, update_story);
-        self.source_light.set(true);
+        for (open, section) in [
+            (&self.hero_source_open, "hero"),
+            (&self.runtime_source_open, "paxflix"),
+            (&self.authoring_source_open, "cube"),
+            (&self.modularity_source_open, "modularity"),
+            (&self.gallery_source_open, "toolkit"),
+            (&self.open_source_source_open, "open_source"),
+            (&self.resource_source_open, "footer"),
+        ] {
+            crate::analytics::watch_drawer(ctx, open, section);
+        }
         let bounds = ctx.bounds_self.clone();
         let compact = self.compact_sources.local();
         let overlay_open = self.source_overlay_open.local();

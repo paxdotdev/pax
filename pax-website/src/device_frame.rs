@@ -7,6 +7,7 @@ use pax_kit::*;
 #[pax]
 #[file("device_frame.pax")]
 pub struct DeviceFrame {
+    pub light_mode: Property<bool>,
     /// `phone`, `tablet`, `desktop` (laptop), or `window` (macOS-style title bar).
     pub kind: Property<String>,
     /// Extend phone content to the inner bevel, with island and home indicator overlaid.

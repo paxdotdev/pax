@@ -4,6 +4,7 @@ use pax_kit::*;
 #[pax]
 #[file("feature_gallery/paint_demo.pax")]
 pub struct FeaturePaintDemo {
+    pub light_mode: Property<bool>,
     pub mask: Property<bool>,
     pub progress: Property<f64>,
     pub band_x: Property<f64>,

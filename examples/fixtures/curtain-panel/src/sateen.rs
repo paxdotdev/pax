@@ -10,6 +10,8 @@ use std::rc::Rc;
 #[custom(Default)]
 #[primitive("curtain_panel::sateen::SateenInstance")]
 pub struct Sateen {
+    /// Opaque cloth tint, independent of the lights. Defaults to black sateen.
+    pub body_color: Property<Color>,
     pub phase: Property<f64>,
     /// Average fold pitch in logical pixels.
     pub spacing: Property<f64>,
@@ -23,6 +25,7 @@ pub struct Sateen {
 impl Default for Sateen {
     fn default() -> Self {
         Self {
+            body_color: Property::new(Color::from_hex("131114")),
             phase: Property::new(Self::INITIAL_PHASE),
             spacing: Property::new(187.),
             depth: Property::new(0.21),
@@ -50,6 +53,10 @@ const CLOTH: ShaderPass = ShaderPass {
         float("depth"),
         float("sheen"),
         float("roughness"),
+        ShaderParameter {
+            name: "body_color",
+            ty: ShaderParameterType::Vec4,
+        },
         ShaderParameter {
             name: "extent",
             ty: ShaderParameterType::Vec2,
@@ -99,6 +106,7 @@ impl Sateen {
                 ShaderValue::Float(self.depth.get().clamp(0., 2.) as f32),
                 ShaderValue::Float(self.sheen.get().clamp(0., 1.5) as f32),
                 ShaderValue::Float(self.roughness.get().clamp(0., 1.) as f32),
+                ShaderValue::Vec4(self.body_color.get().to_rgba_0_1().map(|c| c as f32)),
                 ShaderValue::Vec2([w.max(1.) as f32, h.max(1.) as f32]),
             ]);
         }

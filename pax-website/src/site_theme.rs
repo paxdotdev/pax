@@ -5,33 +5,46 @@ use pax_kit::*;
 #[pax]
 #[has_helpers]
 #[file("site_theme.pax")]
-pub struct SiteTheme {}
+pub struct SiteTheme {
+    pub light_mode: Property<bool>,
+}
 
 #[helpers]
 impl SiteTheme {
     /// Monochrome foundation, matching Living Quilt's warm logo and gray tiles.
-    pub fn ink() -> Color {
-        Color::from_hex("11110F")
+    pub fn ink(light: bool) -> Color {
+        Color::from_hex(if light { "FCF9F2" } else { "11110F" })
     }
-    pub fn surface() -> Color {
-        Color::from_hex("191919")
+    pub fn surface(light: bool) -> Color {
+        Color::from_hex(if light { "F1EEE7" } else { "191919" })
     }
-    pub fn raised() -> Color {
-        Color::from_hex("242424")
+    pub fn raised(light: bool) -> Color {
+        Color::from_hex(if light { "E4E1D9" } else { "242424" })
     }
-    pub fn paper() -> Color {
-        Color::from_hex("FCF9F2")
+    pub fn paper(light: bool) -> Color {
+        Color::from_hex(if light { "171715" } else { "FCF9F2" })
     }
-    pub fn muted() -> Color {
-        Color::from_hex("B3B3B3")
+    pub fn muted(light: bool) -> Color {
+        Color::from_hex(if light { "555550" } else { "B3B3B3" })
     }
-    pub fn rule() -> Color {
+    pub fn rule(light: bool) -> Color {
+        if light {
+            return Color::rgba(23.into(), 23.into(), 21.into(), 52.into());
+        }
         Color::rgba(252.into(), 249.into(), 242.into(), 42.into())
     }
 
     /// Neutral action color; chromatic accents belong to contours and proof.
-    pub fn signal() -> Color {
-        Self::paper()
+    pub fn signal(light: bool) -> Color {
+        Self::paper(light)
+    }
+    // Paired face and emission inks: the face carries contrast on ivory; the
+    // brighter tints are reserved for narrow rims, glints and scattered light.
+    pub fn daylight_ink(hue: usize) -> Color {
+        Color::from_hex(["007F9E", "C22181", "A86D00"][hue % 3])
+    }
+    pub fn daylight_light(hue: usize) -> Color {
+        Color::from_hex(["00D8F4", "FF38A6", "FFD129"][hue % 3])
     }
     pub fn cyan() -> Color {
         Color::from_hex("40F3FF")
@@ -91,6 +104,52 @@ impl SiteTheme {
     }
 }
 
+// The Pax property is authoritative while mounted, including changes from Paxflix.
+// Document routes and the blog's independent header restore the same preference.
+pub(crate) fn connect_preference(ctx: &NodeContext, light_mode: &Property<bool>) {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let storage = window.local_storage().ok().flatten();
+        let root = window.document().and_then(|doc| doc.document_element());
+        // Canvas cannot paint the overscroll gutter or Safari's browser backdrop.
+        if let Some(doc) = window
+            .document()
+            .filter(|d| d.get_element_by_id("mount").is_some())
+        {
+            if let (Some(el), Ok(style)) = (&root, doc.create_element("style")) {
+                style.set_text_content(Some("html[data-pax-theme=light], html[data-pax-theme=light] body, html[data-pax-theme=light] #mount { background-color:#fcf9f2; color-scheme:light }"));
+                let _ = el.append_child(&style);
+            }
+        }
+        if let Some(saved) = storage
+            .as_ref()
+            .and_then(|s| s.get_item("pax-site-theme").ok().flatten())
+        {
+            light_mode.set(saved == "light");
+        }
+        let mode = light_mode.local();
+        let update = move || {
+            let value = if mode.get() { "light" } else { "dark" };
+            if let Some(el) = &root {
+                let _ = el.set_attribute("data-pax-theme", value);
+                if el.has_attribute("data-theme") {
+                    let _ = el.set_attribute("data-theme", value);
+                }
+            }
+            if let Some(s) = &storage {
+                let _ = s.set_item("pax-site-theme", value);
+            }
+        };
+        update();
+        ctx.subscribe(&[light_mode.untyped()], update);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = (ctx, light_mode);
+}
+
 fn polished_paint(stops: [(f64, (u8, u8, u8)); 5]) -> Paint {
     Paint::LinearGradient(LinearGradient {
         start: (Size::Percent(0.0.into()), Size::Percent(0.0.into())),
@@ -127,19 +186,28 @@ mod tests {
     }
 
     #[test]
-    fn text_palette_has_readable_contrast_on_dark_surfaces() {
-        for foreground in [
-            SiteTheme::paper(),
-            SiteTheme::muted(),
-            SiteTheme::signal(),
-            SiteTheme::cyan(),
-            SiteTheme::pink(),
-            SiteTheme::violet(),
-        ] {
-            for background in [SiteTheme::ink(), SiteTheme::surface(), SiteTheme::raised()] {
-                let contrast =
-                    (luminance(foreground.clone()) + 0.05) / (luminance(background) + 0.05);
-                assert!(contrast >= 4.5, "text contrast was {contrast:.2}:1");
+    fn daylight_letter_faces_contrast_with_ivory_and_curtain_folds() {
+        for hue in 0..3 {
+            let ink = luminance(SiteTheme::daylight_ink(hue));
+            assert!(luminance(SiteTheme::daylight_light(hue)) > ink);
+            for surface in [SiteTheme::ink(true), Color::from_hex("DFDCD6")] {
+                assert!((luminance(surface) + 0.05) / (ink + 0.05) >= 3.0);
+            }
+        }
+    }
+
+    #[test]
+    fn text_palette_has_readable_contrast_in_both_modes() {
+        for light in [false, true] {
+            for foreground in [SiteTheme::paper(light), SiteTheme::muted(light)] {
+                for background in [
+                    SiteTheme::ink(light),
+                    SiteTheme::surface(light),
+                    SiteTheme::raised(light),
+                ] {
+                    let (a, b) = (luminance(foreground.clone()), luminance(background));
+                    assert!((a.max(b) + 0.05) / (a.min(b) + 0.05) >= 4.5);
+                }
             }
         }
     }

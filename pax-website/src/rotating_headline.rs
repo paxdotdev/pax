@@ -24,6 +24,7 @@ const FROST_LIGHT_SWEEP_MS: f64 = 2200.0;
 #[file("rotating_headline.pax")]
 #[has_helpers]
 pub struct RotatingHeadline {
+    pub light_mode: Property<bool>,
     pub font_px: Property<f64>,
     pub playing: Property<bool>,
     pub word: Property<String>,
@@ -54,7 +55,12 @@ pub struct RotatingHeadline {
 impl RotatingHeadline {
     pub fn mount(&mut self, ctx: &NodeContext) {
         self._last_ms.set(ctx.elapsed_time_millis() as f64);
-        self.mesh_rows.set(mesh_rows(0.0));
+        let phase = self._gradient_ms.local();
+        let light = self.light_mode.local();
+        let deps = [phase.untyped(), light.untyped()];
+        self.mesh_rows.replace_with(LocalProperty::computed(
+            move || mesh_rows(phase.get(), light.get()), &deps,
+        ));
         let runs = crate::hero_outlines::hero_runs();
         self.baseline.set(runs[0].baseline);
         self.cap_height.set(runs[0].cap_height);
@@ -129,7 +135,6 @@ impl RotatingHeadline {
         );
         if next_gradient_ms != previous_gradient_ms {
             self._gradient_ms.set(next_gradient_ms);
-            self.mesh_rows.set(mesh_rows(next_gradient_ms));
         }
         self._creative_ms.set_if_neq(creative_time(
             self._creative_ms.get(),
@@ -193,7 +198,21 @@ impl RotatingHeadline {
         0.24 + (index as f64 * 0.61803398875).fract() * 1.04
     }
 
-    pub fn pigment_color(index: usize, alpha: f64) -> Color {
+    pub fn glint_color(x: f64, width: f64) -> Color {
+        // One moving key; violet and coral bridges avoid gray between primaries.
+        let stops = ["00D8F4", "7C56FF", "FF279F", "FF6249", "FFD129"];
+        let t = (x / width.max(0.01)).clamp(0.0, 1.0) * 4.0;
+        let i = (t as usize).min(3);
+        let a = Color::from_hex(stops[i]).to_rgba_0_1();
+        let b = Color::from_hex(stops[i + 1]).to_rgba_0_1();
+        Color::from_rgba_0_1(std::array::from_fn(|k| a[k] + (b[k] - a[k]) * (t - i as f64)))
+    }
+
+    pub fn pigment_color(index: usize, alpha: f64, light_mode: bool) -> Color {
+        if light_mode {
+            let [r, g, b, _] = SiteTheme::daylight_ink(index).to_rgba_0_1();
+            return Color::from_rgba_0_1([r, g, b, alpha]);
+        }
         let [r, g, b] = match index % 3 {
             0 => [0.0, 0.92, 1.0],
             1 => [1.0, 0.04, 0.80],
@@ -276,8 +295,10 @@ fn mesh_positions(time: f64) -> [[[f64; 2]; 3]; 3] {
     ]
 }
 
-fn mesh_rows(time: f64) -> Vec<Vec<MeshPoint>> {
+fn mesh_rows(time: f64, light: bool) -> Vec<Vec<MeshPoint>> {
     let colors = [Color::CYAN, Color::FUCHSIA, Color::YELLOW];
+    let daylight = [SiteTheme::daylight_ink(0), Color::from_hex("6649C7"),
+        SiteTheme::daylight_ink(1), Color::from_hex("D74A42"), SiteTheme::daylight_ink(2)];
     mesh_positions(time)
         .into_iter()
         .enumerate()
@@ -287,7 +308,7 @@ fn mesh_rows(time: f64) -> Vec<Vec<MeshPoint>> {
                 .enumerate()
                 .map(|(column, [x, y])| MeshPoint {
                     position: (Size::Percent(x.into()), Size::Percent(y.into())),
-                    color: colors[(column + row * 2) % colors.len()].clone(),
+                    color: if light { daylight[row + column].clone() } else { colors[(column + row * 2) % colors.len()].clone() },
                 })
                 .collect()
         })
@@ -468,7 +489,7 @@ mod tests {
                 }
             }
         }
-        let rows = mesh_rows(0.0);
+        let rows = mesh_rows(0.0, false);
         assert_eq!(rows.len(), 3);
         assert!(rows.iter().all(|row| row.len() == 3));
         assert_eq!(rows[0][0].color, Color::CYAN);
