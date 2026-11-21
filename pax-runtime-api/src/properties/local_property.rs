@@ -253,6 +253,12 @@ impl<T: PropertyValue> LocalProperty<T> {
         })
     }
 
+    /// Replaces the current binding with a literal while preserving this slot and its subscribers.
+    #[doc(hidden)]
+    pub fn replace_with_literal(&self, value: T, name: Option<&str>) {
+        self.install_binding(value, PropertyType::Literal, &[], name);
+    }
+
     /// Installs a fresh engine computation directly into this slot, preserving its subscribers.
     #[doc(hidden)]
     pub fn replace_with_computed(
@@ -261,7 +267,12 @@ impl<T: PropertyValue> LocalProperty<T> {
         dependencies: &[UntypedProperty],
         name: Option<&str>,
     ) {
-        self.install_computation(PropertyType::computed(evaluator, None), dependencies, name);
+        self.install_binding(
+            T::default(),
+            PropertyType::computed(evaluator, None),
+            dependencies,
+            name,
+        );
     }
 
     /// Installs a fresh cutoff computation with the ordinary eager replacement semantics.
@@ -273,21 +284,23 @@ impl<T: PropertyValue> LocalProperty<T> {
         cutoff: impl Fn(&T, &T) -> bool + 'static,
         name: &str,
     ) {
-        self.install_computation(
+        self.install_binding(
+            T::default(),
             PropertyType::computed(evaluator, Some(Rc::new(cutoff))),
             dependencies,
             Some(name),
         );
     }
 
-    fn install_computation(
+    fn install_binding(
         &self,
-        computation: PropertyType<T>,
+        value: T,
+        binding: PropertyType<T>,
         dependencies: &[UntypedProperty],
         name: Option<&str>,
     ) {
         PROPERTY_TABLE.with(|table| {
-            table.install_computation(self.untyped.id, computation, dependencies, name)
+            table.install_binding(self.untyped.id, value, binding, dependencies, name)
         });
     }
 

@@ -70,7 +70,7 @@ fn received_children_signature(
 }
 
 use crate::api::{
-    Accel, Axis, ButtonClick, CheckboxChange, Click, CommonProperties, ContextMenu, DoubleClick,
+    Accel, ButtonClick, CheckboxChange, Click, CommonProperties, ContextMenu, DoubleClick,
     Drop, Event, Gyro, KeyDown, KeyPress, KeyUp, LayoutRole, MouseCancel, MouseDown, MouseMove,
     MouseOut, MouseOver, MouseUp, NodeContext, PhotoPickerChange, RenderContext, Scroll, Size,
     SliderChange, TextboxChange, TextboxInput, TouchCancel, TouchEnd, TouchMove, TouchStart, Wheel,
@@ -1679,13 +1679,32 @@ impl ExpandedNode {
         context.flight_children(self, self.logical_children(context))
     }
 
+    // Occlusion owns the coverage records while it walks. Resolving reactive
+    // children here could unmount a branch and re-enter those same records.
+    pub(crate) fn mounted_presentation_children(
+        &self,
+        context: &RuntimeContext,
+    ) -> Vec<Rc<ExpandedNode>> {
+        let children = context.placed_children_with(
+            self,
+            self.mounted_presentation_candidates(),
+            Self::mounted_presentation_children,
+        );
+        context.flight_children(self, children)
+    }
+
+    fn mounted_presentation_candidates(&self) -> Vec<Rc<ExpandedNode>> {
+        borrow!(self.mounted_children)
+            .iter()
+            .filter(|child| child.attached.get() > 0)
+            .cloned()
+            .collect()
+    }
+
     /// Current destination tree, independent of temporary animation presentation.
     pub(crate) fn logical_children(&self, context: &RuntimeContext) -> Vec<Rc<ExpandedNode>> {
         let children = if context.startup.borrow().is_active() {
-            self.current_attached_children()
-                .into_iter()
-                .filter(|c| c.attached.get() > 0)
-                .collect()
+            self.mounted_presentation_candidates()
         } else {
             self.children.get()
         };
@@ -1942,12 +1961,9 @@ impl ExpandedNode {
 
     fn deactivate_transition_clock(&self) {
         self.transition_playhead
-            .replace_with(LocalProperty::new_with_name(0.0, "transition playhead"));
+            .replace_with_literal(0.0, Some("transition playhead"));
         self.transition_playhead_millis
-            .replace_with(LocalProperty::new_with_name(
-                0.0,
-                "transition playhead millis",
-            ));
+            .replace_with_literal(0.0, Some("transition playhead millis"));
     }
 
     fn start_bound_enter_transitions(
@@ -3224,7 +3240,7 @@ impl ExpandedNode {
                     let Some(node) = weak_self.upgrade() else {
                         return;
                     };
-                    if !node.child_structure_changed(&previous, &context) {
+                    if !node.child_structure_changed(&previous, &node.logical_children(&context)) {
                         return;
                     }
                     #[cfg(test)]
@@ -3288,7 +3304,32 @@ impl ExpandedNode {
     }
 
     fn bind_subtree_layout_hull(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
-        self.rebind_subtree_layout_hull(ctx);
+        let own_sources = Cell::new(None);
+        let refresh = move |node: &Rc<Self>, children: &[Rc<Self>]| {
+            let own_only =
+                children.is_empty() || borrow!(node.instance_node).is_layout_measurement_boundary();
+            // Local bounds and measured size keep their slots through reparenting.
+            // Common properties can acquire new aliases, even with equal values.
+            let sources = own_only.then(|| {
+                let common = node.get_common_properties();
+                let common = borrow!(common);
+                (
+                    children.is_empty(),
+                    [
+                        common.width.untyped().get_id(),
+                        common.height.untyped().get_id(),
+                        common.x.untyped().get_id(),
+                        common.y.untyped().get_id(),
+                    ],
+                )
+            });
+            let previous = own_sources.replace(sources);
+            if sources.is_some() && previous == sources {
+                return;
+            }
+            node.rebind_subtree_layout_hull(children, own_only);
+        };
+        refresh(self, &self.layout_hull_children(ctx));
         let deps = [
             self.children.untyped(),
             self.presentation_children_generation.untyped(),
@@ -3305,8 +3346,15 @@ impl ExpandedNode {
                     #[cfg(test)]
                     node.layout_hull_listener_evaluations
                         .set(node.layout_hull_listener_evaluations.get() + 1);
-                    if node.child_structure_changed(&previous, &context) {
-                        node.rebind_subtree_layout_hull(&context);
+                    let children = node.logical_children(&context);
+                    if node.child_structure_changed(&previous, &children) {
+                        let measured =
+                            if borrow!(node.instance_node).layout_measurement_uses_bounds() {
+                                &[][..]
+                            } else {
+                                &children
+                            };
+                        refresh(&node, measured);
                     }
                 },
                 &deps,
@@ -3321,11 +3369,10 @@ impl ExpandedNode {
     fn child_structure_changed(
         &self,
         previous: &RefCell<Option<ChildStructure>>,
-        context: &RuntimeContext,
+        children: &[Rc<Self>],
     ) -> bool {
-        // Always evaluate first: reconciliation may update data, rescue an exit,
-        // or remove a completed exit even when the source keys are unchanged.
-        let children = self.logical_children(context);
+        // Resolve logical children first so reconciliation can rescue an exit or
+        // update repeat data even when the source keys are unchanged.
         let ids = |children: &[Rc<ExpandedNode>]| {
             children.iter().map(|child| child.id).collect::<Vec<_>>()
         };
@@ -3333,7 +3380,7 @@ impl ExpandedNode {
         // their combined render order is unchanged at the start of an exit.
         let current = ChildStructure {
             binding_generation: self.layout_binding_generation.get(),
-            rendered: ids(&children),
+            rendered: ids(children),
             active: ids(&borrow!(self.active_children)),
             exiting: ids(&borrow!(self.exiting_children)),
         };
@@ -3345,35 +3392,39 @@ impl ExpandedNode {
         true
     }
 
-    #[cfg(test)]
-    pub(crate) fn refresh_layout_hull_for_test(self: &Rc<Self>, context: &RuntimeContext) {
-        self.rebind_subtree_layout_hull(context);
-    }
-
-    fn rebind_subtree_layout_hull(self: &Rc<Self>, context: &RuntimeContext) {
-        #[cfg(test)]
-        self.layout_hull_rebuilds
-            .set(self.layout_hull_rebuilds.get() + 1);
-        let self_transform_and_bounds = self.transform_and_bounds.clone();
-        let layout_properties = self.layout_properties();
-        let common_props = self.get_common_properties();
-        let (width, height, x, y, padding_x, padding_y) = {
-            let common_props = borrow!(common_props);
-            (
-                common_props.width.clone(),
-                common_props.height.clone(),
-                common_props.x.clone(),
-                common_props.y.clone(),
-                common_props.padding_x.clone(),
-                common_props.padding_y.clone(),
-            )
-        };
-        // A flow container owns its measurement. Its provisional child cells
-        // depend on available parent space and are not intrinsic content extents.
-        let children = if borrow!(self.instance_node).layout_measurement_uses_bounds() {
+    // A flow container measures itself. Its provisional cells depend on
+    // available space and cannot contribute intrinsic content extents.
+    fn layout_hull_children(&self, context: &RuntimeContext) -> Vec<Rc<Self>> {
+        if borrow!(self.instance_node).layout_measurement_uses_bounds() {
             Vec::new()
         } else {
             self.logical_children(context)
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn refresh_layout_hull_for_test(self: &Rc<Self>, context: &RuntimeContext) {
+        let children = self.layout_hull_children(context);
+        let own_only =
+            children.is_empty() || borrow!(self.instance_node).is_layout_measurement_boundary();
+        self.rebind_subtree_layout_hull(&children, own_only);
+    }
+
+    fn rebind_subtree_layout_hull(self: &Rc<Self>, children: &[Rc<Self>], own_only: bool) {
+        #[cfg(test)]
+        self.layout_hull_rebuilds
+            .set(self.layout_hull_rebuilds.get() + 1);
+        let common_props = self.get_common_properties();
+        let (width, height, x, y, padding_x, padding_y) = {
+            let common = borrow!(common_props);
+            (
+                common.width.clone(),
+                common.height.clone(),
+                common.x.clone(),
+                common.y.clone(),
+                common.padding_x.clone(),
+                common.padding_y.clone(),
+            )
         };
         let has_children = !children.is_empty();
         let bounds_name = format!("layout bounds (node id: {})", self.id.0);
@@ -3384,46 +3435,48 @@ impl ExpandedNode {
             <(f64, f64)>::eq,
             &bounds_name,
         );
-        let mut own_deps = vec![bounds.untyped()];
-        if has_children {
-            own_deps.extend([width.untyped(), height.untyped(), x.untyped(), y.untyped()]);
-        } else {
-            own_deps.push(layout_properties.untyped());
+        let measured_size = (!has_children).then(|| self.measured_size.clone());
+        let mut own_deps = vec![
+            bounds.untyped(),
+            width.untyped(),
+            height.untyped(),
+            x.untyped(),
+            y.untyped(),
+        ];
+        if let Some(measured) = &measured_size {
+            own_deps.push(measured.untyped());
         }
 
+        let measure_own = move || {
+            let bounds = bounds.get();
+            let measured = measured_size
+                .as_ref()
+                .is_some_and(|size| size.get().is_some());
+            let contributes_x = layout_axis_can_contribute(width.get(), x.get(), measured);
+            let contributes_y = layout_axis_can_contribute(height.get(), y.get(), measured);
+            LayoutHull::from_axis_ranges(
+                contributes_x.then_some((0.0, bounds.0)),
+                contributes_y.then_some((0.0, bounds.1)),
+            )
+        };
         let own_hull_name = format!("own layout hull (node id: {})", self.id.0);
+        // A viewport exports its own size. Its internal content measurement is
+        // independent of the hull used by ancestors.
+        if own_only {
+            self.subtree_layout_hull.replace_with_computed_cutoff(
+                measure_own,
+                &own_deps,
+                crate::layout_hulls_equivalent,
+                &own_hull_name,
+            );
+            return;
+        }
         let own_hull = LocalProperty::computed_with_cutoff_and_name(
-            move || {
-                let bounds = bounds.get();
-                let (contributes_x, contributes_y) = if has_children {
-                    (
-                        layout_axis_can_contribute_from_parts(width.get(), x.get()),
-                        layout_axis_can_contribute_from_parts(height.get(), y.get()),
-                    )
-                } else {
-                    let layout_properties = layout_properties.get();
-                    (
-                        layout_axis_can_contribute(&layout_properties, Axis::X),
-                        layout_axis_can_contribute(&layout_properties, Axis::Y),
-                    )
-                };
-                LayoutHull::from_axis_ranges(
-                    contributes_x.then_some((0.0, bounds.0)),
-                    contributes_y.then_some((0.0, bounds.1)),
-                )
-            },
+            measure_own,
             &own_deps,
             crate::layout_hulls_equivalent,
             &own_hull_name,
         );
-
-        // A viewport exports its own layout size, not its scrollable content.
-        // Keep internal content measurement separate from the ancestor hull;
-        // consulting render clips here would couple layout to presentation.
-        if !has_children || borrow!(self.instance_node).is_layout_measurement_boundary() {
-            self.subtree_layout_hull.replace_with(own_hull);
-            return;
-        }
 
         let mut projected_child_hulls = Vec::with_capacity(children.len());
         for child in children.iter() {
@@ -3434,7 +3487,7 @@ impl ExpandedNode {
                 self.id.0, child.id.0
             );
             projected_child_hulls.push(crate::projected_child_layout_hull_property(
-                self_transform_and_bounds.clone(),
+                self.transform_and_bounds.clone(),
                 padding_x.clone(),
                 padding_y.clone(),
                 child.transform_and_bounds.clone(),
@@ -3855,9 +3908,10 @@ impl ExpandedNode {
             // Needed because occlusion updates are only sent on diffs so we reset it when unmounting
             self.occlusion.set(Default::default());
             self.browser_content_layer_id.set(None);
-            self.changed_listener.replace_with(LocalProperty::default());
+            self.changed_listener
+                .replace_with_literal(Default::default(), None);
             self.selector_classes_listener
-                .replace_with(LocalProperty::default());
+                .replace_with_literal(Default::default(), None);
             borrow_mut!(self.subscriptions).clear();
             borrow_mut!(self.active_children).clear();
             borrow_mut!(self.exiting_children).clear();
@@ -3870,7 +3924,7 @@ impl ExpandedNode {
             if let Some((observer, dependencies)) =
                 self.imported_settings_observer.borrow_mut().as_mut()
             {
-                observer.replace_with(LocalProperty::default());
+                observer.replace_with_literal(Default::default(), None);
                 dependencies.clear();
             }
             self.invalidate_settings_source();
@@ -3885,26 +3939,27 @@ impl ExpandedNode {
             self.deactivate_transition_clock();
             self.enter_cleanup_active.set(false);
             self.enter_cleanup_listener
-                .replace_with(LocalProperty::new_with_name((), "enter transition cleanup"));
+                .replace_with_literal((), Some("enter transition cleanup"));
             self.exit_cleanup_active.set(false);
             self.exit_cleanup_listener
-                .replace_with(LocalProperty::default());
+                .replace_with_literal(Default::default(), None);
             self.stores.close();
             // Final unmount releases component-owned state without evaluating
             // bindings against potentially removed repeat items. Remount allocates
             // fresh properties; externally shared handles remain their owner's.
-            self.children.replace_with(LocalProperty::new(Vec::new()));
+            self.children.replace_with_literal(Vec::new(), None);
             self.children_listener
-                .replace_with(LocalProperty::default());
+                .replace_with_literal(Default::default(), None);
             self.occlusion_listener
-                .replace_with(LocalProperty::default());
-            self.input_listener.replace_with(LocalProperty::default());
+                .replace_with_literal(Default::default(), None);
+            self.input_listener
+                .replace_with_literal(Default::default(), None);
             self.subtree_layout_hull_listener
-                .replace_with(LocalProperty::default());
+                .replace_with_literal(Default::default(), None);
             self.content_measurement_listener
-                .replace_with(LocalProperty::default());
+                .replace_with_literal(Default::default(), None);
             self.content_measurement_rebind_listener
-                .replace_with(LocalProperty::default());
+                .replace_with_literal(Default::default(), None);
             self.content_measurement_bound.set(false);
             borrow_mut!(self.sidecar_children).clear();
             borrow_mut!(self.expanded_projected_children).take();
@@ -3914,28 +3969,31 @@ impl ExpandedNode {
             self.flattened_projected_children_count.set(0);
             self.parent_binding_sources.borrow_mut().take();
             self.transform_and_bounds
-                .replace_with(LocalProperty::default());
+                .replace_with_literal(Default::default(), None);
             self.presentation_transform_and_bounds
-                .replace_with(LocalProperty::default());
+                .replace_with_literal(Default::default(), None);
             #[cfg(feature = "3d")]
             {
-                self.support_node.replace_with(LocalProperty::default());
+                self.support_node
+                    .replace_with_literal(Default::default(), None);
                 self.presentation_geometry
-                    .replace_with(LocalProperty::default());
+                    .replace_with_literal(Default::default(), None);
                 self.presentation_view
-                    .replace_with(LocalProperty::default());
-                self.own_camera_view.replace_with(LocalProperty::default());
+                    .replace_with_literal(Default::default(), None);
+                self.own_camera_view
+                    .replace_with_literal(Default::default(), None);
             }
-            self.scroll_state.replace_with(LocalProperty::default());
+            self.scroll_state
+                .replace_with_literal(Default::default(), None);
             self.local_clip_geometry
-                .replace_with(LocalProperty::default());
+                .replace_with_literal(Default::default(), None);
             self.world_clip_geometry
-                .replace_with(LocalProperty::default());
+                .replace_with_literal(Default::default(), None);
             self.local_occlusion_geometry
-                .replace_with(LocalProperty::default());
-            self.computed_opacity.replace_with(LocalProperty::new(1.0));
+                .replace_with_literal(Default::default(), None);
+            self.computed_opacity.replace_with_literal(1.0, None);
             self.subtree_layout_hull
-                .replace_with(LocalProperty::default());
+                .replace_with_literal(Default::default(), None);
             self.measured_size.set(None);
             *borrow_mut!(self.common_properties) =
                 Rc::new(RefCell::new(CommonProperties::default()));
@@ -5146,22 +5204,8 @@ mod import_settings_identity_tests {
     }
 }
 
-fn layout_axis_can_contribute(layout: &LayoutProperties, axis: Axis) -> bool {
-    let size = match axis {
-        Axis::X => layout.width,
-        Axis::Y => layout.height,
-    };
-    let position = match axis {
-        Axis::X => layout.x,
-        Axis::Y => layout.y,
-    };
-
-    size.is_some_and(|size| !size_depends_on_parent(size))
-        && !position.is_some_and(size_depends_on_parent)
-}
-
-fn layout_axis_can_contribute_from_parts(size: Option<Size>, position: Option<Size>) -> bool {
-    size.is_some_and(|size| !size_depends_on_parent(size))
+fn layout_axis_can_contribute(size: Option<Size>, position: Option<Size>, measured: bool) -> bool {
+    size.map_or(measured, |size| !size_depends_on_parent(size))
         && !position.is_some_and(size_depends_on_parent)
 }
 

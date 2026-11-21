@@ -340,8 +340,9 @@ moves beneath them. Both layouts leave a 24-pixel outer inset.
 
 These conditions change settings on the existing nodes. The cards retain
 their identity and state while the window crosses the breakpoint. A
-structural `if` that creates a different subtree has different lifetime
-implications; see
+structural `if` can replace an entire branch when the window crosses the
+breakpoint. Pax computes the paint order of native controls and vectors from
+the mounted branches, including children retained for an exit transition. See
 [Components](components-composition.md#conditional-content).
 
 The threshold belongs to this composition. Choose it from the space the

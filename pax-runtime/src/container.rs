@@ -936,6 +936,39 @@ mod tests {
     }
 
     #[test]
+    fn leaf_hull_survives_attachment_and_follows_replaced_layout_sources() {
+        let leaf = TestDirectNode::instantiate(direct_node_args(Vec::new()));
+        let parent = TestDirectNode::instantiate(direct_node_args(vec![leaf]));
+        let root = ComponentInstance::instantiate(component_args(Some(vec![parent]), None));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
+        let root = ExpandedNode::initialize_root(root, &context);
+        root.recurse_update(&context);
+        let parent = root.children.get()[0].clone();
+        let leaf = parent.children.get()[0].clone();
+        let common = leaf.get_common_properties();
+        let hull = leaf.subtree_layout_hull.clone();
+        let px = |v: i32| Some(Size::Pixels(v.into()));
+        leaf.set_measured_size(21.0, 34.0);
+        assert_eq!(hull.get().x_range(), Some((0.0, 21.0)));
+        common.borrow().x.set(Some(Size::Percent(50.into())));
+        assert_eq!(hull.get().x_range(), None);
+        assert_eq!(hull.get().y_range(), Some((0.0, 34.0)));
+        context.drain_node_effects();
+        assert_eq!(leaf.layout_hull_rebuilds.get(), 1);
+
+        let old_x = common.borrow().x.clone();
+        let new_x = LocalProperty::new(old_x.get());
+        common.borrow_mut().x = new_x.clone();
+        root.attach_children(vec![leaf.clone()], &context, &root.parent_frame);
+        context.drain_node_effects();
+        assert_eq!(leaf.layout_hull_rebuilds.get(), 2);
+        old_x.set(px(0));
+        assert_eq!(hull.get().x_range(), None);
+        new_x.set(px(0));
+        assert_eq!(hull.get().x_range(), Some((0.0, 21.0)));
+    }
+
+    #[test]
     fn toggling_content_autosize_measures_current_children_on_implicit_axes() {
         let leaf = TestDirectNode::instantiate(direct_node_args(Vec::new()));
         let parent = TestDirectNode::instantiate(direct_node_args(vec![leaf]));

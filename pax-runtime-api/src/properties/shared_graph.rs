@@ -73,9 +73,10 @@ impl GraphInbox {
     fn detach(&self, id: u64) {
         let mut state = lock(&self.state);
         state.attached.remove(&id);
-        state.pending.remove(&id);
+        if state.pending.remove(&id) {
+            state.order.retain(|queued| *queued != id);
+        }
         state.retired.remove(&id);
-        state.order.retain(|queued| *queued != id);
     }
 }
 
@@ -824,8 +825,14 @@ impl PropertyGraph {
             .collect();
         for (id, attachment) in retired {
             self.inner.inbox.detach(id);
-            let dormant = attachment.into_dormant();
-            self.inner.dormant.borrow_mut().insert(id, dormant);
+            // Detaching consumes any pending final-owner notification. Only a
+            // surviving shared handle can restore this local on remount.
+            if attachment.live() {
+                let dormant = attachment.into_dormant();
+                self.inner.dormant.borrow_mut().insert(id, dormant);
+            } else {
+                scope.properties.borrow_mut().remove(&id);
+            }
         }
     }
 }
@@ -1053,6 +1060,26 @@ mod retirement_tests {
         assert_eq!(local.get(), 1);
         scope.resume();
         assert!(scope.inner.properties.borrow().is_empty());
+    }
+
+    #[test]
+    fn closing_scope_after_final_shared_drop_preserves_local_without_dormant_binding() {
+        let graph = PropertyGraph::new(|| {});
+        let _graph = graph.enter();
+        let scope = graph.binding_scope();
+        let shared = Property::new(7_u32);
+        let local = {
+            let _scope = scope.enter();
+            shared.local()
+        };
+        std::thread::spawn(move || drop(shared)).join().unwrap();
+        scope.close();
+        graph.collect();
+        assert!(graph.inner.dormant.borrow().is_empty());
+        assert!(!graph.has_pending());
+        scope.resume();
+        assert!(scope.inner.properties.borrow().is_empty());
+        assert_eq!(local.get(), 7);
     }
 
     #[test]

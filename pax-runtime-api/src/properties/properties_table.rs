@@ -584,25 +584,26 @@ impl PropertyTable {
 
     // Only the stable destination enters the dependency lists. Drop the previous
     // evaluator after disconnecting it, just as replacing from an existing slot does.
-    pub(super) fn install_computation<T: PropertyValue>(
+    pub(super) fn install_binding<T: PropertyValue>(
         &self,
         id: PropertyId,
-        computation: PropertyType<T>,
+        value: T,
+        binding: PropertyType<T>,
         dependencies: &[super::UntypedProperty],
         name: Option<&str>,
     ) {
-        let initial = T::default();
+        let literal = matches!(binding, PropertyType::Literal);
         self.disconnect_inbound(id);
         self.with_property_data_mut(id, |data| {
             data.inbound.clear();
             data.inbound.extend(dependencies.iter().map(|p| p.get_id()));
             data.owner_graph = super::shared_graph::current_graph_id();
             data.owner_scope = super::shared_graph::current_binding_scope();
-            data.dirty = true;
-            data.cutoff_settler = computation.cutoff_settler();
+            data.dirty = !literal;
+            data.cutoff_settler = binding.cutoff_settler();
             let typed = data.typed_data::<T>();
-            typed.value = initial;
-            typed.property_type = computation;
+            typed.value = value;
+            typed.property_type = binding;
         });
         self.reconnect_replacement::<T>(id, false);
         #[cfg(debug_assertions)]
@@ -617,6 +618,9 @@ impl PropertyTable {
         self.diagnostic_names.borrow_mut().remove(&id);
         if let Some(name) = name {
             self.set_diagnostic_name(id, name);
+        }
+        if literal {
+            self.publish_stored::<T>(id);
         }
     }
 

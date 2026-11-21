@@ -644,6 +644,35 @@ fn shared_cutoff_outputs_publish_only_accepted_values() {
 }
 
 #[test]
+fn literal_replacement_disconnects_queued_cutoff_and_publishes_synchronously() {
+    let graph = PropertyGraph::new(|| {});
+    let _graph = graph.enter();
+    let input = LocalProperty::new(3_u32);
+    let read = input.clone();
+    let slot =
+        LocalProperty::computed_with_cutoff(move || read.get() % 2, &[input.untyped()], u32::eq);
+    let shared = Property::from_local(slot.clone());
+    assert_eq!(shared.get(), 1);
+    let read = slot.clone();
+    let observed = Rc::new(Cell::new(0));
+    let last = observed.clone();
+    let effect = LocalProperty::computed(move || last.set(read.get()), &[slot.untyped()]);
+    register_effect_property(&effect);
+    drain_effects(100);
+
+    input.set(4);
+    slot.replace_with_literal(17, None);
+    assert_eq!(slot.get(), 17);
+    assert_eq!(shared.get(), 17);
+    drain_effects(100);
+    assert_eq!(observed.get(), 17);
+    input.set(9);
+    drain_effects(100);
+    assert_eq!(slot.get(), 17);
+    assert_eq!(shared.get(), 17);
+}
+
+#[test]
 fn evaluator_keeps_its_graph_when_another_graph_is_entered() {
     let shared = Property::new(1_u32);
     let first = PropertyGraph::new(|| {});

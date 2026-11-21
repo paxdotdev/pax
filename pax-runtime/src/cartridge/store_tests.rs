@@ -190,7 +190,9 @@ fn final_unmount_drops_owned_state_and_remount_expires_saved_contexts() {
     impl Store for LifetimeStore {}
     let (engine, root) = fixture();
     engine.activate_application();
-    let node = mount(&root, &engine, provider(vec![]));
+    let node = mount(&root, &engine, provider(vec![Leaf::instantiate(args())]));
+    let children = node.children.clone();
+    assert_eq!(children.get().len(), 1);
     let old_ctx = node.get_node_context(&engine.runtime_context);
     let old_scope = old_ctx.async_scope().unwrap();
     let old_properties = Rc::downgrade(&node.properties.borrow());
@@ -202,6 +204,7 @@ fn final_unmount_drops_owned_state_and_remount_expires_saved_contexts() {
         .provide_store(LifetimeStore { _token: token })
         .unwrap();
     node.clone().recurse_unmount(&engine.runtime_context);
+    assert!(children.get().is_empty());
     assert!(old_scope.is_closed());
     assert!(weak.upgrade().is_none());
     assert!(old_properties.upgrade().is_none());
@@ -215,6 +218,7 @@ fn final_unmount_drops_owned_state_and_remount_expires_saved_contexts() {
     );
     let closed_ctx = node.get_node_context(&engine.runtime_context);
     node.recurse_mount(&engine.runtime_context);
+    assert_eq!(children.get().len(), 1);
     assert!(matches!(
         old_ctx.async_scope(),
         Err(crate::api::AsyncError::Closed)

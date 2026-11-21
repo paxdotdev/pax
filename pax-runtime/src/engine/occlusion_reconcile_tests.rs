@@ -800,6 +800,94 @@ fn add(parent: &Rc<ExpandedNode>, kind: Kind, ctx: &Rc<RuntimeContext>) -> Rc<Ex
     node
 }
 
+#[test]
+fn occlusion_reads_mounted_branches_while_a_responsive_switch_is_pending() {
+    use crate::properties::input_capture::InputPublisher;
+    use crate::{ConditionalInstance, ConditionalProperties};
+    use pax_runtime_api::{pax_value::ToFromPaxAny, LocalProperty};
+
+    for (full_rebuild, transfer) in [(false, false), (true, false), (false, true), (true, true)] {
+        let wide = LocalProperty::new(true);
+        let condition = wide.clone();
+        let mut conditional = args(vec![
+            probe(Kind::Native, vec![]),
+            probe(Kind::Native, vec![]),
+        ]);
+        conditional.prototypical_properties =
+            PropertiesInit::Factory(Box::new(move |_, existing| {
+                existing.is_none().then(|| {
+                    Rc::new(RefCell::new(
+                        ConditionalProperties {
+                            boolean_expression: condition.clone(),
+                            conditional_branches: vec![condition.clone(), LocalProperty::new(true)],
+                        }
+                        .to_pax_any(),
+                    ))
+                })
+            }));
+        let (ctx, root) = mount(vec![
+            probe(Kind::Canvas, vec![]),
+            ConditionalInstance::instantiate_with_branch_child_ranges(
+                conditional,
+                vec![0..1, 1..2],
+            ),
+        ]);
+        ctx.register_root_expanded_node(&root);
+        let group = root.children.get()[0].clone();
+        let branch = group.children.get()[1].clone();
+        if transfer {
+            // Incoming placements flatten the conditional while traversing the group.
+            let canvas = group.children.get()[0].clone();
+            crate::NodeRef::new(&canvas, &ctx)
+                .move_to_append_child(&crate::NodeRef::new(&group, &ctx))
+                .unwrap();
+        }
+        settle_occlusion_effects(&root, &ctx);
+        let old = branch.children.get()[0].clone();
+        let mut publisher = InputPublisher::default();
+        let hits = |view: &crate::properties::input_capture::CapturedInputView, id: u32| {
+            view.hit_targets((8., 8.).into(), &HashMap::new(), true)
+                .unwrap()
+                .iter()
+                .any(|hit| hit.identity.id == id)
+        };
+        let displayed = publisher.capture(&ctx).unwrap();
+        assert!(hits(&displayed, old.id.to_u32()));
+
+        wide.set(false);
+        if full_rebuild {
+            ctx.occlusion_state.borrow_mut().records.clear();
+        }
+        ctx.mark_occlusion_dirty_for_node(branch.id.to_u32());
+        update_node_occlusion(&root, &ctx);
+        assert!(ctx
+            .occlusion_state
+            .borrow()
+            .records
+            .contains_key(&old.id.to_u32()));
+        if transfer {
+            // A synchronous logical query through the same placement resolves
+            // the pending switch as soon as the caller asks for the new tree.
+            let logical = group.logical_children(&ctx);
+            assert!(!logical.iter().any(|node| node.id == old.id));
+            assert!(logical.iter().any(|node| node.id == branch.children.get()[0].id));
+        }
+        settle_occlusion_effects(&root, &ctx);
+        let new = branch.children.get()[0].clone();
+        assert_ne!(new.id, old.id);
+        {
+            let state = ctx.occlusion_state.borrow();
+            assert!(!state.records.contains_key(&old.id.to_u32()));
+            assert!(state.records.contains_key(&new.id.to_u32()));
+        }
+        let next = publisher.capture(&ctx).unwrap();
+        assert!(hits(&displayed, old.id.to_u32()));
+        assert!(!hits(&next, old.id.to_u32()));
+        assert!(hits(&next, new.id.to_u32()));
+        assert_full_rebuild_matches(&root, &ctx);
+    }
+}
+
 fn assert_full_rebuild_matches(root: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
     let membership = |state: &OcclusionState| {
         let pairs = |map: &HashMap<u32, Vec<u32>>| {

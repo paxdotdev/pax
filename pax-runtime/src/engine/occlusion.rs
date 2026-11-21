@@ -1230,7 +1230,7 @@ fn try_reconcile_structure(
                 },
             ));
         }
-        for child in node.presentation_children(ctx).iter().rev() {
+        for child in node.mounted_presentation_children(ctx).iter().rev() {
             // Escaping branches use the existing full traversal, even when only
             // their siblings changed. Their mixed presentation domains are not
             // represented by this bounded reconciliation's clip lineage.
@@ -2777,7 +2777,7 @@ fn update_node_occlusion_recursive(
         state.topology.order.push((node.id.to_u32(), new_occlusion));
     }
 
-    for child in node.presentation_children(ctx).iter().rev() {
+    for child in node.mounted_presentation_children(ctx).iter().rev() {
         let cp = child.get_common_properties();
         let cp = borrow!(cp);
         let unclippable = cp.unclippable.get().unwrap_or(false);

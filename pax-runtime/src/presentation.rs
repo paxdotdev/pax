@@ -464,6 +464,15 @@ impl RuntimeContext {
         parent: &ExpandedNode,
         children: Vec<Rc<ExpandedNode>>,
     ) -> Vec<Rc<ExpandedNode>> {
+        self.placed_children_with(parent, children, ExpandedNode::presentation_children)
+    }
+
+    pub(crate) fn placed_children_with(
+        &self,
+        parent: &ExpandedNode,
+        children: Vec<Rc<ExpandedNode>>,
+        descend: fn(&ExpandedNode, &RuntimeContext) -> Vec<Rc<ExpandedNode>>,
+    ) -> Vec<Rc<ExpandedNode>> {
         let state = self.presentation.borrow();
         if state.placements.is_empty() && state.overlays.is_empty() {
             return children;
@@ -498,7 +507,7 @@ impl RuntimeContext {
         let mut result = Vec::new();
         for child in children {
             if crate::node_query::transparent(&child) {
-                flatten_presentation_children(&child, self, &mut result);
+                flatten_presentation_children(&child, self, descend, &mut result);
             } else {
                 result.push(child);
             }
@@ -768,11 +777,12 @@ fn collect_overlays(node: &ExpandedNode, result: &mut Vec<Rc<ExpandedNode>>) {
 fn flatten_presentation_children(
     node: &ExpandedNode,
     context: &RuntimeContext,
+    descend: fn(&ExpandedNode, &RuntimeContext) -> Vec<Rc<ExpandedNode>>,
     result: &mut Vec<Rc<ExpandedNode>>,
 ) {
-    for child in node.presentation_children(context) {
+    for child in descend(node, context) {
         if crate::node_query::transparent(&child) {
-            flatten_presentation_children(&child, context, result);
+            flatten_presentation_children(&child, context, descend, result);
         } else {
             result.push(child);
         }
