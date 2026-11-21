@@ -378,7 +378,11 @@ a hero show the static `NavLogo`. The hero logo replays on a scroll
 return from the nav. A return holds the intro's initial pose during the portal
 trip, then replays the full unfurl and lighting sequence once the hero home is
 reached. Departures into the nav and source-drawer hiding do not trigger the
-intro; reversing an unfinished return cancels it. Clicking the hero or nav logo switches appearance without moving the page. The nav twin uses the completed logo and the
+intro; reversing an unfinished return cancels it. Switching appearance keeps the page in place
+and holds the current hero pose while the new palette paints. After 100 ms of stable frames
+(or 900 ms on a persistently slow device), the logo unfurls, the curtain light sweeps, and
+the headline writes “creative” again. A switch from the docked nav or embedded Paxflix
+waits until the hero is back in view; repeated switches queue only one replay. The nav twin uses the completed logo and the
 same slow 12-second Radiance sweep as the hero, without replaying its intro.
 It samples the runtime clock independently of the offscreen hero's paused
 playhead; its light updates run only while the nav twin is entering, docked, or

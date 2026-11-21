@@ -17,6 +17,9 @@ test('logo, source viewer, document routes and Paxflix share one preference', as
         await go('/?pax_renderer=cpu');
         await mode('dark');
         await page.waitForSelector('[data-pax-loading="active"]', {timeout: 120000});
+        const word = text => page.locator('.native-leaf').filter({hasText: new RegExp('^' + text + '$')}).first();
+        // Native normally advances to portable, not back to creative.
+        await word('native').waitFor({state: 'visible', timeout: 30000});
         // The second, docked logo is offscreen at the top.
         const logos = button('Switch to light mode');
         const hero = logos.filter({visible: true});
@@ -28,6 +31,7 @@ test('logo, source viewer, document routes and Paxflix share one preference', as
             }
         }
         await mode('light');
+        await word('creative').waitFor({state: 'visible', timeout: 5000});
         await button('VIEW SOURCE').first().click();
         await button('×').first().waitFor();
         assert.equal(await page.getByRole('button', {name: /Solarized/}).count(), 0);

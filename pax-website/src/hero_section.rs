@@ -30,8 +30,11 @@ pub struct HeroSection {
     pub portal_scale: Property<f64>,
     pub _last_ms: Property<f64>,
     pub _last_content_height: Property<f64>,
-    pub _startup_quiet_ms: Property<f64>,
-    pub _startup_deadline_ms: Property<f64>,
+    pub theme_replay_pending: Property<bool>,
+    #[pax(rust)]
+    pub last_light_mode: bool,
+    #[pax(rust)]
+    pub settle: FrameSettle,
     pub _logo_started: Property<bool>,
     pub _logo_was_docked: Property<bool>,
     pub _logo_return_pending: Property<bool>,
@@ -46,7 +49,8 @@ impl HeroSection {
         self._light_last_ms.set(now);
         self.logo_visible.set(true);
         self._last_content_height.set(self.content_height.get());
-        self._startup_deadline_ms.set(now + 5000.0);
+        self.last_light_mode = self.light_mode.get();
+        self.settle = FrameSettle::default();
         self._height_bound.set(false);
         self.bind_layout(ctx);
         if let Ok(present) = ctx.with_store(|nav: &mut LogoNavigation| nav.hero_present.clone()) {
@@ -87,19 +91,28 @@ impl HeroSection {
         let now = ctx.elapsed_time_millis() as f64;
         let elapsed = (now - self._last_ms.get()).max(0.0);
         self._last_ms.set(now);
+        let light = self.light_mode.get();
+        if light != self.last_light_mode {
+            self.last_light_mode = light;
+            // Paint the new palette on the current pose; rewind only when ready.
+            self.theme_replay_pending.set_if_neq(true);
+            self._logo_started.set_if_neq(false);
+            self.settle = FrameSettle::default();
+        }
         self.update_logo_return(ctx, now);
         if !self._logo_started.get() {
-            // Start on a settled run of frames, after expensive tree/layout work,
-            // instead of advancing the reveal in steps during blocked frames.
-            let quiet = if elapsed <= 40.0 && (previous_height - height).abs() < 0.5 {
-                self._startup_quiet_ms.get() + elapsed
-            } else {
-                0.0
-            };
-            self._startup_quiet_ms.set(quiet);
-            // A persistently low frame rate must not suppress the logo forever.
-            if quiet < 100.0 && now < self._startup_deadline_ms.get() {
+            let replay = self.theme_replay_pending.get();
+            if replay && (!self.logo_visible.get() || self.logo_docked.get() || self.portal_departure.get() > 0.0) {
+                // A switch from the nav or Paxflix must not spend the intro offscreen.
+                self.settle = FrameSettle::default();
                 return;
+            }
+            if !self.settle.ready(now, elapsed, height - previous_height, if replay { 900.0 } else { 5000.0 }) {
+                return;
+            }
+            if replay {
+                self.playhead_ms.set(0.0);
+                self.theme_replay_pending.set(false);
             }
             self._logo_started.set(true);
             self._light_last_ms.set(now);
@@ -152,9 +165,11 @@ impl HeroSection {
             }
             LogoReturnAction::Replay => {
                 self._logo_return_pending.set(false);
-                self.playhead_ms.set(0.0);
-                self._logo_started.set(true);
-                self._light_last_ms.set(now);
+                if !self.theme_replay_pending.get() {
+                    self.playhead_ms.set(0.0);
+                    self._logo_started.set(true);
+                    self._light_last_ms.set(now);
+                }
             }
             LogoReturnAction::Cancel => {
                 // A reversal or source drawer interruption must not launch a
@@ -270,6 +285,27 @@ impl HeroSection {
     }
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct FrameSettle {
+    started: Option<f64>,
+    quiet_ms: f64,
+}
+
+impl FrameSettle {
+    fn ready(&mut self, now: f64, dt: f64, height_change: f64, max_wait: f64) -> bool {
+        let Some(started) = self.started else {
+            self.started = Some(now);
+            return false; // This frame's interval predates the theme change.
+        };
+        self.quiet_ms = if dt <= 40.0 && height_change.abs() < 0.5 {
+            self.quiet_ms + dt
+        } else {
+            0.0
+        };
+        self.quiet_ms >= 100.0 || now - started >= max_wait
+    }
+}
+
 fn should_dock(home_top: f64, nav_bottom: f64, docked: bool) -> bool {
     home_top.is_finite()
         && nav_bottom.is_finite()
@@ -309,6 +345,34 @@ fn logo_return_action(
 #[cfg(test)]
 mod portal_tests {
     use super::*;
+
+    #[test]
+    fn replay_waits_for_settled_frames_after_the_switch() {
+        let mut window = FrameSettle::default();
+        let mut now = 1000.0;
+        let mut frame = |dt: f64, reflow: f64| {
+            now += dt;
+            window.ready(now, dt, reflow, 900.0)
+        };
+        assert!(!frame(500.0, 0.0)); // the pre-switch interval does not count
+        assert!(!frame(35.0, 0.0));
+        assert!(!frame(35.0, 0.0));
+        assert!(!frame(70.0, 0.0)); // painting the new theme dropped a frame
+        assert!(!frame(35.0, 0.0));
+        assert!(!frame(35.0, 1.0)); // layout is still settling
+        assert!(!frame(35.0, 0.0));
+        assert!(!frame(35.0, 0.0));
+        assert!(frame(30.0, 0.0));
+    }
+
+    #[test]
+    fn persistently_slow_frames_do_not_suppress_the_replay() {
+        let mut window = FrameSettle::default();
+        for i in 0..9 {
+            assert!(!window.ready(7000.0 + i as f64 * 100.0, 100.0, 0.0, 900.0));
+        }
+        assert!(window.ready(7900.0, 100.0, 0.0, 900.0));
+    }
 
     #[test]
     fn compact_home_overlapping_nav_can_depart_and_return() {

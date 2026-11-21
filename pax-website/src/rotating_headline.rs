@@ -27,6 +27,9 @@ pub struct RotatingHeadline {
     pub light_mode: Property<bool>,
     pub font_px: Property<f64>,
     pub playing: Property<bool>,
+    pub theme_replay_pending: Property<bool>,
+    #[pax(rust)]
+    pub was_held: bool,
     pub word: Property<String>,
     pub word_x: Property<f64>,
     pub word_y: Property<f64>,
@@ -99,6 +102,14 @@ impl RotatingHeadline {
         let now = ctx.elapsed_time_millis() as f64;
         let dt = (now - self._last_ms.get()).clamp(0.0, 50.0);
         self._last_ms.set(now);
+        if self.theme_replay_pending.get() {
+            self.was_held = true;
+            return;
+        }
+        if std::mem::take(&mut self.was_held) {
+            self.restart_intro();
+            return;
+        }
         let origin = ctx.local_point(Point2::new(0.0, 0.0));
         let height = ctx.bounds_self.get().1;
         if -origin.y * height >= ctx.viewport.get().height || (1.0 - origin.y) * height <= 0.0 {
@@ -153,6 +164,18 @@ impl RotatingHeadline {
         } else {
             light_position(light_ms, self.run_width.get())
         });
+    }
+
+    fn restart_intro(&mut self) {
+        self._elapsed_ms.set(0.0);
+        self._creative_ms.set(0.0);
+        self._gradient_ms.set(0.0);
+        self._light_ms.set(0.0);
+        self.letter_ms.set(0.0);
+        self.pigment_phase.set(0.0);
+        self.light_x.set(light_position(0.0, 0.0));
+        self.writing_progress.set(0.0);
+        self.apply_pose(pose_at(0.0));
     }
 
     fn apply_pose(&mut self, pose: WordPose) {
@@ -422,6 +445,24 @@ mod tests {
             );
             assert!(pose.opacity < 1.0);
         }
+    }
+
+    #[test]
+    fn theme_replay_rewinds_the_signboard_and_paint_together() {
+        let mut headline = RotatingHeadline::default();
+        headline._elapsed_ms.set(3.0 * CYCLE_MS);
+        headline.apply_pose(pose_at(headline._elapsed_ms.get()));
+        headline._gradient_ms.set(560.0);
+        headline._light_ms.set(920.0);
+        headline._creative_ms.set(WRITE_MS);
+        headline.writing_progress.set(1.0);
+        headline.restart_intro();
+        assert_eq!(headline.word.get(), "creative");
+        assert_eq!(headline._elapsed_ms.get(), 0.0);
+        assert_eq!(headline._gradient_ms.get(), 0.0);
+        assert_eq!(headline._light_ms.get(), 0.0);
+        assert_eq!(headline._creative_ms.get(), 0.0);
+        assert_eq!(headline.writing_progress.get(), 0.0);
     }
 
     #[test]

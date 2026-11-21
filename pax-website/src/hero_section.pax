@@ -26,7 +26,8 @@ if self._logo_started && !self._logo_return_pending && self.logo_visible && self
         </Group>
         <Stacker y={self.compact ? 0px : 56px} width=100% autosize=true gutter=26px>
             <Group width=100% height={(self.font_px * 2.52)px}>
-                <RotatingHeadline light_mode={self.light_mode} id=hero_heading width=100% height=100% font_px={self.font_px} playing={self.exit_progress < 100}/>
+                <RotatingHeadline light_mode={self.light_mode} id=hero_heading width=100% height=100% font_px={self.font_px}
+                    playing={self.exit_progress < 100} theme_replay_pending={self.theme_replay_pending}/>
             </Group>
             <Stacker width=100% autosize=true gutter=12px>
                 <Text class="hero_copy" width=100%>Declare UIs in Pax and write logic in Rust.</Text>
