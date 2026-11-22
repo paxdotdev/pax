@@ -103,6 +103,8 @@ pub struct ExampleHost {
     pub _drawer_target_open: Property<bool>,
     // Layout reservation is deliberately independent of animated position.
     pub _preview_reserved_width_px: Property<f64>,
+    // Projected children keep their layout width while the drawer clips their visible area.
+    pub _preview_layout_width_px: Property<f64>,
     // Remember arrival for one UI tick before committing the preview reflow.
     pub _drawer_arrived: Property<bool>,
     // Private drag state for the source divider.
@@ -133,6 +135,7 @@ impl Default for ExampleHost {
             _drawer_progress: Property::new(0.0),
             _drawer_target_open: Property::new(false),
             _preview_reserved_width_px: Property::new(0.0),
+            _preview_layout_width_px: Property::new(0.0),
             _drawer_arrived: Property::new(false),
             _is_resizing_drawer: Property::new(false),
             _pending_drawer_width_px: Property::new(None),
@@ -142,7 +145,18 @@ impl Default for ExampleHost {
 }
 
 impl ExampleHost {
-    // Derive the source pane from this host's selected index.
+    // The root Group already occupies the host's padded content box.
+    pub fn bind_preview_width(&mut self, ctx: &NodeContext) {
+        let bounds = ctx.bounds_self.clone();
+        let reserved = self._preview_reserved_width_px.local();
+        let deps = [bounds.untyped(), reserved.untyped()];
+        self._preview_layout_width_px
+            .replace_with(LocalProperty::computed(
+                move || (bounds.get().0 - reserved.get()).max(0.0),
+                &deps,
+            ));
+    }
+
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let drawer_open = self.drawer_open.get();
         self._drawer_target_open.set(drawer_open);

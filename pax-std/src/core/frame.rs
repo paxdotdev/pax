@@ -282,12 +282,9 @@ impl InstanceNode for FrameInstance {
         let last_canvas_clip = RefCell::new(None);
 
         let placement = expanded_node.native_placement(context);
-        let tab = expanded_node.presentation_transform_and_bounds.clone();
-        let bounds = LocalProperty::computed_with_cutoff(
-            move || tab.get().bounds,
-            &[expanded_node.presentation_transform_and_bounds.untyped()],
-            PartialEq::eq,
-        );
+        let size = expanded_node.presentation_bounds();
+        let deps = [size.untyped()];
+        let bounds = LocalProperty::computed_with_cutoff(move || size.get(), &deps, PartialEq::eq);
         let (clip_content, radius) = expanded_node.with_properties_unwrapped(|p: &mut Frame| {
             (p._clip_content.local(), p.corner_radius.local())
         });
@@ -399,6 +396,14 @@ impl InstanceNode for FrameInstance {
                             patch.clip_path = old_state.clip_path.clone();
                         }
                         let content_changed = owner_changed || updates.into_iter().any(|v| v);
+                        let clips = clip_content.get();
+                        let native_canvas_changed = if clips {
+                            content_changed
+                        } else {
+                            patch.transform.is_some()
+                                || patch.opacity.is_some()
+                                || patch.parent_frame.is_some()
+                        };
                         let order_changed = patch_if_needed(
                             &mut old_state.z_index,
                             &mut patch.z_index,
@@ -415,10 +420,12 @@ impl InstanceNode for FrameInstance {
                         let surface = cloned_context
                             .get_layer_scroller_owner(layer)
                             .map_or(ClipSurface::Layer(layer), ClipSurface::Scroller);
+                        let placement = expanded_node.canvas_transform_and_bounds.get();
+                        // A disabled clip has no shape. Children that depend on the
+                        // Frame's dimensions still observe their own layout changes.
                         let canvas_clip = (
-                            expanded_node.canvas_transform_and_bounds.get(),
-                            clamped_radius,
-                            properties._clip_content.local().get(),
+                            placement.transform,
+                            clips.then_some((placement.bounds, clamped_radius)),
                             expanded_node.computed_opacity.get(),
                             surface,
                             expanded_node.parent_frame.get(),
@@ -427,7 +434,7 @@ impl InstanceNode for FrameInstance {
                             last_canvas_clip.borrow().as_ref() != Some(&canvas_clip);
                         *last_canvas_clip.borrow_mut() = Some(canvas_clip);
                         if canvas_changed
-                            || (content_changed
+                            || (native_canvas_changed
                                 && !expanded_node.has_surface_local_canvas_placement())
                         {
                             mark_canvas_descendants_dirty(&expanded_node, &cloned_context);

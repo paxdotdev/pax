@@ -1534,10 +1534,7 @@ impl RuntimeContext {
 
     #[track_caller]
     fn mark_occlusion_dirty_with_origin(&self, node: Option<u32>) {
-        if let Some(changes) = self.input_capture_changes.borrow_mut().as_mut() {
-            changes.structure_changed(node);
-        }
-        self.scene_geometry.borrow_mut().input.topology_dirty = true;
+        self.invalidate_input_topology(node);
         self.occlusion_dirty.set(true);
         let mut state = self.occlusion_state.borrow_mut();
         state.structural = true;
@@ -1569,6 +1566,22 @@ impl RuntimeContext {
         }
         drop(state);
         self.mark_lighting_topology_dirty();
+    }
+
+    pub(crate) fn mark_viewport_occlusion_dirty(&self) {
+        // Displayed input also captures the viewport. Keep its independent
+        // invalidation even when the compositor can retain paint order.
+        self.invalidate_input_topology(None);
+        self.occlusion_dirty.set(true);
+        self.occlusion_state.borrow_mut().viewport_changed = true;
+        self.mark_lighting_topology_dirty();
+    }
+
+    fn invalidate_input_topology(&self, node: Option<u32>) {
+        if let Some(changes) = self.input_capture_changes.borrow_mut().as_mut() {
+            changes.structure_changed(node);
+        }
+        self.scene_geometry.borrow_mut().input.topology_dirty = true;
     }
 
     pub(crate) fn mark_lighting_topology_dirty(&self) {

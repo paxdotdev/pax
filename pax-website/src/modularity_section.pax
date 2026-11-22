@@ -1,32 +1,26 @@
 <Group width=100% height=100%>
     <ImportSettings><SiteTheme light_mode={self.light_mode} /></ImportSettings>
-    <Stacker id=modularity_content x={self.compact ? 24px : 6%} anchor_x=0% y=80px
-        width={self.compact ? (100% - 48px) : 88%} autosize=true autosize_x=false autosize_y=true
-        direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
-        sizes={self.compact ? [] : [Some(48%), None]} gutter={self.compact ? 32px : 4%}>
-        <Stacker width=100% autosize=true gutter=24px
-            sizes={self.compact ? (@viewport.width < 760 ? [None, None, Some(370px)] : [None, None, Some(540px)]) : []}>
-            ///#h2
-            <Text class="editorial_title" width=100%>Plug, Extend, and Play</Text>
-            <Text class="editorial_lead" width=100% markdown=true>Pax interfaces are built from reusable components, like layouts, native scrollers, text, buttons, and shader effects. Many of these are available in the [Pax standard library](https://docs.pax.dev/api/pax-std/index.html).</Text>
-            ///#ignore
-            if self.compact {
-                <CircuitBoard light_mode={self.light_mode} width=100% height=100%/>
-            }
-            <Text class="editorial_body" width=100%>Connecting components together is like wiring pins together on a circuit board—predictable, modular, and deeply customizable.</Text>
-            <Text class="editorial_body" width=100%>Your own components live in ordinary Rust modules, with Pax templates describing their composition. Build a widget, a layout, an effect, or an entire application section—and reuse it just like a standard-library component. 🐢</Text>
-            <Text class="editorial_body" width=100% markdown=true>[Learn to build reusable components →](https://docs.pax.dev/components-composition.html#make-a-reusable-component)</Text>
-        </Stacker>
+    <Stacker x={self.compact ? 24px : 6%} anchor_x=0% y=80px
+        width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=24px
+        sizes={self.compact ? (@viewport.width < 760 ? [None, None, Some(370px)] : [None, None, Some(540px)]) : []}>
+        ///#h2
+        <Text class=["editorial_title", "modularity_copy"]>Plug, Extend, and Play</Text>
+        <Text class=["editorial_lead", "modularity_copy"] markdown=true>Pax interfaces are built from reusable components, like layouts, native scrollers, text, buttons, and shader effects. Many of these are available in the [Pax standard library](https://docs.pax.dev/api/pax-std/index.html).</Text>
         ///#ignore
-        if !self.compact {
-            <CircuitBoard light_mode={self.light_mode} width=100% height=540px/>
-        }
+        <CircuitBoard light_mode={self.light_mode} @mount=self.bind_content_height layout_role={self.compact ? LayoutRole::Default : LayoutRole::Breakout}
+            x={self.compact ? 0% : 52%} anchor_x=0% width={self.compact ? 100% : 48%}
+            height={@viewport.width < 760 ? 370px : 540px}/>
+        <Text class=["editorial_body", "modularity_copy"]>Connecting components together is like wiring pins together on a circuit board—predictable, modular, and deeply customizable.</Text>
+        <Text class=["editorial_body", "modularity_copy"]>Your own components live in ordinary Rust modules, with Pax templates describing their composition. Build a widget, a layout, an effect, or an entire application section—and reuse it just like a standard-library component. 🐢</Text>
+        <Text class=["editorial_body", "modularity_copy"] markdown=true>[Learn to build reusable components →](https://docs.pax.dev/components-composition.html#make-a-reusable-component)</Text>
     </Stacker>
     <Rectangle class="site_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 48px) : 88%} height=1px/>
     <Rectangle class="site_ink" width=100% height=100%/>
 </Group>
 
 @settings {
+    .modularity_copy {
+        width: {self.compact ? 100% : 48%}
+    }
     @mount: mount
-    @pre_render: measure
 }

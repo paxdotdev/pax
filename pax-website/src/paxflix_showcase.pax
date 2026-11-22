@@ -1,10 +1,10 @@
-<Group width=100% height={(self.content_height)px}>
-    if self.layout_ready {
+<Group width=100% height=100%>
+    if self.stage_scale > 0.0 {
         if self.compact {
             <Button class="launch" x=50% y=100% anchor_x=50% anchor_y=100% width=248px height=44px
                 corner_radius=0 @button_click=self.launch>Try Paxflix ↗</Button>
         }
-        <Group x=0px anchor=0% width=1280px height=729px scale={(self.stage_scale)%} layout_role=LayoutRole::Breakout>
+        <Group x=0px anchor=0% width=1280px height=729px scale={(self.stage_scale * 100.0)%} layout_role=LayoutRole::Breakout>
             // Keep the live screen axis-aligned; only the captured wings rotate.
             <Group id=front_tablet x=640px y=406px anchor=50% width=1048px height=812px scale=76% rotate=0deg>
                 if self.compact {
@@ -16,7 +16,7 @@
                 } else {
                     // Travel with the tablet, but keep the label and hit area at screen size.
                     <Button class="launch" x={100% - 26px} y={100% - 28px} anchor=100% width=128px height=40px
-                        scale={(10000 / (0.76 * self.stage_scale))%} corner_radius=6 @button_click=self.launch>Full Window ↗</Button>
+                        scale={(100 / (0.76 * self.stage_scale))%} corner_radius=6 @button_click=self.launch>Full Window ↗</Button>
                     <DeviceFrame light_mode={self.light_mode} width=100% height=100% kind="tablet">
                         <Paxflix light_mode=bind:self.light_mode id=live_paxflix width=100% height=100% embedded=true disable_keyboard=true disable_card_entrances=true/>
                     </DeviceFrame>
@@ -43,7 +43,6 @@
 // screens are captures; moving the fixed-size stage never relayouts the app.
 
 @settings {
-    @mount: mount
     .launch {
         color: {SiteTheme::surface(self.light_mode)}
         hover_color: {SiteTheme::raised(self.light_mode)}

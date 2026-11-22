@@ -64,6 +64,12 @@ pub struct PropertyData {
 }
 
 impl PropertyData {
+    pub(super) fn has_unobserved_paint_cutoff(&self) -> bool {
+        self.paint_listener.is_some()
+            && self.outbound.is_empty()
+            && self.invalidation_events.is_none()
+    }
+
     pub(super) fn notify_readers(&mut self) {
         if let Some(watchers) = &mut self.invalidation_events {
             watchers.notify();

@@ -915,6 +915,37 @@ fn yielded_startup_hull_listener_work_scales_with_nodes_despite_overlays() {
 }
 
 #[test]
+fn primitive_bounds_follow_the_presented_size_when_a_move_collapses() {
+    use crate::api::{Duration, EasingCurve, Size};
+    let (_engine, _, root) = fixture();
+    let source = root.query("#child_0").one().unwrap();
+    let destination = root.query("#child_2").one().unwrap();
+    let node = source.resolve().unwrap().0;
+    let dest = destination.resolve().unwrap().0;
+    let props = dest.get_common_properties();
+    props.borrow().width.set(Some(Size::Pixels(200.into())));
+    props.borrow().height.set(Some(Size::Pixels(0.into())));
+    let size = node.presentation_bounds();
+    let original = size.get();
+    source
+        .animated(Duration::Frames(4.into()), EasingCurve::Linear)
+        .move_to_append_child(&destination)
+        .unwrap();
+    assert_eq!(size.get(), original);
+
+    // Overshoot toward a zero-height destination takes the destination-pose fallback.
+    node.move_progress.set(1.1);
+    assert_eq!(size.get(), (200., 0.));
+    assert_ne!(node.layout_bounds.get(), size.get());
+    assert_eq!(
+        size.get(),
+        node.presentation_transform_and_bounds.get().bounds
+    );
+    source.move_to_home().unwrap();
+    assert_eq!(size.get(), original);
+}
+
+#[test]
 fn animated_moves_preserve_the_initial_footprint_and_reverse_without_a_jump() {
     use crate::api::{Duration, EasingCurve, Size};
     let (mut engine, parent, root) = fixture();

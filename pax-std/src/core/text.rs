@@ -226,6 +226,10 @@ impl TextInstance {
 }
 
 impl InstanceNode for TextInstance {
+    fn may_supply_clip(&self) -> bool {
+        false
+    }
+
     fn geometry_is_scroller_local(&self) -> bool {
         true
     }
@@ -300,15 +304,15 @@ impl InstanceNode for TextInstance {
 
         // A world-pose change must not clone strings/styles or reconstruct a
         // measurement key. Width/height constraints cut off before that work.
-        let tab = expanded_node.presentation_transform_and_bounds.clone();
+        let bounds = expanded_node.presentation_bounds();
         let cp = expanded_node.get_common_properties();
         let cp = borrow!(cp);
         let width = cp.width.clone();
         let height = cp.height.clone();
-        let deps = [tab.untyped(), width.untyped(), height.untyped()];
+        let deps = [bounds.untyped(), width.untyped(), height.untyped()];
         let constraints = LocalProperty::computed_with_cutoff(
             move || {
-                let (w, h) = tab.get().bounds;
+                let (w, h) = bounds.get();
                 (
                     if width.get().is_some() { w } else { -1. },
                     if height.get().is_some() { h } else { -1. },

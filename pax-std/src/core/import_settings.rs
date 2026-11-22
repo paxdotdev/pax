@@ -101,6 +101,20 @@ pub struct ImportSettingsInstance {
 }
 
 impl InstanceNode for ImportSettingsInstance {
+    fn may_supply_clip(&self) -> bool {
+        false
+    }
+
+    // Providers are sidecars. The importer's own bounds have no paint or
+    // custom hit shape that depends on its ancestors' world transforms.
+    fn supports_retained_motion(&self) -> bool {
+        true
+    }
+
+    fn geometry_is_scroller_local(&self) -> bool {
+        true
+    }
+
     fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
         false
     }

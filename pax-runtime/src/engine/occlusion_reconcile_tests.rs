@@ -370,6 +370,124 @@ fn unchanged_xy_footprint_still_invalidates_paint_when_depth_changes() {
     assert_eq!(paints.get(), 1);
 }
 
+#[cfg(feature = "3d")]
+#[test]
+fn local_coverage_recovers_after_rebuilding_while_a_group_is_tilted() {
+    use crate::scene_geometry::native_placement::PlacementDependency;
+    use pax_runtime_api::properties::property_has_direct_outbound;
+    let (ctx, root) = mount(vec![retained_probe(
+        Kind::Scroller,
+        vec![retained_probe(
+            Kind::Group,
+            vec![
+                retained_probe(Kind::Canvas, vec![]),
+                retained_probe(Kind::Native, vec![]),
+            ],
+        )],
+    )]);
+    let host = root.children.get()[0].children.get()[0].clone();
+    let group = host.children.get()[0].clone();
+    let children = group.children.get();
+    let uses_local_coverage = |node: &ExpandedNode| {
+        node.local_compositing.get()
+            && node
+                .retained_native_placement()
+                .is_some_and(|(id, _)| id == host.id.to_u32())
+    };
+    settle_occlusion_effects(&root, &ctx);
+    assert!(children.iter().all(|node| uses_local_coverage(node)));
+
+    let leaf = &children[0];
+    let dependency = leaf.retained_placement_dependency(leaf.local_compositing.clone());
+    let world = leaf.presentation_geometry.untyped();
+    let bounds = leaf.layout_bounds.untyped();
+    let fallback = if leaf.motion_retained.get() {
+        &bounds
+    } else {
+        &world
+    };
+    let observes_fallback = || property_has_direct_outbound(fallback, &dependency.untyped());
+    let is_local =
+        || matches!(dependency.get(), PlacementDependency::Local(id, _) if id == host.id.to_u32());
+    assert!(is_local());
+    assert!(!observes_fallback());
+
+    let tilt = group.get_common_properties().borrow().rotate_y.clone();
+    tilt.set(Some(pax_runtime_api::Rotation::Degrees(25.0.into())));
+    settle_occlusion_effects(&root, &ctx);
+    assert!(children.iter().all(|node| !uses_local_coverage(node)));
+    assert!(!is_local());
+    assert!(observes_fallback());
+    assert_full_rebuild_matches(&root, &ctx);
+
+    tilt.set(None);
+    settle_occlusion_effects(&root, &ctx);
+    assert!(children.iter().all(|node| uses_local_coverage(node)));
+    assert!(is_local());
+    assert!(!observes_fallback());
+    assert_full_rebuild_matches(&root, &ctx);
+}
+
+#[test]
+fn rounded_clip_follows_its_selected_path_across_scroller_transfers() {
+    let (ctx, root) = mount(vec![
+        retained_probe(
+            Kind::Scroller,
+            vec![
+                retained_probe(Kind::Clip, vec![retained_probe(Kind::Canvas, vec![])]),
+                retained_probe(Kind::Native, vec![]),
+            ],
+        ),
+        retained_probe(Kind::Group, vec![]),
+        retained_probe(
+            Kind::Scroller,
+            vec![
+                retained_probe(Kind::Canvas, vec![]),
+                retained_probe(Kind::Native, vec![]),
+            ],
+        ),
+    ]);
+    let parents = root.children.get()[0].children.get();
+    let clip = parents[0].children.get()[0].clone();
+    let check = |local: bool| {
+        settle_occlusion_effects(&root, &ctx);
+        assert_eq!(
+            clip.local_compositing.get() && clip.retained_native_placement().is_some(),
+            local
+        );
+        let projected = clip.world_clip_geometry.get().0.unwrap();
+        ctx.drain_node_effects();
+        // A projected-path invalidation should reach occlusion only while
+        // occlusion is using that coordinate space.
+        clip.world_clip_geometry.invalidate();
+        assert_eq!(pax_runtime_api::properties::has_pending_effects(), !local);
+        assert_eq!(clip.world_clip_geometry.get().0.as_ref(), Some(&projected));
+        settle_occlusion_effects(&root, &ctx);
+        assert_full_rebuild_matches(&root, &ctx);
+    };
+    check(true);
+    #[cfg(feature = "3d")]
+    {
+        let tilt = clip.get_common_properties().borrow().rotate_y.clone();
+        tilt.set(Some(pax_runtime_api::Rotation::Degrees(30.into())));
+        check(false);
+        tilt.set(None);
+        check(true);
+    }
+    let handle = crate::NodeRef::new(&clip, &ctx);
+    handle
+        .move_to_append_child(&crate::NodeRef::new(&parents[2], &ctx))
+        .unwrap();
+    check(true);
+    assert_eq!(clip.native_placement_owner(), Some(parents[2].id.to_u32()));
+    handle
+        .move_to_append_child(&crate::NodeRef::new(&parents[1], &ctx))
+        .unwrap();
+    check(false);
+    handle.move_to_home().unwrap();
+    check(true);
+}
+
 #[test]
 fn retained_host_motion_and_subsequent_clip_edits_match_full_rebuild() {
     let (ctx, root) = mount(vec![retained_probe(
@@ -901,6 +1019,7 @@ fn assert_full_rebuild_matches(root: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
         (
             pairs(&state.clip_dependents),
             pairs(&state.scroll_containers),
+            state.presentation_containers.clone(),
             state.owned_layers.clone(),
             state.isolated_scrollers.clone(),
             state.leaf_scroll_regions.clone(),
@@ -981,6 +1100,108 @@ fn assert_full_rebuild_matches(root: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
             );
         } else {
             assert_eq!(rebuilt, bounds, "coverage for {id}");
+        }
+    }
+}
+
+#[test]
+fn viewport_resize_updates_fixed_clips_and_preserves_order_until_a_breakpoint() {
+    use crate::properties::input_capture::InputPublisher;
+    use crate::{ConditionalInstance, ConditionalProperties};
+    use pax_runtime_api::{pax_value::ToFromPaxAny, LocalProperty};
+
+    for platform in [Platform::Web, Platform::Native] {
+        let mut engine = crate::test_support::empty_engine(
+            (300., 200.),
+            platform,
+            OS::Mac,
+            Box::new(|| 0),
+            Default::default(),
+        );
+        let ctx = engine.runtime_context.clone();
+        let viewport = ctx.globals().viewport;
+        let deps = [viewport.untyped()];
+        let wide = LocalProperty::computed(move || viewport.get().bounds.0 >= 350., &deps);
+        let mut conditional = args(vec![probe(Kind::Native, vec![])]);
+        conditional.prototypical_properties = PropertiesInit::Factory(Box::new(move |_, old| {
+            old.is_none().then(|| {
+                Rc::new(RefCell::new(
+                    ConditionalProperties {
+                        boolean_expression: wide.clone(),
+                        conditional_branches: vec![wide.clone()],
+                    }
+                    .to_pax_any(),
+                ))
+            })
+        }));
+        let mut root_args = args(vec![]);
+        root_args.component_template = Some(RefCell::new(vec![probe(
+            Kind::Group,
+            vec![
+                retained_probe(
+                    Kind::Scroller,
+                    vec![
+                        retained_probe(Kind::Canvas, vec![]),
+                        retained_probe(Kind::Native, vec![]),
+                    ],
+                ),
+                ConditionalInstance::instantiate(conditional),
+            ],
+        )]));
+        let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+        let group = root.children.get()[0].clone();
+        let host = group.children.get()[0].clone();
+        let branch = group.children.get()[1].clone();
+        let native = host.children.get()[1].clone();
+        for (node, width, height) in [(&group, 500., 200.), (&host, 120., 80.)] {
+            let common = node.get_common_properties();
+            common.borrow().width.set(Some(Size::Pixels(width.into())));
+            common
+                .borrow()
+                .height
+                .set(Some(Size::Pixels(height.into())));
+        }
+        host.get_common_properties()
+            .borrow()
+            .x
+            .set(Some(Size::Pixels(240.0.into())));
+        engine.tick();
+        let mut publisher = InputPublisher::default();
+        publisher.capture(&ctx).unwrap();
+        let owner = host.browser_content_layer_id.get().unwrap();
+        for (width, switched) in [(301., false), (330., false), (360., true), (300., true)] {
+            let before = ctx.occlusion_stats();
+            engine.set_viewport_size((width, 200.));
+            let messages = engine.tick();
+            let after = ctx.occlusion_stats();
+            if !switched {
+                assert_eq!(after.topology_nodes_visited, before.topology_nodes_visited);
+                assert_eq!(after.rebuilds, before.rebuilds);
+                assert_eq!(
+                    after.structural_reconciliations,
+                    before.structural_reconciliations
+                );
+            }
+            assert_eq!(branch.children.get().len(), usize::from(width >= 350.));
+            assert!(messages.iter().any(|m| matches!(m,
+                pax_message::NativeMessage::ScrollerUpdate(p) if p.id == host.id.to_u32()
+                && p.presented_clip_bounds == Some([240., 0., width, 80.]))));
+            assert_eq!(ctx.get_layer_scroller_owner(owner as usize), Some(host.id));
+            let hits = |view: &crate::properties::input_capture::CapturedInputView| {
+                view.hit_targets((width - 2., 30.).into(), &HashMap::new(), true)
+                    .unwrap()
+                    .into_iter()
+                    .map(|hit| hit.identity.id)
+                    .collect::<Vec<_>>()
+            };
+            let captured = hits(&publisher.capture(&ctx).unwrap());
+            assert!(captured.contains(&native.id.to_u32()));
+            assert_full_rebuild_matches(&root, &ctx);
+            settle_occlusion_effects(&root, &ctx);
+            assert_eq!(
+                hits(&InputPublisher::default().capture(&ctx).unwrap()),
+                captured
+            );
         }
     }
 }

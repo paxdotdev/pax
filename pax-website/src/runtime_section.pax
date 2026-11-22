@@ -10,10 +10,11 @@
             </Stacker>
         </Group>
         ///#ignore
-        <PaxflixShowcase light_mode=bind:self.light_mode x=50% width={self.compact ? (100% - 48px) : 88%} height={(self.showcase_height)px}
-            content_height=bind:self.showcase_height compact={self.compact} scene_progress={self.scene_progress}/>
+        <PaxflixShowcase light_mode=bind:self.light_mode x=50% width={(self.showcase_scale * 1280.0)px}
+            height={(self.showcase_scale * 729.0 + (self.compact ? 52.0 : 0.0))px}
+            stage_scale={self.showcase_scale} compact={self.compact} scene_progress={self.scene_progress}/>
     </Stacker>
-    <Rectangle class="site_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 48px) : 88%} height=1px/>
+    <Rectangle class="site_rule" x=50% y={100% - 1px} width={(self.showcase_scale * 1280.0)px} height=1px/>
     ///#ignore
     if @gpu {
         <RuntimeGlass light_mode={self.light_mode} width=100% height=100%/>

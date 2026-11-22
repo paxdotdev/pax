@@ -81,6 +81,34 @@ impl<T: PropertyValue> LocalProperty<T> {
         optional: [UntypedProperty; N],
         evaluator: impl Fn([&dyn Fn(bool); N]) -> T + 'static,
     ) -> Self {
+        Self::optional_inputs_with_config(required, optional, evaluator, None, None)
+    }
+
+    /// Selects active inputs during evaluation and forwards only accepted changes.
+    #[doc(hidden)]
+    pub fn computed_with_optional_inputs_and_cutoff<const N: usize>(
+        required: &[UntypedProperty],
+        optional: [UntypedProperty; N],
+        evaluator: impl Fn([&dyn Fn(bool); N]) -> T + 'static,
+        cutoff: impl Fn(&T, &T) -> bool + 'static,
+        name: &str,
+    ) -> Self {
+        Self::optional_inputs_with_config(
+            required,
+            optional,
+            evaluator,
+            Some(Rc::new(cutoff)),
+            Some(name),
+        )
+    }
+
+    fn optional_inputs_with_config<const N: usize>(
+        required: &[UntypedProperty],
+        optional: [UntypedProperty; N],
+        evaluator: impl Fn([&dyn Fn(bool); N]) -> T + 'static,
+        cutoff: Option<Rc<dyn Fn(&T, &T) -> bool>>,
+        name: Option<&str>,
+    ) -> Self {
         let inbound: Vec<_> = required.iter().map(UntypedProperty::get_id).collect();
         for (i, input) in optional.iter().enumerate() {
             assert!(!inbound.contains(&input.id) && optional[..i].iter().all(|p| p.id != input.id));
@@ -94,13 +122,13 @@ impl<T: PropertyValue> LocalProperty<T> {
                     evaluator(selectors.each_ref().map(|select| select as &dyn Fn(bool)))
                 })
             },
-            None,
+            cutoff,
         );
         Self::new_from_untyped(UntypedProperty::new(
             T::default(),
             inbound,
             computation,
-            None,
+            name,
         ))
     }
 

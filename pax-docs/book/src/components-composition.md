@@ -406,12 +406,13 @@ the user drags the divider, which saves the chosen width in pixels for that
 mounted host. The layout keeps at least 280px for code and 320px for the
 preview; below 600px, the inline drawer replaces the preview.
 
-The drawer slides over the unchanged preview without changing width. After the
-opening animation reaches its endpoint, the host waits one UI tick and reserves
-the drawer's width in a single layout update. Closing restores the preview's
-full width before the drawer slides away. This avoids resizing responsive example
-content on every animation frame; the final reflow can still change the section's
-height. The delay is not a native/GPU presentation-readiness guarantee. Dragging
+On desktop, the preview keeps its layout width while the fixed-width drawer
+slides open. The moving divider clips the preview, including 3D content and
+native controls. One UI tick after the drawer arrives, the host reserves its
+width in a single layout update. Closing restores the full layout width at
+once and reveals the preview as the divider retreats. A responsive example
+can change the section's height when its layout width changes. The delay is
+not a native/GPU presentation-readiness guarantee. Dragging
 the divider is available once the split settles and still resizes the preview
 live. Pointer moves are coalesced to the latest requested width per UI tick;
 the drawer and preview reservation change together. The divider captures the

@@ -752,6 +752,63 @@ fn paint_cutoffs_settle_after_layout_but_read_the_current_pose_immediately() {
 }
 
 #[test]
+fn unused_paint_is_pulled_on_read_or_on_its_first_subscription() {
+    let source = LocalProperty::new(0);
+    let placement = LocalProperty::new(0);
+    let paint = LocalProperty::new(());
+    let reads = Rc::new(Cell::new(0));
+    let cutoff = LocalProperty::computed_with_cutoff(
+        {
+            let source = source.clone();
+            let reads = reads.clone();
+            move || {
+                reads.set(reads.get() + 1);
+                source.get()
+            }
+        },
+        &[source.untyped()],
+        i32::eq,
+    );
+    placement.replace_with_paint_cutoff(cutoff, &paint, false);
+    drain_effects(10);
+    reads.set(0);
+    for value in [1, 2] {
+        source.set(value);
+        drain_effects(10);
+    }
+    assert_eq!(reads.get(), 0);
+    assert_eq!(placement.get(), 2);
+    source.set(3);
+    let observed = LocalProperty::computed(
+        {
+            let placement = placement.clone();
+            move || placement.get()
+        },
+        &[placement.untyped()],
+    );
+    drain_effects(10);
+    assert_eq!(reads.get(), 2);
+    assert_eq!(observed.get(), 3);
+    source.set(4);
+    drain_effects(10);
+    assert_eq!(reads.get(), 3);
+    assert_eq!(observed.get(), 4);
+
+    drop(observed);
+    source.set(5);
+    drain_effects(10);
+    assert_eq!(reads.get(), 3);
+    let events = DependencyEventQueue::default();
+    let _watch = events.watch(&[placement.untyped()], 7);
+    assert_eq!(events.pop(), Some(7));
+    assert_eq!(placement.get(), 5);
+    source.set(6);
+    drain_effects(10);
+    assert_eq!(events.pop(), Some(7));
+    assert_eq!(reads.get(), 5);
+}
+
+#[test]
 fn adding_an_ordinary_observer_promotes_already_queued_paint() {
     let source = LocalProperty::new(0);
     let placement = LocalProperty::new(0);

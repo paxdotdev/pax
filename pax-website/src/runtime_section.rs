@@ -12,12 +12,39 @@ pub struct RuntimeSection {
     pub content_height: Property<f64>,
     pub _height_bound: Property<bool>,
     pub compact: Property<bool>,
-    pub showcase_height: Property<f64>,
+    pub showcase_scale: Property<f64>,
     pub scene_progress: Property<f64>,
+}
+
+// The section allocates the stage and its Stacker row from the same width.
+fn showcase_scale(section_width: f64, compact: bool) -> f64 {
+    if !section_width.is_finite() {
+        return 0.0;
+    }
+    let width = if compact {
+        section_width - 48.0
+    } else {
+        section_width * 0.88
+    };
+    width.max(0.0) / 1280.0
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn stage_and_row_share_the_allocated_width_across_the_breakpoint() {
+        for width in [0.0, 47.0, 48.0, f64::NAN, f64::INFINITY] {
+            assert_eq!(showcase_scale(width, true), 0.0);
+        }
+        for width in [272.0, 759.0, 760.0, 1126.0, 2560.0] {
+            let compact = width < COMPACT_BREAKPOINT_PX;
+            let expected_width = if compact { width - 48.0 } else { width * 0.88 };
+            assert!((showcase_scale(width, compact) * 1280.0 - expected_width).abs() < 0.001);
+        }
+    }
+
     #[test]
     fn glass_spans_the_runtime_and_modularity_uses_the_plain_site_background() {
         let runtime = include_str!("runtime_section.pax");
@@ -84,7 +111,20 @@ mod tests {
 impl RuntimeSection {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
         self._height_bound.set(false);
-        crate::section_layout::bind_compact(ctx, &self.compact, COMPACT_BREAKPOINT_PX);
+        let bounds = ctx.bounds_self.clone();
+        let deps = [bounds.untyped()];
+        let compact_bounds = bounds.clone();
+        self.compact.replace_with(LocalProperty::computed_with_cutoff(
+            move || compact_bounds.get().0 < COMPACT_BREAKPOINT_PX,
+            &deps,
+            PartialEq::eq,
+        ));
+        let compact = self.compact.local();
+        let deps = [bounds.untyped(), compact.untyped()];
+        self.showcase_scale.replace_with(LocalProperty::computed(
+            move || showcase_scale(bounds.get().0, compact.get()),
+            &deps,
+        ));
     }
 
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {

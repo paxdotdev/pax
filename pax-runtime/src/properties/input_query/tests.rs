@@ -399,6 +399,8 @@ fn input_charts_follow_reparenting_and_scoped_query_roots() {
     crate::NodeRef::new(&leaf, &engine.runtime_context)
         .move_to_append_child(&crate::NodeRef::new(&b, &engine.runtime_context))
         .unwrap();
+    assert!(!query(&engine.runtime_context, None, (30., 80.), false).contains(&leaf.id));
+    assert!(query(&engine.runtime_context, None, (330., 50.), false).contains(&leaf.id));
     engine.tick();
     let ctx = &engine.runtime_context;
     for root in [None, Some(b.clone()), Some(leaf.clone()), None] {
@@ -410,6 +412,32 @@ fn input_charts_follow_reparenting_and_scoped_query_roots() {
         }
     }
     assert!(query(ctx, None, (330., 50.), false).contains(&leaf.id));
+    #[cfg(feature = "3d")]
+    {
+        let samples = |ctx: &RuntimeContext| {
+            (300..400)
+                .step_by(2)
+                .map(|x| {
+                    let point = (x as f64, 51.);
+                    let hits = query(ctx, None, point, false);
+                    assert_eq!(hits, oracle(ctx, None, point, false));
+                    hits.contains(&leaf.id)
+                })
+                .collect::<Vec<_>>()
+        };
+        let flat = samples(ctx);
+        let tilt = leaf.get_common_properties().borrow().rotate_y.clone();
+        tilt.set(Some(pax_runtime_api::Rotation::Degrees(60.into())));
+        let tilted = samples(ctx);
+        assert_ne!(tilted, flat);
+        engine.tick();
+        assert_eq!(samples(&engine.runtime_context), tilted);
+        tilt.set(None);
+        assert_eq!(samples(&engine.runtime_context), flat);
+        engine.tick();
+        assert_eq!(samples(&engine.runtime_context), flat);
+    }
+    let ctx = &engine.runtime_context;
     leaf.clone().recurse_unmount(ctx);
     assert!(!query(ctx, None, (330., 50.), false).contains(&leaf.id));
 }

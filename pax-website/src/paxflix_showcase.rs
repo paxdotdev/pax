@@ -7,9 +7,7 @@ use paxflix::Paxflix;
 #[file("paxflix_showcase.pax")]
 pub struct PaxflixShowcase {
     pub light_mode: Property<bool>,
-    pub content_height: Property<f64>,
     pub compact: Property<bool>,
-    pub layout_ready: Property<bool>,
     pub stage_scale: Property<f64>,
     pub scene_progress: Property<f64>,
 }
@@ -18,71 +16,10 @@ impl PaxflixShowcase {
     pub fn launch(&mut self, ctx: &NodeContext, _: Event<ButtonClick>) {
         ctx.navigate_to("/paxflix/", NavigationTarget::Current);
     }
-
-    pub fn mount(&mut self, ctx: &NodeContext) {
-        let bounds = ctx.bounds_self.clone();
-        let compact = self.compact.local();
-        let deps = [bounds.untyped(), compact.untyped()];
-        let ready = self.layout_ready.local();
-        let scale = self.stage_scale.local();
-        let content_height = self.content_height.local();
-        let update = move || {
-            // Only the outer stage scales. The live app always lays out at the
-            // tablet's logical resolution, even while its frame is choreographed.
-            let layout = DeviceLayout::for_width(bounds.get().0);
-            scale.set_if_neq(layout.scale * 100.0);
-            content_height.set_if_neq(layout.height + if compact.get() { 8.0 + 44.0 } else { 0.0 });
-            // Do not render a provisional zero-sized stage.
-            ready.set_if_neq(layout.scale > 0.0);
-        };
-        update();
-        ctx.subscribe(&deps, update);
-    }
-}
-
-struct DeviceLayout {
-    scale: f64,
-    height: f64,
-}
-
-impl DeviceLayout {
-    fn for_width(width: f64) -> Self {
-        let width = if width.is_finite() {
-            width.max(0.0)
-        } else {
-            0.0
-        };
-        let scale = width / 1280.0;
-        Self {
-            scale,
-            // Lowest arrival pose: tablet center at 420 + half its scaled 812px height.
-            height: 729.0 * scale,
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    #[test]
-    fn provisional_bounds_do_not_mount_a_live_app() {
-        for width in [f64::NAN, f64::INFINITY, -1.0, 0.0] {
-            let layout = DeviceLayout::for_width(width);
-            assert_eq!(layout.scale, 0.0);
-            assert_eq!(layout.height, 0.0);
-        }
-    }
-
-    #[test]
-    fn fan_fills_the_available_width_without_a_desktop_or_mobile_cap() {
-        for width in [272.0, 342.0, 540.0, 760.0, 1126.0, 1800.0, 2560.0] {
-            let layout = DeviceLayout::for_width(width);
-            assert!((1280.0 * layout.scale - width).abs() < 0.001);
-            assert_eq!(layout.height, 729.0 * layout.scale);
-        }
-    }
-
     #[test]
     fn only_the_desktop_center_is_live_and_all_layouts_keep_three_devices() {
         let template = include_str!("paxflix_showcase.pax");
