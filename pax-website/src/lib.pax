@@ -61,7 +61,7 @@
         width: 1px
         height: 1px
         z: 95px
-        radius: 480px
+        radius: 640px
         intensity: 0.9
         color: WHITE
     }

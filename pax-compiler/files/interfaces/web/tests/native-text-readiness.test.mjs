@@ -17,7 +17,7 @@ function harness() {
     let callback;
     const observed = new Set(), messages = [], leaves = [], focused = [];
     let flushes = 0;
-    const makeDiv = () => ({style: {}, dataset: {}, attrs: {}, isConnected: true,
+    const makeDiv = () => ({style: {setProperty(k,v) {this[k]=v;}}, dataset: {}, attrs: {}, isConnected: true,
         setAttribute(k,v) {this.attrs[k]=v;}, getAttribute(k) {return this.attrs[k];},
         addEventListener() {}, appendChild(n) {this.firstChild=n;}, focus() {focused.push(this);},
         textContent: "Example",
@@ -121,6 +121,23 @@ test('a burst of font readiness notifications requests one engine frame', async 
     assert.equal(h.flushes(),1);
 });
 
+
+test('independent link-style and content patches preserve Markdown and the latest link style', () => {
+    const h = harness(), child = h.leaf.firstChild;
+    const markup = '<pre data-pax-code-markup="example-host" ><a href="/">Link</a></pre>';
+    const red = {fill: {Rgba: [1, 0, 0, 1]}, font_size: 14};
+    const blue = {fill: {Rgba: [0, 0, 1, 1]}, font_size: 18};
+    let renders = 0;
+    Object.defineProperty(child, 'innerHTML', {set() { renders++; }});
+    h.pool.textUpdate({id: 1, markdown: true, content: markup, style_link: red});
+    h.pool.textUpdate({id: 1, style_link: blue});
+    assert.equal(renders, 1, 'restyling must not replace anchors or their selection');
+    h.pool.textUpdate({id: 1, markdown: true, content: markup + '!'});
+    assert.equal(renders, 2);
+    assert.equal(child.style['--pax-link-color'], 'rgba(0,0,255,1)');
+    assert.equal(child.style['--pax-link-size'], '18px', 'new anchors inherit the latest values');
+    assert.equal(child.style.fontSize, undefined, 'link size must not change the paragraph');
+});
 
 test('a partial main-style update still waits for the existing link font', async () => {
     const h=harness(); let resolve;

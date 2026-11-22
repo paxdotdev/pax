@@ -43,6 +43,25 @@ Type: `Property`<`f64`>
 Scene mode starts revealing the rim at this direct specular response, reaching full activation
 0.08 above it. Defaults to 0.30. Ambient light does not enter the threshold.
 
+##### `light_span`
+Type: `Property`<`f64`>
+
+Scene mode: full falloff span along the contour for each finite emitter, as a
+fraction of the container width. Zero (default) leaves its response unfocused.
+Point and strip contributions add before thresholding; directional lights are unchanged.
+
+##### `hue_cycles`
+Type: `Property`<`f64`>
+
+CMY cycles per visible, focused point or strip glint (0.25–8, default 1).
+One cycle shows one cyan, magenta, and yellow band without changing the lit footprint.
+
+##### `hue_travel`
+Type: `Property`<`f64`>
+
+Focused-glint hue turns per surface width of rightward or downward travel (−8–8).
+Defaults to 0 (fixed band order). Negative values reverse the rotation.
+
 ##### `light_x`
 Type: `Property`<`f64`>
 

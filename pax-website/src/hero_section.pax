@@ -47,7 +47,7 @@ if self._logo_started && !self._logo_return_pending && self.logo_visible && self
         </Stacker>
     </Stacker>
     <Rectangle x=50% y={100% - 1px} width={self.compact ? (100% - 48px) : 88%} height=1px anchor_x=50% fill={SiteTheme::rule(self.light_mode)}/>
-    <HeroCurtain light_mode={self.light_mode} class="hero_sweep" width=100% height=100% action_width={self.action_width}/>
+    <HeroCurtain light_mode={self.light_mode} class="hero_sweep" width=100% height=100%/>
 </LightFrame>
 
 @settings {

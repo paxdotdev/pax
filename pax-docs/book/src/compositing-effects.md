@@ -1566,6 +1566,24 @@ normals. Each lighting probe sums the scoped direct lights. The strongest
 of the three luminances starts revealing color at `light_threshold`, with a
 soft transition over the next 0.08 response units. Ambient illumination
 affects lit source materials only.
+For a broad light on a scene but a small glint on a button, set
+`light_span=0.22` on the rim (the `ButtonRim` preset). Each finite light's contribution fades along
+the contour, reaching zero half a span to either side of its projected
+position along that edge. These contributions add **before** the threshold:
+a pointer can catch a rim on its own or brighten it during a strip's sweep.
+Increase `light_span` to lengthen the illuminated stretch without changing
+its thickness (`rim_width`) or its activation threshold. The face, neighboring
+materials, and directional lights keep their usual response.
+Set `hue_cycles=1` (default) for approximately one cyan, one magenta, and one
+yellow band across each visible focused glint. Use `hue_cycles=2` to repeat
+the triplet twice within the same footprint, or `0.5` to stretch the colors
+over twice the distance. Independently, set `hue_travel=2` to roll the palette
+twice as the glint moves one surface width to the right or down. The brightest
+point changes hue without adding bands to the glint. At zero (the default),
+the colors keep their relative positions as the highlight moves. Neither
+setting uses a clock: hold the light to hold the colors, or retrace its path to
+reverse the roll. A corner or overlapping lights
+may show a partial or blended triplet. Unfocused and sphere modes ignore this dial.
 Use `intensity` to adjust highlight strength. In scene mode, the alpha
 of `light_color` scales the final tint blend. The example blends a 1 px
 rim at 75% opacity while preserving the button's own alpha. A centered
@@ -1593,6 +1611,9 @@ support arbitrary multicolor or gradient sources; alpha mode does.
 | `light_color` | White | Neutral highlight color. Alpha scales final tint opacity in scene mode and light strength in sphere mode. |
 | `scene_lighting` | false | Use scoped direct lights and the scene camera |
 | `light_threshold` | 0.30 | Nonnegative direct specular response at which the scene-lit rim starts to appear |
+| `light_span` | 0 | Scene mode: full along-edge falloff span for finite lights, as a fraction of container width (0–1); zero disables the additional falloff |
+| `hue_cycles` | 1 | CMY repeats across a visible focused glint from point or strip lights (0.25–8); independent of rim width and light span |
+| `hue_travel` | 0 | Palette turns per surface width of rightward or downward focused-glint travel (−8–8); negative values reverse the roll |
 | `light_x`, `light_y` | 820, 185 | Container-local logical pixels |
 | `light_depth` | 340 | 120–900 local pixels behind the surface |
 | `light_radius` | 60 | 1–160 local pixels; larger spheres broaden glints |

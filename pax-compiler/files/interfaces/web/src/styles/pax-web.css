@@ -140,6 +140,15 @@
     contain: layout style paint;
 }
 
+.pax-mount [data-pax-markdown="true"] a {
+    color: var(--pax-link-color, revert);
+    font-family: var(--pax-link-family, inherit);
+    font-size: var(--pax-link-size, inherit);
+    font-weight: var(--pax-link-weight, inherit);
+    font-style: var(--pax-link-style, inherit);
+    text-decoration: underline;
+}
+
 .pax-mount .native-leaf.masked-native-leaf {
     /* See render-layer-context.ts: Blink/WebKit can cull masked native descendants
        too aggressively when paint containment stays enabled. */

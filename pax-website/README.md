@@ -226,9 +226,13 @@ bottom rule. The space below the install snippet matches the 62px gap from
 the CTA buttons to the top of the snippet box. The hero's `LightFrame` contains
 the cloth and the glass buttons.
 A neutral strip light follows the logo's reveal and idle sweep across the hero.
-Its height above the glass and its attenuation radius scale with the width of
-one hero action. At the strip’s −68° angle, its footprint along a horizontal
-edge is at most about one fifth of that button, including the falloff.
+The 900px strip sits 340px above the stage with a 2300px falloff radius so
+several cloth folds catch it at once. The button rim focuses its own response
+along the edge (`light_span=0.22`), showing about one cyan–magenta–yellow triplet
+per glint (`hue_cycles=1`) without narrowing the light cast on the curtain.
+The triplet rolls twice per button width of travel (`hue_travel=2`), so
+different colors take the lead as the glint moves. The pointer light has a 640px
+falloff radius; its motion shifts the bands even when the strip is still.
 The `.hero_sweep` settings bind the same artwork-space position and brightness
 to both components. The curtain maps that position onto its own width and height,
 while the logo uses it directly for its `Radiance` projection. The GPU cloth pass
@@ -356,8 +360,8 @@ use the screenshot link. The oscilloscope occupies its own centered study.
 
 `GlassAction` pairs satin-white frosted glass with dark obsidian and swaps
 their roles in light mode. Both have 5⅓px corners and no outline stroke.
-The white Get Started faces and source handles share the same cool off-white
-paint: their lit finish approaches the light color without washing out the rim.
+The white Get Started faces and source handles share the same 64%-opaque
+frosted paint. The background shows through the face, not the native label.
 CPU uses the same base paint without grain or specular lighting.
 The website root supplies a viewport-space point light following mouse and touch
 input on the homepage and oscilloscope route. The hero and footer actions, fixed
@@ -694,6 +698,8 @@ Paxflix swaps its device captures and bezels without recoloring movie photograph
 With a local build running and Playwright available, run
 `PAX_SITE_URL=http://127.0.0.1:<port> node --test pax-website/tests/theme-smoke.cjs`
 from the repository root to exercise hero replay, the nav switch, the drawer, Paxflix, and preference persistence.
+With WebGPU available, run `pax-website/tests/button-rim-smoke.cjs` the same
+way to check that one CMY triplet rolls through the moving glint at both wide and narrow widths.
 
 Website hosts omit their own moon/sun switch (`show_theme_toggle=false`).
 Both the Solarized code palette and the source chrome follow the page. Other

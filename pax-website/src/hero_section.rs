@@ -12,7 +12,6 @@ pub struct HeroSection {
     pub font_px: Property<f64>,
     pub headline_cap_top: Property<f64>,
     pub logo_width: Property<f64>,
-    pub action_width: Property<f64>,
     pub logo_progress: Property<f64>,
     pub radiance_enabled: Property<bool>,
     pub logo_visible: Property<bool>,
@@ -208,7 +207,6 @@ impl HeroSection {
         let font_px = self.font_px.local();
         let headline_cap_top = self.headline_cap_top.local();
         let logo_width = self.logo_width.local();
-        let action_width = self.action_width.local();
         let vertical_padding = self._vertical_padding.local();
         let update = move || {
             let width = width.get().0;
@@ -221,7 +219,6 @@ impl HeroSection {
             } else {
                 width * 0.88 * 0.66
             };
-            action_width.set_if_neq(((text_width - 12.0) / 2.0).max(1.0));
             // Reserve the widest first line (Build eye-catching) for every word.
             let font_size = (text_width / 10.4).clamp(23.0, 90.0);
             font_px.set_if_neq(font_size);

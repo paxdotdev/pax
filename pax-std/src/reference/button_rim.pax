@@ -1,5 +1,5 @@
 if self.enabled && @gpu {
-    <RimRefraction width=100% height=100% scene_lighting=true rim_width=1
+    <RimRefraction width=100% height=100% scene_lighting=true rim_width=1 light_span=0.22 light_threshold=0.32 hue_cycles=1 hue_travel=2
         light_color=rgba(255, 255, 255, 75%) intensity=0.95 saturation=0.94>
         slot()
     </RimRefraction>

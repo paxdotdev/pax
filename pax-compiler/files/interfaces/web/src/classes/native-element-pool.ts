@@ -1518,6 +1518,9 @@ export class NativeElementPool {
         }
 
         applyTextStyle(leaf, textChild, patch.style);
+        // Content and link style arrive as independent deltas. Inherited CSS
+        // values work for existing and future anchors without replacing either.
+        if (patch.style_link) applyMarkdownLinkStyle(textChild, patch.style_link);
 
         // Apply the content
         if (patch.content != null) {
@@ -1529,42 +1532,6 @@ export class NativeElementPool {
                     textChild.innerText = patch.content;
                 }
                 textChild.dataset.paxRenderedContentSignature = renderSignature;
-            }
-            // Apply the link styles if they exist
-            if (patch.style_link != null) {
-                let linkStyle = patch.style_link;
-                const links = textChild.querySelectorAll('a');
-                links.forEach((link: HTMLElement) => {
-                    if (linkStyle.font) {
-                        linkStyle.font.applyFontToDiv(link);
-                    }
-                    if (linkStyle.fill) {
-                        let newValue = "";
-                        if(linkStyle.fill.Rgba != null) {
-                            let p = linkStyle.fill.Rgba;
-                            newValue = `rgba(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]!})`; //note that alpha channel expects [0.0, 1.0] in CSS
-                        } else {
-                            console.warn("Unsupported Color Format");
-                        }
-                        link.style.color = newValue;
-                    }
-
-                    if (linkStyle.align_horizontal) {
-                        leaf.style.display = "flex";
-                        leaf.style.justifyContent = getJustifyContent(linkStyle.align_horizontal);
-                    }
-                    if (linkStyle.font_size) {
-                        textChild.style.fontSize = linkStyle.font_size + "px";
-                    }
-                    if (linkStyle.align_vertical) {
-                        leaf.style.alignItems = getAlignItems(linkStyle.align_vertical);
-                    }
-                    if (linkStyle.align_multiline) {
-                        textChild.style.textAlign = getTextAlign(linkStyle.align_multiline);
-                    }
-                    //force underlining for now since we don't currently offer an API that offers sane (underlined) defaults.
-                    link.style.textDecoration = 'underline';
-                });
             }
         }
 
@@ -5050,6 +5017,15 @@ function renderMarkdownTextContent(content: string): string {
         return content;
     }
     return snarkdown(content);
+}
+
+function applyMarkdownLinkStyle(container: HTMLElement, style: TextStyle) {
+    const css = container.style, font = style.font;
+    css.setProperty("--pax-link-color", style.fill ? toCssColor(style.fill) : "");
+    css.setProperty("--pax-link-size", style.font_size != null ? style.font_size + "px" : "");
+    css.setProperty("--pax-link-family", font?.family ?? "");
+    css.setProperty("--pax-link-weight", font?.weight != null ? String(font.mapFontWeight(font.weight)) : "");
+    css.setProperty("--pax-link-style", font?.style != null ? font.mapFontStyle(font.style) : "");
 }
 
 function applyTextStyle(textContainer: HTMLElement, textElem: HTMLElement, style: TextStyle | undefined) {

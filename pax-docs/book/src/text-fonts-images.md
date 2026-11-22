@@ -521,6 +521,11 @@ trusted-content surface: the web path inserts rendered markup and does not
 provide a sanitization boundary for arbitrary user input. Leave `markdown`
 false for plain strings from users.
 
+On the web, `_style_link` controls the color and typography of Markdown
+links separately from the paragraph's `style`. Binding it to a theme updates
+already-mounted anchors in place; you don't need to change the Markdown
+string or replace the Text node.
+
 Windows and Linux share a Markdown parser and render its results using native
 text controls. Supported formatting includes emphasis, strong emphasis,
 strikethrough, inline code, paragraphs, headings, simple ordered/unordered lists, fenced

@@ -4,8 +4,7 @@
         <Stacker x=50% width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=18px anchor_x=50%>
             ///#h2
             <Text class="gallery_title" width=100%>Simple meets powerful</Text>
-            <Text class="editorial_lead" width=100%>Pax's simple declarations wield a powerful graphics, layout, and animation engine underneath.</Text>
-            <Text class="editorial_lead" width=100%>Meet your new creative toolkit:</Text>
+            <Text class="editorial_lead" width=100%>Designed from the ground up for expressiveness, modularity, and creative control, Pax offers a broad creative toolkit for making the interface you imagine:</Text>
         </Stacker>
         <Group width=100% height={self.compact ? 546px : 522px}>
             // Native image alpha composites across both the scroll island and native text.

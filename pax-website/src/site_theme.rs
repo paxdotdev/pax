@@ -59,9 +59,9 @@ impl SiteTheme {
     /// Satin-white glass: leave headroom for both the moving sheen and the colored rim.
     pub fn frosted_face() -> Fill {
         Fill {
-            paint: Property::new(Paint::Solid(Color::from_hex("D9DCDD"))),
+            paint: Property::new(Paint::Solid(Color::from_hex("ECF0F2"))),
             material: Property::new(Material::frosted(0.58)),
-            ..Default::default()
+            opacity: Property::new(0.64.into()),
         }
     }
 
@@ -196,9 +196,12 @@ mod tests {
             let Paint::Solid(color) = face.paint.get() else {
                 panic!("expected a single glass color")
             };
-            let base = luminance(color);
-            assert!((0.60..0.82).contains(&base));
-            assert!((base + 0.05) / (luminance(SiteTheme::ink(false)) + 0.05) > 7.0);
+            // Even over pure black the translucent face must carry its dark label.
+            let alpha = face.opacity.get().to_float_0_1();
+            assert!((0.55..0.70).contains(&alpha));
+            let [r, g, b, _] = color.to_rgba_0_1();
+            let base = luminance(Color::from_rgba_0_1([r * alpha, g * alpha, b * alpha, 1.0]));
+            assert!((base + 0.05) / (luminance(SiteTheme::ink(false)) + 0.05) >= 4.5);
             let Material::Lit(material) = face.material.get() else {
                 panic!("expected frosted glass")
             };

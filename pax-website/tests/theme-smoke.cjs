@@ -3,6 +3,27 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {chromium} = require('playwright');
 
+test('a mounted Markdown link changes theme in place in both directions', async () => {
+    const browser = await chromium.launch({channel: 'chrome'});
+    try {
+        const page = await browser.newPage({viewport: {width: 1280, height: 850}});
+        await page.goto(new URL('/?pax_renderer=cpu', process.env.PAX_SITE_URL).href);
+        await page.waitForSelector('[data-pax-loading="active"]', {timeout: 120000});
+        const link = page.locator('.native-leaf [data-pax-markdown="true"] a[href$="/tree/main/pax-website"]').first();
+        await link.scrollIntoViewIfNeeded();
+        const anchor = await link.elementHandle();
+        const expectColor = color => page.waitForFunction(([a, value]) =>
+            a.isConnected && getComputedStyle(a).color === value, [anchor, color]);
+        await expectColor('rgb(252, 249, 242)');
+        for (const [mode, color] of [['light', 'rgb(23, 23, 21)'], ['dark', 'rgb(252, 249, 242)']]) {
+            await page.getByRole('button', {name: 'Switch to ' + mode + ' mode', exact: true}).click();
+            await expectColor(color);
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
 test('hero replay preserves appearance; navigation, drawers and Paxflix share the preference', async () => {
     const browser = await chromium.launch({channel: 'chrome'});
     try {
