@@ -240,12 +240,12 @@ Copy retains the page gutters. Desktop opens the cube's source drawer by default
 compact layouts stack the cube and inline source with an expand action.
 “Plug, Extend, and Play” follows “Simple meets powerful,” introducing reactive composition
 and linking to the standard library and component-authoring guide. Its copy lives
-in `ModularitySection`, separate from these background treatments. At widths of
+over the full-width rain background in `ModularitySection`. At widths of
 1,000px and above, its copy and circuit board share a row, with the board on the
 right. Below that breakpoint the board sits between the large introductory paragraph
 and the smaller paragraphs about wiring and authoring components. The section's
 ExampleHost lists the wrapper, board, package, pin, and logo templates/Rust sources,
-plus the board layout, motion, and signal-routing modules.
+plus the rain treatment and the board layout, motion, and signal-routing modules.
 Its `CircuitBoard` illustration assembles six named packages from reusable
 `CircuitPackage` and `CircuitPin` templates. The packages form a reduced tree of
 the illustration's own template: `CircuitBoard` → `For` (chips) → `CircuitPackage`,
@@ -320,19 +320,24 @@ compositor. Native label masking and canvas/native publication are separate;
 this optimization does not fix cross-layer drift when frames drop. See
 [spatial depth composition](../pax-docs/book/src/layout-responsiveness.md#rotating-flat-surfaces-in-3d).
 
-“Fluent in UI” and Paxflix live together in `RuntimeSection`. Only the copy has
-a rain background: its padded text stack sets the height of a full-width
-`FluentRain` backdrop, and Paxflix follows on plain ink. The half-resolution
-`rain-pane::WetPane` captures only a dark rectangle, never the selectable copy
-or live app. Three broad cyan, magenta, and yellow point lights sweep the
-backdrop's `LightFrame` at different rates. Their radius follows the backdrop's
-extent and their height broadens the
-reflection footprint. The light frame prevents these lights from spilling into
-neighboring sections; the site's existing pointer light can still enter it.
-The rain and lights share one clock that holds while the panel is offscreen.
-No hidden-tab catch-up is performed. Water and animated lighting require the
-GPU backend; other renderers retain the plain dark surface.
-System reduced-motion handling remains pending PAX-1048, as in the rain fixture.
+“Fluent in UI” and the Paxflix showcase share one full-width pressed-glass wall
+in `RuntimeSection`. The text, live tablet, device links, and source drawer sit
+in front of the glass. The dark and light themes use the fixture's dark and
+white backing paints. The wall uses 175% brick size, 0.70 thickness, 0.31
+surface ripple, and inner and outer bezel strengths of 0.25× and 0.40×.
+Three rear point lights at −52 px sweep right to left at 3.5× their individual
+speeds. Cyan (0, 225, 255), magenta (255, 7, 116), and amber (255, 162, 6)
+each have intensity 1.40 and a radius of 89% of the wall width. A light picks
+a new height and speed once its glow clears the wall. The route's white
+pointer at +95 px reflects off the front.
+
+“Plug, Extend, and Play” uses the half-resolution `rain-pane::WetPane` behind
+its copy and circuit board. Its three cyan, magenta, and yellow searchlights
+sweep at different rates. Their radius follows the backdrop's extent and their
+height broadens the reflection footprint. Each backdrop scopes its own lights
+and captures only its backing rectangle. Animation holds offscreen, and CPU
+rendering uses the ordinary section paint. System reduced-motion handling
+remains pending PAX-1048.
 
 The opening sequence uses the outer native scroller as a shared clock.
 `scroll_story.rs` maps its offset into overlapping chapter-local clocks for the
@@ -720,7 +725,7 @@ Content and visual design history are archived in
 
 `AuthoringSection` is the mounted “A declarative language for interactive graphics”
 introduction and cube stage. “Fluent in UI” follows in `RuntimeSection`, with
-its rain background ending before Paxflix. The dedicated cube
+one glass wall continuing behind Paxflix. The dedicated cube
 viewer contains only `increment.pax` and `lib.rs`, selected from the canonical
 example's source list. Compact inline and expanded presentations share the
 cube selection; the desktop drawer starts open with half the panel for code and

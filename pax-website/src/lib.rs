@@ -37,7 +37,9 @@ pub mod device_frame;
 #[cfg(feature = "app")]
 pub mod feature_gallery;
 #[cfg(feature = "app")]
-pub mod fluent_rain;
+pub mod modularity_rain;
+#[cfg(feature = "app")]
+pub mod runtime_glass;
 #[cfg(feature = "app")]
 pub mod framework_section;
 #[cfg(feature = "app")]

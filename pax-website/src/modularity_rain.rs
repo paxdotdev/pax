@@ -3,8 +3,8 @@ use pax_kit::*;
 use rain_pane::WetPane;
 
 #[pax]
-#[file("fluent_rain.pax")]
-pub struct FluentRain {
+#[file("modularity_rain.pax")]
+pub struct ModularityRain {
     pub light_mode: Property<bool>,
     pub visible: Property<bool>,
     pub light_time: Property<f64>,
@@ -20,7 +20,7 @@ pub struct FluentRain {
     pub last_ms: f64,
 }
 
-impl FluentRain {
+impl ModularityRain {
     pub fn mount(&mut self, ctx: &NodeContext) {
         self.last_ms = ctx.elapsed_time_millis() as f64;
         for (target, light, axis) in [
@@ -92,8 +92,8 @@ mod lighting_tests {
     use super::*;
 
     #[test]
-    fn searchlights_cover_the_copy_panel() {
-        for bounds in [(390.0, 610.0), (1440.0, 410.0), (2400.0, 345.0)] {
+    fn searchlights_cover_the_modularity_panel() {
+        for bounds in [(390.0, 1300.0), (1440.0, 750.0), (2400.0, 700.0)] {
             for light in 0..3 {
                 let mut low: f64 = 1.0;
                 let mut high: f64 = 0.0;

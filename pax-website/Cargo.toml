@@ -27,13 +27,14 @@ social_image_alt = "Pax logo"
 [features]
 default = ["app"]
 # Embedded headers share the component source without demo cartridges or filters.
-app = ["dep:led-oscilloscope", "dep:calculator", "dep:paxflix", "dep:increment-cube", "dep:rain-pane", "dep:curtain-panel", "dep:rand", "dep:percent-encoding", "pax-kit/shaders"]
+app = ["dep:led-oscilloscope", "dep:calculator", "dep:paxflix", "dep:increment-cube", "dep:rain-pane", "dep:curtain-panel", "dep:glass-bricks", "dep:rand", "dep:percent-encoding", "pax-kit/shaders"]
 standalone = ["app", "pax-kit/host"]
 
 [dependencies]
 rand = { version = "0.8", optional = true }
 percent-encoding = { version = "2", optional = true }
 curtain-panel = { version = "0.39.1", path = "../examples/fixtures/curtain-panel", default-features = false, optional = true }
+glass-bricks = { version = "0.39.1", path = "../examples/fixtures/glass-bricks", default-features = false, optional = true }
 rain-pane = { version = "0.39.1", path = "../examples/fixtures/rain-pane", default-features = false, optional = true }
 increment-cube = { version = "0.39.1", path = "../examples/increment-cube", default-features = false, optional = true }
 led-oscilloscope = { version = "0.39.1", path = "../examples/led-oscilloscope", default-features = false, optional = true }

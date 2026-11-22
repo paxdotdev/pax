@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 
-use crate::{fluent_rain::FluentRain, PaxflixShowcase, SiteTheme};
+use crate::{runtime_glass::RuntimeGlass, PaxflixShowcase, SiteTheme};
 use pax_kit::*;
 
 const COMPACT_BREAKPOINT_PX: f64 = 760.0;
@@ -19,28 +19,39 @@ pub struct RuntimeSection {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn rain_is_a_background_of_the_autosized_copy_not_the_demo() {
+    fn glass_spans_the_runtime_and_rain_backs_the_modularity_content() {
         let runtime = include_str!("runtime_section.pax");
-        let intro = runtime.split_once("<Group id=fluent_intro").unwrap().1;
-        let (copy, rest) = intro.split_once("</Group>").unwrap();
-        assert!(copy.contains(">Fluent in UI</Text>"));
-        assert!(
-            copy.contains("<FluentRain light_mode={self.light_mode} width=100% height=100% layout_role=LayoutRole::Breakout")
-        );
-        assert!(!copy.contains("<PaxflixShowcase"));
-        assert!(rest.contains("<PaxflixShowcase"));
-        let rain = include_str!("fluent_rain.pax");
-        assert_eq!(rain.matches("<WetPane").count(), 1);
-        let captured = rain
-            .split_once("<WetPane")
-            .unwrap()
-            .1
-            .split_once("</WetPane>")
-            .unwrap()
-            .0;
-        assert!(captured.contains("<Rectangle"));
-        assert!(!captured.contains("<Text"));
-        assert!(!captured.contains("slot("));
+        let (content, background) = runtime.rsplit_once("</Stacker>").unwrap();
+        assert!(content.contains(">Fluent in UI</Text>"));
+        assert!(content.contains("<PaxflixShowcase"));
+        assert_eq!(runtime.matches("<RuntimeGlass ").count(), 1);
+        assert!(background.contains("<RuntimeGlass "));
+        assert!(!runtime.contains("<ModularityRain"));
+
+        let modularity = include_str!("modularity_section.pax");
+        let (content, background) = modularity.rsplit_once("</Stacker>").unwrap();
+        assert!(content.contains(">Plug, Extend, and Play</Text>"));
+        assert!(content.contains("<CircuitBoard"));
+        assert_eq!(modularity.matches("<ModularityRain ").count(), 1);
+        assert!(background.contains("<ModularityRain "));
+
+        for (paint, shader) in [
+            (include_str!("runtime_glass.pax"), "GlassBricks"),
+            (include_str!("modularity_rain.pax"), "WetPane"),
+        ] {
+            let opening = format!("<{shader} ");
+            let closing = format!("</{shader}>");
+            let captured = paint
+                .split_once(&opening)
+                .unwrap()
+                .1
+                .split_once(&closing)
+                .unwrap()
+                .0;
+            assert!(captured.contains("<Rectangle"));
+            assert!(!captured.contains("<Text"));
+            assert!(!captured.contains("slot("));
+        }
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use crate::{circuit_board::CircuitBoard, SiteTheme};
+use crate::{circuit_board::CircuitBoard, modularity_rain::ModularityRain, SiteTheme};
 use pax_kit::*;
 
 #[pax]

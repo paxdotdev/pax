@@ -428,6 +428,12 @@ impl HomePage {
                 code: code.into(),
             });
         }
+        modularity_sources.extend(section_sources(
+            "src/modularity_rain.pax",
+            include_str!("modularity_rain.pax"),
+            "src/modularity_rain.rs",
+            include_str!("modularity_rain.rs"),
+        ));
         self.modularity_sources.set(modularity_sources);
         let mut runtime_sources = section_sources(
             "runtime_section.pax",
@@ -436,10 +442,10 @@ impl HomePage {
             include_str!("runtime_section.rs"),
         );
         runtime_sources.extend(section_sources(
-            "fluent_rain.pax",
-            include_str!("fluent_rain.pax"),
-            "fluent_rain.rs",
-            include_str!("fluent_rain.rs"),
+            "runtime_glass.pax",
+            include_str!("runtime_glass.pax"),
+            "runtime_glass.rs",
+            include_str!("runtime_glass.rs"),
         ));
         runtime_sources.extend(section_sources(
             "paxflix_showcase.pax",
@@ -528,6 +534,11 @@ impl HomePage {
                 .filter(|source| matches!(source.label.as_str(), "increment.pax" | "lib.rs"))
                 .collect(),
         );
+        runtime_sources.push(ExampleSource {
+            label: "glass-bricks/glass.wgsl".into(),
+            language: "wgsl".into(),
+            code: include_str!("../../examples/fixtures/glass-bricks/src/glass.wgsl").into(),
+        });
         self.runtime_sources.set(runtime_sources);
         self.feature_gallery_sources.set(vec![
             ExampleSource {

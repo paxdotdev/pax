@@ -27,7 +27,21 @@ pub struct LampSettings {
 }
 
 impl RoamingLight {
-    fn advance(&mut self, mut dt: f64, width: f64, radius_fraction: f64, rng: &mut impl Rng) {
+    /// Start the three wall lights at staggered positions with independent speeds.
+    pub fn initial_trio(rng: &mut impl Rng) -> Vec<Self> {
+        [(0.19, 0.28), (0.81, 0.38), (0.46, 0.79)]
+            .into_iter()
+            .map(|(x_fraction, y_fraction)| Self {
+                x_fraction,
+                y_fraction,
+                speed: rng.gen_range(28.0..67.0),
+            })
+            .collect()
+    }
+
+    /// Advance by scaled seconds across a positive wall width in logical pixels.
+    /// The radius in wall widths sets the offscreen clearance at both ends.
+    pub fn advance(&mut self, mut dt: f64, width: f64, radius_fraction: f64, rng: &mut impl Rng) {
         loop {
             let remaining = (self.x_fraction + radius_fraction).max(0.0) * width / self.speed;
             if dt < remaining {
@@ -110,17 +124,8 @@ impl Example {
                 })
                 .collect(),
         );
-        let mut rng = rand::thread_rng();
-        self.lights.set(
-            [(0.19, 0.28), (0.81, 0.38), (0.46, 0.79)]
-                .into_iter()
-                .map(|(x, y)| RoamingLight {
-                    x_fraction: x,
-                    y_fraction: y,
-                    speed: rng.gen_range(28.0..67.0),
-                })
-                .collect(),
-        );
+        self.lights
+            .set(RoamingLight::initial_trio(&mut rand::thread_rng()));
         self.pointer_x.set(0.65);
         self.pointer_y.set(0.25);
         self.depth.set(95.);

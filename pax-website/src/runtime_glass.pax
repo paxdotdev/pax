@@ -1,0 +1,16 @@
+<LightFrame width=100% height=100% _raycastable=false @viewport_proximity_change=self.visibility>
+    if self.visible {
+        <Group width=0px height=0px @mount=self.reset_clock @tick=self.animate/>
+        for (color, i) in self.colors {
+            <LightSource x={(self.lights[i].x_fraction * 100)%} y={(self.lights[i].y_fraction * 100)%}
+                width=1px height=1px anchor=50% z=-52px radius={(self.wall_width * self.radius_fraction)px}
+                intensity=1.4 color={color}/>
+        }
+        <GlassBricks width=100% height=100% pitch={Math::max(82.0, Math::min(784.0, self.wall_width) / 7.0) * 1.75}
+            thickness=0.70 roughness=0.31 inner_bezel=0.25 outer_bezel=0.40>
+            <Rectangle width=100% height=100% _raycastable=false fill={self.light_mode ? WHITE : rgb(19,23,24)}/>
+        </GlassBricks>
+    }
+</LightFrame>
+
+@settings { @mount: mount }
