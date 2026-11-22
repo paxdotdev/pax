@@ -46,8 +46,8 @@ fn apply_lighting(
 
         let light = scene_lighting.lights[i];
         let sampled = sample_scene_light(light, world_position);
-        let light_dir = sampled.xyz;
-        let attenuation = sampled.w;
+        let light_dir = sampled.direction;
+        let attenuation = sampled.attenuation;
         let diffuse = max(dot(normal, light_dir), 0.0);
         let specular = scene_specular_lobe(light_dir, view_dir, normal, mix(96.0, 8.0, roughness));
         let energy = light.color.a * attenuation * specular;

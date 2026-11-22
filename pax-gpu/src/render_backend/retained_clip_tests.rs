@@ -8975,6 +8975,119 @@ fn scene_lighting_shares_material_lights_and_reuses_unlit_sources() {
     }
 }
 
+#[cfg(feature = "shaders")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn incident_light_preserves_scoped_direction_distance_and_camera_side() {
+    use crate::{LightShape, SceneLight, SceneLighting};
+    use pax_runtime_api::{
+        LightingSurface, ShaderEffect, ShaderInput, ShaderLighting, ShaderPass, ShaderProgram,
+    };
+    static PROBE: ShaderProgram = ShaderProgram {
+        label: "incident light probe",
+        passes: &[ShaderPass {
+            label: "incident.wgsl",
+            source: "fn effect(p: vec2<f32>) -> vec4<f32> {
+                let l = scene_incident_light(p, firstTrailingBit(scene_light_mask()));
+                let plane = scene_world_normal(vec3<f32>(0, 0, 1));
+                let n = select(-plane, plane, dot(plane, scene_view_direction(p)) >= 0.0);
+                let rear = dot(n, l.direction) < 0.0;
+                let masked = scene_incident_light(p, 0u).rgb;
+                let invalid = scene_incident_light(p, 8u).rgb;
+                let rgb = vec3<f32>(select(l.rgb.b, 0.0, rear), select(0.0, l.rgb.b, rear),
+                    select(l.distance / 64.0, 1.0, l.distance < 0.0));
+                return vec4<f32>(rgb + masked + invalid, 1.0);
+            }",
+            parameters: &[],
+            inputs: [ShaderInput::Subtree; 2],
+            downsample: 1,
+        }],
+    };
+    let (_layer, mut renderer, device) = retained_update_renderer(false);
+    // Local X/Y lie in world Y/Z. A world-Z side test would fail all three poses.
+    let effect = ShaderEffect {
+        program: &PROBE,
+        parameters: vec![vec![]],
+        outset: 0.,
+        lighting: Some(ShaderLighting {
+            light_mask: 2,
+            surface: LightingSurface {
+                origin: [0.; 3],
+                tangent_x: [0., 1., 0.],
+                tangent_y: [0., 0., 1.],
+                normal: [1., 0., 0.],
+            },
+        }),
+    };
+    let light = SceneLight {
+        shape: LightShape::Point,
+        position: [-32., 16.5, 16.5],
+        half_extent: [0.; 3],
+        direction: [1., 0., 0.],
+        color: Color::rgba(0., 0., 1., 1.),
+        intensity: 4.,
+        radius: 64.,
+    };
+    renderer.begin_shader_effect(
+        10,
+        0,
+        &effect,
+        Transform2D::identity(),
+        (32., 32.),
+        &[],
+        &[1],
+    );
+    renderer.begin_node(1, 0, 0);
+    renderer.fill_path(
+        rect(0., 0., 32., 32.),
+        Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+    );
+    renderer.end_node(1);
+    renderer.end_shader_effect();
+    for (id, (view, shape, expected)) in [
+        ([1., 0., 0., 0.], LightShape::Point, [0, 255, 128, 255]),
+        (
+            [-80., 16.5, 16.5, 1.],
+            LightShape::Strip,
+            [255, 0, 128, 255],
+        ),
+        (
+            [1., 0., 0., 0.],
+            LightShape::Directional,
+            [0, 255, 255, 255],
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        renderer.set_scene_lighting(SceneLighting {
+            active: true,
+            view,
+            lights: vec![
+                SceneLight {
+                    color: Color::rgba(1., 0., 0., 1.),
+                    ..light
+                },
+                SceneLight {
+                    shape,
+                    half_extent: [0., 20., 0.],
+                    ..light
+                },
+            ],
+            ..Default::default()
+        });
+        renderer.request_screenshot_capture(id as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        assert_pixel(
+            &renderer.take_screenshot_capture(id as u32).unwrap(),
+            16,
+            16,
+            expected,
+        );
+    }
+}
+
 #[test]
 #[ignore = "requires a macOS Metal device"]
 fn lighting_material_banks_preserve_both_uniform_tiers_at_browser_limits() {

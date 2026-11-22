@@ -16,11 +16,14 @@ struct SceneLighting {
 
 
 
-// Shared by vector materials and opt-in shader effects. xyz is the direction
-// toward the emitter; w is its finite-radius attenuation.
-fn sample_scene_light(light: SceneLight, position: vec3<f32>) -> vec4<f32> {
+struct SampledSceneLight {
+    direction: vec3<f32>,
+    distance: f32,
+    attenuation: f32,
+}
+fn sample_scene_light(light: SceneLight, position: vec3<f32>) -> SampledSceneLight {
     if light.params.x >= 0.5 && light.params.x <= 1.5 {
-        return vec4<f32>(-light.direction.xyz / max(length(light.direction.xyz), 0.0001), 1.0);
+        return SampledSceneLight(-light.direction.xyz / max(length(light.direction.xyz), 0.0001), -1.0, 1.0);
     }
     var emitter = light.position.xyz;
     if light.params.x > 1.5 {
@@ -31,9 +34,10 @@ fn sample_scene_light(light: SceneLight, position: vec3<f32>) -> vec4<f32> {
         }
     }
     let delta = emitter - position;
-    let distance = max(length(delta), 0.0001);
-    let falloff = max(1.0 - distance / max(light.params.y, 0.0001), 0.0);
-    return vec4<f32>(delta / distance, falloff * falloff);
+    let distance = length(delta);
+    let safe_distance = max(distance, 0.0001);
+    let falloff = max(1.0 - safe_distance / max(light.params.y, 0.0001), 0.0);
+    return SampledSceneLight(delta / safe_distance, distance, falloff * falloff);
 }
 
 fn scene_view_at(view: vec4<f32>, position: vec3<f32>) -> vec3<f32> {

@@ -1,0 +1,27 @@
+[package]
+name = "glass-bricks"
+version = "0.39.1"
+edition = "2021"
+publish = false
+default-run = "glass-bricks"
+
+[package.metadata.pax]
+title = "Pax / Glass bricks"
+
+[dependencies]
+rand = "0.8"
+getrandom = { version = "0.2", features = ["js"] }
+pax-kit = { path = "../../../pax-kit", version = "0.39.1", features = ["shaders"] }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "glass-bricks"
+path = "src/main.rs"
+required-features = ["standalone"]

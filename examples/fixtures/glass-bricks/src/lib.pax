@@ -1,0 +1,113 @@
+<Scroller width=100% height=100% autosize=true>
+    <Group x=50% width={(self.panel_size + self.controls_space)px} autosize_y=true>
+        <Group width=100% height=50px>
+            <Button class="control" x=100% y=100% width=104px
+                label={self.light_mode ? "Dark mode" : "Light mode"} @button_click=self.toggle_theme/>
+            <Text y=100% width={100% - 112px} height=36px text="Glass bricks"
+                style={font: "Georgia", font_size: 27px, fill: {self.light_mode ? rgb(29,39,42) : rgb(230,232,226)}}/>
+        </Group>
+        <Frame id=wall y=62px width={(self.panel_size)px} height={(self.panel_size)px} corner_radius=3
+            @viewport_proximity_change=self.visibility
+            @mouse_move=self.pointer @touch_start=self.touch_start @touch_move=self.touch_move>
+            <LightFrame width=100% height=100%>
+                if self.mode != 2 {
+                    <GlassBricks width=100% height=100% identity={self.mode == 1}
+                        thickness={self.thickness} roughness={self.roughness}
+                        inner_bezel={self.inner_bezel} outer_bezel={self.outer_bezel}
+                        pitch={Math::max(82.0, self.panel_size / 7.0) * self.brick_size_percent / 100.0}>
+                        <Rectangle class="backing" width=100% height=100%/>
+                    </GlassBricks>
+                } else {
+                    <Rectangle class="backing" width=100% height=100%/>
+                }
+                for lamp in self.lamp_settings key lamp.id {
+                    <LightSource x={(self.lights[lamp.id].x_fraction * self.panel_size)px}
+                        y={(self.lights[lamp.id].y_fraction * self.panel_size)px} anchor=50% width=1px height=1px
+                        z=-52px radius={(self.panel_size * lamp.radius_percent / 100.0)px}
+                        intensity={lamp.intensity} color={rgb(lamp.red, lamp.green, lamp.blue)} enabled={self.rear}/>
+                }
+                <LightSource id=pointer x={(self.pointer_x * self.panel_size)px} y={(self.pointer_y * self.panel_size)px}
+                    anchor=50% width={self.strip ? 230px : 1px} height=1px rotate=-35deg
+                    z={(self.depth)px} radius=480px intensity=0.9 color=WHITE enabled={self.front}
+                    shape={self.strip ? LightShape::Strip : LightShape::Point}/>
+            </LightFrame>
+        </Frame>
+        <Stacker x={self.controls_space > 0 ? (self.panel_size + 20)px : 0px}
+            y={self.controls_space > 0 ? 62px : (self.panel_size + 74)px}
+            width={self.controls_space > 0 ? (self.controls_space - 20)px : (self.panel_size)px} autosize=true gutter=12px>
+            <Group width=100% height=54px>
+                <Text class="caption" width=47% text={"Brick size · " + self.brick_size_percent + "%"}/>
+                <Slider id=brick_size class="adjust" width=47% min=50.0 max=250.0 step=5.0 value=bind:brick_size_percent/>
+                <Text class="caption" x=100% width=47% text={"Rear speed · " + self.rear_speed + "×"}/>
+                <Slider id=rear_speed_control class="adjust" x=100% width=47% min=0.0 max=10.0 step=0.25 value=bind:rear_speed/>
+            </Group>
+            <Group width=100% height=54px>
+                <Text class="caption" width=47% text={"Inner bezel · " + self.inner_bezel + "×"}/>
+                <Slider id=inner_bezel_control class="adjust" width=47% min=0.0 max=3.0 step=0.05 value=bind:inner_bezel/>
+                <Text class="caption" x=100% width=47% text={"Outer bezel · " + self.outer_bezel + "×"}/>
+                <Slider id=outer_bezel_control class="adjust" x=100% width=47% min=0.0 max=3.0 step=0.05 value=bind:outer_bezel/>
+            </Group>
+            <Group width=100% height=36px>
+                <Button class="control" width=31% label={self.playing ? "Pause" : "Play"} @button_click=self.pause/>
+                <Button class="control" x=50% width=32% label={self.rear ? "Rear lights on" : "Rear lights off"} @button_click=self.toggle_rear/>
+                <Button class="control" x=100% width=33% label={self.front ? "Pointer on" : "Pointer off"} @button_click=self.toggle_front/>
+            </Group>
+            <Group width=100% height=36px>
+                <Button class="control" width=48% label={self.strip ? "Pointer / strip" : "Pointer / point"} @button_click=self.toggle_strip/>
+                <Button class="control" x=100% width=48% label={self.mode == 0 ? "Glass" : (self.mode == 1 ? "Capture only" : "Plain paint")} @button_click=self.compare/>
+            </Group>
+            <Text class="caption" width=100% text={"Pointer depth  /  " + self.depth + " px"}/>
+            <Slider id=depth width=100% height=24px min=-160.0 max=160.0 step=1.0 value=bind:depth/>
+            <Group width=100% height=54px>
+                <Text class="caption" width=47% text="Glass thickness"/>
+                <Slider class="adjust" width=47% min=0.0 max=1.0 step=0.01 value=bind:thickness/>
+                <Text class="caption" x=100% width=47% text="Surface ripple"/>
+                <Slider class="adjust" x=100% width=47% min=0.0 max=1.0 step=0.01 value=bind:roughness/>
+            </Group>
+            <Group width=100% height=36px>
+                <Dropdown id=lamp_selector width={100% - 48px} height=36px
+                    options=["Rear light 1", "Rear light 2", "Rear light 3"] selected_id=bind:selected_lamp
+                    background={self.light_mode ? rgb(237,241,242) : rgb(35,43,45)} corner_radius=5
+                    style={font: "Arial", font_size: 14px, fill: {self.light_mode ? rgb(30,40,42) : rgb(220,227,224)}}/>
+                for lamp in self.lamp_settings key lamp.id {
+                    if lamp.id == self.selected_lamp {
+                        <Rectangle x=100% width=36px height=36px corner_radius=5 fill={rgb(lamp.red,lamp.green,lamp.blue)}/>
+                    }
+                }
+            </Group>
+            for lamp in self.lamp_settings key lamp.id {
+                if lamp.id == self.selected_lamp {
+                    <Group width=100% height=120px>
+                        <Text class="caption" width=31% text={"Red · " + lamp.red}/>
+                        <Slider class="adjust" width=31% max=255.0 step=1.0 value={lamp.red} @slider_change=self.set_red/>
+                        <Text class="caption" x=50% width=31% text={"Green · " + lamp.green}/>
+                        <Slider class="adjust" x=50% width=31% max=255.0 step=1.0 value={lamp.green} @slider_change=self.set_green/>
+                        <Text class="caption" x=100% width=31% text={"Blue · " + lamp.blue}/>
+                        <Slider class="adjust" x=100% width=31% max=255.0 step=1.0 value={lamp.blue} @slider_change=self.set_blue/>
+                        <Text class="caption" y=66px width=47% text={"Intensity · " + lamp.intensity}/>
+                        <Slider class="adjust" y=91px width=47% min=0.0 max=12.0 step=0.1 value={lamp.intensity} @slider_change=self.set_intensity/>
+                        <Text class="caption" x=100% y=66px width=47% text={"Radius · " + lamp.radius_percent + "%"}/>
+                        <Slider class="adjust" x=100% y=91px width=47% min=10.0 max=120.0 step=1.0 value={lamp.radius_percent} @slider_change=self.set_radius/>
+                    </Group>
+                }
+            }
+            <Group height=32px width=100%/>
+        </Stacker>
+    </Group>
+</Scroller>
+<Rectangle width=100% height=100% fill={self.light_mode ? WHITE : rgb(15,18,19)}/>
+if self.visible && self.playing && self.rear && self.rear_speed > 0.0 && @gpu {
+    <Group width=0px height=0px @mount=self.start_clock @tick=self.animate/>
+}
+@settings {
+    @mount: mount
+    .backing { fill: {self.light_mode ? WHITE : rgb(19,23,24)} }
+    .caption { height: 20px style: {font: "Arial", font_size: 13px, fill: {self.light_mode ? rgb(60,72,75) : rgb(185,195,194)}} }
+    .adjust { y: 25px height: 24px }
+    .control {
+        height: 36px corner_radius: 5
+        color: {self.light_mode ? rgb(237,241,242) : rgb(35,43,45)}
+        hover_color: {self.light_mode ? rgb(219,227,228) : rgb(48,58,60)}
+        style: {font: "Arial", font_size: 13px, fill: {self.light_mode ? rgb(30,40,42) : rgb(220,227,224)}, align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center}
+    }
+}

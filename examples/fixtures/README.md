@@ -32,6 +32,7 @@ accepts `fixtures/<name>` and `examples/fixtures/<name>`.
 | [flashy](flashy) | Seeded sequin glints, atmospheric flares, vector lettering, and a fabric surface |
 | [increment](increment) | Minimal template-to-Rust click counter; still available as a CLI starter |
 | [game-of-life](game-of-life) | Editable grid and Rust simulation state |
+| [glass-bricks](glass-bricks) | Pressed glass with a reflective pointer light and three roaming rear lights |
 | [glow-buttons](glow-buttons) | Scoped lighting regression/study |
 | [rim-refraction](rim-refraction) | Light-thresholded CMY glints on linked buttons, a cutout path and a projected solid |
 | [loading-screen](loading-screen) | Custom startup component, cancellation, and coordinated native/canvas reveal |

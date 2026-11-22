@@ -984,6 +984,46 @@ reuses shader pipelines and pass textures. Without opt-in the helpers return
 no illumination. Low-level renderer callers must provide the resolved
 `ShaderLighting` plane and mask themselves.
 
+For effects that shade each light separately, `scene_light_mask()` returns the
+eligible slots as bits. A slot identifies a light within this sample; membership
+can change when lights are enabled, moved between scopes, or replaced.
+`scene_incident_light(p, slot)` returns the world direction toward the emitter,
+`distance` in world pixels (negative for a directional light), and `rgb` with
+intensity and attenuation already applied. A strip samples its closest point.
+Ineligible or invalid slots return zero energy. At exact coincidence a finite
+light has zero direction and distance. `scene_view_direction(p)` points from the
+effect surface toward the viewer for both orthographic and perspective cameras.
+
+For example, this WGSL function collects rear illumination relative to the
+viewer. The geometric plane decides the side, so tilting the plane or reversing
+the camera also changes which lights shine through.
+
+```wgsl
+fn rear_illumination(p: vec2<f32>) -> vec3<f32> {
+    let plane = scene_world_normal(vec3<f32>(0, 0, 1));
+    let normal = select(-plane, plane, dot(plane, scene_view_direction(p)) >= 0.0);
+    var rgb = vec3<f32>(0.0);
+    var mask = scene_light_mask();
+    while mask != 0u {
+        let light = scene_incident_light(p, firstTrailingBit(mask));
+        mask &= mask - 1u;
+        rgb += light.rgb * max(-dot(normal, light.direction), 0.0);
+    }
+    return rgb;
+}
+```
+
+The [glass-bricks fixture](https://github.com/paxdotdev/pax/tree/main/examples/fixtures/glass-bricks)
+combines colored rear illumination with front reflections on a moulded rim.
+The shader approximates depth on a single opaque-backed plane. Each roaming
+point light clears the wall by its full radius before beginning another pass.
+Use **Brick size** to scale both dimensions of the square bricks and **Rear speed**
+to slow, hold, or accelerate the lights while preserving their individual speeds.
+Switch to **Light mode** to compare the material on white. The fixture exposes
+the inner lip and outer shoulder highlights separately, along with color,
+intensity and radius for each rear light.
+The appearance does not require sampling content behind the wall.
+
 The [curtain-panel fixture](https://github.com/paxdotdev/pax/tree/main/examples/fixtures/curtain-panel)
 uses a gathered height field to shade black sateen. Pause the draft and move
 the strip light to see the highlight travel across a stationary fold. Fold

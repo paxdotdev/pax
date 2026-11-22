@@ -153,8 +153,10 @@ pub struct ShaderEffect {
     /// Immutable recipe shared across mounted instances.
     pub program: &'static ShaderProgram,
     /// `Some(Default::default())` requests this node's scoped scene lights and camera.
-    /// WGSL helpers include `scene_specular(p, tangent_normal, shininess)` and
-    /// `scene_ambient()`. `None` supplies no illumination and creates no light dependency.
+    /// Use `scene_light_mask()` and `scene_incident_light(p, slot)` to shade eligible lights
+    /// individually, with `scene_view_direction(p)` pointing toward the camera in world space.
+    /// `scene_specular(p, tangent_normal, shininess)` sums reflected light and `scene_ambient()`
+    /// returns ambient illumination. `None` supplies no illumination and creates no light dependency.
     pub lighting: Option<ShaderLighting>,
     /// One ordered value list per pass, matching that pass's schema.
     pub parameters: Vec<Vec<ShaderValue>>,
