@@ -201,7 +201,11 @@ bounds and occlusion bounds have separate indexes: a primitive's stable occlusio
 shape can exceed the portion it currently paints. Native
 occlusion uses those indexes after layer and clip membership have settled;
 a structural rebuild constructs each native mask from that completed geometry,
-using the same query path as an incremental update. Ancestor scroll placement
+using the same query path as an incremental update. A window resize refreshes
+viewport-clipped container bounds even for fixed-size containers. The compositor
+retains layer ownership and paint order while the mounted scene and its clipping
+structure stay the same. A responsive branch that enters or leaves the scene
+triggers the usual structural checks. Ancestor scroll placement
 is a reactive value shared by descendants, including native presentation offsets
 and page-scroll delegation. Reading it after a property write observes current
 placement without waiting for a frame or traversing the ancestor chain again.
@@ -221,7 +225,9 @@ also observes its new local pose. Moving a parent therefore preserves unchanged
 local paint geometry and avoids rerunning each child's paint-content effect. Components and
 control-flow nodes use the same placement notification path; no author-specified
 grouping is needed. Local content edits and resizing still invalidate their
-respective caches.
+respective caches. Image redraws can also use the final canvas placement after
+layout settles. A synchronous placement read during layout still sees the current
+pose, and moving an Image reuses its loaded pixels.
 
 The GPU renderer retains local fill and stroke commands for Rectangle, Ellipse,
 Line, and Path. When one of these nodes moves, it can replay those commands
@@ -253,16 +259,28 @@ clip changes still invalidate affected drawings. Flat lighting follows the
 surface's world transform without baking that transform into every drawing.
 Camera-controlled or spatial placement, detached captures, and presentation flights keep
 world-dependent placement notifications so drawing can resume after a viewport jump.
-Template components and control-flow wrappers subscribe to world placement only
-when their own canvas coordinates are requested. This paint isolation applies only where
-the runtime allocates a separate surface.
+Shapes using local occlusion coverage inside an isolated Scroller switch to
+world-space coverage when their group tilts out of the plane. Flattening the
+group restores local coverage even if the compositor rebuilt the scene during the tilt.
+While a hit target or occlusion shape uses scroller-local coordinates, its placement
+tracks the owning scroller and local transform. An ancestor's world transform can
+then change without waking that placement check. Occlusion also observes the
+local clip path while this placement is valid. Moving the clip outside the
+scroller or tilting it into 3D switches observation to the projected path.
+Surface-local paint requires a separately allocated surface. On any surface,
+moving an ancestor leaves a node's canvas placement pending if it has no
+listener or geometry observer. A direct read resolves the current coordinates
+synchronously. Adding the first listener resumes queued updates.
 
 Ordinary affine native Text and Frame clips also retain placement in their nearest Scroller's
 content coordinates, independently of canvas surface allocation. Moving that
 host does not send a new transform or clip path for every unchanged descendant. Content,
-style, and measurement preparation are separate from placement: local movement
-still updates the transform, while width, content, and font changes still update
-layout. The web and Apple chassis resolve these placements within their existing
+style, and measurement preparation are separate from placement. Native Text uses
+local layout bounds for wrapping, and Frame uses them for its clip dimensions.
+A primitive can subscribe to `ExpandedNode::presentation_bounds()` for these dimensions.
+During an animated transfer the binding follows the size of the presented footprint.
+Placement still follows the current transform.
+The web and Apple chassis resolve these placements within their existing
 native hierarchy, preserving mixed text/control ordering and Frame clips.
 Spatial, camera-controlled, detached, and flight placements retain world updates.
 Other native controls still receive world placement. Inside an isolated, clipped

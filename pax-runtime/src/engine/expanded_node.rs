@@ -895,6 +895,30 @@ macro_rules! dispatch_event_handler {
 }
 
 impl ExpandedNode {
+    /// Bind a primitive's size to local layout. During an animated transfer,
+    /// follow the dimensions selected by the presentation geometry.
+    pub fn presentation_bounds(&self) -> LocalProperty<(f64, f64)> {
+        let layout = self.layout_bounds.clone();
+        let presented = self.presentation_transform_and_bounds.clone();
+        let origin = self.move_origin.clone();
+        LocalProperty::computed_with_optional_inputs(
+            &[origin.untyped()],
+            [layout.untyped(), presented.untyped()],
+            move |[use_layout, use_presentation]| {
+                // A flight can fall back to its destination pose at a collapsed size.
+                // Its native clip and text constraints must match the drawn footprint.
+                let moving = origin.get().is_some();
+                use_layout(!moving);
+                use_presentation(moving);
+                if moving {
+                    presented.get().bounds
+                } else {
+                    layout.get()
+                }
+            },
+        )
+    }
+
     /// Engine-owned unprojected geometry in unscrolled world coordinates.
     /// Primitives may inspect or subscribe to this property; do not replace its binding.
     #[cfg(feature = "3d")]
@@ -3101,26 +3125,25 @@ impl ExpandedNode {
             let local_placement = self.native_local_placement.clone();
             let local_clip = self.local_clip_geometry.clone();
             let world_clip = self.world_clip_geometry.clone();
-            let clip_deps = [
-                eligible.untyped(),
-                local_placement.untyped(),
-                local_clip.untyped(),
-                world_clip.untyped(),
-            ];
-            let node = Rc::downgrade(self);
-            LocalProperty::computed_with_cutoff_and_name(
-                move || {
-                    if eligible.get()
-                        && node
-                            .upgrade()
-                            .is_some_and(|n| n.retained_native_placement().is_some())
-                    {
+            LocalProperty::computed_with_optional_inputs_and_cutoff(
+                &[eligible.untyped()],
+                [
+                    local_placement.untyped(),
+                    local_clip.untyped(),
+                    world_clip.untyped(),
+                ],
+                move |[observe_placement, observe_local, observe_world]| {
+                    let eligible = eligible.get();
+                    observe_placement(eligible);
+                    let local = eligible && local_placement.get().retained().is_some();
+                    observe_local(local);
+                    observe_world(!local);
+                    if local {
                         local_clip.get()
                     } else {
                         world_clip.get()
                     }
                 },
-                &clip_deps,
                 |a, b| a.0 == b.0,
                 "occlusion clip",
             )

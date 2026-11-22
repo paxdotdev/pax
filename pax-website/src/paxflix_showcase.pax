@@ -1,5 +1,5 @@
-<Group width=100% height={(self.content_height)px}>
-    <Link x=50% y={(self.devices_height + 24)px} anchor_x=50% width=248px height=44px url="/paxflix/" target=Target::Current>
+<Group width=100% height=100%>
+    <Link x=50% y={100% - 52px} anchor_x=50% anchor_y=0% width=248px height=44px url="/paxflix/" target=Target::Current>
         <Text width=100% height=100% selectable=false
             style={
                 font: {
@@ -16,8 +16,8 @@
             width: 1px
         }/>
     </Link>
-    if self.layout_ready {
-        <Group x=0px anchor=0% width=1280px height=780px scale={(self.stage_scale)%} layout_role=LayoutRole::Breakout>
+    if self.stage_scale > 0.0 {
+        <Group x=0px anchor=0% width=1280px height=780px scale={(self.stage_scale * 100.0)%} layout_role=LayoutRole::Breakout>
             // Keep the live screen axis-aligned; only the captured wings rotate.
             <Group id=front_tablet x=640px y=406px anchor=50% width=1048px height=812px scale=76% rotate=0deg>
                 if self.compact {
@@ -51,10 +51,6 @@
 </Group>
 // One desktop app stays mounted through scrolling. The two wings and all mobile
 // screens are captures; moving the fixed-size stage never relayouts the app.
-
-@settings {
-    @mount: mount
-}
 
 @timeline arrival {
     duration: 100,

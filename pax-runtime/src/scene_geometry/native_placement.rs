@@ -11,6 +11,12 @@ pub(crate) struct NativeLocalPlacement {
 }
 impl Interpolatable for NativeLocalPlacement {}
 
+impl NativeLocalPlacement {
+    pub(crate) fn retained(self) -> Option<(u32, TransformAndBounds<NodeLocal, Window>)> {
+        self.owner.zip(self.tab)
+    }
+}
+
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum PlacementDependency {
     Local(u32, TransformAndBounds<NodeLocal, Window>),
@@ -29,11 +35,14 @@ impl Default for PlacementDependency {
 impl Interpolatable for PlacementDependency {}
 
 impl ExpandedNode {
+    pub(crate) fn native_placement_owner(&self) -> Option<u32> {
+        self.native_local_placement.get().owner
+    }
+
     pub(crate) fn retained_native_placement(
         &self,
     ) -> Option<(u32, TransformAndBounds<NodeLocal, Window>)> {
-        let local = self.native_local_placement.get();
-        local.owner.zip(local.tab)
+        self.native_local_placement.get().retained()
     }
 
     // Cut off host-only changes before input/coverage effects, not after their
@@ -52,17 +61,23 @@ impl ExpandedNode {
         #[cfg(not(feature = "3d"))]
         let deferred = false;
         let bounds = self.layout_bounds.clone();
-        let mut deps = vec![local.untyped(), eligible.untyped(), bounds.untyped()];
-        if !deferred {
-            deps.push(world.untyped());
-        }
-        LocalProperty::computed_with_cutoff_and_name(
-            move || {
-                if eligible.get() {
-                    let local = local.get();
-                    if let Some((owner, tab)) = local.owner.zip(local.tab) {
-                        return PlacementDependency::Local(owner, tab);
-                    }
+        let fallback = if deferred {
+            bounds.untyped()
+        } else {
+            world.untyped()
+        };
+        LocalProperty::computed_with_optional_inputs_and_cutoff(
+            &[eligible.untyped()],
+            [local.untyped(), fallback],
+            move |[observe_local, observe_fallback]| {
+                let eligible = eligible.get();
+                observe_local(eligible);
+                let retained = eligible
+                    .then(|| local.get())
+                    .and_then(NativeLocalPlacement::retained);
+                observe_fallback(retained.is_none());
+                if let Some((owner, tab)) = retained {
+                    return PlacementDependency::Local(owner, tab);
                 }
                 #[cfg(feature = "3d")]
                 if deferred {
@@ -70,7 +85,6 @@ impl ExpandedNode {
                 }
                 PlacementDependency::World(world.get())
             },
-            &deps,
             PartialEq::eq,
             "input or coverage placement",
         )

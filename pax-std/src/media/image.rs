@@ -169,6 +169,10 @@ pub struct ImageInstance {
 }
 
 impl InstanceNode for ImageInstance {
+    fn may_supply_clip(&self) -> bool {
+        false
+    }
+
     fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
         false
     }
@@ -210,24 +214,6 @@ impl InstanceNode for ImageInstance {
         let source =
             expanded_node.with_properties_unwrapped(|props: &mut Image| props.source.clone());
 
-        let tab = expanded_node.canvas_transform_and_bounds.clone();
-        let deps = [
-            tab.untyped(),
-            expanded_node.computed_opacity.untyped(),
-            expanded_node.computed_opacity_scopes.untyped(),
-        ];
-        let cloned_context = context.clone();
-        let occlusion = expanded_node.occlusion.clone();
-        let expanded_node_id = expanded_node.id;
-
-        let tab_changed = LocalProperty::computed(
-            move || {
-                cloned_context.mark_canvas_node_dirty(expanded_node_id);
-                cloned_context.set_canvas_dirty(occlusion.get().render_layer_id);
-            },
-            &deps,
-        );
-
         let cloned_context = context.clone();
         let deps = [source.untyped()];
         let needs_to_load_data = Rc::clone(&self.needs_to_load_data);
@@ -261,19 +247,28 @@ impl InstanceNode for ImageInstance {
                         }
                     }
                 });
-                cloned_context.mark_canvas_node_dirty(expanded_node.id);
-                cloned_context.set_canvas_dirty(expanded_node.occlusion.get().render_layer_id)
             },
             &deps,
         );
 
-        let deps = [source_changed.untyped(), tab_changed.untyped()];
+        // A direct paint listener lets queued placement settle after layout.
+        // Source loading keeps its own dependency so movement never reloads an image.
+        let deps = [
+            source_changed.untyped(),
+            expanded_node.canvas_transform_and_bounds.untyped(),
+            expanded_node.computed_opacity.untyped(),
+            expanded_node.computed_opacity_scopes.untyped(),
+        ];
+        let context = Rc::clone(context);
+        let node_id = expanded_node.id;
+        let occlusion = expanded_node.occlusion.clone();
         expanded_node
             .changed_listener
             .replace_with(LocalProperty::computed(
                 move || {
                     source_changed.get();
-                    tab_changed.get();
+                    context.mark_canvas_node_dirty(node_id);
+                    context.set_canvas_dirty(occlusion.get().render_layer_id);
                 },
                 &deps,
             ))

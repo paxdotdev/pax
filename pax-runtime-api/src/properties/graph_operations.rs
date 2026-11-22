@@ -9,7 +9,7 @@ impl PropertyTable {
         });
 
         while let Some(dep_id) = to_dirtify.pop() {
-            let (newly_dirty, is_cutoff) = self.with_property_data_mut(dep_id, |dep_data| {
+            let (needs_queue, is_cutoff) = self.with_property_data_mut(dep_id, |dep_data| {
                 if dep_id == id {
                     unreachable!("property cycle");
                 }
@@ -20,12 +20,15 @@ impl PropertyTable {
                     if !is_cutoff {
                         to_dirtify.extend_from_slice(&dep_data.outbound);
                     }
-                    (true, is_cutoff)
+                    // A direct read pulls the current placement. Connecting the
+                    // first dependent to a dirty cutoff queues it in connect_edge.
+                    let needs_queue = !is_cutoff || !dep_data.has_unobserved_paint_cutoff();
+                    (needs_queue, is_cutoff)
                 } else {
                     (false, dep_data.cutoff_settler.is_some())
                 }
             });
-            if newly_dirty {
+            if needs_queue {
                 if is_cutoff {
                     self.enqueue_cutoff(dep_id);
                 } else {

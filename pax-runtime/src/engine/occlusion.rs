@@ -492,6 +492,7 @@ pub(crate) struct OcclusionState {
     pub(crate) structural: bool,
     pub(crate) structural_nodes: HashSet<u32>,
     pub(crate) structural_unknown: bool,
+    pub(crate) viewport_changed: bool,
     pub(crate) dirty: HashSet<u32>,
     pub(crate) scrolled: HashSet<u32>,
     records: HashMap<u32, OcclusionRecord>,
@@ -506,6 +507,9 @@ pub(crate) struct OcclusionState {
     isolated_scrollers: HashMap<u32, usize>,
     // Presentation bounds still move with ancestor scrolling.
     scroll_containers: HashMap<u32, Vec<u32>>,
+    // Their published clip rectangles include the viewport even when the
+    // container's own geometry and every ancestor clip remain fixed.
+    presentation_containers: HashSet<u32>,
     leaf_scroll_regions: HashSet<u32>,
     owned_layers: HashMap<u32, usize>,
     unsafe_layers: HashSet<usize>,
@@ -543,6 +547,7 @@ impl OcclusionState {
         self.scrolled.remove(&id);
         self.isolated_scrollers.remove(&id);
         self.scroll_containers.remove(&id);
+        self.presentation_containers.remove(&id);
         self.leaf_scroll_regions.remove(&id);
         self.owned_layers.remove(&id);
     }
@@ -590,6 +595,7 @@ pub(crate) fn update_node_occlusion_observed(
     let mut dirty = std::mem::take(&mut state.dirty);
     let scrolled = std::mem::take(&mut state.scrolled);
     let structural = std::mem::take(&mut state.structural);
+    let viewport_changed = std::mem::take(&mut state.viewport_changed);
     // A structural origin can carry new presentation data without a separate
     // shape-property effect (for example its first native scroll state). Local
     // reconciliation must repair that data as well as its tree membership.
@@ -829,6 +835,9 @@ pub(crate) fn update_node_occlusion_observed(
         }
     }
     completed("occlusion.coverage.records");
+    if viewport_changed {
+        containers.extend(&state.presentation_containers);
+    }
     for id in scrolled {
         containers.insert(id);
         for &child in state.scroll_containers.get(&id).into_iter().flatten() {
@@ -865,6 +874,7 @@ pub(crate) fn update_node_occlusion_observed(
 fn refresh_container_membership(ctx: &RuntimeContext, state: &mut OcclusionState) {
     state.clip_dependents.clear();
     state.scroll_containers.clear();
+    state.presentation_containers.clear();
     state.isolated_scrollers.clear();
     state.leaf_scroll_regions.clear();
     state.unsafe_layers.clear();
@@ -878,6 +888,9 @@ fn refresh_container_membership(ctx: &RuntimeContext, state: &mut OcclusionState
             state.unsafe_layers.insert(record.render_layer_id);
         }
         let is_container = record.scrolls || record.clip.is_some();
+        if is_container {
+            state.presentation_containers.insert(id);
+        }
         if is_container || record.unclippable {
             container_layers.insert(record.render_layer_id);
         }
@@ -924,9 +937,9 @@ fn refresh_local_compositing(ctx: &RuntimeContext, state: &OcclusionState, id: u
             let owner = owner.to_u32();
             state.isolated_scrollers.get(&owner) == Some(&layer)
                 && borrow!(node.instance_node).geometry_is_scroller_local()
-                && node
-                    .retained_native_placement()
-                    .is_some_and(|(id, _)| id == owner)
+                // Membership survives a tilt or a singular transform. Each
+                // coverage reader also checks for a currently valid local pose.
+                && node.native_placement_owner() == Some(owner)
         });
         node.local_compositing.set_if_neq(eligible);
     }
@@ -1483,6 +1496,7 @@ fn try_reconcile_structure(
                 state.clip_dependents.entry(clip).or_default().push(id);
             }
             if record.scrolls || record.clip.is_some() {
+                state.presentation_containers.insert(id);
                 if let Some(owner) = ctx.get_layer_scroller_owner(record.render_layer_id) {
                     state.leaf_scroll_regions.remove(&owner.to_u32());
                 }

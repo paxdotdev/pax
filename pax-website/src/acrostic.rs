@@ -150,7 +150,7 @@ pub struct AcrosticRow {
     pub selected: Property<usize>,
     pub light: Property<f64>,
     pub cell_px: Property<f64>,
-    pub row_height: Property<f64>,
+    pub columns: Property<usize>,
     pub lit_overlay: Property<bool>,
 }
 

@@ -1979,7 +1979,7 @@ impl PaxEngine {
         });
         self.runtime_context.invalidate_viewport_presentation();
         self.runtime_context.mark_layer_canvas_plans_dirty();
-        self.runtime_context.mark_occlusion_dirty();
+        self.runtime_context.mark_viewport_occlusion_dirty();
     }
 
     pub fn update_layer_count(&self, rcs: &mut dyn RenderContext) {

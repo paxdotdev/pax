@@ -86,6 +86,71 @@ impl Fixture {
     }
 }
 
+#[test]
+fn drawer_preview_keeps_its_padded_layout_width_during_motion() {
+    let content = CommonProperties::default();
+    content.width.set(Some(Size::Percent(100.into())));
+    let fixture = Fixture::mount(GroupInstance::instantiate(args(Group::default(), content)));
+    let _graph = fixture.context.property_graph.enter();
+    fixture.parent.width.set(Some(Size::Pixels(320.into())));
+    fixture.parent.padding_x.set(Some(Size::Pixels(20.into())));
+    let mut host = crate::ExampleHost::default();
+    let ctx = fixture.node.get_node_context(&fixture.context);
+    assert_eq!(ctx.bounds_self.get().0, 280.);
+    host.bind_preview_width(&ctx);
+    let preview_width = host._preview_layout_width_px.local();
+    assert_eq!(preview_width.get(), 280.);
+    host._drawer_progress.local().set(0.5);
+    assert_eq!(preview_width.get(), 280.);
+    host._preview_reserved_width_px.local().set(80.);
+    assert_eq!(preview_width.get(), 200.);
+    fixture.parent.padding_x.set(Some(Size::Percent(10.into())));
+    fixture.context.drain_node_effects();
+    assert_eq!(preview_width.get(), 176.);
+}
+
+#[test]
+fn settings_importer_keeps_current_geometry_for_explicit_queries() {
+    use crate::core::import_settings::{ImportSettings, ImportSettingsInstance};
+    use pax_runtime::api::math::Point2;
+
+    let common = CommonProperties::default();
+    common.width.set(Some(Size::Pixels(30.into())));
+    common.height.set(Some(Size::Pixels(20.into())));
+    let importer = ImportSettingsInstance::instantiate(args(ImportSettings::default(), common));
+    let mut scroller = args(ScrollerHost::default(), CommonProperties::default());
+    scroller.children = Some(RefCell::new(vec![importer]));
+    let fixture = Fixture::mount(ScrollerHostInstance::instantiate(scroller));
+    let mut engine = pax_runtime::PaxEngine {
+        runtime_context: fixture.context.clone(),
+        root_expanded_node: Some(fixture._root.clone()),
+        scroller_tiling_policy: Default::default(),
+    };
+    engine.tick();
+    let importer = fixture.node.children.get()[0].clone();
+    let hits = |x, include_invisible| {
+        fixture
+            .context
+            .get_elements_beneath_ray(
+                Some(fixture._root.clone()),
+                Point2::new(x, 10.),
+                false,
+                vec![],
+                include_invisible,
+            )
+            .iter()
+            .any(|node| node.id == importer.id)
+    };
+    assert!(hits(15., true));
+    fixture.parent.x.set(Some(Size::Pixels(70.into())));
+    let pose = importer.presentation_transform_and_bounds.get();
+    assert_eq!(kurbo::Affine::from(pose.transform).translation().x, 70.);
+    engine.tick();
+    assert!(!hits(15., true));
+    assert!(hits(85., true));
+    assert!(!hits(85., false));
+}
+
 #[derive(Debug)]
 struct GeometryPatch {
     transform: Option<Vec<f64>>,
@@ -331,6 +396,7 @@ fn inherited_width_change_requests_fresh_native_text_measurement() {
     let fixture = Fixture::mount(TextInstance::instantiate(args(Text::default(), common)));
     fixture.node.measured_size.set(Some((160.0, 48.0)));
     fixture.messages();
+    let bounds = fixture.node.presentation_bounds();
     let mut previous_generation = 0;
     for viewport_width in [688.0, 320.0] {
         fixture
@@ -338,6 +404,7 @@ fn inherited_width_change_requests_fresh_native_text_measurement() {
             .globals()
             .viewport
             .update(|v| v.bounds.0 = viewport_width);
+        assert_eq!(bounds.get().0, viewport_width * 0.5);
         let patch = fixture
             .messages()
             .into_iter()
@@ -353,6 +420,39 @@ fn inherited_width_change_requests_fresh_native_text_measurement() {
         assert!(generation > previous_generation);
         previous_generation = generation;
     }
+}
+
+#[test]
+fn image_placement_and_source_changes_redraw_without_reloading_for_motion() {
+    use crate::media::image::{Image, ImageInstance, ImageSource};
+    let image = Image::default();
+    let source = image.source.clone();
+    let fixture = Fixture::mount(ImageInstance::instantiate(args(image, child_common())));
+    let node = &fixture.node;
+    let initial = node.canvas_transform_and_bounds.get();
+    fixture.context.clear_canvas_node_dirty(&node.id);
+    fixture.parent.x.set(Some(Size::Pixels(10.into())));
+    assert_ne!(node.canvas_transform_and_bounds.get(), initial);
+    let image_load = |m: &NativeMessage| matches!(m, NativeMessage::ImageLoad(_));
+    assert!(!fixture.messages().iter().any(image_load));
+    assert!(fixture.context.is_canvas_node_dirty(&node.id));
+
+    fixture.context.clear_canvas_node_dirty(&node.id);
+    source.set(ImageSource::Url("cover.png".into()));
+    let messages = fixture.messages();
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|m| matches!(m, NativeMessage::ImageLoad(p)
+                if p.id == node.id.to_u32() && p.path.as_deref() == Some("cover.png")))
+            .count(),
+        1
+    );
+    assert!(fixture.context.is_canvas_node_dirty(&node.id));
+    fixture.context.clear_canvas_node_dirty(&node.id);
+    source.set(ImageSource::Data(1, 1, vec![255; 4]));
+    assert!(!fixture.messages().iter().any(image_load));
+    assert!(fixture.context.is_canvas_node_dirty(&node.id));
 }
 
 #[test]

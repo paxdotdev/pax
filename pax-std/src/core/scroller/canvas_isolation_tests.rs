@@ -297,6 +297,42 @@ fn shared_layer_nested_scroller_motion_still_invalidates_its_paint() {
 }
 
 #[test]
+fn disabled_frame_resizes_without_repainting_fixed_children() {
+    let mut f = Fixture::new(1, true);
+    let properties = f.cards[0].get_common_properties();
+    properties.borrow().width.set(Some(Size::Pixels(32.into())));
+    properties
+        .borrow()
+        .height
+        .set(Some(Size::Pixels(32.into())));
+    let width = f.inner.get_common_properties().borrow().width.clone();
+    width.set(Some(Size::Pixels(98.into())));
+    f.inner
+        .with_properties_unwrapped(|frame: &mut Frame| frame._clip_content.set(false));
+    f.settle();
+    f.clear();
+
+    width.set(Some(Size::Pixels(97.into())));
+    let messages = f.settle_messages();
+    assert!(messages.iter().any(|m| matches!(m,
+        pax_message::NativeMessage::FrameUpdate(p)
+            if p.id == f.inner.id.to_u32() && p.size_x == Some(97.)
+    )));
+    assert!(!f.any_dirty());
+
+    for clips in [true, false] {
+        f.inner
+            .with_properties_unwrapped(|frame: &mut Frame| frame._clip_content.set(clips));
+        f.settle();
+        assert!(
+            f.any_dirty(),
+            "changing the aperture must repaint its contents"
+        );
+        f.clear();
+    }
+}
+
+#[test]
 fn canvas_order_only_change_does_not_invalidate_local_paint() {
     let f = Fixture::new(3, true);
     f.cards[0].occlusion.update(|order| order.z_index += 10);
