@@ -195,7 +195,9 @@ Hero and nav each retain a separate `SiteLogo`, coordinated by
 one reversible 800ms portal clock (described below). The hidden offset includes
 the top safe-area inset; reversals continue from the current pose. Both logos
 stay mounted in their own rendering contexts, while fully hidden controls unmount.
-Source inspection hides the nav. The homepage starts without a reserved nav gap;
+Only a full-screen source sheet hides the nav, including during its exit animation.
+With an inline drawer open, the nav still appears as the hero scrolls away.
+The homepage starts without a reserved nav gap;
 other routes keep their nav-sized inset and static logo.
 
 ## Homepage content
@@ -378,9 +380,10 @@ The shell retains its 64px/80px responsive nav and safe-area insets. Pages witho
 a hero show the static `NavLogo`. The hero logo replays on a scroll
 return from the nav. A return holds the intro's initial pose during the portal
 trip, then replays the full unfurl and lighting sequence once the hero home is
-reached. Departures into the nav and source-drawer hiding do not trigger the
+reached. Departures into the nav and hiding it for a full-screen source sheet do not trigger the
 intro; reversing an unfinished return cancels it. Switching appearance keeps the page in place
-and holds the current hero pose while the new palette paints. After 100 ms of stable frames
+and rewinds the hero logo. Clicking the hero logo presents keyframe zero in the old
+palette first, then holds it there while the new palette paints. After 100 ms of stable frames
 (or 900 ms on a persistently slow device), the logo unfurls, the curtain light sweeps, and
 the headline writes “creative” again. A switch from the docked nav or embedded Paxflix
 waits until the hero is back in view; repeated switches queue only one replay. The nav twin uses the completed logo and the
@@ -713,7 +716,8 @@ introduction and cube stage. “Fluent in UI” follows in `RuntimeSection`, wit
 its rain background ending before Paxflix. The dedicated cube
 viewer contains only `increment.pax` and `lib.rs`, selected from the canonical
 example's source list. Compact inline and expanded presentations share the
-cube selection; the desktop drawer starts open. Source changes reset the code
+cube selection; the desktop drawer starts open with half the panel for code and
+half for the live cube. The divider remains draggable. Source changes reset the code
 pane's horizontal and vertical offsets, so the new file opens at its beginning.
 
 Oscilloscope sources live in the Get started section's View Source panel;

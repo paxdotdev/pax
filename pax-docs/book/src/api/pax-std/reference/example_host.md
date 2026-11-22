@@ -37,6 +37,12 @@ Type: `Property`<`bool`>
 
 Whether the source drawer is visible.
 
+##### `drawer_width`
+Type: `Property`<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
+
+Preferred desktop drawer width (default 430px). Percentages resolve against
+the host width. Dragging the divider sets this to the chosen pixel width.
+
 ##### `source_light_mode`
 Type: `Property`<`bool`>
 

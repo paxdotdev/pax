@@ -23,8 +23,9 @@ pub struct SiteLogo {
 }
 
 impl SiteLogo {
-    pub fn toggle_theme(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
-        self.light_mode.set(!self.light_mode.get());
+    pub fn toggle_theme(&mut self, ctx: &NodeContext, _: Event<ButtonClick>) {
+        ctx.dispatch_event("switch_theme")
+            .expect("SiteLogo requires a theme-switch handler");
     }
 
     pub fn hover(&mut self, ctx: &NodeContext, _: Event<MouseOver>) {

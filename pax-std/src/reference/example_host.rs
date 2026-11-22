@@ -73,6 +73,9 @@ pub struct ExampleHost {
     pub selected_source: Property<usize>,
     /// Whether the source drawer is visible.
     pub drawer_open: Property<bool>,
+    /// Preferred desktop drawer width (default 430px). Percentages resolve against
+    /// the host width. Dragging the divider sets this to the chosen pixel width.
+    pub drawer_width: Property<Size>,
     /// Use Solarized Light (default) instead of Dark inside the code pane only.
     /// The moon/sun switch edits this value; use `bind:` to share it deliberately.
     pub source_light_mode: Property<bool>,
@@ -86,7 +89,7 @@ pub struct ExampleHost {
     /// When false, View Source still toggles `drawer_open`, but the caller must
     /// mount an `ExampleSourceViewer` elsewhere, such as above a page Scroller.
     pub inline_source_viewer: Property<bool>,
-    // Private source-panel width in pixels, remembered while the drawer closes.
+    // Resolved width after applying compact mode and both panes' minimums.
     pub _drawer_width_px: Property<f64>,
     // Private animated source drawer progress, from closed 0.0 to open 1.0.
     pub _drawer_progress: Property<f64>,
@@ -111,6 +114,7 @@ impl Default for ExampleHost {
             sources: Property::new(vec![]),
             selected_source: Property::new(0),
             drawer_open: Property::new(false),
+            drawer_width: Property::new(Size::Pixels(DESKTOP_DRAWER_WIDTH_PX.into())),
             source_light_mode: Property::new(true),
             show_theme_toggle: Property::new(true),
             chrome_light_mode: Property::new(false),
@@ -305,6 +309,7 @@ impl ExampleHost {
             return;
         }
         if let Some((false, width)) = clamped_drawer_layout(host_width, requested) {
+            self.drawer_width.set_if_neq(Size::Pixels(width.into()));
             self._drawer_width_px.set_if_neq(width);
             self._preview_reserved_width_px.set_if_neq(width);
         }
@@ -321,7 +326,7 @@ impl ExampleHost {
 
     fn clamp_drawer_to_host(&self, host_width: f64) {
         let Some((compact_drawer, next_width)) =
-            clamped_drawer_layout(host_width, self._drawer_width_px.get())
+            clamped_drawer_layout(host_width, self.drawer_width.get().get_pixels(host_width))
         else {
             return;
         };
@@ -628,6 +633,28 @@ mod tests {
         host.drawer_open.set(true);
         host._preview_reserved_width_px.set(430.0);
         host
+    }
+
+    #[test]
+    fn preferred_drawer_width_follows_the_host_until_the_divider_is_dragged() {
+        let host = settled_host();
+        host.clamp_drawer_to_host(1280.0);
+        assert_eq!(host._drawer_width_px.get(), 430.0);
+        host.drawer_width.set(Size::Percent(50.into()));
+        for (host_width, expected) in [
+            (1280.0, 640.0),
+            (1800.0, 900.0),
+            (610.0, 290.0),
+            (390.0, 390.0),
+            (1280.0, 640.0),
+        ] {
+            host.clamp_drawer_to_host(host_width);
+            assert_eq!(host._drawer_width_px.get(), expected);
+        }
+        host._pending_drawer_width_px.set(Some(532.0));
+        host.commit_pending_resize(1280.0);
+        host.clamp_drawer_to_host(1800.0);
+        assert_eq!(host._drawer_width_px.get(), 532.0);
     }
 
     #[test]

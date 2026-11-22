@@ -147,7 +147,6 @@ pub use site_theme::SiteTheme;
 pub struct Example {
     pub light_mode: Property<bool>,
     pub page_scroll_y: Property<f64>,
-    pub hero_source_open: Property<bool>,
     pub source_overlay_open: Property<bool>,
     pub pointer_light_x: Property<f64>,
     pub pointer_light_y: Property<f64>,

@@ -6,7 +6,7 @@
             <Stacker class="authoring_copy" autosize=true gutter=24px>
                 ///#h2
                 <Text class="editorial_title" width=100%>A declarative language for interactive graphics</Text>
-                <Text class="editorial_lead" width=100%>Pax combines HTML-like markup with spreadsheet-like expressions.</Text>
+                <Text class="editorial_lead" width=100%>Pax combines HTML-like markup with spreadsheet-like expressions. With this simple, declarative language, you can combine responsive layouts, rich text, UI controls, animations, 3D, lighting, materials, and shaders into coherent scenes.</Text>
             </Stacker>
         </Group>
         ///#ignore
@@ -19,7 +19,7 @@
                     corner_radius=0 outline={paint: {SiteTheme::rule(self.light_mode)}, width: 1px} @button_click=self.expand_source>Expand source</Button>
             } else {
                 <ExampleHost source_tab_rim=true width=100% height=520px title="Increment Cube" sources={self.sources} selected_source=bind:self.selected_source
-                    show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode} drawer_open=bind:self.demo_open>
+                    show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode} drawer_open=bind:self.demo_open drawer_width=50%>
                     <IncrementCube width=100% height=100% count=bind:self.cube_count/>
                 </ExampleHost>
             }

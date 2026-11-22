@@ -17,8 +17,7 @@ mod tests {
         assert!(nav.contains("<StaticPaxLogo"));
         assert!(!nav.contains("<AnimatedPaxLogo"));
         let hero = include_str!("hero_section.pax");
-        assert!(hero.contains("<SiteLogo id=hero_logo"));
-        assert!(hero.contains("light_mode=bind:self.light_mode"));
+        assert!(hero.contains("<SiteLogo id=hero_logo light_mode={self.light_mode} @switch_theme=self.switch_theme"));
         let shell = include_str!("site_shell.pax");
         assert!(shell.contains("<SiteLogo id=nav_portal_logo"));
         assert!(shell.contains("progress=1 click_to_replay=false"));

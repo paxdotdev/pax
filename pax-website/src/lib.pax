@@ -7,8 +7,8 @@
         <LightSource class="pointer_light"/>
         <AmbientLight intensity=1 color=WHITE/>
         <SiteShell light_mode=bind:self.light_mode has_hero=true
-            hide_nav={self.hero_source_open || self.source_overlay_open}>
-            <HomePage light_mode=bind:self.light_mode scroll_y=bind:self.page_scroll_y hero_source_open=bind:self.hero_source_open
+            hide_nav={self.source_overlay_open}>
+            <HomePage light_mode=bind:self.light_mode scroll_y=bind:self.page_scroll_y
                 source_overlay_open=bind:self.source_overlay_open/>
         </SiteShell>
     </Route>

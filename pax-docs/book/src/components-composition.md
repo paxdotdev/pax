@@ -372,7 +372,13 @@ the native label and input control alongside it.
 </ButtonRim>
 ```
 
-On desktop, the fixed-width drawer slides over the unchanged preview. After the
+On desktop, set `drawer_width=50%` on `ExampleHost` for an even split, or use a
+pixel width (the default is 430px). Percentages follow the host's width until
+the user drags the divider, which saves the chosen width in pixels for that
+mounted host. The layout keeps at least 280px for code and 320px for the
+preview; below 600px, the inline drawer replaces the preview.
+
+The drawer slides over the unchanged preview without changing width. After the
 opening animation reaches its endpoint, the host waits one UI tick and reserves
 the drawer's width in a single layout update. Closing restores the preview's
 full width before the drawer slides away. This avoids resizing responsive example

@@ -34,6 +34,10 @@ pub struct HeroSection {
     #[pax(rust)]
     pub last_light_mode: bool,
     #[pax(rust)]
+    pub queued_theme: Option<bool>,
+    #[pax(rust)]
+    pub folded_frame: Option<u64>,
+    #[pax(rust)]
     pub settle: FrameSettle,
     pub _logo_started: Property<bool>,
     pub _logo_was_docked: Property<bool>,
@@ -94,12 +98,15 @@ impl HeroSection {
         let light = self.light_mode.get();
         if light != self.last_light_mode {
             self.last_light_mode = light;
-            // Paint the new palette on the current pose; rewind only when ready.
-            self.theme_replay_pending.set_if_neq(true);
-            self._logo_started.set_if_neq(false);
-            self.settle = FrameSettle::default();
+            // A nav or Paxflix switch can happen while this logo is offscreen.
+            self.queued_theme = None;
+            self.rewind_for_theme();
         }
         self.update_logo_return(ctx, now);
+        if self.queued_theme.is_some() {
+            self.commit_theme_after_fold(ctx.elapsed_frames.get());
+            return;
+        }
         if !self._logo_started.get() {
             let replay = self.theme_replay_pending.get();
             if replay && (!self.logo_visible.get() || self.logo_docked.get() || self.portal_departure.get() > 0.0) {
@@ -111,7 +118,6 @@ impl HeroSection {
                 return;
             }
             if replay {
-                self.playhead_ms.set(0.0);
                 self.theme_replay_pending.set(false);
             }
             self._logo_started.set(true);
@@ -119,7 +125,38 @@ impl HeroSection {
         }
     }
 
+    pub fn switch_theme(&mut self, _: &NodeContext) {
+        self.queue_theme_switch();
+    }
+
+    fn queue_theme_switch(&mut self) {
+        self.queued_theme = Some(!self.queued_theme.unwrap_or_else(|| self.light_mode.get()));
+        self.folded_frame = None;
+        self.rewind_for_theme();
+    }
+
+    fn rewind_for_theme(&mut self) {
+        self.theme_replay_pending.set_if_neq(true);
+        self._logo_started.set_if_neq(false);
+        self.playhead_ms.set_if_neq(0.0);
+        self.settle = FrameSettle::default();
+    }
+
+    fn commit_theme_after_fold(&mut self, frame: u64) {
+        // The timeline resolves progress from the playhead. Give that pose a
+        // frame in the old palette before invalidating captures across the site.
+        if self.logo_progress.get() == 0.0 && frame > *self.folded_frame.get_or_insert(frame) {
+            if let Some(light) = self.queued_theme.take() {
+                self.last_light_mode = light;
+                self.light_mode.set_if_neq(light);
+            }
+        }
+    }
+
     pub fn advance_logo(&mut self, ctx: &NodeContext) {
+        if self.theme_replay_pending.get() {
+            return;
+        }
         let now = ctx.elapsed_time_millis() as f64;
         let elapsed = (now - self._light_last_ms.get()).max(0.0);
         self._light_last_ms.set(now);
@@ -175,7 +212,9 @@ impl HeroSection {
                 // A reversal or source drawer interruption must not launch a
                 // new intro while the logo is leaving for the navigation.
                 self._logo_return_pending.set(false);
-                self.playhead_ms.set(2100.0);
+                if !self.theme_replay_pending.get() {
+                    self.playhead_ms.set(2100.0);
+                }
                 self._light_last_ms.set(now);
             }
             LogoReturnAction::None => {}
@@ -345,6 +384,43 @@ fn logo_return_action(
 #[cfg(test)]
 mod portal_tests {
     use super::*;
+
+    #[test]
+    fn hero_switch_paints_a_folded_frame_before_committing_either_palette() {
+        for light in [false, true] {
+            let mut hero = HeroSection::default();
+            hero.light_mode.set(light);
+            hero.playhead_ms.set(2100.0);
+            hero.logo_progress.set(1.0);
+            hero._logo_started.set(true);
+            hero.queue_theme_switch();
+            assert_eq!(hero.playhead_ms.get(), 0.0);
+            assert!(!hero._logo_started.get());
+            assert!(hero.theme_replay_pending.get());
+            hero.commit_theme_after_fold(7);
+            assert_eq!(hero.light_mode.get(), light); // timeline has not sampled zero yet
+            hero.logo_progress.set(0.0);
+            hero.commit_theme_after_fold(8);
+            hero.commit_theme_after_fold(8);
+            assert_eq!(hero.light_mode.get(), light); // paint this folded frame first
+            hero.commit_theme_after_fold(9);
+            assert_eq!(hero.light_mode.get(), !light);
+            assert_eq!(hero.queued_theme, None);
+            assert!(!hero._logo_started.get()); // the new palette still has to settle
+        }
+    }
+
+    #[test]
+    fn repeated_clicks_before_the_fold_preserve_toggle_parity() {
+        let mut hero = HeroSection::default();
+        hero.queue_theme_switch();
+        hero.queue_theme_switch();
+        hero.commit_theme_after_fold(1);
+        hero.commit_theme_after_fold(2);
+        assert!(!hero.light_mode.get());
+        assert_eq!(hero.queued_theme, None);
+        assert!(hero.theme_replay_pending.get());
+    }
 
     #[test]
     fn replay_waits_for_settled_frames_after_the_switch() {
