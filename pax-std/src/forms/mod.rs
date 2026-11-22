@@ -8,6 +8,7 @@ pub mod radio_list;
 pub mod slider;
 pub mod tabs;
 pub mod textbox;
+pub mod theme_toggle;
 pub mod toast;
 pub mod tooltip;
 
@@ -21,5 +22,6 @@ pub use radio_list::*;
 pub use slider::*;
 pub use tabs::*;
 pub use textbox::*;
+pub use theme_toggle::*;
 pub use toast::*;
 pub use tooltip::*;

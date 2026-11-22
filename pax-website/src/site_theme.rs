@@ -56,16 +56,21 @@ impl SiteTheme {
         Self::pink()
     }
 
-    /// Milky, diffuse polish; broad reflections keep dark lettering readable.
-    pub fn opal() -> Material {
-        Material::custom(MaterialParams {
-            ambient: Property::new(0.94),
-            diffuse: Property::new(0.10),
-            specular: Property::new(0.14),
-            roughness: Property::new(0.78),
-            metallic: Property::new(0.0),
+    /// Satin-white glass: leave headroom for both the moving sheen and the colored rim.
+    pub fn frosted_face() -> Fill {
+        Fill {
+            paint: Property::new(Paint::Solid(Color::from_hex("D9DCDD"))),
+            material: Property::new(Material::frosted(0.58)),
             ..Default::default()
-        })
+        }
+    }
+
+    pub fn action_face(light: bool) -> Fill {
+        if light {
+            Self::signal(true).into()
+        } else {
+            Self::frosted_face()
+        }
     }
 
     /// A narrow reflection on dark glass keeps the white label readable during the hero sweep.
@@ -80,17 +85,6 @@ impl SiteTheme {
         })
     }
 
-    /// Quiet milky depth beneath the broad strip reflection; no outlined rim.
-    pub fn opal_paint() -> Paint {
-        polished_paint([
-            (0.0, (248, 246, 240)),
-            (0.35, (239, 240, 237)),
-            (0.60, (231, 234, 233)),
-            (0.86, (237, 237, 231)),
-            (1.0, (245, 242, 236)),
-        ])
-    }
-
     /// Subtle cut planes beneath the real strip reflection, not a chrome bevel.
     /// This remains opaque paint; edge refraction is intentionally separate.
     pub fn obsidian_paint() -> Paint {
@@ -101,6 +95,17 @@ impl SiteTheme {
             (0.85, (28, 32, 39)),
             (1.0, (36, 40, 47)),
         ])
+    }
+
+    pub fn glass_face(white: bool) -> Fill {
+        if white {
+            return Self::frosted_face();
+        }
+        Fill {
+            paint: Property::new(Self::obsidian_paint()),
+            material: Property::new(Self::obsidian()),
+            ..Default::default()
+        }
     }
 }
 
@@ -183,6 +188,23 @@ mod tests {
             }
         };
         linear(rgba[0]) * 0.2126 + linear(rgba[1]) * 0.7152 + linear(rgba[2]) * 0.0722
+    }
+
+    #[test]
+    fn white_actions_share_frost_and_leave_headroom_above_the_base_paint() {
+        for face in [SiteTheme::glass_face(true), SiteTheme::action_face(false)] {
+            let Paint::Solid(color) = face.paint.get() else {
+                panic!("expected a single glass color")
+            };
+            let base = luminance(color);
+            assert!((0.60..0.82).contains(&base));
+            assert!((base + 0.05) / (luminance(SiteTheme::ink(false)) + 0.05) > 7.0);
+            let Material::Lit(material) = face.material.get() else {
+                panic!("expected frosted glass")
+            };
+            assert!(material.frosted.get() > 0.0);
+            assert_eq!(material.specular.get(), 0.0);
+        }
     }
 
     #[test]

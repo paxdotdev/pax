@@ -13,5 +13,6 @@
 - [forms::slider](forms/slider.md)
 - [forms::tabs](forms/tabs.md)
 - [forms::textbox](forms/textbox.md)
+- [forms::theme_toggle](forms/theme_toggle.md)
 - [forms::toast](forms/toast.md)
 - [forms::tooltip](forms/tooltip.md)

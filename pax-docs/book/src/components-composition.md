@@ -362,7 +362,12 @@ tab button supports keyboard focus and activation.
 Set `source_tab_rim=true` on an `ExampleHost` or a separately mounted
 `ExampleSourceViewer` to highlight the moving tab outline with a scoped point
 or strip light. The effect requires the `pax-kit/shaders` feature and a GPU
-renderer. CPU rendering keeps the ordinary tab face. To give another control
+renderer. To customize the face independently of the rim, supply
+`source_tab_fill` on the host or viewer, for example
+`source_tab_fill=rgb(217, 220, 221)`. A material-bearing `Fill` works too.
+It follows the animated outline in both states; keep its color readable behind
+the chrome's existing label. CPU rendering keeps the paint without the lighting.
+To give another control
 the same one-pixel CMY rim, wrap its painted face in `ButtonRim` and place
 the native label and input control alongside it.
 
@@ -421,13 +426,19 @@ tabs and edge handle too. Both properties work independently of whether a
 switch is visible. For example:
 
 ```pax
+<ThemeToggle width=72px height=44px light_mode=bind:self.light_mode
+    chrome_light_mode={self.light_mode}/>
 <ExampleHost title="My example" sources={self.sources} show_theme_toggle=false
     source_light_mode={self.light_mode} chrome_light_mode={self.light_mode}>
     <MyExample />
 </ExampleHost>
 ```
 
-Apply the same settings to a separately mounted `ExampleSourceViewer`.
+Place the `ThemeToggle` in your navigation and the host in your content layout.
+The switch centers its moon/sun artwork inside the button's hit area. The optional
+`label` overrides its accessible action name. `chrome_light_mode` controls icon
+contrast independently, for example if a dark toolbar hosts a light editor.
+Apply the same palette settings to a separately mounted `ExampleSourceViewer`.
 The palettes use the
 [canonical Solarized colors](https://ethanschoonover.com/solarized/), including
 their deliberately subdued comments, rather than a high-contrast variant.

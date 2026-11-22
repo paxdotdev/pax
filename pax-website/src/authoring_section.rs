@@ -47,7 +47,10 @@ mod tests {
     fn the_hero_curtain_ends_above_the_themed_language_and_cube_section() {
         let hero = include_str!("hero_section.pax");
         assert_eq!(hero.matches("<HeroCurtain").count(), 1);
-        assert!(hero.contains("class=\"hero_sweep\" width=100% height=100%/>"));
+        let curtain = hero.split_once("<HeroCurtain").unwrap().1.split_once("/>").unwrap().0;
+        for attribute in ["class=\"hero_sweep\"", "width=100%", "height=100%"] {
+            assert!(curtain.contains(attribute));
+        }
 
         let section = include_str!("authoring_section.pax");
         assert!(!section.contains("<HeroCurtain"));

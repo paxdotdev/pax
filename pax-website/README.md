@@ -226,6 +226,9 @@ bottom rule. The space below the install snippet matches the 62px gap from
 the CTA buttons to the top of the snippet box. The hero's `LightFrame` contains
 the cloth and the glass buttons.
 A neutral strip light follows the logo's reveal and idle sweep across the hero.
+Its height above the glass and its attenuation radius scale with the width of
+one hero action. At the strip’s −68° angle, its footprint along a horizontal
+edge is at most about one fifth of that button, including the falloff.
 The `.hero_sweep` settings bind the same artwork-space position and brightness
 to both components. The curtain maps that position onto its own width and height,
 while the logo uses it directly for its `Radiance` projection. The GPU cloth pass
@@ -346,9 +349,11 @@ center tablet on desktop and linked screenshots on compact layouts. The
 calculator retains its single-phone layout at every width; only compact layouts
 use the screenshot link. The oscilloscope occupies its own centered study.
 
-`GlassAction` shares opal/obsidian paint and material helpers, with 5⅓px corners, from
-`SiteTheme`, without outline strokes. Opal has a soft response; obsidian has a
-narrow highlight with its strength limited to keep the white GitHub label readable.
+`GlassAction` pairs satin-white frosted glass with dark obsidian and swaps
+their roles in light mode. Both have 5⅓px corners and no outline stroke.
+The white Get Started faces and source handles share the same cool off-white
+paint: their lit finish approaches the light color without washing out the rim.
+CPU uses the same base paint without grain or specular lighting.
 The website root supplies a viewport-space point light following mouse and touch
 input on the homepage and oscilloscope route. The hero and footer actions, fixed
 nav’s Get Started button, and View Source tabs use that light to reveal a thin
@@ -381,9 +386,9 @@ a hero show the static `NavLogo`. The hero logo replays on a scroll
 return from the nav. A return holds the intro's initial pose during the portal
 trip, then replays the full unfurl and lighting sequence once the hero home is
 reached. Departures into the nav and hiding it for a full-screen source sheet do not trigger the
-intro; reversing an unfinished return cancels it. Switching appearance keeps the page in place
-and rewinds the hero logo. Clicking the hero logo presents keyframe zero in the old
-palette first, then holds it there while the new palette paints. After 100 ms of stable frames
+intro; reversing an unfinished return cancels it. Clicking or tapping the hero logo
+replays only the unfurl and light sweep. Switching appearance keeps the page in place
+and rewinds the hero logo. After 100 ms of stable frames
 (or 900 ms on a persistently slow device), the logo unfurls, the curtain light sweeps, and
 the headline writes “creative” again. A switch from the docked nav or embedded Paxflix
 waits until the hero is back in view; repeated switches queue only one replay. The nav twin uses the completed logo and the
@@ -673,7 +678,9 @@ one output file. Keep these copies and their license aligned.
 
 ## Appearance
 
-The logo is a keyboard-operable light/dark switch. Dark is the initial appearance.
+The overlay nav has a keyboard-operable moon/sun switch just before Blog, on desktop
+and mobile. The hero logo replays its animation without changing appearance. Dark is
+the initial appearance. The standalone blog header retains its logo theme shortcut.
 A root-owned Boolean drives the page’s `SiteTheme` settings imports, both hero
 materials, source drawers, and the live Paxflix profile switch (in either direction).
 On web, the same-origin preference is restored on reload and on the blog and demo routes.
@@ -681,7 +688,7 @@ Paxflix swaps its device captures and bezels without recoloring movie photograph
 
 With a local build running and Playwright available, run
 `PAX_SITE_URL=http://127.0.0.1:<port> node --test pax-website/tests/theme-smoke.cjs`
-from the repository root to exercise both logos, the drawer, Paxflix, and preference persistence.
+from the repository root to exercise hero replay, the nav switch, the drawer, Paxflix, and preference persistence.
 
 Website hosts omit their own moon/sun switch (`show_theme_toggle=false`).
 Both the Solarized code palette and the source chrome follow the page. Other

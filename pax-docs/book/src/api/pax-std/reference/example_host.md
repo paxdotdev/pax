@@ -64,6 +64,11 @@ Type: `Property`<`bool`>
 
 Light the source tab contour with scoped direct lights (GPU, shaders feature). Defaults to false.
 
+##### `source_tab_fill`
+Type: `Property`<`Option`<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>>
+
+Optional painted face for the source tab. None keeps the contrasting chrome color.
+
 ##### `inline_source_viewer`
 Type: `Property`<`bool`>
 
@@ -164,6 +169,11 @@ Type: `Property`<`bool`>
 
 Light the source tab contour with scoped direct lights (GPU, shaders feature). Defaults to false.
 
+##### `source_tab_fill`
+Type: `Property`<`Option`<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>>
+
+Optional painted face for the source tab. None keeps the contrasting chrome color.
+
 ##### `open`
 Type: `Property`<`bool`>
 
@@ -219,6 +229,11 @@ Light drawer chrome, file tabs and edge handle. Independent of the code palette;
 Type: `Property`<`bool`>
 
 Light the source tab contour with scoped direct lights (GPU, shaders feature). Defaults to false.
+
+##### `source_tab_fill`
+Type: `Property`<`Option`<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>>
+
+Optional painted face for the source tab. None keeps the contrasting chrome color.
 
 ##### `show_close_tab`
 Type: `Property`<`bool`>

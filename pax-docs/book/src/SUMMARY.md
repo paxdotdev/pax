@@ -94,6 +94,7 @@
       - [forms::slider](api/pax-std/forms/slider.md)
       - [forms::tabs](api/pax-std/forms/tabs.md)
       - [forms::textbox](api/pax-std/forms/textbox.md)
+      - [forms::theme_toggle](api/pax-std/forms/theme_toggle.md)
       - [forms::toast](api/pax-std/forms/toast.md)
       - [forms::tooltip](api/pax-std/forms/tooltip.md)
     - [layout](api/pax-std/layout.md)

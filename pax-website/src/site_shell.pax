@@ -19,12 +19,12 @@ if self.has_hero && !self.hide_nav && self.nav_logo_entry > 0.0 && @gpu {
                     <Group x={((self.compact ? 18 + 95.26 * 0.5 : 38 + 111.13 * 0.5) - (1 - self.nav_logo_entry) * (self.compact ? 300 : 360))px}
                         y=50% anchor=50% width={self.compact ? 95.26px : 111.13px} height={self.compact ? 48px : 56px}
                         scale={(135 - 35 * self.nav_logo_entry)%} rotate={(16 * (1 - self.nav_logo_entry))deg}>
-                        <SiteLogo id=nav_portal_logo light_mode={self.light_mode} @switch_theme=self.switch_theme width=100% height=100% progress=1 click_to_replay=false
+                        <SiteLogo id=nav_portal_logo light_mode={self.light_mode} width=100% height=100% progress=1
                             radiance_enabled=true light_x={self.nav_light_x} light_y={self.nav_light_y} brightness=1.7
-                            _raycastable={!self.hide_nav && self.nav_logo_entry > 0.95}/>
+                            _raycastable=false/>
                     </Group>
                 }
-                <SiteHeader light_mode=bind:self.light_mode width=100% height=100% show_logo={!self.has_hero}
+                <SiteHeader light_mode=bind:self.light_mode width=100% height=100% show_logo={!self.has_hero} show_theme_toggle=true
                     controls_visible={!self.hide_nav && self.nav_reveal > 0.001}
                     font_url="/assets/fonts/Manrope.ttf"/>
             </Scroller>

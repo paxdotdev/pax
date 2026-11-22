@@ -8,6 +8,6 @@ pub struct GlassAction {
     pub light_mode: Property<bool>,
     pub label: Property<String>,
     pub url: Property<String>,
-    pub opal: Property<bool>,
+    pub primary: Property<bool>,
     pub github: Property<bool>,
 }

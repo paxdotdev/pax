@@ -4,7 +4,7 @@ use crate::*;
 use pax_engine::api::LocalProperty;
 use pax_engine::api::{
     cursor::CursorStyle, ButtonClick, Click, Color, Duration, EasingCurve, Event, MouseButton,
-    MouseCancel, MouseDown, MouseMove, MouseOut, MouseOver, MouseUp, SelectStart,
+    Fill, MouseCancel, MouseDown, MouseMove, MouseOut, MouseOver, MouseUp, SelectStart,
 };
 use pax_engine::*;
 use pax_runtime::api::NodeContext;
@@ -85,6 +85,8 @@ pub struct ExampleHost {
     pub chrome_light_mode: Property<bool>,
     /// Light the source tab contour with scoped direct lights (GPU, shaders feature). Defaults to false.
     pub source_tab_rim: Property<bool>,
+    /// Optional painted face for the source tab. None keeps the contrasting chrome color.
+    pub source_tab_fill: Property<Option<Fill>>,
     /// Present the source viewer beside the preview (default true).
     /// When false, View Source still toggles `drawer_open`, but the caller must
     /// mount an `ExampleSourceViewer` elsewhere, such as above a page Scroller.
@@ -119,6 +121,7 @@ impl Default for ExampleHost {
             show_theme_toggle: Property::new(true),
             chrome_light_mode: Property::new(false),
             source_tab_rim: Property::new(false),
+            source_tab_fill: Property::new(None),
             inline_source_viewer: Property::new(true),
             _drawer_width_px: Property::new(DESKTOP_DRAWER_WIDTH_PX),
             _drawer_progress: Property::new(0.0),
@@ -383,6 +386,8 @@ pub struct ExampleSourceViewer {
     pub chrome_light_mode: Property<bool>,
     /// Light the source tab contour with scoped direct lights (GPU, shaders feature). Defaults to false.
     pub source_tab_rim: Property<bool>,
+    /// Optional painted face for the source tab. None keeps the contrasting chrome color.
+    pub source_tab_fill: Property<Option<Fill>>,
     /// Show the page-edge close tab (default true). Set false when the caller
     /// already supplies a persistent `ExampleSourceToggle`, as `ExampleHost` does.
     pub show_close_tab: Property<bool>,
@@ -404,6 +409,7 @@ impl Default for ExampleSourceViewer {
             show_theme_toggle: Property::new(true),
             chrome_light_mode: Property::new(false),
             source_tab_rim: Property::new(false),
+            source_tab_fill: Property::new(None),
             show_close_tab: Property::new(true),
             _title_height: Property::default(),
             _active_source_markup: Property::default(),
@@ -491,6 +497,8 @@ pub struct ExampleSourceToggle {
     pub chrome_light_mode: Property<bool>,
     /// Light the source tab contour with scoped direct lights (GPU, shaders feature). Defaults to false.
     pub source_tab_rim: Property<bool>,
+    /// Optional painted face for the source tab. None keeps the contrasting chrome color.
+    pub source_tab_fill: Property<Option<Fill>>,
     /// Two-way bind to the owning source viewer's open state.
     pub open: Property<bool>,
     // Animate a scalar, not PathElement commands (which interpolate discretely).

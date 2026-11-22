@@ -12,6 +12,7 @@ pub struct HeroSection {
     pub font_px: Property<f64>,
     pub headline_cap_top: Property<f64>,
     pub logo_width: Property<f64>,
+    pub action_width: Property<f64>,
     pub logo_progress: Property<f64>,
     pub radiance_enabled: Property<bool>,
     pub logo_visible: Property<bool>,
@@ -33,10 +34,6 @@ pub struct HeroSection {
     pub theme_replay_pending: Property<bool>,
     #[pax(rust)]
     pub last_light_mode: bool,
-    #[pax(rust)]
-    pub queued_theme: Option<bool>,
-    #[pax(rust)]
-    pub folded_frame: Option<u64>,
     #[pax(rust)]
     pub settle: FrameSettle,
     pub _logo_started: Property<bool>,
@@ -99,14 +96,9 @@ impl HeroSection {
         if light != self.last_light_mode {
             self.last_light_mode = light;
             // A nav or Paxflix switch can happen while this logo is offscreen.
-            self.queued_theme = None;
             self.rewind_for_theme();
         }
         self.update_logo_return(ctx, now);
-        if self.queued_theme.is_some() {
-            self.commit_theme_after_fold(ctx.elapsed_frames.get());
-            return;
-        }
         if !self._logo_started.get() {
             let replay = self.theme_replay_pending.get();
             if replay && (!self.logo_visible.get() || self.logo_docked.get() || self.portal_departure.get() > 0.0) {
@@ -125,14 +117,17 @@ impl HeroSection {
         }
     }
 
-    pub fn switch_theme(&mut self, _: &NodeContext) {
-        self.queue_theme_switch();
+    pub fn replay_logo(&mut self, ctx: &NodeContext, _: Event<ButtonClick>) {
+        self.restart_logo_clock(ctx.elapsed_time_millis() as f64);
     }
 
-    fn queue_theme_switch(&mut self) {
-        self.queued_theme = Some(!self.queued_theme.unwrap_or_else(|| self.light_mode.get()));
-        self.folded_frame = None;
-        self.rewind_for_theme();
+    fn restart_logo_clock(&self, now: f64) {
+        self.playhead_ms.set(0.0);
+        self._light_last_ms.set(now);
+        // A global palette change still gets its settled-frame window.
+        if !self.theme_replay_pending.get() {
+            self._logo_started.set(true);
+        }
     }
 
     fn rewind_for_theme(&mut self) {
@@ -140,17 +135,6 @@ impl HeroSection {
         self._logo_started.set_if_neq(false);
         self.playhead_ms.set_if_neq(0.0);
         self.settle = FrameSettle::default();
-    }
-
-    fn commit_theme_after_fold(&mut self, frame: u64) {
-        // The timeline resolves progress from the playhead. Give that pose a
-        // frame in the old palette before invalidating captures across the site.
-        if self.logo_progress.get() == 0.0 && frame > *self.folded_frame.get_or_insert(frame) {
-            if let Some(light) = self.queued_theme.take() {
-                self.last_light_mode = light;
-                self.light_mode.set_if_neq(light);
-            }
-        }
     }
 
     pub fn advance_logo(&mut self, ctx: &NodeContext) {
@@ -202,11 +186,7 @@ impl HeroSection {
             }
             LogoReturnAction::Replay => {
                 self._logo_return_pending.set(false);
-                if !self.theme_replay_pending.get() {
-                    self.playhead_ms.set(0.0);
-                    self._logo_started.set(true);
-                    self._light_last_ms.set(now);
-                }
+                self.restart_logo_clock(now);
             }
             LogoReturnAction::Cancel => {
                 // A reversal or source drawer interruption must not launch a
@@ -228,6 +208,7 @@ impl HeroSection {
         let font_px = self.font_px.local();
         let headline_cap_top = self.headline_cap_top.local();
         let logo_width = self.logo_width.local();
+        let action_width = self.action_width.local();
         let vertical_padding = self._vertical_padding.local();
         let update = move || {
             let width = width.get().0;
@@ -240,6 +221,7 @@ impl HeroSection {
             } else {
                 width * 0.88 * 0.66
             };
+            action_width.set_if_neq(((text_width - 12.0) / 2.0).max(1.0));
             // Reserve the widest first line (Build eye-catching) for every word.
             let font_size = (text_width / 10.4).clamp(23.0, 90.0);
             font_px.set_if_neq(font_size);
@@ -386,40 +368,20 @@ mod portal_tests {
     use super::*;
 
     #[test]
-    fn hero_switch_paints_a_folded_frame_before_committing_either_palette() {
+    fn hero_replay_restarts_the_logo_and_light_clock_without_switching_appearance() {
         for light in [false, true] {
-            let mut hero = HeroSection::default();
+            let hero = HeroSection::default();
             hero.light_mode.set(light);
-            hero.playhead_ms.set(2100.0);
-            hero.logo_progress.set(1.0);
-            hero._logo_started.set(true);
-            hero.queue_theme_switch();
-            assert_eq!(hero.playhead_ms.get(), 0.0);
-            assert!(!hero._logo_started.get());
-            assert!(hero.theme_replay_pending.get());
-            hero.commit_theme_after_fold(7);
-            assert_eq!(hero.light_mode.get(), light); // timeline has not sampled zero yet
-            hero.logo_progress.set(0.0);
-            hero.commit_theme_after_fold(8);
-            hero.commit_theme_after_fold(8);
-            assert_eq!(hero.light_mode.get(), light); // paint this folded frame first
-            hero.commit_theme_after_fold(9);
-            assert_eq!(hero.light_mode.get(), !light);
-            assert_eq!(hero.queued_theme, None);
-            assert!(!hero._logo_started.get()); // the new palette still has to settle
+            for elapsed in [2100.0, 600.0] {
+                hero.playhead_ms.set(elapsed);
+                hero.restart_logo_clock(12345.0);
+                assert_eq!(hero.playhead_ms.get(), 0.0);
+                assert_eq!(hero._light_last_ms.get(), 12345.0);
+                assert!(hero._logo_started.get());
+                assert_eq!(hero.light_mode.get(), light);
+                assert!(!hero.theme_replay_pending.get());
+            }
         }
-    }
-
-    #[test]
-    fn repeated_clicks_before_the_fold_preserve_toggle_parity() {
-        let mut hero = HeroSection::default();
-        hero.queue_theme_switch();
-        hero.queue_theme_switch();
-        hero.commit_theme_after_fold(1);
-        hero.commit_theme_after_fold(2);
-        assert!(!hero.light_mode.get());
-        assert_eq!(hero.queued_theme, None);
-        assert!(hero.theme_replay_pending.get());
     }
 
     #[test]
@@ -479,6 +441,6 @@ mod portal_tests {
         assert_eq!(logo_return_action(false, true, false, true, 0.3), Cancel);
         assert_eq!(logo_return_action(false, false, true, true, 0.0), Cancel);
         assert!(include_str!("hero_section.pax").contains("!self._logo_return_pending"));
-        assert!(include_str!("site_shell.pax").contains("progress=1 click_to_replay=false"));
+        assert!(include_str!("site_shell.pax").contains("progress=1"));
     }
 }

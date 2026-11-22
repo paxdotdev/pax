@@ -70,10 +70,6 @@ pub struct SiteShell {
 }
 
 impl SiteShell {
-    pub fn switch_theme(&mut self, _: &NodeContext) {
-        self.light_mode.set(!self.light_mode.get());
-    }
-
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
         self.advance_nav_light(ctx);
         let top = self.safe_top.local();

@@ -17,14 +17,15 @@ mod tests {
         assert!(nav.contains("<StaticPaxLogo"));
         assert!(!nav.contains("<AnimatedPaxLogo"));
         let hero = include_str!("hero_section.pax");
-        assert!(hero.contains("<SiteLogo id=hero_logo light_mode={self.light_mode} @switch_theme=self.switch_theme"));
+        assert!(hero.contains("<SiteLogo id=hero_logo"));
+        assert!(hero.contains("@button_click=self.replay_logo"));
         let shell = include_str!("site_shell.pax");
         assert!(shell.contains("<SiteLogo id=nav_portal_logo"));
-        assert!(shell.contains("progress=1 click_to_replay=false"));
+        assert!(shell.contains("progress=1"));
         assert!(!shell.contains("if self.nav_logo_entry"));
         let logo = include_str!("site_logo.pax");
         assert!(logo.contains("<AnimatedPaxLogo"));
         assert!(logo.contains("<Radiance"));
-        assert!(logo.contains("click_to_replay={self.click_to_replay}"));
+        assert!(logo.contains("click_to_replay=false"));
     }
 }

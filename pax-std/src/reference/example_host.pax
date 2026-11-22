@@ -6,7 +6,7 @@
     // reservation. Full-screen presentations keep it inside the viewport.
     // Drawer chrome must not contribute moving overflow to ancestor autosize.
     if self.inline_source_viewer || !self.drawer_open {
-        <ExampleSourceToggle source_tab_rim={self.source_tab_rim} chrome_light_mode={self.chrome_light_mode} x={self.inline_source_viewer && !self._compact_drawer ? (100% - (self._drawer_width_px * self._drawer_progress)px) : 100%}
+        <ExampleSourceToggle source_tab_fill={self.source_tab_fill} source_tab_rim={self.source_tab_rim} chrome_light_mode={self.chrome_light_mode} x={self.inline_source_viewer && !self._compact_drawer ? (100% - (self._drawer_width_px * self._drawer_progress)px) : 100%}
             y={self.inline_source_viewer && self._compact_drawer && self.drawer_open ? 0px : 24px}
             width={self.drawer_open ? 28px : 112px} layout_role=LayoutRole::Breakout
             height={self.inline_source_viewer && self._compact_drawer && self.drawer_open ? 24px : 34px} open=bind:self.drawer_open/>

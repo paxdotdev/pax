@@ -7,15 +7,12 @@
             wrap=false style={
                 font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Bold)
                 font_size: 16px
-                fill: {self.opal ? SiteTheme::ink(self.light_mode) : SiteTheme::paper(self.light_mode)}
+                fill: {self.primary ? SiteTheme::ink(self.light_mode) : SiteTheme::paper(self.light_mode)}
                 align_vertical: TextAlignVertical::Center
                 align_horizontal: TextAlignHorizontal::Center
             }>{self.label}</Text>
     </Group>
     <ButtonRim width=100% height=100% enabled=true>
-        <Rectangle width=100% height=100% corner_radius=5.333 fill={
-            paint: {self.opal != self.light_mode ? SiteTheme::opal_paint() : SiteTheme::obsidian_paint()}
-            material: {self.opal != self.light_mode ? SiteTheme::opal() : SiteTheme::obsidian()}
-        }/>
+        <Rectangle width=100% height=100% corner_radius=5.333 fill={SiteTheme::glass_face(self.primary != self.light_mode)}/>
     </ButtonRim>
 </Link>

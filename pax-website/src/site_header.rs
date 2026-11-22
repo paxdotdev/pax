@@ -10,6 +10,8 @@ pub struct SiteHeader {
     /// Standalone blog headers own the preference; routed site headers inherit it.
     pub owns_theme: Property<bool>,
     pub compact: Property<bool>,
+    pub narrow_controls: Property<bool>,
+    pub show_theme_toggle: Property<bool>,
     pub show_logo: Property<bool>,
     pub controls_visible: Property<bool>,
     pub font_url: Property<String>,
@@ -28,9 +30,13 @@ impl SiteHeader {
         }
         let bounds = ctx.bounds_self.clone();
         let compact = self.compact.local();
-        let deps = [bounds.untyped()];
+        let narrow = self.narrow_controls.local();
+        let toggle = self.show_theme_toggle.local();
+        let deps = [bounds.untyped(), toggle.untyped()];
         let update = move || {
-            compact.set_if_neq(bounds.get().0 < 760.0);
+            let width = bounds.get().0;
+            compact.set_if_neq(width < 760.0);
+            narrow.set_if_neq(toggle.get() && width < 384.0);
         };
         update();
         ctx.subscribe(&deps, update);

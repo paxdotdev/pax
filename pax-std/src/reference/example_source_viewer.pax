@@ -1,67 +1,13 @@
 <Group width=100% height=100%>
     if self.show_close_tab {
-        <ExampleSourceToggle source_tab_rim={self.source_tab_rim} chrome_light_mode={self.chrome_light_mode} x=100% y=0px width={self.open ? 28px : 112px} height=24px open=bind:self.open/>
+        <ExampleSourceToggle source_tab_fill={self.source_tab_fill} source_tab_rim={self.source_tab_rim} chrome_light_mode={self.chrome_light_mode} x=100% y=0px width={self.open ? 28px : 112px} height=24px open=bind:self.open/>
     }
     // Center the 22.667px visual in the heading's 29px first line box. Keep
     // the larger native hit target, and align the sun with the 24px gutter.
     if self.show_theme_toggle {
-        <Group x={100% - 24px} y=21.5px width=69.333px height=34px anchor_x=100%>
-            <Button class="viewer_switch" width=100% height=100%
-                @button_click=self.toggle_theme>{self.source_light_mode ? "Solarized Light; switch to Dark" : "Solarized Dark; switch to Light"}</Button>
-            <Group y=5.667px width=104px height=34px scale=66.667% anchor_x=0px anchor_y=0px>
-                <Path x=0px y=9px width=16px height=16px fill={self.chrome_light_mode ? BLACK : WHITE} elements=[
-                    PathElement::Point(65%, 5%),
-                    PathElement::Cubic(5%, 0%, -10%, 80%),
-                    PathElement::Point(48%, 98%),
-                    PathElement::Cubic(80%, 108%, 105%, 80%),
-                    PathElement::Point(100%, 55%),
-                    PathElement::Cubic(58%, 86%, 28%, 39%),
-                    PathElement::Point(65%, 5%),
-                    PathElement::Close
-                ]/>
-                <Ellipse x={self.source_light_mode ? 55px : 30px} y=7px width=20px height=20px fill={self.chrome_light_mode ? BLACK : WHITE}/>
-                <Rectangle x=26px y=3px width=52px height=28px corner_radius=14 fill={self.chrome_light_mode ? rgb(218, 218, 214) : rgb(40, 40, 40)} stroke={
-                    paint: rgb(160, 160, 160)
-                    width: 1px
-                }/>
-                <Group x=88px y=9px width=16px height=16px>
-                    <Ellipse x=50% y=50% width=7px height=7px fill=TRANSPARENT stroke={
-                        paint: {self.chrome_light_mode ? BLACK : WHITE}
-                        width: 1.5px
-                    }/>
-                    <Path width=100% height=100% stroke={
-                        paint: {self.chrome_light_mode ? BLACK : WHITE}
-                        width: 1.5px
-                        cap: StrokeCap::Round
-                    } elements=[
-                        PathElement::Point(50%, 0%),
-                        PathElement::Line,
-                        PathElement::Point(50%, 15%),
-                        PathElement::Point(50%, 85%),
-                        PathElement::Line,
-                        PathElement::Point(50%, 100%),
-                        PathElement::Point(0%, 50%),
-                        PathElement::Line,
-                        PathElement::Point(15%, 50%),
-                        PathElement::Point(85%, 50%),
-                        PathElement::Line,
-                        PathElement::Point(100%, 50%),
-                        PathElement::Point(15%, 15%),
-                        PathElement::Line,
-                        PathElement::Point(25%, 25%),
-                        PathElement::Point(75%, 75%),
-                        PathElement::Line,
-                        PathElement::Point(85%, 85%),
-                        PathElement::Point(15%, 85%),
-                        PathElement::Line,
-                        PathElement::Point(25%, 75%),
-                        PathElement::Point(75%, 25%),
-                        PathElement::Line,
-                        PathElement::Point(85%, 15%)
-                    ]/>
-                </Group>
-            </Group>
-        </Group>
+        <ThemeToggle x={100% - 24px} y=21.5px width=69.333px height=34px anchor_x=100%
+            light_mode=bind:self.source_light_mode chrome_light_mode={self.chrome_light_mode}
+            label={self.source_light_mode ? "Solarized Light; switch to Dark" : "Solarized Dark; switch to Light"}/>
     }
     <Text class="viewer_title" x=24px y=24px width={self.show_theme_toggle ? (100% - 133.333px) : (100% - 48px)} selectable=false wrap=true
         @mount=self.measure_title>{self.title}</Text>
@@ -90,18 +36,6 @@
 
 @settings {
     @mount: on_mount
-    .viewer_switch {
-        color: TRANSPARENT
-        hover_color: TRANSPARENT
-        corner_radius: 0
-        // Retain the native button's accessible name and keyboard focus.
-        // The drawn thumb communicates the state without relying on color alone.
-        style: {
-            font: Font::Web("JetBrains Mono", "assets/pax-example-host-fonts/JetBrainsMono.ttf", FontStyle::Normal, FontWeight::Normal)
-            font_size: 1px
-            fill: TRANSPARENT
-        }
-    }
     .viewer_title {
         style: {
             font: {

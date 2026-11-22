@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {chromium} = require('playwright');
 
-test('logo, source viewer, document routes and Paxflix share one preference', async () => {
+test('hero replay preserves appearance; navigation, drawers and Paxflix share the preference', async () => {
     const browser = await chromium.launch({channel: 'chrome'});
     try {
         const page = await browser.newPage({viewport: {width: 1280, height: 850}});
@@ -20,17 +20,17 @@ test('logo, source viewer, document routes and Paxflix share one preference', as
         const word = text => page.locator('.native-leaf').filter({hasText: new RegExp('^' + text + '$')}).first();
         // Native normally advances to portable, not back to creative.
         await word('native').waitFor({state: 'visible', timeout: 30000});
-        // The second, docked logo is offscreen at the top.
-        const logos = button('Switch to light mode');
-        const hero = logos.filter({visible: true});
-        for (const logo of await hero.all()) {
-            const box = await logo.boundingBox();
-            if (box && box.x >= 0 && box.y >= 0 && box.y + box.height <= 850) {
-                await logo.click();
-                break;
-            }
-        }
+        await button('Replay logo animation').click();
+        assert.equal(await button('Switch to light mode').count(), 0);
+        await page.mouse.move(8, 600);
+        await page.mouse.wheel(0, 700);
+        const nav = button('Switch to light mode');
+        await nav.waitFor();
+        assert.equal(await page.evaluate(() => localStorage.getItem('pax-site-theme')), 'dark');
+        await nav.focus();
+        await page.keyboard.press('Enter');
         await mode('light');
+        await page.mouse.wheel(0, -1200);
         await word('creative').waitFor({state: 'visible', timeout: 5000});
         await button('VIEW SOURCE').first().click();
         await button('×').first().waitFor();
@@ -50,8 +50,8 @@ test('logo, source viewer, document routes and Paxflix share one preference', as
         await page.getByText('Light mode', {exact:true}).last().click({force:true});
         await mode('dark');
         await wings(['macos.jpg', 'ios.jpg']);
-        // The docked logo switches back in place, with the profile still open.
-        await button('Switch to light mode').first().click();
+        // The nav switch changes the shared preference without closing the profile.
+        await button('Switch to light mode').click();
         await mode('light');
         await page.getByText('Light mode', {exact:true}).last().waitFor();
         await go('/ai/');
@@ -65,5 +65,25 @@ test('logo, source viewer, document routes and Paxflix share one preference', as
         await mode('dark');
         await go('/?pax_renderer=cpu');
         await mode('dark');
+    } finally { await browser.close(); }
+});
+
+test('the compact nav switch fits between the logo and Blog and responds to touch', async () => {
+    const browser = await chromium.launch({channel: 'chrome'});
+    try {
+        const page = await browser.newPage({viewport: {width: 320, height: 720}, hasTouch: true});
+        await page.goto(new URL('/?pax_renderer=cpu', process.env.PAX_SITE_URL).href);
+        await page.waitForSelector('[data-pax-loading="active"]', {timeout: 120000});
+        await page.mouse.move(8, 550);
+        await page.mouse.wheel(0, 900);
+        const toggle = page.getByRole('button', {name: 'Switch to light mode', exact: true});
+        await page.waitForFunction(() => [...document.querySelectorAll('.native-leaf')].some(el =>
+            el.textContent === 'Blog' && Math.abs(el.getBoundingClientRect().y - 14) < 1));
+        const box = await toggle.boundingBox();
+        const blog = await page.locator('.native-leaf').filter({hasText: /^Blog$/}).first().boundingBox();
+        assert(box && blog && box.x >= 113 && box.x + box.width <= blog.x);
+        assert(box.height >= 44);
+        await toggle.tap();
+        await page.waitForFunction(() => document.documentElement.dataset.paxTheme === 'light');
     } finally { await browser.close(); }
 });

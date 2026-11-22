@@ -6,12 +6,18 @@ if self.controls_visible {
         if self.show_logo {
             <Group x={self.compact ? 18px : 38px} y=50% anchor_x=0px anchor_y=50%
                 width={self.compact ? 95.26px : 111.13px} height={self.compact ? 48px : 56px}>
-                <Button width=100% height=100% label={self.light_mode ? "Switch to dark mode" : "Switch to light mode"}
-                    color=TRANSPARENT hover_color=TRANSPARENT outline={width: 0px} style={fill: TRANSPARENT}
-                    @button_click=self.toggle_theme/>
+                if !self.show_theme_toggle {
+                    <Button width=100% height=100% label={self.light_mode ? "Switch to dark mode" : "Switch to light mode"}
+                        color=TRANSPARENT hover_color=TRANSPARENT outline={width: 0px} style={fill: TRANSPARENT}
+                        @button_click=self.toggle_theme/>
+                }
                 <NavLogo light_mode={self.light_mode} width=920.72px height=463.95px
                     scale={((self.compact ? 48 : 56) / 463.95 * 100)%}/>
             </Group>
+        }
+        if self.show_theme_toggle {
+            <ThemeToggle x={100% - (self.compact ? (self.narrow_controls ? 136 : 200) : 528)px} anchor_x=100%
+                y=50% width=69.333px height=44px light_mode=bind:self.light_mode chrome_light_mode={self.light_mode}/>
         }
         if !self.compact {
             <Stacker x={100% - 40px} anchor_x=100% y=20px width=480px height=40px
@@ -32,19 +38,19 @@ if self.controls_visible {
                 <Link width=100% height=100% url="https://docs.pax.dev/getting-started/" target=Target::New>
                     <Text class="nav_cta_label" width=100% height=100% selectable=false>Get Started</Text>
                     <ButtonRim width=100% height=100% enabled=true>
-                        <Rectangle fill={SiteTheme::signal(self.light_mode)} width=100% height=100%/>
+                        <Rectangle class="site_button_signal" width=100% height=100%/>
                     </ButtonRim>
                 </Link>
             </Stacker>
         } else {
-            <Link x={100% - 144px} anchor_x=100% y=14px width=48px height=36px url="/blog/" target=Target::Current>
+            <Link x={100% - (self.narrow_controls ? 96 : 144)px} anchor_x=100% y=14px width={self.narrow_controls ? 36px : 48px} height=36px url="/blog/" target=Target::Current>
                 <Text class="nav_link" width=100% height=100% selectable=false>Blog</Text>
             </Link>
-            <Link x={100% - 20px} anchor_x=100% y=14px width=116px height=36px
+            <Link x={100% - (self.narrow_controls ? 8 : 20)px} anchor_x=100% y=14px width={self.narrow_controls ? 84px : 116px} height=36px
                 url="https://docs.pax.dev/getting-started/" target=Target::New>
                 <Text class="nav_cta_label" width=100% height=100% selectable=false>Get Started</Text>
                 <ButtonRim width=100% height=100% enabled=true>
-                    <Rectangle fill={SiteTheme::signal(self.light_mode)} width=100% height=100%/>
+                    <Rectangle class="site_button_signal" width=100% height=100%/>
                 </ButtonRim>
             </Link>
         }
