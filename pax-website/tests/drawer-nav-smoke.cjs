@@ -1,5 +1,6 @@
 // Run against a built local site with PAX_SITE_URL and Playwright available.
 const {test} = require('node:test');
+const assert = require('node:assert/strict');
 const {chromium} = require('playwright');
 
 test('only a full-screen hero source sheet suppresses the scroll navigation', async () => {
@@ -25,6 +26,12 @@ test('only a full-screen hero source sheet suppresses the scroll navigation', as
         await page.mouse.move(50, 750);
         await page.mouse.wheel(0, 950);
         await waitForNav(true);
+        const island = await page.getByRole('button', {name: 'Switch to light mode'}).evaluate(el => {
+            const surface = el.closest('.scroller-container');
+            const {x, y, width, height} = surface.getBoundingClientRect();
+            return {x, y, width, height, coversGutter: surface.contains(document.elementFromPoint(8, 35))};
+        });
+        assert.deepEqual(island, {x: 364, y: 14, width: 552, height: 52, coversGutter: false});
 
         // The same open drawer becomes a viewport-sized sheet at compact widths.
         await page.setViewportSize({width: 390, height: 850});

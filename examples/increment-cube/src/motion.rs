@@ -1,35 +1,6 @@
 const SETTLE_MS: f64 = 1000.0;
 const TURN: f64 = 360.0;
 
-/// Distance from the planted tip and stretch along the jump axis.
-pub fn hint_pose(elapsed_ms: f64) -> (f64, f64) {
-    let t = elapsed_ms.rem_euclid(1800.0);
-    let smooth = |p: f64| p * p * (3.0 - 2.0 * p);
-    let out = |p: f64| 1.0 - (1.0 - p).powi(2);
-    if t < 500.0 {
-        (0.0, 1.0)
-    } else if t < 720.0 {
-        (0.0, 1.0 - 0.16 * smooth((t - 500.0) / 220.0))
-    } else if t < 1440.0 {
-        let flight = (t - 720.0) / 720.0;
-        let stretch = if flight < 0.12 {
-            0.84 + 0.32 * out(flight / 0.12)
-        } else if flight < 0.5 {
-            1.16 - 0.16 * smooth((flight - 0.12) / 0.38)
-        } else {
-            1.0 + 0.12 * ((flight - 0.5) / 0.5).powi(2)
-        };
-        // A ballistic arc leaves and returns to the same hard baseline.
-        (32.0 * 4.0 * flight * (1.0 - flight), stretch)
-    } else if t < 1540.0 {
-        (0.0, 1.12 - 0.24 * out((t - 1440.0) / 100.0))
-    } else if t < 1680.0 {
-        (0.0, 0.88 + 0.12 * out((t - 1540.0) / 140.0))
-    } else {
-        (0.0, 1.0)
-    }
-}
-
 // Inverse face transforms: each numbered face ends upright toward the viewer.
 // Order matches CuboidSide: front, back, right, left, top, bottom.
 pub const REST_POSES: [[f64; 3]; 6] = [
@@ -151,28 +122,6 @@ mod tests {
     }
 
     #[test]
-    fn hint_leap_stays_above_its_baseline_and_loops_continuously() {
-        for ms in 0..1800 {
-            let (jump, stretch) = hint_pose(ms as f64);
-            assert!((0.0..=32.0).contains(&jump));
-            assert!((0.84..=1.16).contains(&stretch));
-            assert_eq!(hint_pose(ms as f64 + 1800.0), (jump, stretch));
-        }
-        for boundary in [500.0, 720.0, 1440.0, 1540.0, 1680.0, 1800.0] {
-            let before = hint_pose(boundary - 0.000_01);
-            let after = hint_pose(boundary + 0.000_01);
-            assert!((before.0 - after.0).abs() < 0.000_01);
-            assert!((before.1 - after.1).abs() < 0.000_01);
-        }
-        assert!(hint_pose(650.0).1 < 1.0);
-        assert!(hint_pose(810.0).1 > 1.0);
-        close(hint_pose(1080.0).0, 32.0);
-        for elapsed in [0.0, 90.0, 180.0, 270.0, 360.0] {
-            close(hint_pose(720.0 + elapsed).0, hint_pose(1440.0 - elapsed).0);
-        }
-    }
-
-    #[test]
     fn history_uses_distinct_faces_then_replaces_only_the_oldest() {
         for initial_count in [1, 2, 5, 6, 100] {
             let mut history = History::new(initial_count);
@@ -202,10 +151,19 @@ mod tests {
     }
 
     #[test]
-    fn prefilled_die_starts_at_one_and_reuses_two_through_six() {
-        let mut history = History::new(1);
+    fn first_activation_spins_to_one_then_reuses_the_prefilled_faces() {
+        let mut history = History::new(0);
         let initial = [1, 2, 3, 4, 5, 6].map(Some);
         assert_eq!(history.numbers, initial);
+        let mut roll = Roll::default();
+        let first = history.record(1);
+        roll.wind(0.0, first, [1, -1, 1]);
+        assert_ne!(roll.sample(SETTLE_MS / 2.0).0, [0.0; 3]);
+        assert_eq!(
+            roll.sample(SETTLE_MS).0.map(|a| a.rem_euclid(TURN)),
+            REST_POSES[first]
+        );
+        assert_eq!(history.numbers[first], Some(1));
         for count in 2..=6 {
             let face = history.record(count);
             assert_eq!(history.numbers[face], Some(count));

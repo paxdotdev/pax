@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent
 LOCK = json.loads((ROOT / "dependencies.json").read_text())
 # Explicit deployment closure for SiteHeader. Keep the font license with the
 # bytes; other website assets are not used by this embedded instance.
-HEADER_ASSETS = ("fonts/Manrope.ttf", "fonts/OFL-Manrope.txt", "fonts/README.md")
+HEADER_ASSETS = ("fonts/Manrope.ttf", "fonts/OFL-Manrope.txt", "fonts/README.md", "branding/pax-logo.png")
 
 
 def unpack(dependency, destination, strip_root=False):

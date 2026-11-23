@@ -4,17 +4,28 @@ use pax_kit::*;
 /// Shared navigation for the full website and the static blog's embedded header.
 /// The owning shell supplies positioning and the homepage's portal-logo twin.
 #[pax]
+#[has_helpers]
 #[file("site_header.pax")]
 pub struct SiteHeader {
     pub light_mode: Property<bool>,
     /// Standalone blog headers own the preference; routed site headers inherit it.
     pub owns_theme: Property<bool>,
     pub compact: Property<bool>,
-    pub narrow_controls: Property<bool>,
     pub show_theme_toggle: Property<bool>,
     pub show_logo: Property<bool>,
     pub controls_visible: Property<bool>,
     pub font_url: Property<String>,
+}
+
+#[helpers]
+impl SiteHeader {
+    pub fn logo_height(compact: bool) -> f64 {
+        if compact { 26.0 } else { 32.0 }
+    }
+
+    pub fn logo_width(compact: bool) -> f64 {
+        Self::logo_height(compact) * 920.72 / 463.95
+    }
 }
 
 impl SiteHeader {
@@ -30,13 +41,10 @@ impl SiteHeader {
         }
         let bounds = ctx.bounds_self.clone();
         let compact = self.compact.local();
-        let narrow = self.narrow_controls.local();
-        let toggle = self.show_theme_toggle.local();
-        let deps = [bounds.untyped(), toggle.untyped()];
+        let deps = [bounds.untyped()];
         let update = move || {
-            let width = bounds.get().0;
-            compact.set_if_neq(width < 760.0);
-            narrow.set_if_neq(toggle.get() && width < 384.0);
+            // The host chooses a 552px or at-most-312px island for its viewport.
+            compact.set_if_neq(bounds.get().0 <= 312.0);
         };
         update();
         ctx.subscribe(&deps, update);

@@ -428,12 +428,6 @@ impl HomePage {
                 code: code.into(),
             });
         }
-        modularity_sources.extend(section_sources(
-            "src/modularity_rain.pax",
-            include_str!("modularity_rain.pax"),
-            "src/modularity_rain.rs",
-            include_str!("modularity_rain.rs"),
-        ));
         self.modularity_sources.set(modularity_sources);
         let mut runtime_sources = section_sources(
             "runtime_section.pax",

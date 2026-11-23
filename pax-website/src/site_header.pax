@@ -1,28 +1,33 @@
-if self.controls_visible {
-    <Group width=100% height=100%>
-        <ImportSettings>
-            <SiteTheme light_mode={self.light_mode} />
-        </ImportSettings>
+<Group width=100% height=100%>
+    <ImportSettings>
+        <SiteTheme light_mode={self.light_mode}/>
+    </ImportSettings>
+    <Group x={self.compact ? 14px : 18px} y=50% anchor_x=0px anchor_y=50%
+        width={(SiteHeader::logo_width(self.compact))px} height={(SiteHeader::logo_height(self.compact))px}>
         if self.show_logo {
-            <Group x={self.compact ? 18px : 38px} y=50% anchor_x=0px anchor_y=50%
-                width={self.compact ? 95.26px : 111.13px} height={self.compact ? 48px : 56px}>
-                if !self.show_theme_toggle {
-                    <Button width=100% height=100% label={self.light_mode ? "Switch to dark mode" : "Switch to light mode"}
-                        color=TRANSPARENT hover_color=TRANSPARENT outline={width: 0px} style={fill: TRANSPARENT}
-                        @button_click=self.toggle_theme/>
-                }
-                <NavLogo light_mode={self.light_mode} width=920.72px height=463.95px
-                    scale={((self.compact ? 48 : 56) / 463.95 * 100)%}/>
-            </Group>
+            if !self.show_theme_toggle {
+                <Button y=50% width=100% height=44px label={self.light_mode ? "Switch to dark mode" : "Switch to light mode"}
+                    color=TRANSPARENT hover_color=TRANSPARENT outline={width: 0px} style={fill: TRANSPARENT}
+                    @button_click=self.toggle_theme/>
+            }
+            <NavLogo width=920.72px height=463.95px anchor=0% light_mode={self.light_mode}
+                scale={(SiteHeader::logo_height(self.compact) / 463.95 * 100)%}/>
+        } else {
+            slot()
         }
+    </Group>
+    if self.controls_visible {
         if self.show_theme_toggle {
-            <ThemeToggle x={100% - (self.compact ? (self.narrow_controls ? 136 : 200) : 528)px} anchor_x=100%
+            <ThemeToggle x={100% - (self.compact ? 152 : 378)px} anchor_x=100%
                 y=50% width=69.333px height=44px light_mode=bind:self.light_mode chrome_light_mode={self.light_mode}/>
         }
-        if !self.compact {
-            <Stacker x={100% - 40px} anchor_x=100% y=20px width=480px height=40px
-                direction=StackerDirection::Horizontal gutter=8px
-                sizes=[Some(58px), Some(74px), Some(78px), Some(88px), None]>
+        if self.compact {
+            <Link x={100% - 104px} anchor_x=100% y=50% width=44px height=44px url="/blog/" target=Target::Current>
+                <Text class="nav_link" width=100% height=100% selectable=false>Blog</Text>
+            </Link>
+        } else {
+            <Stacker x={100% - 124px} anchor_x=100% y=50% width=248px height=44px
+                direction=StackerDirection::Horizontal gutter=8px sizes=[Some(46px), Some(51px), Some(62px), None]>
                 <Link width=100% height=100% url="/blog/" target=Target::Current>
                     <Text class="nav_link" width=100% height=100% selectable=false>Blog</Text>
                 </Link>
@@ -35,28 +40,20 @@ if self.controls_visible {
                 <Link width=100% height=100% url="https://discord.com/invite/Eq8KWAUc6b" target=Target::New>
                     <Text class="nav_link" width=100% height=100% selectable=false>Discord</Text>
                 </Link>
-                <Link width=100% height=100% url="https://docs.pax.dev/getting-started/" target=Target::New>
-                    <Text class="nav_cta_label" width=100% height=100% selectable=false>Get Started</Text>
-                    <ButtonRim width=100% height=100% enabled=true>
-                        <Rectangle class="site_button_signal" width=100% height=100%/>
-                    </ButtonRim>
-                </Link>
             </Stacker>
-        } else {
-            <Link x={100% - (self.narrow_controls ? 96 : 144)px} anchor_x=100% y=14px width={self.narrow_controls ? 36px : 48px} height=36px url="/blog/" target=Target::Current>
-                <Text class="nav_link" width=100% height=100% selectable=false>Blog</Text>
-            </Link>
-            <Link x={100% - (self.narrow_controls ? 8 : 20)px} anchor_x=100% y=14px width={self.narrow_controls ? 84px : 116px} height=36px
-                url="https://docs.pax.dev/getting-started/" target=Target::New>
-                <Text class="nav_cta_label" width=100% height=100% selectable=false>Get Started</Text>
-                <ButtonRim width=100% height=100% enabled=true>
-                    <Rectangle class="site_button_signal" width=100% height=100%/>
-                </ButtonRim>
-            </Link>
         }
-        <Rectangle fill={paint: {SiteTheme::ink(self.light_mode)}, material: {Material::unlit()}} width=100% height=100%/>
-    </Group>
-}
+        <Link x={100% - 6px} anchor_x=100% y=50% width={self.compact ? 94px : 112px} height=44px
+            url="https://docs.pax.dev/getting-started/" target=Target::New>
+            <Text class="nav_cta_label" width=100% height=100% selectable=false>Get Started</Text>
+            <ButtonRim y=50% width=100% height={100% - (self.compact ? 8 : 4)px} enabled=true>
+                <Rectangle width=100% height=100% fill={SiteTheme::action_face(self.light_mode)} corner_radius=24/>
+            </ButtonRim>
+        </Link>
+    }
+    <Rectangle x=50% y=50% width={100% - 1px} height={100% - 1px} corner_radius=26
+        fill={paint: {SiteTheme::ink(self.light_mode)}, material: {Material::unlit()}}
+        stroke={paint: {SiteTheme::rule(self.light_mode)}, width: 1px}/>
+</Group>
 
 @settings {
     @mount: handle_mount

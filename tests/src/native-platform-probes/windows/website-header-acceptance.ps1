@@ -7,9 +7,10 @@ function Invoke-WebsiteHeaderAcceptance {
   $origin=New-Object PaxControlsInput+POINT;$client=New-Object PaxControlsInput+RECT
   [void][PaxControlsInput]::ClientToScreen($process.MainWindowHandle,[ref]$origin)
   [void][PaxControlsInput]::GetClientRect($process.MainWindowHandle,[ref]$client)
-  $margin=if($compact){20}else{40};$boxWidth=if($compact){116}else{150}
-  $boxTop=if($compact){14}else{20};$boxHeight=if($compact){36}else{40};$navHeight=if($compact){64}else{80}
-  $left=$client.Right-($margin+$boxWidth)*$scale;$right=$client.Right-$margin*$scale
+  $islandWidth=if($compact){[Math]::Min(312,$client.Right/$scale-20)}else{552}
+  $boxWidth=if($compact){94}else{112};$boxHeight=if($compact){36}else{40}
+  $boxTop=if($compact){14}else{20};$navHeight=if($compact){64}else{80}
+  $right=($client.Right+$islandWidth*$scale)/2-6*$scale;$left=$right-$boxWidth*$scale
   $expected=@{left=$left;top=$boxTop*$scale;right=$right;bottom=($boxTop+$boxHeight)*$scale}
   $labels=@(Visible-Named 'Get Started')
   Check 'Header exposes one native CTA label' ($labels.Count -eq 1) $labels.Count
@@ -20,12 +21,12 @@ function Invoke-WebsiteHeaderAcceptance {
   try {
    $graphics.CopyFromScreen($origin.X,$origin.Y,0,0,$bitmap.Size)
    # Sample both padding columns, away from glyphs and antialiased edges.
-   # A bright neutral fill is enough; exact color would encode driver lighting.
+   # The frosted pill is mid-gray over the dark island without a nearby light.
    for($y=0;$y -lt $bitmap.Height;$y++) {
     $bright=$true
-    foreach($x in @([int][Math]::Round($left+6*$scale),[int][Math]::Round($right-6*$scale))) {
+    foreach($x in @([int][Math]::Round($left+($boxHeight/2)*$scale),[int][Math]::Round($right-($boxHeight/2)*$scale))) {
      $c=$bitmap.GetPixel($x,$y)
-     if([Math]::Min($c.R,[Math]::Min($c.G,$c.B)) -lt 180 -or [Math]::Max($c.R,[Math]::Max($c.G,$c.B))-[Math]::Min($c.R,[Math]::Min($c.G,$c.B)) -gt 35){$bright=$false}
+     if([Math]::Min($c.R,[Math]::Min($c.G,$c.B)) -lt 135 -or [Math]::Max($c.R,[Math]::Max($c.G,$c.B))-[Math]::Min($c.R,[Math]::Min($c.G,$c.B)) -gt 35){$bright=$false}
     }
     if($bright){$rows+=,$y}
    }

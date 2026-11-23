@@ -1,106 +1,63 @@
-if self.hint_opacity > 0 {
-    <Group id=hint>
-        <Text id=hint_label>{@mobile ? "TAP" : "CLICK"}</Text>
-        <Radiance id=hint_radiance>
-            <Path id=hint_flag/>
-        </Radiance>
-    </Group>
-}
-
 if @gpu {
-    <Group id=stage class="cube_position">
-        <Cuboid id=cube
+    <Group id=stage x=50% y=50%>
+        <Cuboid id=cube fill=[]
             @mouse_over=self.hover @mouse_out=self.leave
             @mouse_down=self.down @mouse_up=self.up @mouse_move=self.mouse_move @mouse_cancel=self.mouse_cancel
             @touch_start=self.touch_start @touch_end=self.touch_end @touch_move=self.touch_move @touch_cancel=self.touch_cancel>
             for face in self.faces {
-                <CuboidFace class="face" side={face.side}>
-                    <Text class="count" opacity={face.label_opacity}>{face.label}</Text>
+                <CuboidFace width=100% height=100% side={face.side}>
+                    <Text class="count" opacity={face.label_opacity}>{self.count == 0 && face.label == "1" ? (@mobile ? "TAP" : "CLICK") : face.label}</Text>
+                    <RimRefraction class="face_rim">
+                        <Rectangle class="glass"/>
+                    </RimRefraction>
                 </CuboidFace>
             }
         </Cuboid>
     </Group>
 } else {
-    <Group id=fallback class="cube_position"
+    <Group id=fallback x=50% y=50%
         @mouse_over=self.hover @mouse_out=self.leave
         @mouse_down=self.down @mouse_up=self.up @mouse_move=self.mouse_move @mouse_cancel=self.mouse_cancel
         @touch_start=self.touch_start @touch_end=self.touch_end @touch_move=self.touch_move @touch_cancel=self.touch_cancel>
-        <Text class="count">{self.count}</Text>
-        <Rectangle class="face" fill=rgb(165, 222, 218)/>
+        <Text class="count">{self.count == 0 ? (@mobile ? "TAP" : "CLICK") : self.count}</Text>
+        <Rectangle width=100% height=100% fill=rgb(165, 222, 218)/>
     </Group>
 }
 
 @settings {
     @mount: mount
     @tick: tick
-    .cube_position {
-        x: {50% + (self.horizontal ? 98 * self.scale * self.hint_opacity / 100 : 0)px}
-        y: {50% + (self.horizontal ? 0 : 48 * self.scale * self.hint_opacity / 100)px}
-    }
-    #hint {
-        x: {50% - (self.horizontal ? (48 + self.hint_jump) * self.scale / 100 : 0)px}
-        y: {50% - (self.horizontal ? 0 : (102.5 + self.hint_jump) * self.scale / 100)px}
-        anchor_x: {self.horizontal ? 100% : 50%}
-        anchor_y: {self.horizontal ? 50% : 100%}
-        width: 210px  height: {self.horizontal ? 60px : 88px}
-        scale_x: {(self.scale * (self.horizontal ? self.hint_stretch : 1 / self.hint_stretch))%}
-        scale_y: {(self.scale * (self.horizontal ? 1 / self.hint_stretch : self.hint_stretch))%}
-        opacity: {self.hint_opacity}
-        layout_role: LayoutRole::Breakout
-    }
-    #hint_label {
-        y: {self.horizontal ? 0px : 5px}
-        width: {self.horizontal ? 86.4% : 100%}  height: 60px
-        selectable: false
-        style: {
-            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Black)
-            font_size: 32px
-            fill: BLACK
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Center
-        }
-    }
-    #hint_radiance {
-        width: 100%  height: 100%
-        foreground: rgb(210, 153, 43)
-        light_color: rgb(210, 153, 43)
-        light_x: {self.horizontal ? 58 : 105}
-        light_y: {self.horizontal ? 30 : 22}
-        light_depth: 240
-        brightness: 1.8
-        reach: 36
-        falloff: 1.6
-        transmission: 0
-        polish: 0
-    }
-    #hint_flag {
-        width: 100%  height: 100%
-        fill: rgb(210, 153, 43)
-        elements: {[
-            PathElement::Point(0%, 0%),
-            PathElement::Line,
-            PathElement::Point(self.horizontal ? 86.4% : 100%, 0%),
-            PathElement::Line,
-            PathElement::Point(100%, self.horizontal ? 50% : 66.667%),
-            PathElement::Line,
-            PathElement::Point(self.horizontal ? 86.4% : 50%, 100%),
-            PathElement::Line,
-            PathElement::Point(0%, self.horizontal ? 100% : 66.667%),
-            PathElement::Close
-        ]}
-    }
     #stage {
-        width: 420px  height: 400px
+        width: 400px  height: 400px
         scale: {(self.scale)%}
         layout_role: LayoutRole::Breakout
     }
     #cube {
-        x: 50%  y: 50%  z: 220px
+        // The resting glass face sits just above the UI plane, beneath a host pointer light.
+        x: 50%  y: 50%  z: -88px
         width: 210px  height: 210px  depth: 210px
         scale: {(self.pulse * 100)%}
         rotate_x: {(self.rotation_x)deg}
         rotate_y: {(self.rotation_y)deg}
         rotate: {(self.rotation_z)deg}
+    }
+    .face_rim {
+        width: 100%  height: 100%
+        scene_lighting: true
+        rim_width: 3
+        intensity: 0.96
+        saturation: 0.94
+        light_threshold: 0.34
+        light_span: 0.36
+        hue_travel: 1
+    }
+    .glass {
+        width: 100%  height: 100%
+        stroke: {
+            paint: rgba(114, 172, 168, 140)
+            width: 3px
+            material: { ambient: 0.12, diffuse: 1.1, specular: 0.8, roughness: 0.48 }
+        }
         fill: {
             paint: rgba(165, 222, 218, 62)
             material: { ambient: 0.28, diffuse: 2.2, specular: 1.2, roughness: 0.72 }
@@ -110,7 +67,6 @@ if @gpu {
         width: 210px  height: 210px
         scale: {(self.scale * self.pulse)%}
     }
-    .face { width: 100%  height: 100% }
     .count {
         width: 100%  height: 100%
         selectable: false

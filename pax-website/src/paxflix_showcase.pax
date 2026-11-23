@@ -1,23 +1,10 @@
 <Group width=100% height={(self.content_height)px}>
-    <Link x=50% y={(self.devices_height + 24)px} anchor_x=50% width=248px height=44px url="/paxflix/" target=Target::Current>
-        <Text width=100% height=100% selectable=false
-            style={
-                font: {
-                    family: "Manrope"
-                    url: "assets/fonts/Manrope.ttf"
-                }
-                font_size: 12px
-                fill: {SiteTheme::paper(self.light_mode)}
-                align_horizontal: TextAlignHorizontal::Center
-                align_vertical: TextAlignVertical::Center
-            }>{"TRY PAXFLIX  ↗"}</Text>
-        <Rectangle width=100% height=100% fill={SiteTheme::surface(self.light_mode)} stroke={
-            paint: {SiteTheme::rule(self.light_mode)}
-            width: 1px
-        }/>
-    </Link>
     if self.layout_ready {
-        <Group x=0px anchor=0% width=1280px height=780px scale={(self.stage_scale)%} layout_role=LayoutRole::Breakout>
+        if self.compact {
+            <Button class="launch" x=50% y=100% anchor_x=50% anchor_y=100% width=248px height=44px
+                corner_radius=0 @button_click=self.launch>Try Paxflix ↗</Button>
+        }
+        <Group x=0px anchor=0% width=1280px height=729px scale={(self.stage_scale)%} layout_role=LayoutRole::Breakout>
             // Keep the live screen axis-aligned; only the captured wings rotate.
             <Group id=front_tablet x=640px y=406px anchor=50% width=1048px height=812px scale=76% rotate=0deg>
                 if self.compact {
@@ -27,6 +14,9 @@
                         </DeviceFrame>
                     </Link>
                 } else {
+                    // Travel with the tablet, but keep the label and hit area at screen size.
+                    <Button class="launch" x={100% - 26px} y={100% - 28px} anchor=100% width=128px height=40px
+                        scale={(10000 / (0.76 * self.stage_scale))%} corner_radius=6 @button_click=self.launch>Full Window ↗</Button>
                     <DeviceFrame light_mode={self.light_mode} width=100% height=100% kind="tablet">
                         <Paxflix light_mode=bind:self.light_mode id=live_paxflix width=100% height=100% embedded=true disable_keyboard=true disable_card_entrances=true/>
                     </DeviceFrame>
@@ -54,6 +44,18 @@
 
 @settings {
     @mount: mount
+    .launch {
+        color: {SiteTheme::surface(self.light_mode)}
+        hover_color: {SiteTheme::raised(self.light_mode)}
+        outline: { paint: {SiteTheme::rule(self.light_mode)}, width: 1px }
+        style: {
+            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Bold)
+            font_size: 13px
+            fill: {SiteTheme::paper(self.light_mode)}
+            align_horizontal: TextAlignHorizontal::Center
+            align_vertical: TextAlignVertical::Center
+        }
+    }
 }
 
 @timeline arrival {

@@ -11,8 +11,9 @@ mod tests {
     fn nav_moves_without_group_opacity() {
         let shell = include_str!("site_shell.pax");
         assert!(!shell.contains("opacity="));
-        assert!(shell.contains("1 - self.nav_reveal"));
-        assert!(shell.contains("self.safe_top + (self.compact ? 64 : 80)"));
+        assert!(shell.contains("(self.nav_reveal - 1) * self.island_height"));
+        assert!(shell.contains("self.safe_top + self.island_gap"));
+        assert!(shell.contains("height={(self.safe_top)px}"));
     }
 
     #[test]
@@ -61,6 +62,9 @@ pub struct SiteShell {
     pub nav_light_x: Property<f64>,
     pub nav_light_y: Property<f64>,
     pub compact: Property<bool>,
+    pub island_width: Property<f64>,
+    pub island_height: Property<f64>,
+    pub island_gap: Property<f64>,
     pub safe_top: Property<f64>,
     pub safe_bottom: Property<f64>,
     pub safe_left: Property<f64>,
@@ -73,15 +77,16 @@ impl SiteShell {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
         self.advance_nav_light(ctx);
         let top = self.safe_top.local();
-        let compact = self.compact.local();
-        let deps = [top.untyped(), compact.untyped()];
+        let height = self.island_height.local();
+        let gap = self.island_gap.local();
+        let deps = [top.untyped(), height.untyped(), gap.untyped()];
         let nav_bottom = LocalProperty::computed(
-            move || top.get() + if compact.get() { 64.0 } else { 80.0 },
+            move || top.get() + gap.get() + height.get(),
             &deps,
         );
         let compact = self.compact.local();
         let nav_logo_width = LocalProperty::computed(
-            move || if compact.get() { 95.26 } else { 111.13 },
+            move || SiteHeader::logo_width(compact.get()),
             &[self.compact.untyped()],
         );
         ctx.provide_store(LogoNavigation {
@@ -98,9 +103,17 @@ impl SiteShell {
         let right = self.safe_right.local();
         let deps = [bounds.untyped(), left.untyped(), right.untyped()];
         let compact = self.compact.local();
+        let island_width = self.island_width.local();
+        let island_height = self.island_height.local();
+        let island_gap = self.island_gap.local();
         let update = move || {
             let (width, _) = bounds.get();
-            compact.set_if_neq(width - left.get() - right.get() < COMPACT_BREAKPOINT_PX);
+            let available = width - left.get() - right.get();
+            let small = available < COMPACT_BREAKPOINT_PX;
+            compact.set_if_neq(small);
+            island_width.set_if_neq(if small { (available - 20.0).clamp(0.0, 312.0) } else { 552.0 });
+            island_height.set_if_neq(if small { 48.0 } else { 52.0 });
+            island_gap.set_if_neq(if small { 8.0 } else { 14.0 });
         };
         update();
         ctx.subscribe(&deps, update);

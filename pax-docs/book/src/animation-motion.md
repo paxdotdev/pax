@@ -407,12 +407,12 @@ translucent cube. Click or tap the cube itself. Each activation adds one full
 pending turn per axis, then aligns to the selected face, and increases the current
 speed. Directions are randomized when starting from rest. It always
 settles one second after the most recent activation, with the new count upright
-on a different face, square-on to the orthographic camera.
+and square-on to the orthographic camera.
 
-The faces start with 1–6, showing 1 toward the viewer. The first activation
-advances to 2; the cube rolls through the preprinted values without replacing
-them. From 7 onward, each new value replaces the smallest, retaining the last
-six counts on different faces. Pressing compresses the cube; releasing
+The centered cube begins at zero, showing **CLICK** on its front face (**TAP**
+on mobile) instead of a number. The first activation rolls to **1**, then each
+activation advances by one. From 7 onward, each new value replaces the smallest,
+retaining the last six counts on different faces. Pressing compresses the cube; releasing
 expands it briefly before returning to normal. Mouse and touch cancellation
 relax the scale without incrementing. The example has no separate button or
 keyboard activation control.
@@ -426,23 +426,13 @@ pax-cli run --path examples/increment-cube --target web
 ```
 
 The template's `if @gpu` branch contains the Cuboid. Its `else` supplies a flat
-CPU counter with the same press/release feedback. The Cuboid shares one solid
-translucent fill and a custom diffuse/specular material across its faces; each
-`CuboidFace` contains a live count label. Geometry, material, typography, and
-rotation/scale bindings live in the same file's `@settings` block.
-That block also binds `@tick: tick`; the Rust handler returns immediately when
-the cube is idle and its hint has faded,
-avoiding motion calculations and property writes.
-
-Before the first roll, a gold instruction flag squashes against a fixed tip
-anchor, stretches as it leaps away, and follows a quadratic return arc. The
-perpendicular scale is reciprocal, preserving area. The jump axis follows the
-component's container: horizontal beside the cube, vertical above it. The first
-activation eases the flag's group opacity to zero over 360ms. The unoutlined
-gold arrow, its short gold `Radiance` fan, and its black native label fade
-together; the label is a sibling outside the shader capture. Multiplying the
-cube's position offset by that same opacity slides it into the container's center without another animation
-state. The count keeps the flag hidden and cube centered across remounts.
+CPU counter with the same invitation and press/release feedback. Each
+`CuboidFace` contains two siblings: a live native label and a
+[`RimRefraction`](compositing-effects.md#rimrefraction) around a translucent
+rectangle. This keeps each filtered surface on its own rotating plane without
+capturing the label. The standalone wrapper supplies a point light; the
+website instead lets the viewer's pointer light catch the nearest edge.
+Geometry, material, typography and motion bindings live in `@settings`.
 
 Only front-facing labels show ink. Rear labels stay mounted at zero opacity,
 preserving capture while avoiding overlapping numbers through the cube.
@@ -450,20 +440,14 @@ preserving capture while avoiding overlapping numbers through the cube.
 Rust samples cubic ease-outs from the current angles to unwrapped targets;
 a new click retains pending turns and direction while restarting the deadline.
 Whole turns vary the path without changing the selected face's final pose.
-Tick dispatch continues at rest, but the Rust guard skips motion updates once
-the hint has faded.
-There is no viewport proximity listener: the hint and active rolls continue
-while mounted, including offscreen.
+Tick dispatch continues at rest, but the Rust guard skips motion updates.
+There is no viewport proximity listener: active rolls continue while mounted.
 Motion is always enabled on GPU; this example does not read an
-operating-system motion preference. The art's `Group` uses
+operating-system motion preference. The stage uses
 `LayoutRole::Breakout` so rotating bounds do not expand the surrounding stack.
 
-The cube uses orthographic projection and the optional `3d` feature. Spatial
-composition and material lighting require WGPU. The flag additionally uses the
-`shaders` feature for [Radiance](compositing-effects.md#radiance); CPU renders
-its plain gold shape and black label. There are no gradients, imported settings,
-or local scene lights: the website embed responds to the host's lighting,
-while the standalone wrapper supplies ambient light.
+The cube uses orthographic projection and the optional `3d` and `shaders`
+features. Spatial composition, material lighting, and the rim effect require WGPU.
 Translucent paint does not refract the backdrop, and native text retains the
 [compositor's coverage limits](compositing-effects.md#coverage-has-limits).
 See [Cuboids with live face content](layout-responsiveness.md#cuboids-with-live-face-content)

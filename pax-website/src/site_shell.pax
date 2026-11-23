@@ -9,34 +9,36 @@ if self.has_hero && !self.hide_nav && self.nav_logo_entry > 0.0 && @gpu {
     <DynamicIslandSpacer edge=SafeAreaEdge::Right inset=bind:self.safe_right/>
     ///#ignore
     <Overlay>
-        <Group x={(self.safe_left)px} anchor_y=0px
-            y={(self.safe_top - (1 - self.nav_reveal) * (self.safe_top + (self.compact ? 64 : 80)))px}
-            width={100% - (self.safe_left + self.safe_right)px} height={self.compact ? 64px : 80px}>
-            // A single viewport-local surface, with no scroll range.
-            <Scroller id=site_nav width=100% height=100% scroll_width=100% scroll_height=100%>
-                if self.has_hero {
-                    // This finished twin never leaves the nav's presentation context.
-                    <Group x={((self.compact ? 18 + 95.26 * 0.5 : 38 + 111.13 * 0.5) - (1 - self.nav_logo_entry) * (self.compact ? 300 : 360))px}
-                        y=50% anchor=50% width={self.compact ? 95.26px : 111.13px} height={self.compact ? 48px : 56px}
-                        scale={(135 - 35 * self.nav_logo_entry)%} rotate={(16 * (1 - self.nav_logo_entry))deg}>
-                        <SiteLogo id=nav_portal_logo light_mode={self.light_mode} width=100% height=100% progress=1
-                            radiance_enabled=true light_x={self.nav_light_x} light_y={self.nav_light_y} brightness=1.7
-                            _raycastable=false/>
-                    </Group>
-                }
-                <SiteHeader light_mode=bind:self.light_mode width=100% height=100% show_logo={!self.has_hero} show_theme_toggle=true
-                    controls_visible={!self.hide_nav && self.nav_reveal > 0.001}
-                    font_url="/assets/fonts/Manrope.ttf"/>
+        <Group x={(self.safe_left)px} width={100% - (self.safe_left + self.safe_right)px} height=100%>
+            // This fixed clip has no scroll range. Park it offscreen only when fully hidden,
+            // so it can't intercept the hero while its logo twin remains mounted.
+            <Scroller id=site_nav x=50% y={(self.nav_reveal > 0 ? self.safe_top + self.island_gap : -self.island_height)px}
+                width={(self.island_width)px} height={(self.island_height)px} scroll_width=100% scroll_height=100%>
+                <Frame y={((self.nav_reveal - 1) * self.island_height)px} width=100% height=100% corner_radius=26>
+                    <SiteHeader light_mode=bind:self.light_mode width=100% height=100% show_logo={!self.has_hero} show_theme_toggle=true
+                        controls_visible={!self.hide_nav && self.nav_reveal > 0.001} font_url="/assets/fonts/Manrope.ttf">
+                        if self.has_hero {
+                            <Group x={50% - ((1 - self.nav_logo_entry) * 110)px} y=50% anchor=50% width=100% height=100%
+                                scale={(135 - 35 * self.nav_logo_entry)%} rotate={(16 * (1 - self.nav_logo_entry))deg}>
+                                <SiteLogo id=nav_portal_logo light_mode={self.light_mode} width=100% height=100% progress=1
+                                    radiance_enabled=true light_x={self.nav_light_x} light_y={self.nav_light_y} brightness=1.7
+                                    _raycastable=false/>
+                            </Group>
+                        }
+                    </SiteHeader>
+                </Frame>
             </Scroller>
-            // Safari extends a solid native background above the viewport into the
-            // status bar. Canvas pixels alone don't supply that color.
-            <EventBlocker width=100% height=100% background={SiteTheme::ink(self.light_mode)} _raycastable=false/>
         </Group>
+        if self.safe_top > 0 && self.nav_reveal > 0 {
+            // Safari needs a native color behind its status icons, not a bar across the island gutters.
+            <EventBlocker y={((self.nav_reveal - 1) * self.safe_top)px} width=100% height={(self.safe_top)px}
+                background={SiteTheme::ink(self.light_mode)} _raycastable=false/>
+        }
     </Overlay>
     <Group x={(self.safe_left)px} y={(self.safe_top)px} width={100% - (self.safe_left + self.safe_right)px}
         height={100% - (self.safe_top + self.safe_bottom)px}>
-        <Group x=0px y={self.has_hero ? 0px : (self.compact ? 64px : 80px)} width=100%
-            height={self.has_hero ? 100% : (self.compact ? (100% - 64px) : (100% - 80px))}>
+        <Group x=0px y={self.has_hero ? 0px : (self.island_height + 2 * self.island_gap)px} width=100%
+            height={self.has_hero ? 100% : (100% - (self.island_height + 2 * self.island_gap)px)}>
             slot()
         </Group>
     </Group>

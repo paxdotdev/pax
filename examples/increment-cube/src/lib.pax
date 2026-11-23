@@ -1,3 +1,4 @@
 <IncrementCube x=50% y=50% width=100% height=100%/>
+<LightSource x=46% y=44% width=1px height=1px z=220px radius=720px intensity=1.15 color=WHITE/>
 <AmbientLight intensity=1 color=WHITE/>
 <Rectangle width=100% height=100% z=-1000px fill=rgb(17, 17, 15)/>

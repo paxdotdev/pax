@@ -42,7 +42,10 @@ Changing the shared component requires rebuilding both applications. The logo sw
 The dependency disables the website's default `app` feature, omitting its
 application entry point, split-Wasm loader, non-header modules, four demo
 dependencies, and custom shader support. `SiteHeader`, `NavLogo`, and `SiteTheme`
-remain available from the same website source files. The ordinary renderer and
+remain available from the same website source files. The centered island has
+the same footprint before and after enhancement: the HTML navigation is also
+the keyboard fallback, so keep its capsule and link positions aligned with
+`SiteHeader` when changing the layout. The ordinary renderer and
 software fallback remain enabled; this is not a reduced-compatibility build.
 
 Build and stage the header before previewing the blog:
@@ -59,7 +62,7 @@ python3 pax-blog/blog.py serve
 The staged bundle lives in ignored `static/_pax/header/`, then Zola includes it
 at `/blog/_pax/header/`. Staging preserves the matching JS, Wasm, CSS, and snippets,
 but packages only the assets explicitly listed in `blog.py`'s `HEADER_ASSETS`:
-Manrope and its license/provenance. Update that list when the header acquires
+Manrope, its license/provenance, and the HTML fallback logo. Update that list when the header acquires
 another local asset. This is an explicit header deployment closure, not automatic
 asset tree-shaking: the underlying Pax build still copies component-package assets.
 Staging relocates website-root font preloads to the header's deployment prefix

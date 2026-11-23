@@ -186,14 +186,13 @@ Its website-local `SiteLogo` wrapper carries the new radiance treatment and fits
 the artwork into its hero home or the navigation's smaller container. View Source
 includes the wrapper and canonical files in `pax-std/src/drawing/pax_logo/`.
 The navigation uses a fixed `Overlay` with an opaque vertical slide instead of
-group opacity. A header-sized Scroller with no scroll range keeps the logo,
-button fills and native links together above the page. The bar doesn't need a
-moving cutout in the document to show its background. A solid native backplate
-behind that surface gives mobile Safari the same ink color to extend behind the
-status icons. It travels with the bar; it adds no padding to the page or header.
+group opacity. A centered, island-sized Scroller with no scroll range clips the
+slide at the island’s top edge and keeps the logo, pill-shaped Get Started action,
+and native links together. The page stays visible and interactive in the gutters.
+Only the top safe-area inset receives a separate native backplate for Safari’s status icons.
 Hero and nav each retain a separate `SiteLogo`, coordinated by
-one reversible 800ms portal clock (described below). The hidden offset includes
-the top safe-area inset; reversals continue from the current pose. Both logos
+one reversible 800ms portal clock (described below). The hidden clip is parked
+outside the viewport so it cannot intercept clicks; reversals continue from the current pose. Both logos
 stay mounted in their own rendering contexts, while fully hidden controls unmount.
 Only a full-screen source sheet hides the nav, including during its exit animation.
 With an inline drawer open, the nav still appears as the hero scrolls away.
@@ -244,12 +243,12 @@ Copy retains the page gutters. Desktop opens the cube's source drawer by default
 compact layouts stack the cube and inline source with an expand action.
 “Plug, Extend, and Play” follows “Simple meets powerful,” introducing reactive composition
 and linking to the standard library and component-authoring guide. Its copy lives
-over the full-width rain background in `ModularitySection`. At widths of
+on the plain themed background in `ModularitySection`. At widths of
 1,000px and above, its copy and circuit board share a row, with the board on the
 right. Below that breakpoint the board sits between the large introductory paragraph
 and the smaller paragraphs about wiring and authoring components. The section's
 ExampleHost lists the wrapper, board, package, pin, and logo templates/Rust sources,
-plus the rain treatment and the board layout, motion, and signal-routing modules.
+plus the board layout, motion, and signal-routing modules.
 Its `CircuitBoard` illustration assembles six named packages from reusable
 `CircuitPackage` and `CircuitPin` templates. The packages form a reduced tree of
 the illustration's own template: `CircuitBoard` → `For` (chips) → `CircuitPackage`,
@@ -335,13 +334,9 @@ each have intensity 1.40 and a radius of 89% of the wall width. A light picks
 a new height and speed once its glow clears the wall. The route's white
 pointer at +95 px reflects off the front.
 
-“Plug, Extend, and Play” uses the half-resolution `rain-pane::WetPane` behind
-its copy and circuit board. Its three cyan, magenta, and yellow searchlights
-sweep at different rates. Their radius follows the backdrop's extent and their
-height broadens the reflection footprint. Each backdrop scopes its own lights
-and captures only its backing rectangle. Animation holds offscreen, and CPU
-rendering uses the ordinary section paint. System reduced-motion handling
-remains pending PAX-1048.
+The `ModularityRain` backdrop is available for reuse but is not mounted.
+Its wet-pane shader, animation clock, and three searchlights do not run behind
+the circuit board.
 
 The opening sequence uses the outer native scroller as a shared clock.
 `scroll_story.rs` maps its offset into overlapping chapter-local clocks for the
@@ -350,9 +345,9 @@ language section's measured height, including reflow when its drawer opens.
 The hero starts fully composed;
 its heading shifts slightly on departure, while
 device frames assemble, hold their poses, and depart. Named component timelines sample those ranges in either
-scroll direction. Measured content and viewport minima determine section heights,
-with additional breathing room capped so tall screens do not introduce empty
-screenfuls. Animated child transforms do not change those heights. This first slice
+scroll direction. Paxflix's chapter ends just below the measured showcase,
+including its link on compact layouts; tall viewports do not add a scroll tail.
+Animated child transforms do not change chapter heights. This first slice
 does not pin scenes. Paxflix keeps three devices at every width, with a live
 center tablet on desktop and linked screenshots on compact layouts. The
 calculator retains its single-phone layout at every width; only compact layouts
@@ -371,7 +366,7 @@ including the source tab’s animated notch. Labels, links, and the GitHub icon
 stay outside the capture. CPU rendering and the standalone blog header draw the
 original faces directly. The GitHub icon's official source is
 recorded alongside the asset in `assets/branding/`.
-The nav is borderless and has no gradient overlay. Foreground surface ordering
+The island has a thin themed outline and no gradient overlay. Foreground surface ordering
 for a future soft edge is tracked in
 [PAX-1041](https://linear.app/paxdev/issue/PAX-1041/support-independently-ordered-foreground-compositor-surfaces).
 Living Quilt remains independently runnable in `examples/living-quilt/`; neither
@@ -390,7 +385,9 @@ nav boundary; returning requires 24px of clearance to avoid threshold jitter.
 If the compact home already overlaps the future nav, departure waits for 32px of
 scroll. Animated transforms leave the reserved home and section layout unchanged.
 
-The shell retains its 64px/80px responsive nav and safe-area insets. Pages without
+The island measures 552 × 52px on desktop, 14px below the safe top. Below 760px
+it is at most 312 × 48px, with an 8px top gap and at least 10px on either side.
+Pages without
 a hero show the static `NavLogo`. The hero logo replays on a scroll
 return from the nav. A return holds the intro's initial pose during the portal
 trip, then replays the full unfurl and lighting sequence once the hero home is
@@ -619,8 +616,10 @@ vertical position changes, while the captured wings retain their rotations.
 It stays mounted as the page scrolls. Crossing the compact
 breakpoint replaces the app with a capture, so returning to desktop starts fresh.
 
-The screenshot devices and full-screen action open `/paxflix/`; the desktop
-center stays interactive in place.
+The screenshot devices and launch links open `/paxflix/`. On desktop,
+**Full Window** sits inside the tablet's bottom-right corner, outside the live
+app's scroller. It travels with the tablet but keeps a screen-sized hit area.
+On compact layouts, **Try Paxflix** sits just below the fan.
 The generated `/paxflix/index.html` is a standalone document entry into the
 website's demo route. Its server-owned navigation policy deliberately reloads
 the document so the demo participates in the configured yielded startup and
@@ -744,30 +743,13 @@ the cube viewer shares the page's Solarized theme.
 `IncrementCube` mounts the canonical `examples/increment-cube` component.
 Clicking or tapping the cube accumulates
 randomized three-axis turns and settles one second after the latest activation.
-The six faces start with 1–6, showing 1; the first activation advances to 2.
-Each new count lands square-on on a different face. After rolling through the
-preprinted values, 7 onward replaces the smallest and retains the latest six
-values. Press/release feedback
-compresses then briefly expands the cube. There is no separate roll button.
-A gold Pax banner says CLICK on desktop and TAP on mobile.
-At rest it matches the settled cube's width, with no outline, black Black-weight
-text, and a short gold Radiance fan on GPU. The native label stays outside the
-shader capture. Placement follows the component's own container:
-alongside when wider than tall, otherwise above with its tip pointing down. The website gives
-the pair 300px of height above the compact code viewer, or 480px beside the
-desktop drawer.
-The sign sits 41 design pixels from the cube horizontally or 45.5 vertically,
-before their shared fit scale. Its tip anchors a repeating squash-and-stretch
-jump away from that baseline, following a quadratic arc. The first roll fades
-the sign over 360ms while the cube slides into its container's center, using
-the same opacity to reduce its offset. The sign stays hidden and the cube
-centered across responsive remounts.
-Spatial composition and material lighting require WGPU; CPU uses a flat counter.
-The shared translucent cube fill has a custom diffuse/specular material, with no
-cube shader filters, imported settings, or local scene lights. The arrow's
-Radiance treatment falls back to plain gold on CPU. Motion is always enabled;
-a component-level tick handler skips updates once both the roll and hint finish. The example has no
-viewport proximity listener; its hint and active rolls continue offscreen.
+The centered front face reads CLICK on desktop and TAP on mobile. The first
+activation rolls to 1, the second to 2; from 7 onward the new number replaces
+the oldest. The cube remains centered across responsive remounts. Pressing
+compresses it and releasing briefly expands it. The six GPU faces each have
+a translucent surface with a refractive rim and a separate native label. The
+website's pointer light reveals the rim locally; the cube adds no fixed light to
+the page. CPU uses a flat counter with the same invitation and input behavior.
 Compact layouts stack below 900px; an explicit
 source expansion owns the full-screen sheet independently of the desktop drawer.
 

@@ -99,10 +99,16 @@ test('the compact nav switch fits between the logo and Blog and responds to touc
         await page.mouse.wheel(0, 900);
         const toggle = page.getByRole('button', {name: 'Switch to light mode', exact: true});
         await page.waitForFunction(() => [...document.querySelectorAll('.native-leaf')].some(el =>
-            el.textContent === 'Blog' && Math.abs(el.getBoundingClientRect().y - 14) < 1));
+            el.textContent === 'Blog' && Math.abs(el.getBoundingClientRect().y - 10) < 1));
         const box = await toggle.boundingBox();
         const blog = await page.locator('.native-leaf').filter({hasText: /^Blog$/}).first().boundingBox();
-        assert(box && blog && box.x >= 113 && box.x + box.width <= blog.x);
+        const island = await toggle.evaluate(el => {
+            const r = el.closest('.scroller-container').getBoundingClientRect();
+            return {x: r.x, width: r.width};
+        });
+        assert.equal(island.x, 10);
+        assert.equal(island.width, 300);
+        assert(box && blog && box.x >= island.x + 14 + 52 && box.x + box.width <= blog.x);
         assert(box.height >= 44);
         await toggle.tap();
         await page.waitForFunction(() => document.documentElement.dataset.paxTheme === 'light');

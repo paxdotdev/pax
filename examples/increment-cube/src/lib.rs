@@ -24,12 +24,8 @@ pub struct IncrementCube {
     pub count_font_size: Property<f64>,
     pub faces: Property<Vec<CubeFace>>,
     pub rolling: Property<bool>,
-    pub horizontal: Property<bool>,
     pub scale: Property<f64>,
     pub pulse: Property<f64>,
-    pub hint_jump: Property<f64>,
-    pub hint_stretch: Property<f64>,
-    pub hint_opacity: Property<f64>,
     pub rotation_x: Property<f64>,
     pub rotation_y: Property<f64>,
     pub rotation_z: Property<f64>,
@@ -39,48 +35,28 @@ pub struct IncrementCube {
     pub history: motion::History,
     #[pax(rust)]
     pub poke: input::Poke,
-    #[pax(rust)]
-    pub hint_started_ms: f64,
 }
 
 impl IncrementCube {
     pub fn mount(&mut self, ctx: &NodeContext) {
-        // Preserve later counts when a responsive layout remounts the cube.
-        self.count.set_if_neq(self.count.get().max(1));
         let count = self.count.clone();
         let deps = [count.untyped()];
         self.count_font_size.replace_with(LocalProperty::computed(
-            move || (270.0 / count.get().to_string().len().max(2) as f64).min(106.0),
+            move || match count.get() {
+                0 => 46.0,
+                n => (270.0 / n.to_string().len() as f64).min(106.0),
+            },
             &deps,
         ));
         self.pulse.set(1.0);
-        self.hint_started_ms = ctx.elapsed_time_millis() as f64;
-        self.hint_jump.set(0.0);
-        self.hint_stretch.set(1.0);
-        self.hint_opacity
-            .set(if self.count.get() == 1 { 1.0 } else { 0.0 });
         self.history = motion::History::new(self.count.get());
         self.publish_faces();
         let bounds = ctx.bounds_self.clone();
         let deps = [bounds.untyped()];
-        self.horizontal.replace_with(LocalProperty::computed(
-            move || {
-                let (width, height) = bounds.get();
-                width > height
-            },
-            &deps,
-        ));
-        let bounds = ctx.bounds_self.clone();
         self.scale.replace_with(LocalProperty::computed(
             move || {
                 let (width, height) = bounds.get();
-                // Fit the pair to its own container, including space for the roll.
-                let (scene_width, scene_height) = if width > height {
-                    (600.0, 400.0)
-                } else {
-                    (400.0, 500.0)
-                };
-                (width / scene_width).min(height / scene_height).min(1.25) * 100.0
+                (width.min(height) / 400.0).min(1.25) * 100.0
             },
             &deps,
         ));
@@ -92,13 +68,6 @@ impl IncrementCube {
             return;
         };
         self.count.set(count);
-        if count == 2 {
-            self.hint_opacity.local().ease_to(
-                0.0,
-                Duration::Milliseconds(360.into()),
-                EasingCurve::InOutQuad,
-            );
-        }
         let mut rng = rand::thread_rng();
         let face = self.history.record(count);
         self.publish_faces();
@@ -110,19 +79,12 @@ impl IncrementCube {
     }
 
     pub fn tick(&mut self, ctx: &NodeContext) {
-        if !self.rolling.get() && self.hint_opacity.get() <= 0.0 {
+        if !self.rolling.get() {
             return;
         }
         let now = ctx.elapsed_time_millis() as f64;
-        if self.hint_opacity.get() > 0.0 {
-            let (jump, stretch) = motion::hint_pose(now - self.hint_started_ms);
-            self.hint_jump.set_if_neq(jump);
-            self.hint_stretch.set_if_neq(stretch);
-        }
-        if self.rolling.get() {
-            self.pose(self.motion.sample(now).0);
-            self.rolling.set(!self.motion.finished(now));
-        }
+        self.pose(self.motion.sample(now).0);
+        self.rolling.set(!self.motion.finished(now));
     }
 
     fn pose(&mut self, angles: [f64; 3]) {
@@ -203,7 +165,10 @@ impl IncrementCube {
     }
     pub fn touch_end(&mut self, ctx: &NodeContext, event: Event<TouchEnd>) {
         for touch in &event.touches {
-            self.lift(ctx, Some(touch.identifier), touch.x, touch.y);
+            if self.lift(ctx, Some(touch.identifier), touch.x, touch.y) {
+                // A handled tap must not generate a second, compatibility mouse poke.
+                event.prevent_default();
+            }
         }
     }
     pub fn touch_cancel(&mut self, _: &NodeContext, event: Event<TouchCancel>) {
@@ -220,16 +185,18 @@ impl IncrementCube {
         }
     }
 
-    fn lift(&mut self, ctx: &NodeContext, id: Option<i64>, x: f64, y: f64) {
+    fn lift(&mut self, ctx: &NodeContext, id: Option<i64>, x: f64, y: f64) -> bool {
         if !self.poke.owns(id) {
-            return;
+            return false;
         }
-        if self.poke.end(id, x, y) {
+        let activated = self.poke.end(id, x, y);
+        if activated {
             self.release();
             self.roll(ctx);
         } else {
             self.relax();
         }
+        activated
     }
 
     fn compress(&mut self) {

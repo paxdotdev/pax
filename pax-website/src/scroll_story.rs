@@ -17,13 +17,10 @@ impl OpeningStory {
         runtime: f64,
     ) -> Self {
         let height = viewport.1.max(1.0);
-        let compact = viewport.0 < 760.0;
         // Reserve space on mount until the hero reports its content and insets.
         let hero_span = if hero > 0.0 { hero } else { 580.0 };
         let authoring_span = authoring.max(640.0);
-        let runtime_span = runtime
-            .max(400.0)
-            .max((height * if compact { 1.0 } else { 2.0 }).min(runtime + 160.0));
+        let runtime_span = runtime.max(400.0);
         let scroll = scroll.max(0.0);
         Self {
             hero_span,
@@ -82,7 +79,7 @@ mod tests {
     fn tall_viewports_do_not_add_empty_screenfuls() {
         let scene = OpeningStory::sample(0.0, (1280.0, 1600.0), 800.0, 1000.0, 1400.0);
         assert_eq!(scene.hero_span, 800.0);
-        assert_eq!(scene.runtime_span, 1560.0);
+        assert_eq!(scene.runtime_span, 1400.0);
     }
 
     #[test]

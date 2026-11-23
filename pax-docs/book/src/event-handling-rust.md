@@ -990,6 +990,12 @@ synthesize a click or tap. Use the activation event for the final action and
 the lower-level events for transient feedback when those responsibilities
 need to stay separate.
 
+If a control handles both raw touch and mouse releases, a browser can send
+compatibility mouse events after a tap. Increment Cube calls
+`event.prevent_default()` on the **handled touch end** so a single tap cannot
+increment twice. It leaves touch start and drag events alone so the page can
+still scroll when a swipe starts on the cube.
+
 ### Touches inside a Scroller
 
 On iOS and iPadOS, the native Scroller's touch observation lets custom child

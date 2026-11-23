@@ -19,7 +19,7 @@ pub struct RuntimeSection {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn glass_spans_the_runtime_and_rain_backs_the_modularity_content() {
+    fn glass_spans_the_runtime_and_modularity_uses_the_plain_site_background() {
         let runtime = include_str!("runtime_section.pax");
         let (content, background) = runtime.rsplit_once("</Stacker>").unwrap();
         assert!(content.contains(">Fluent in UI</Text>"));
@@ -32,8 +32,8 @@ mod tests {
         let (content, background) = modularity.rsplit_once("</Stacker>").unwrap();
         assert!(content.contains(">Plug, Extend, and Play</Text>"));
         assert!(content.contains("<CircuitBoard"));
-        assert_eq!(modularity.matches("<ModularityRain ").count(), 1);
-        assert!(background.contains("<ModularityRain "));
+        assert!(!modularity.contains("<ModularityRain"));
+        assert!(background.contains("<Rectangle class=\"site_ink\""));
 
         for (paint, shader) in [
             (include_str!("runtime_glass.pax"), "GlassBricks"),
@@ -94,7 +94,7 @@ impl RuntimeSection {
                     ctx,
                     "runtime_content",
                     &self.content_height,
-                    &Property::new(80.0),
+                    &Property::new(24.0),
                 ));
         }
     }

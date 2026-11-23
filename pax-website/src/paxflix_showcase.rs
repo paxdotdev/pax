@@ -11,25 +11,27 @@ pub struct PaxflixShowcase {
     pub compact: Property<bool>,
     pub layout_ready: Property<bool>,
     pub stage_scale: Property<f64>,
-    pub devices_height: Property<f64>,
     pub scene_progress: Property<f64>,
 }
 
 impl PaxflixShowcase {
+    pub fn launch(&mut self, ctx: &NodeContext, _: Event<ButtonClick>) {
+        ctx.navigate_to("/paxflix/", NavigationTarget::Current);
+    }
+
     pub fn mount(&mut self, ctx: &NodeContext) {
         let bounds = ctx.bounds_self.clone();
-        let deps = [bounds.untyped()];
+        let compact = self.compact.local();
+        let deps = [bounds.untyped(), compact.untyped()];
         let ready = self.layout_ready.local();
         let scale = self.stage_scale.local();
-        let height = self.devices_height.local();
         let content_height = self.content_height.local();
         let update = move || {
             // Only the outer stage scales. The live app always lays out at the
             // tablet's logical resolution, even while its frame is choreographed.
             let layout = DeviceLayout::for_width(bounds.get().0);
             scale.set_if_neq(layout.scale * 100.0);
-            height.set_if_neq(layout.height);
-            content_height.set_if_neq(layout.height + 76.0);
+            content_height.set_if_neq(layout.height + if compact.get() { 8.0 + 44.0 } else { 0.0 });
             // Do not render a provisional zero-sized stage.
             ready.set_if_neq(layout.scale > 0.0);
         };
@@ -53,7 +55,8 @@ impl DeviceLayout {
         let scale = width / 1280.0;
         Self {
             scale,
-            height: 780.0 * scale,
+            // Lowest arrival pose: tablet center at 420 + half its scaled 812px height.
+            height: 729.0 * scale,
         }
     }
 }
@@ -76,7 +79,7 @@ mod tests {
         for width in [272.0, 342.0, 540.0, 760.0, 1126.0, 1800.0, 2560.0] {
             let layout = DeviceLayout::for_width(width);
             assert!((1280.0 * layout.scale - width).abs() < 0.001);
-            assert_eq!(layout.height, 780.0 * layout.scale);
+            assert_eq!(layout.height, 729.0 * layout.scale);
         }
     }
 
@@ -87,7 +90,8 @@ mod tests {
         assert!(
             template.contains("embedded=true disable_keyboard=true disable_card_entrances=true")
         );
-        assert_eq!(template.matches("url=\"/paxflix/\"").count(), 4);
+        assert_eq!(template.matches("url=\"/paxflix/\"").count(), 3);
+        assert_eq!(template.matches("@button_click=self.launch").count(), 2);
         assert_eq!(template.matches("id=front_tablet").count(), 1);
         assert_eq!(template.matches("id=phone_wing").count(), 1);
         assert_eq!(template.matches("id=desktop_wing").count(), 1);

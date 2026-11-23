@@ -1,38 +1,16 @@
 # Increment Cube
 
-The cube starts with 1–6 on its faces, showing 1 toward the viewer. Click or tap
-to advance to 2, then through the remaining preprinted values. From 7 onward,
-each new count replaces the smallest value, retaining the last six counts.
-The new value lands upright, square-on to the orthographic camera. Additional
-clicks add one full pending turn per axis, then align to the selected face,
-and increase speed. Directions are randomized when starting from rest; the cube
-always settles one second after the last click.
+The centered cube initially reads **CLICK** on desktop or **TAP** on mobile
+(`@mobile`, independent of window width). Its count starts at zero. The first
+activation spins the cube and lands on **1**; each later activation rolls to
+the next number. From 7 onward, the newest value replaces the oldest of the
+six printed numbers. The count survives responsive remounts in the website.
 
-A gold Pax banner invites desktop users to “CLICK” and mobile users
-to “TAP” (`@mobile`, independent of window size). The flag matches the settled
-cube's resting width, with no outline and black Black-weight
-lettering (the heaviest supported weight). A short gold `Radiance` fan surrounds
-the solid gold arrow on GPU; the native label stays outside the shader capture.
-It sits alongside the cube when
-the component's own container is wider than it is tall;
-otherwise it sits above, pointing down with upright text. The pair fits that
-container together, independently of viewport orientation. Its resting gap is
-41 design pixels beside the cube or 45.5 above, before the shared fit scale.
-The vertical label sits slightly lower for optical centering.
+Each roll adds one full pending turn per axis, then aligns the new number
+upright and square-on to the orthographic camera. Directions are randomized
+when starting from rest; the cube settles one second after the last activation.
 
-Before the first roll, the sign repeats a 1.8-second bounce: its tip stays
-planted while it squashes, then it stretches along the jump axis and travels
-away from the cube on a 32-pixel quadratic arc. A landing squash returns it to
-rest. The perpendicular scale is reciprocal, preserving area. The first roll
-fades the whole sign over 360ms, then unmounts it so invisible content cannot
-intercept input. The cube's offset multiplies that same opacity, sliding it
-into the container's center during the fade without a second animation state.
-Responsive remounts keep the sign hidden and cube centered. Both renderers
-animate the hint. CPU rendering retains the plain gold arrow and black label
-without the Radiance effect.
-
-Hovering the cube shows a pointing-hand cursor, including the CPU fallback;
-the surrounding stage and instruction banner retain their ordinary cursor.
+Hovering the cube shows a pointing-hand cursor, including on the flat CPU counter.
 Pressing compresses the cube. Releasing makes it expand briefly and return to
 normal; cancellation relaxes it without incrementing. Mouse and touch share
 this feedback. There is no separate button or keyboard activation control.
@@ -50,27 +28,22 @@ cargo run -p increment-cube  # native macOS
 `src/increment.pax` contains the GPU/CPU branches and six live face labels.
 Geometry, rotation/scale bindings, material and typography live in its local
 `@settings` block, including the component's `@tick: tick` binding. The Rust
-handler returns immediately after the hint has faded and the cube is at rest.
-`src/lib.rs` owns input and publishes the pose and labels; `src/motion.rs`
-contains face history, interrupted-roll math, and the hint's bounce with tests.
+handler returns immediately at rest. `src/lib.rs` owns input and publishes
+the pose and labels; `src/motion.rs` contains face history and interrupted-roll
+math.
 
-The cube uses the `3d` feature, a solid translucent paint, and a custom material
-with subdued ambient and stronger diffuse/specular response. The hint uses the
-`shaders` feature for `Radiance`, with matching gold source and light colors.
-There are no gradients or component-owned scene lights. The website supplies
-the cube's lighting; the standalone wrapper supplies only ambient light.
-Native face text participates in the spatial compositor, with its existing
-transparency/coverage limitations; this is surface translucency, not refraction.
-Back-facing labels remain mounted but transparent, keeping rear numbers from
-overlapping the current number while preserving input capture during a roll.
-CPU rendering uses a flat, opaque counter with the same press/release feedback.
+With `3d` and `shaders` enabled on WGPU, each `CuboidFace` paints its own
+translucent rectangle through `RimRefraction`. The captured contour stays on
+that face as it rotates; the native label sits outside the capture. The cube
+uses its host's lighting: a fixed point in the standalone wrapper, or the
+moving pointer light on the website. Ambient light alone does not light the rim. Rear labels
+remain mounted but transparent, so they do not obscure the current number or
+interrupt a captured poke. CPU rendering uses the same invitation, count, and
+press/release feedback without the 3D roll or shader.
+
 All authored source is available through `increment_cube::sources()`.
-
-Cube rotation is always enabled on GPU. Tick dispatch remains registered, but
-skips motion calculations and property writes at rest after the hint fades.
-There is no viewport proximity listener; the hint and active rolls keep their
-clock while mounted, including offscreen. The example does not read an
-operating-system motion preference. The bundled
+Active rolls continue while mounted, including offscreen; the example does
+not read an operating-system motion preference. The bundled
 Manrope font is licensed under the SIL Open Font License in
 `assets/fonts/OFL-Manrope.txt`.
 
