@@ -210,12 +210,13 @@
         }
     }
     .site_button_signal {
-        fill: {SiteTheme::action_face(self.light_mode)}
+        fill: {SiteTheme::action_surface(self.light_mode, @gpu)}
         corner_radius: 0px
     }
     .site_source_tab {
         source_tab_rim: true
-        source_tab_fill: {SiteTheme::action_face(self.light_mode)}
+        source_tab_cloud_density: {self.light_mode ? None : Some(3.4)}
+        source_tab_fill: {SiteTheme::action_surface(self.light_mode, @gpu)}
     }
     .site_button_outline_label {
         style: TextStyle {

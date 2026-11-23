@@ -129,8 +129,26 @@ struct CompiledPass {
     shade: RenderPipeline,
 }
 
+// The label and source length select a bucket without reading the shader text.
+// Equal recipes still share a pipeline, including separately declared copies.
+#[derive(Clone, Copy)]
+struct PassKey(&'static ShaderPass);
+
+impl std::hash::Hash for PassKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&(self.0.label, self.0.source.len()), state);
+    }
+}
+
+impl PartialEq for PassKey {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self.0, other.0) || self.0 == other.0
+    }
+}
+impl Eq for PassKey {}
+
 struct PassPipelines {
-    cache: HashMap<(&'static ShaderPass, bool), CompiledPass>,
+    cache: HashMap<(PassKey, bool), CompiledPass>,
     layout: BindGroupLayout,
     cell_layout: BindGroupLayout,
     format: TextureFormat,
@@ -144,39 +162,41 @@ impl PassPipelines {
         prepared: bool,
         stats: &mut crate::ResourceChurnStats,
     ) -> &CompiledPass {
-        self.cache.entry((recipe, prepared)).or_insert_with(|| {
-            let source = shader_source(recipe, prepared)
-                .unwrap_or_else(|error| panic!("shader effect: {error}"));
-            // Both entry points use the same author's code and uniform schema.
-            // Validate and compile the module once when this recipe first appears.
-            let module = shader_module(device, recipe.label, &source);
-            let layouts = [&self.layout, &self.cell_layout];
-            let prepare = prepared.then(|| {
-                pipeline(
+        self.cache
+            .entry((PassKey(recipe), prepared))
+            .or_insert_with(|| {
+                let source = shader_source(recipe, prepared)
+                    .unwrap_or_else(|error| panic!("shader effect: {error}"));
+                // Both entry points use the same author's code and uniform schema.
+                // Validate and compile the module once when this recipe first appears.
+                let module = shader_module(device, recipe.label, &source);
+                let layouts = [&self.layout, &self.cell_layout];
+                let prepare = prepared.then(|| {
+                    pipeline(
+                        device,
+                        &module,
+                        "fs_prepare_cells",
+                        recipe.label,
+                        &layouts[..1],
+                        effect_cells::FORMAT,
+                        1,
+                        false,
+                    )
+                });
+                let count = if prepared { 2 } else { 1 };
+                let shade = pipeline(
                     device,
                     &module,
-                    "fs_prepare_cells",
+                    "fs_main",
                     recipe.label,
-                    &layouts[..1],
-                    effect_cells::FORMAT,
+                    &layouts[..count],
+                    self.format,
                     1,
                     false,
-                )
-            });
-            let count = if prepared { 2 } else { 1 };
-            let shade = pipeline(
-                device,
-                &module,
-                "fs_main",
-                recipe.label,
-                &layouts[..count],
-                self.format,
-                1,
-                false,
-            );
-            stats.effect_pipeline_compilations += count as u64;
-            CompiledPass { prepare, shade }
-        })
+                );
+                stats.effect_pipeline_compilations += count as u64;
+                CompiledPass { prepare, shade }
+            })
     }
 }
 
@@ -457,7 +477,7 @@ impl Effects {
         self.pipelines.cache.retain(|(recipe, _), _| {
             self.outputs
                 .values()
-                .any(|o| o.recipe.passes.contains(recipe))
+                .any(|o| o.recipe.passes.iter().any(|p| PassKey(p) == *recipe))
         });
         if self.cells.is_some() && !self.pipelines.cache.keys().any(|(_, prepared)| *prepared) {
             self.cells = None;
@@ -470,6 +490,7 @@ impl RenderBackend<'_> {
         &mut self,
         id: u32,
         effect: &ShaderEffect,
+        parameters: &mut [Vec<u8>],
         projection: pax_runtime_api::math::ProjectedPlane,
         signature: u64,
         source_globals: &data::GpuGlobals,
@@ -479,12 +500,9 @@ impl RenderBackend<'_> {
         stats: &mut crate::ResourceChurnStats,
     ) {
         let lighting = GpuEffectLighting::new(effect, scene_lighting);
-        let mut parameters = effect
-            .encode_parameters()
-            .unwrap_or_else(|error| panic!("shader effect {}: {error}", effect.program.label));
-        for (pass, bytes) in effect.program.passes.iter().zip(&mut parameters) {
+        for (pass, bytes) in effect.program.passes.iter().zip(parameters.iter_mut()) {
             if effect_cells::declaration(pass).is_some() {
-                bytes.resize(bytes.len() + 16, 0);
+                bytes.resize((pass.parameters.len() + 1) * 16, 0);
             }
         }
         let (source, rect) = if effect.program.samples_subtree() {
@@ -567,7 +585,9 @@ impl RenderBackend<'_> {
         }
         let effects = self.effects.as_mut().unwrap();
         if effects.outputs.get(&id).is_none_or(|o| {
-            o.recipe != effect.program || o.source != source || o.capacity != capacity
+            o.source != source
+                || o.capacity != capacity
+                || (!std::ptr::eq(o.recipe, effect.program) && o.recipe != effect.program)
         }) {
             let required: u64 = effect
                 .program
@@ -608,7 +628,7 @@ impl RenderBackend<'_> {
                     });
             let source_view = source.as_ref().map(|t| t.create_view(&Default::default()));
             let mut passes: Vec<PassOutput> = Vec::new();
-            for (recipe, values) in effect.program.passes.iter().zip(&parameters) {
+            for (recipe, values) in effect.program.passes.iter().zip(parameters.iter()) {
                 let texture = self.device.create_texture(&wgpu::TextureDescriptor {
                     label: Some(recipe.label),
                     size: wgpu::Extent3d {
@@ -857,6 +877,29 @@ fn draw_pass(
 mod tests {
     use super::*;
     use pax_runtime_api::ShaderParameter;
+    #[test]
+    fn shader_pipeline_keys_preserve_content_equality_on_hash_collisions() {
+        const PASS: ShaderPass = ShaderPass {
+            label: "test",
+            source: "one",
+            parameters: &[],
+            inputs: [ShaderInput::Subtree; 2],
+            downsample: 1,
+        };
+        static FIRST: ShaderPass = PASS;
+        static COPY: ShaderPass = PASS;
+        static OTHER: ShaderPass = ShaderPass {
+            source: "two",
+            ..PASS
+        };
+
+        let mut keys = HashMap::new();
+        keys.insert(PassKey(&FIRST), 1);
+        keys.insert(PassKey(&OTHER), 2);
+        assert_eq!(keys.get(&PassKey(&COPY)), Some(&1));
+        assert_eq!(keys.get(&PassKey(&OTHER)), Some(&2));
+    }
+
     #[test]
     fn rejects_additional_resources_on_engine_bindings() {
         for binding in 0..=5 {

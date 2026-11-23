@@ -112,6 +112,7 @@
       - [reference::button_rim](api/pax-std/reference/button_rim.md)
       - [reference::example_host](api/pax-std/reference/example_host.md)
     - [shaders](api/pax-std/shaders.md)
+      - [shaders::cloud_glass](api/pax-std/shaders/cloud_glass.md)
       - [shaders::corona](api/pax-std/shaders/corona.md)
       - [shaders::flashy](api/pax-std/shaders/flashy.md)
       - [shaders::gaussian_blur](api/pax-std/shaders/gaussian_blur.md)

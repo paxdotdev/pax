@@ -1,0 +1,21 @@
+<Text width=100% height=34px wrap=false style={font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::SemiBold)
+    font_size: 18px fill: {Study::ink(self.light_theme)}}>{self.cloud ? "Cloud glass" : "Current frost"}</Text>
+<Sample class="sample" lamp_x=bind:self.lamp_x lamp_y=bind:self.lamp_y
+    lamp_scroll_y=bind:self.lamp_scroll_y source_open=bind:self.source_open y=48px width=100% height=56px/>
+<Sample class="sample" lamp_x=bind:self.lamp_x lamp_y=bind:self.lamp_y
+    lamp_scroll_y=bind:self.lamp_scroll_y source_open=bind:self.source_open y=124px width=112px height=34px tab=true/>
+<Sample class="sample" lamp_x=bind:self.lamp_x lamp_y=bind:self.lamp_y
+    lamp_scroll_y=bind:self.lamp_scroll_y source_open=bind:self.source_open y=180px width=100% height=56px obsidian=true/>
+@settings {
+    .sample {
+        cloud: {self.cloud}
+        ink_override: {Study::contrast_ink(@gpu && self.cloud && !self.light_theme, self.density, self.gas_opacity)}
+        gas_color: {self.gas_color}
+        density: {self.density}
+        gas_opacity: {self.gas_opacity}
+        scale_px: {self.scale_px}
+        phase: {self.phase}
+        scroll_y: {self.scroll_y}
+        reduced: {self.reduced}
+    }
+}

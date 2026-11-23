@@ -91,7 +91,10 @@ static PROGRAM: ShaderProgram = ShaderProgram {
     label: "Rim refraction",
     passes: &[ShaderPass {
         label: "rim-refraction.wgsl",
-        source: include_str!("rim_refraction.wgsl"),
+        source: concat!(
+            include_str!("scene_rim.wgsl"),
+            include_str!("rim_refraction.wgsl")
+        ),
         parameters: &[
             ShaderParameter {
                 name: "surface_color",

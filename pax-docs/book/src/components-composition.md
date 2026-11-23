@@ -377,6 +377,14 @@ the native label and input control alongside it.
 </ButtonRim>
 ```
 
+For a cloud-filled tab, combine `source_tab_rim=true` with
+`source_tab_cloud_density=Some(3.4)` and an opaque face. On another button,
+set `cloud_density=Some(2.9)` on `ButtonRim`. Both use the 2 px cloud bevel.
+A Rust ancestor can provide `ButtonCloudPhase` with a shared
+`LocalProperty<f64>` in drift seconds. Visible cloud buttons subscribe to
+that phase and disconnect offscreen. With no clock the clouds hold still.
+See [CloudGlass](compositing-effects.md#cloudglass) for direct control over the gas.
+
 On desktop, set `drawer_width=50%` on `ExampleHost` for an even split, or use a
 pixel width (the default is 430px). Percentages follow the host's width until
 the user drags the divider, which saves the chosen width in pixels for that

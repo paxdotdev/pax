@@ -64,6 +64,11 @@ Type: `Property`<`bool`>
 
 Light the source tab contour with scoped direct lights (GPU, shaders feature). Defaults to false.
 
+##### `source_tab_cloud_density`
+Type: `Property`<`Option`<`f64`>>
+
+Optional cloud density for a rim-enabled source tab. None preserves the painted face.
+
 ##### `source_tab_fill`
 Type: `Property`<`Option`<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>>
 
@@ -169,6 +174,11 @@ Type: `Property`<`bool`>
 
 Light the source tab contour with scoped direct lights (GPU, shaders feature). Defaults to false.
 
+##### `source_tab_cloud_density`
+Type: `Property`<`Option`<`f64`>>
+
+Optional cloud density for a rim-enabled source tab. None preserves the painted face.
+
 ##### `source_tab_fill`
 Type: `Property`<`Option`<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>>
 
@@ -229,6 +239,11 @@ Light drawer chrome, file tabs and edge handle. Independent of the code palette;
 Type: `Property`<`bool`>
 
 Light the source tab contour with scoped direct lights (GPU, shaders feature). Defaults to false.
+
+##### `source_tab_cloud_density`
+Type: `Property`<`Option`<`f64`>>
+
+Optional cloud density for a rim-enabled source tab. None preserves the painted face.
 
 ##### `source_tab_fill`
 Type: `Property`<`Option`<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>>

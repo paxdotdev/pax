@@ -5,6 +5,8 @@ use pax_runtime_api::{math::ProjectedPlane, ShaderEffect};
 
 pub(super) struct EffectCapture {
     pub(super) effect: ShaderEffect,
+    parameters: Vec<Vec<u8>>,
+    recipe_signature: u64,
     projection: ProjectedPlane,
     layout: Box2D,
     local_bounds: kurbo::Rect,
@@ -73,9 +75,14 @@ impl WgpuRenderer<'_> {
         scopes: &[OpacityScope],
         children: &[u32],
     ) -> bool {
-        effect
+        let parameters = effect
             .encode_parameters()
             .unwrap_or_else(|e| panic!("shader effect {}: {e}", effect.program.label));
+        // This key is private to the live renderer. The program has a static
+        // lifetime, so its address identifies all immutable passes and their WGSL.
+        let mut recipe = DefaultHasher::new();
+        std::ptr::hash(effect.program, &mut recipe);
+        parameters.hash(&mut recipe);
         assert!(
             self.current_node.is_none() && self.source_recordings.is_empty(),
             "shader effects cannot be used as detached mask sources"
@@ -114,6 +121,8 @@ impl WgpuRenderer<'_> {
             id,
             EffectCapture {
                 effect: effect.clone(),
+                parameters,
+                recipe_signature: recipe.finish(),
                 projection,
                 layout,
                 local_bounds: local,
@@ -271,7 +280,7 @@ impl WgpuRenderer<'_> {
             }
         }
         let capture = &self.effect_captures[&id];
-        let effect = capture.effect.clone();
+        let program = capture.effect.program;
         let local_size = [
             capture.local_bounds.width() as f32,
             capture.local_bounds.height() as f32,
@@ -317,13 +326,7 @@ impl WgpuRenderer<'_> {
         if !boxes_intersect(&bounds, &viewport) {
             return;
         }
-        let divisor = effect
-            .program
-            .passes
-            .iter()
-            .map(|p| p.downsample)
-            .max()
-            .unwrap() as f32;
+        let divisor = program.passes.iter().map(|p| p.downsample).max().unwrap() as f32;
         let dpr = globals.dpr;
         // All tiles anchor their coarse sampling grid to the same authored origin.
         // A fixed tile-local zero would shift samples during fractional scrolling.
@@ -386,7 +389,7 @@ impl WgpuRenderer<'_> {
             }
         }
         active.insert(CaptureKey::EffectOutput(id));
-        if effect.program.samples_subtree() {
+        if program.samples_subtree() {
             let source_signature = hash.finish();
             let source_pixels = if self.work_observer.is_some() {
                 ((bounds.max_x - bounds.min_x) * dpr[0]).round() as u64
@@ -419,6 +422,8 @@ impl WgpuRenderer<'_> {
                 self.observe_work(Some(id), "effect source reuse", 1, source_pixels);
             }
         }
+        let capture = self.effect_captures.get_mut(&id).unwrap();
+        let effect = &capture.effect;
         effect.lighting.is_some().hash(&mut hash);
         if let Some(lighting) = effect.lighting {
             let frame = lighting.surface;
@@ -434,8 +439,7 @@ impl WgpuRenderer<'_> {
             .hash(&mut hash);
         }
         local_size.map(f32::to_bits).hash(&mut hash);
-        effect.program.hash(&mut hash);
-        effect.encode_parameters().unwrap().hash(&mut hash);
+        capture.recipe_signature.hash(&mut hash);
         projection
             .matrix()
             .coeffs()
@@ -453,7 +457,8 @@ impl WgpuRenderer<'_> {
             .map(|_| self.resource_churn_stats);
         self.render_backend.render_effect(
             id,
-            &effect,
+            effect,
+            &mut capture.parameters,
             projection,
             signature,
             &globals,

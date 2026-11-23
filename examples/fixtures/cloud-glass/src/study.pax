@@ -1,0 +1,84 @@
+if self.source_open {
+    <ExampleSourceViewer width=100% height=100% open=bind:self.source_open title="Cloud glass" sources={self.sources}
+        show_theme_toggle=false source_light_mode={self.light_theme} chrome_light_mode={self.light_theme}/>
+}
+<Scroller scroll_pos_y=bind:self.scroll_y width=100% height=100% scroll_height={(Math::max(960, @viewport.height + 540))px}>
+    <Group x=50% y=32px width={(2 * Study::hero_width(@viewport.width) + (@viewport.width < 760 ? 20 : 40))px} height=810px>
+        <Text width=100% height=64px wrap=false style={font: "Georgia", font_size: {@viewport.width < 760 ? 37px : 49px},
+            fill: {Study::ink(self.light_theme)}}>Cloud glass</Text>
+        <Text y=68px width=100% height=48px style={font: "Arial", font_size: 15px, fill: {Study::muted(self.light_theme)}}>
+            Move across a face to light both samples.
+        </Text>
+        <Group y=124px width=100% height=240px @viewport_proximity_change=self.visibility>
+            if self.view != 2 {
+                <SampleColumn class="column" lamp_x=bind:self.lamp_x lamp_y=bind:self.lamp_y lamp_scroll_y=bind:self.lamp_scroll_y source_open=bind:self.source_open/>
+            }
+            if self.view != 1 {
+                <SampleColumn class="column" cloud=true x={self.view == 0 ? 100% : 0%}
+                    lamp_x=bind:self.lamp_x lamp_y=bind:self.lamp_y lamp_scroll_y=bind:self.lamp_scroll_y source_open=bind:self.source_open/>
+            }
+        </Group>
+        <Rectangle y=395px width=100% height=1px fill={Study::line(self.light_theme)}/>
+        <Group y=417px width=100% height=38px>
+            <Button class="control" width=30% @button_click=self.toggle_theme label={self.light_theme ? "Dark theme" : "Light theme"}/>
+            if @gpu && !self.reduced {
+                <Button class="control" x=50% width=32% @button_click=self.toggle_sweep label={self.sweep ? "Stop sweep" : "Sweep light"}/>
+            } else {
+                <Text class="caption" x=50% y=50% width=32% style={font: "Arial", font_size: 14px, fill: {Study::muted(self.light_theme)},
+                    align_vertical: TextAlignVertical::Center, align_horizontal: TextAlignHorizontal::Center}>Static preview</Text>
+            }
+            <Button class="control" x=100% width=32% @button_click=self.compare
+                label={self.view == 0 ? "Side by side" : (self.view == 1 ? "Frost only" : "Cloud only")}/>
+        </Group>
+        if @gpu {
+            <Group y=494px width=100% height=156px>
+                <Text class="caption" width=46%>{"Density  ·  " + self.density}</Text>
+                <Slider class="slider" width=46% min=0.0 max=6.0 step=0.1 value=bind:self.density/>
+                <Text class="caption" x=100% width=46%>{Study::opacity_label(self.gas_opacity)}</Text>
+                <Slider class="slider" x=100% width=46% min=0.0 max=1.0 step=0.05 value=bind:self.gas_opacity/>
+                <Text class="caption" y=70px width=46%>{"Billow scale  ·  " + self.scale_px + " px"}</Text>
+                <Slider class="slider" y=96px width=46% min=6.0 max=60.0 step=1.0 value=bind:self.scale_px/>
+                if !self.reduced {
+                    <Text class="caption" x=100% y=70px width=46%>{"Drift speed  ·  " + self.speed + "×"}</Text>
+                    <Slider class="slider" x=100% y=96px width=46% min=0.0 max=4.0 step=0.25 value=bind:self.speed/>
+                }
+            </Group>
+        }
+        <Text class="caption" y={@gpu ? 654px : 494px} width=100%>Gas color</Text>
+        <Dropdown y={@gpu ? 680px : 520px} width=46% height=36px selected_id=bind:self.tint options=["Cloud white", "Glacier blue", "Apricot", "Lilac"]
+            background={self.light_theme ? rgb(228,225,217) : rgb(44,45,43)}
+            style={font: "Arial", font_size: 14px, fill: {Study::ink(self.light_theme)}}/>
+    </Group>
+</Scroller>
+<AmbientLight intensity=1 color=WHITE/>
+<Rectangle width=100% height=100% fill={Study::ground(self.light_theme)}/>
+if @gpu && self.visible && !self.source_open && !self.reduced && (self.sweep || (self.view != 1 && self.speed > 0.0)) {
+    <Group width=0px height=0px @mount=self.reset_clock @tick=self.advance/>
+}
+@settings {
+    @mount: mount
+    .column {
+        width: {(Study::hero_width(@viewport.width))px}
+        height: 240px
+        density: {self.density}
+        gas_color: {Study::gas_color(self.tint)}
+        gas_opacity: {self.gas_opacity}
+        scale_px: {self.scale_px}
+        phase: {self.phase}
+        scroll_y: {self.scroll_y}
+        reduced: {self.reduced}
+        light_theme: {self.light_theme}
+    }
+    .control {
+        height: 38px corner_radius: 5
+        color: {self.light_theme ? rgb(228,225,217) : rgb(44,45,43)}
+        hover_color: {self.light_theme ? rgb(215,212,204) : rgb(58,59,56)}
+        style: {font: "Arial", font_size: 14px, fill: {Study::ink(self.light_theme)}, align_vertical: TextAlignVertical::Center, align_horizontal: TextAlignHorizontal::Center}
+    }
+    .caption { height: 22px style: {font: "Arial", font_size: 14px, fill: {Study::muted(self.light_theme)}} }
+    .slider {
+        y: 26px height: 24px
+        background: {Study::line(self.light_theme)}
+        accent: {self.light_theme ? rgb(60,75,84) : rgb(188,206,216)}
+    }
+}

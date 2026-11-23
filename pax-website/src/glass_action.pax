@@ -12,7 +12,7 @@
                 align_horizontal: TextAlignHorizontal::Center
             }>{self.label}</Text>
     </Group>
-    <ButtonRim width=100% height=100% enabled=true>
-        <Rectangle width=100% height=100% corner_radius=5.333 fill={SiteTheme::glass_face(self.primary != self.light_mode)}/>
+    <ButtonRim width=100% height=100% enabled=true cloud_density={self.primary != self.light_mode ? Some(2.9) : None}>
+        <Rectangle width=100% height=100% corner_radius=5.333 fill={self.primary != self.light_mode ? SiteTheme::action_surface(false, @gpu) : SiteTheme::glass_face(false)}/>
     </ButtonRim>
 </Link>

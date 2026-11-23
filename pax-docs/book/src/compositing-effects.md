@@ -916,7 +916,7 @@ The [Frame](api/pax-std/core/frame.md), [Mask](api/pax-std/core/mask.md), and
 
 A userland primitive can filter its rendered descendants with a sequence of
 WGSL fragment passes. `pax_std::shaders` provides `GaussianBlur`,
-`Impressionist`, `Corona`, `Radiance`, `RimRefraction`, and `Flashy`, also exported by `pax_std::*` and `pax_kit::*`. They use the
+`Impressionist`, `Corona`, `Radiance`, `RimRefraction`, `CloudGlass`, and `Flashy`, also exported by `pax_std::*` and `pax_kit::*`. They use the
 same public renderer extension API available to your own primitives. The
 `shader-studio` example imports these standard-library components.
 
@@ -1529,6 +1529,33 @@ and radius for the scene light's finite-radius falloff.
 
 See the [`Flashy` API reference](api/pax-std/shaders/flashy.md) and
 [materials guide](drawing-styling.md#lighting-and-materials).
+
+#### CloudGlass
+
+`CloudGlass` fills a vector silhouette with drifting gas inside a clear shell.
+Lower `density` (0–8, default 2.9) to break the banks into wisps with clear
+spaces between them. Lower `gas_opacity` (0–1, default 0.95) to fade the same
+wisps in place. At zero density or opacity, the shell can still catch light.
+Pixels with no gas, bevel or reflection have zero alpha.
+
+```pax
+<LightFrame width=320px height=56px>
+    <CloudGlass width=100% height=100% button_rim=true phase={self.phase}>
+        <Rectangle width=100% height=100% corner_radius=6 fill=WHITE/>
+    </CloudGlass>
+    <LightSource x=45% y=50% width=1px height=1px z=95px radius=640px intensity=0.9 color=WHITE/>
+</LightFrame>
+```
+
+Use the child's alpha to shape the shell. Keep native labels, icons and hit
+targets alongside it. The CPU renderer displays the child paint directly.
+`gas_color` defaults to white and `billow_scale` to 23 local pixels (range
+4–128). Supply `phase` in seconds of normal-speed drift, or hold it constant
+for a still frame. At four times normal speed, advance it by four seconds per
+elapsed second. A scoped direct light adds a sharp shell reflection and a
+broader pool of light in the gas. `button_rim=true` adds a 2 px CMY contour
+in the same pass. The effect samples its own silhouette and requires no
+backdrop capture or animation textures. See the [CloudGlass API reference](api/pax-std/shaders/cloud_glass.md).
 
 #### RimRefraction
 

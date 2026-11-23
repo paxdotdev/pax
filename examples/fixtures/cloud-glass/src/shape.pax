@@ -1,0 +1,9 @@
+if self.tab {
+    <Path width=100% height=100% fill={self.paint} elements={[
+        PathElement::Point(8px, 0%), PathElement::Line, PathElement::Point(100%, 0%),
+        PathElement::Line, PathElement::Point(100%, 100%), PathElement::Line,
+        PathElement::Point(8px, 100%), PathElement::Line, PathElement::Point(0px, 50%), PathElement::Close
+    ]}/>
+} else {
+    <Rectangle width=100% height=100% corner_radius=5.333 fill={self.paint}/>
+}

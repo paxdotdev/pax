@@ -41,7 +41,13 @@ for (const width of [1280, 390]) {
     test(`one CMY cycle rolls through the moving pointer glint at ${width}px`, async () => {
         const browser = await chromium.launch({channel: 'chrome'});
         try {
-            const page = await browser.newPage({viewport: {width, height: 950}, deviceScaleFactor: 1});
+            // Hold the gas under the rim still so its changing coverage cannot
+            // cross the detector's color threshold while sampling a parked light.
+            const page = await browser.newPage({
+                viewport: {width, height: 950},
+                deviceScaleFactor: 1,
+                reducedMotion: 'reduce',
+            });
             await page.goto(new URL('/?pax_renderer=gpu', process.env.PAX_SITE_URL).href);
             await page.waitForSelector('[data-pax-loading="active"]', {timeout: 120000});
             const label = page.locator('.native-leaf').filter({hasText: /^Get Started$/}).filter({visible: true}).first();

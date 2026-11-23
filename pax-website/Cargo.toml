@@ -49,7 +49,7 @@ pulldown-cmark = "0.13"
 pulldown-cmark = "0.13"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-web-sys = { version = "0.3", features = ["Window", "Storage", "Document", "Element", "EventTarget", "Event"] }
+web-sys = { version = "0.3", features = ["Window", "Storage", "Document", "MediaQueryList", "Element", "EventTarget", "Event"] }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
 

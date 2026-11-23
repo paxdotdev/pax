@@ -73,6 +73,14 @@ impl SiteTheme {
         }
     }
 
+    pub fn action_surface(light: bool, gpu: bool) -> Fill {
+        if !light && gpu && cfg!(feature = "app") {
+            Color::WHITE.into()
+        } else {
+            Self::action_face(light)
+        }
+    }
+
     /// A narrow reflection on dark glass keeps the white label readable during the hero sweep.
     pub fn obsidian() -> Material {
         Material::custom(MaterialParams {
@@ -236,4 +244,62 @@ mod tests {
             }
         }
     }
+}
+
+/// Share one 30 Hz phase across visible cloud faces. An OS preference change
+/// disconnects the runtime clock so a frozen face can reuse its retained output.
+#[cfg(feature = "app")]
+pub(crate) fn connect_cloud_clock(ctx: &NodeContext) {
+    let phase = LocalProperty::new(0.);
+    let millis = ctx.elapsed_millis.clone();
+    let set_motion = {
+        let phase = phase.clone();
+        move |reduced: bool| {
+            let held = phase.get();
+            if reduced {
+                phase.replace_with(LocalProperty::new(held));
+            } else {
+                let millis = millis.clone();
+                let start = millis.get();
+                let deps = [millis.untyped()];
+                // A plain computed phase is lazy while there are no visible consumers.
+                phase.replace_with(LocalProperty::computed(
+                    move || {
+                        held + (millis.get().saturating_sub(start) * 30 / 1000) as f64 * (4. / 30.)
+                    },
+                    &deps,
+                ));
+            }
+        }
+    };
+    ctx.provide_store(ButtonCloudPhase(phase))
+        .expect("website owns its button clock");
+    #[cfg(target_arch = "wasm32")]
+    if let Some(query) = web_sys::window()
+        .and_then(|window| window.match_media("(prefers-reduced-motion: reduce)").ok())
+        .flatten()
+    {
+        use wasm_bindgen::{closure::Closure, JsCast};
+        struct MotionPreference(web_sys::MediaQueryList, Closure<dyn FnMut()>);
+        impl Store for MotionPreference {}
+        impl std::ops::Drop for MotionPreference {
+            fn drop(&mut self) {
+                let _ = self
+                    .0
+                    .remove_event_listener_with_callback("change", self.1.as_ref().unchecked_ref());
+            }
+        }
+        set_motion(query.matches());
+        let media = query.clone();
+        let changed =
+            Closure::wrap(Box::new(move || set_motion(media.matches())) as Box<dyn FnMut()>);
+        if query
+            .add_event_listener_with_callback("change", changed.as_ref().unchecked_ref())
+            .is_ok()
+        {
+            let _ = ctx.provide_store(MotionPreference(query, changed));
+        }
+        return;
+    }
+    set_motion(false);
 }

@@ -9,6 +9,7 @@ just as application-defined effects do. Requires the WGPU renderer.
 Enable the opt-in `shaders` Cargo feature on `pax-kit` or `pax-std`.
 
 ## Submodules
+- [shaders::cloud_glass](shaders/cloud_glass.md)
 - [shaders::corona](shaders/corona.md)
 - [shaders::flashy](shaders/flashy.md)
 - [shaders::gaussian_blur](shaders/gaussian_blur.md)
