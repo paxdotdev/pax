@@ -296,13 +296,15 @@ impl InstanceNode for FrameInstance {
             expanded_node.computed_opacity.untyped(),
             expanded_node.parent_frame.untyped(),
             expanded_node.occlusion.untyped(),
-            expanded_node.canvas_transform_and_bounds.untyped(),
+            expanded_node.canvas_owner_dependency(),
         ];
 
         expanded_node
             .changed_listener
-            .replace_with(LocalProperty::computed(
-                move || {
+            .replace_with(LocalProperty::computed_with_optional_inputs(
+                &deps,
+                [expanded_node.canvas_transform_and_bounds.untyped()],
+                move |[observe_canvas]| {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         return;
                     };
@@ -316,6 +318,16 @@ impl InstanceNode for FrameInstance {
                     expanded_node.with_properties_unwrapped(|properties: &mut Frame| {
                         let (owner, transform) = placement.get();
                         let (width, height) = bounds.get();
+                        let layer = expanded_node.occlusion.get().render_layer_id;
+                        let surface_owner = cloned_context.get_layer_scroller_owner(layer);
+                        // The native affine placement is already in canvas coordinates
+                        // when both name the same scroller. Composing through the window
+                        // and back can change low bits even for a stationary local clip.
+                        let local_clip_transform = owner
+                            .filter(|id| Some(*id) == surface_owner.map(|n| n.to_u32()))
+                            .and_then(|_| transform.as_slice().try_into().ok())
+                            .map(Affine::new);
+                        observe_canvas(local_clip_transform.is_none());
                         let corner_radius = properties.corner_radius.local().get();
                         let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
                         let clamped_radius = corner_radius.clamp(0.0, max_radius);
@@ -416,16 +428,19 @@ impl InstanceNode for FrameInstance {
                         }
                         // A scroller keeps the same clip when an earlier scroller
                         // takes its layer number. Reconciliation replays the new slot.
-                        let layer = expanded_node.occlusion.get().render_layer_id;
-                        let surface = cloned_context
-                            .get_layer_scroller_owner(layer)
-                            .map_or(ClipSurface::Layer(layer), ClipSurface::Scroller);
-                        let placement = expanded_node.canvas_transform_and_bounds.get();
+                        let surface =
+                            surface_owner.map_or(ClipSurface::Layer(layer), ClipSurface::Scroller);
+                        let (transform, size) = local_clip_transform
+                            .map(|transform| (transform, (width, height)))
+                            .unwrap_or_else(|| {
+                                let p = expanded_node.canvas_transform_and_bounds.get();
+                                (Affine::from(p.transform), p.bounds)
+                            });
                         // A disabled clip has no shape. Children that depend on the
                         // Frame's dimensions still observe their own layout changes.
                         let canvas_clip = (
-                            placement.transform,
-                            clips.then_some((placement.bounds, clamped_radius)),
+                            transform,
+                            clips.then_some((size, clamped_radius)),
                             expanded_node.computed_opacity.get(),
                             surface,
                             expanded_node.parent_frame.get(),
@@ -435,13 +450,13 @@ impl InstanceNode for FrameInstance {
                         *last_canvas_clip.borrow_mut() = Some(canvas_clip);
                         if canvas_changed
                             || (native_canvas_changed
+                                && local_clip_transform.is_none()
                                 && !expanded_node.has_surface_local_canvas_placement())
                         {
                             mark_canvas_descendants_dirty(&expanded_node, &cloned_context);
                         }
                     });
                 },
-                &deps,
             ));
     }
 

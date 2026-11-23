@@ -242,7 +242,9 @@ Use explicitly filled shapes for predictable source coverage. Shape APIs
 decide which geometry contributes: for example, a Path with no visible fill
 or stroke may have no coverage at all. If the source produces no coverage
 path, geometry mode applies no clip; it does not hide
-everything. Use conditional content when the intended state is “show nothing.”
+everything. Switching an empty source from painted alpha to geometry mode reveals
+the content on the next presentation. Use conditional content when the intended
+state is “show nothing.”
 
 A nested Mask can further constrain already-masked content. In geometry
 mode, the source's paint appearance does not determine coverage, and source-side
@@ -639,9 +641,9 @@ layer-ownership changes. This is shared-runtime behavior, not a web-only CSS
 shortcut; it still depends on the backend enabling isolated scroll layers.
 
 When an existing Frame or geometry Mask animates its clip, the shared runtime
-refreshes the records inheriting that clip and the native masks overlapping
-their old or new paint. Unrelated branches are not traversed just because a
-clip animates elsewhere. Adding/removing a clip boundary still changes topology
+updates the drawables, native elements, and nested containers that inherit it,
+including those reached through layout-only groups. It checks native masks
+overlapping their old or new paint. Adding/removing a clip boundary still changes topology
 and requires full reconciliation. This does not change exact clipping into
 bounding-box clipping; bounds only narrow which native masks need recomputing.
 

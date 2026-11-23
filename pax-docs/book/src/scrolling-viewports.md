@@ -1311,7 +1311,11 @@ coverage, and paint geometry. Moving an existing subtree to another clip or
 surface reclassifies membership. Escaped content, shared scroll layers, and
 singular scroller transforms can require a full reconciliation.
 Dense paint order can still require assigning new z-indices to unchanged nodes.
-These counters describe work on mounted content.
+`records_updated` counts visits to mounted canvas, native, clip, and scroller
+records during a coverage update. A layout-only group can move all of its
+children without adding a visit for the group itself. Its descendants still
+inherit the motion and clips. If the group starts clipping or gains a native
+surface, the compositor rechecks its role before refreshing coverage.
 `records_updated`, `masks_evaluated`, and
 `mask_candidates` count localized work, including that following a retained
 structural reconciliation; a full rebuild can still be expensive when those
@@ -1438,6 +1442,13 @@ slice and offers a task boundary between urgent and speculative work. It uses
 neither promises an intervening paint. A complex layer or tile can exceed the
 slice. Unsupported or inseparable drawing takes the existing atomic full-tree
 fallback rather than weakening clips, masks, or group opacity.
+
+WebGPU draws a missing shader capture directly into the selected tile. A filter
+such as Radiance needs its source subtree together, so recording those leaves
+individually would repeat work before the filter can run. Point, strip, and
+ambient lights contribute to the layer's lighting independently of the tile's
+list of drawings. A light can illuminate content even when the emitter lies
+outside the tile.
 
 Each ordinary layer validates and draws from one current, ancestor-complete
 traversal plan. Dirty paths on unrelated layers are not repeatedly validated

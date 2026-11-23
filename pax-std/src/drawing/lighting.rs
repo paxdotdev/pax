@@ -144,6 +144,10 @@ impl DirectLight for LightSource {
 }
 
 impl<P: DirectLight + 'static> InstanceNode for DirectLightInstance<P> {
+    fn has_canvas_drawing(&self) -> bool {
+        false
+    }
+
     fn has_scene_lighting(&self) -> bool {
         true
     }
@@ -356,6 +360,10 @@ pub struct AmbientLightInstance {
 }
 
 impl InstanceNode for AmbientLightInstance {
+    fn has_canvas_drawing(&self) -> bool {
+        false
+    }
+
     fn has_scene_lighting(&self) -> bool {
         true
     }

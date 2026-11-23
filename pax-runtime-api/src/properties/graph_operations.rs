@@ -22,7 +22,7 @@ impl PropertyTable {
                     }
                     // A direct read pulls the current placement. Connecting the
                     // first dependent to a dirty cutoff queues it in connect_edge.
-                    let needs_queue = !is_cutoff || !dep_data.has_unobserved_paint_cutoff();
+                    let needs_queue = !is_cutoff || !dep_data.has_unobserved_presentation_cutoff();
                     (needs_queue, is_cutoff)
                 } else {
                     (false, dep_data.cutoff_settler.is_some())

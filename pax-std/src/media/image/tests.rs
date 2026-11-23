@@ -2,7 +2,7 @@ use super::*;
 use kurbo::Affine;
 use kurbo::{BezPath, Rect};
 use pax_runtime::api::pax_value::ToFromPaxAny;
-use pax_runtime::api::{CommonProperties, Paint, ResolvedMaterial, ResolvedStroke};
+use pax_runtime::api::{CommonProperties, Paint, ResolvedMaterial, ResolvedStroke, Size};
 use pax_runtime::{CommonPropertiesInit, ComponentInstance, PropertiesInit, PropertiesScopeInit};
 
 fn context() -> Rc<RuntimeContext> {
@@ -33,6 +33,7 @@ fn args() -> InstantiationArgs {
 #[derive(Default)]
 struct RecordingRenderer {
     opacities: Vec<f64>,
+    destinations: Vec<Rect>,
     loads: usize,
     subtree_opacity: bool,
     scopes: Vec<pax_runtime::api::OpacityScope>,
@@ -78,7 +79,8 @@ impl RenderContext for RecordingRenderer {
     fn load_image(&mut self, _: &str, _: &[u8], _: usize, _: usize) {
         self.loads += 1;
     }
-    fn draw_image_with_opacity(&mut self, _: usize, _: &str, _: Rect, opacity: f64) {
+    fn draw_image_with_opacity(&mut self, _: usize, _: &str, rect: Rect, opacity: f64) {
+        self.destinations.push(rect);
         self.opacities.push(opacity);
     }
     fn get_image_size(&mut self, _: &str) -> Option<(usize, usize)> {
@@ -102,6 +104,117 @@ impl RenderContext for RecordingRenderer {
     fn refresh_layers(&mut self, _: &[usize]) {
         unreachable!()
     }
+}
+
+fn mounted_image() -> (pax_runtime::PaxEngine, Rc<ImageInstance>, Rc<ExpandedNode>) {
+    let mut engine = pax_runtime::PaxEngine {
+        runtime_context: context(),
+        root_expanded_node: None,
+        scroller_tiling_policy: Default::default(),
+    };
+    engine.runtime_context.resize_canvas_layers_to(1);
+    let image = ImageInstance::instantiate(args());
+    let mut root_args = args();
+    root_args.component_template = Some(RefCell::new(vec![image.clone()]));
+    let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+    let node = root.children.get()[0].clone();
+    let properties = node.get_common_properties();
+    properties.borrow().width.set(Some(Size::Pixels(80.into())));
+    properties
+        .borrow()
+        .height
+        .set(Some(Size::Pixels(80.into())));
+    node.with_properties_unwrapped(|p: &mut Image| {
+        p.source.set(ImageSource::Data(2, 1, vec![255; 8]))
+    });
+    engine.tick();
+    (engine, image, node)
+}
+
+#[test]
+fn fit_and_bounds_refit_the_loaded_image_and_a_new_source_replaces_it() {
+    let (mut engine, image, node) = mounted_image();
+    let mut renderer = RecordingRenderer::default();
+    let ctx = engine.runtime_context.clone();
+    for (fit, expected) in [
+        (ImageFit::Fit, Rect::new(0., 20., 80., 60.)),
+        (ImageFit::Paint, Rect::new(-40., 0., 120., 80.)),
+        (ImageFit::Stretch, Rect::new(0., 0., 80., 80.)),
+    ] {
+        node.with_properties_unwrapped(|p: &mut Image| p.fit.set(fit));
+        engine.tick();
+        assert!(ctx.is_canvas_node_dirty(&node.id));
+        image.render(&node, &ctx, &mut renderer);
+        assert_eq!(renderer.destinations.last(), Some(&expected));
+        assert_eq!(renderer.loads, 1);
+        assert!(!ctx.is_canvas_node_dirty(&node.id));
+    }
+    node.get_common_properties()
+        .borrow()
+        .width
+        .set(Some(Size::Pixels(60.into())));
+    engine.tick();
+    image.render(&node, &ctx, &mut renderer);
+    assert_eq!(
+        renderer.destinations.last(),
+        Some(&Rect::new(0., 0., 60., 80.))
+    );
+    assert_eq!(renderer.loads, 1);
+
+    node.with_properties_unwrapped(|p: &mut Image| p.fit.set(ImageFit::Fit));
+    engine.tick();
+    image.render(&node, &ctx, &mut renderer);
+    assert_eq!(
+        renderer.destinations.last(),
+        Some(&Rect::new(0., 25., 60., 55.))
+    );
+    node.with_properties_unwrapped(|p: &mut Image| {
+        p.source.set(ImageSource::Data(1, 2, vec![255; 8]))
+    });
+    engine.tick();
+    image.render(&node, &ctx, &mut renderer);
+    assert_eq!(
+        renderer.destinations.last(),
+        Some(&Rect::new(10., 0., 50., 80.))
+    );
+    assert_eq!(renderer.loads, 2);
+}
+
+#[cfg(feature = "3d")]
+#[test]
+fn parent_motion_replays_image_at_its_current_pose_with_the_same_local_paint() {
+    use pax_runtime::api::Rotation;
+
+    let (mut engine, image, node) = mounted_image();
+    let ctx = engine.runtime_context.clone();
+    let root = engine
+        .root_expanded_node
+        .as_ref()
+        .unwrap()
+        .get_common_properties();
+    let mut renderer = RecordingRenderer::default();
+    image.render(&node, &ctx, &mut renderer);
+    let original = ctx.canvas_geometry_for_node(&node);
+    for (x, tilt) in [(5., 0.), (150., 30.), (0., 0.)] {
+        root.borrow().x.set(Some(Size::Pixels(x.into())));
+        root.borrow()
+            .rotate_y
+            .set(Some(Rotation::Degrees(tilt.into())));
+        let synchronous = node.canvas_transform_and_bounds.get();
+        engine.tick();
+        let current = ctx.canvas_geometry_for_node(&node);
+        assert_eq!(
+            current.surface_transform,
+            Affine::from(synchronous.transform)
+        );
+        assert_eq!(current.spatial_geometry, node.presentation_geometry().get());
+        assert_eq!(current.local_paint_revision, original.local_paint_revision);
+        assert!(ctx.is_canvas_node_dirty(&node.id));
+        image.render(&node, &ctx, &mut renderer);
+        assert!(!ctx.is_canvas_node_dirty(&node.id));
+    }
+    assert_eq!(renderer.loads, 1);
+    assert_eq!(renderer.destinations, vec![Rect::new(0., 20., 80., 60.); 4]);
 }
 
 #[test]

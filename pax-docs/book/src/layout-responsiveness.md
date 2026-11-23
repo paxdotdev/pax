@@ -264,10 +264,12 @@ a vertical stack can measure height while keeping a caller-supplied width.
 Use `autosize=true` alongside Stacker's axis overrides. An explicitly
 specified dimension still wins over measurement for that dimension.
 
-A Group or Frame measures its children for its own size only while an
+A Group, Frame, or Link measures its children for its own size only while an
 omitted dimension has autosizing enabled. If a binding enables autosizing
 or removes an explicit dimension at runtime, the container uses the current
-children, including any that changed while measurement was off.
+children, including any that changed while measurement was off. For example,
+a Link with an explicit width, an omitted height, and `autosize_y=false`
+follows its container's available height as the container resizes.
 
 Autosize needs a measurable starting point. A parent whose height comes only
 from a child at `height=100%` leaves the calculation circular. Use concrete

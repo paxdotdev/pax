@@ -633,10 +633,17 @@ impl InstanceNode for ScrollerHostInstance {
                                 .world_transform()
                                 .try_as_2d()
                                 .is_some();
-                        let visual_update = patch.size_x.is_some()
+                        let resized = patch.size_x.is_some()
                             || patch.size_y.is_some()
                             || patch.size_inner_pane_x.is_some()
-                            || patch.size_inner_pane_y.is_some()
+                            || patch.size_inner_pane_y.is_some();
+                        // Surface state already refreshes exposure and residency. Its
+                        // host owns the aperture; child layout changes have their own
+                        // drawing dependencies. A shared canvas still bakes the clip.
+                        let owns_surface = scroller_island_layer.is_some_and(|layer| {
+                            context.get_layer_scroller_owner(layer) == Some(expanded_node.id)
+                        });
+                        let visual_update = (resized && !(owns_surface && retained_pose))
                             || patch.scroll_enabled_x.is_some()
                             || patch.scroll_enabled_y.is_some()
                             || (patch.transform.is_some() && !retained_pose)

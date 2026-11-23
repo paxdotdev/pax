@@ -87,6 +87,195 @@ impl Fixture {
 }
 
 #[test]
+fn native_frame_publishes_the_last_parent_pose_in_a_property_drain() {
+    use pax_runtime::api::LocalProperty;
+
+    let fixture = Fixture::mount(FrameInstance::instantiate(args(
+        Frame::default(),
+        child_common(),
+    )));
+    let final_x = LocalProperty::new(0.);
+    let writer = LocalProperty::computed(
+        {
+            let x = fixture.parent.x.clone();
+            let final_x = final_x.clone();
+            move || x.set(Some(Size::Pixels(final_x.get().into())))
+        },
+        &[final_x.untyped()],
+    );
+    fixture
+        .context
+        .register_node_effect_property(fixture.node.id, &writer);
+    fixture.messages();
+    for (first, last) in [(35., 35.5), (35.5, 35.), (36., 36.5)] {
+        fixture.parent.x.set(Some(Size::Pixels(first.into())));
+        final_x.set(last);
+        let last_patch = fixture
+            .messages()
+            .into_iter()
+            .filter_map(|message| {
+                if let NativeMessage::FrameUpdate(p) = message {
+                    if p.id == fixture.node.id.to_u32() {
+                        return p.transform;
+                    }
+                }
+                None
+            })
+            .last();
+        let actual = fixture
+            .context
+            .native_presentation_matrix_for_node(&fixture.node);
+        assert_eq!(actual[4], last);
+        assert_eq!(last_patch.as_ref(), Some(&actual));
+    }
+}
+
+#[test]
+fn mask_publishes_one_settled_clip_and_preserves_synchronous_source_reads() {
+    use kurbo::Shape;
+    use pax_runtime::api::{bez_path_to_svg_path_data, Color, LocalProperty};
+
+    let source_common = CommonProperties::default();
+    let source = Rectangle::default();
+    source.fill.set(vec![Color::WHITE.into()]);
+    let mut mask_args = args(Mask::default(), CommonProperties::default());
+    mask_args.children = Some(RefCell::new(vec![
+        RectangleInstance::instantiate(args(Rectangle::default(), child_common())),
+        RectangleInstance::instantiate(args(source, source_common.clone())),
+    ]));
+    let mask = MaskInstance::instantiate(mask_args);
+    let fixture = Fixture::mount(mask.clone());
+    let _graph = fixture.context.property_graph.enter();
+    let content = fixture.node.children.get()[0].clone();
+    let revision = || {
+        fixture
+            .context
+            .canvas_geometry_for_node(&content)
+            .local_paint_revision
+    };
+    let final_x = LocalProperty::new(0.);
+    let writer = LocalProperty::computed(
+        {
+            let x = source_common.x.clone();
+            let final_x = final_x.clone();
+            move || x.set(Some(Size::Pixels(final_x.get().into())))
+        },
+        &[final_x.untyped()],
+    );
+    fixture
+        .context
+        .register_node_effect_property(fixture.node.id, &writer);
+    fixture.messages();
+    let initial_revision = revision();
+    source_common.x.set(Some(Size::Pixels(5.into())));
+    let clip = || mask.resolve_effect_clip_path(&fixture.node).unwrap();
+    assert_eq!(clip().bounding_box().x0, 5.);
+    final_x.set(15.);
+    fixture.context.clear_canvas_node_dirty(&content.id);
+    let paths: Vec<_> = fixture
+        .messages()
+        .into_iter()
+        .filter_map(|message| match message {
+            NativeMessage::FrameUpdate(p) if p.id == fixture.node.id.to_u32() => p.clip_path,
+            _ => None,
+        })
+        .collect();
+    assert_eq!(clip().bounding_box().x0, 15.);
+    assert_eq!(paths, [bez_path_to_svg_path_data(&clip())]);
+    assert!(fixture.context.is_canvas_node_dirty(&content.id));
+    assert_eq!(revision(), initial_revision);
+
+    // A real edit to the visible leaf must still win in the same drain.
+    final_x.set(20.);
+    content.with_properties_unwrapped(|r: &mut Rectangle| r.fill.set(vec![Color::RED.into()]));
+    fixture.messages();
+    assert_eq!(clip().bounding_box().x0, 20.);
+    assert_ne!(revision(), initial_revision);
+}
+
+#[test]
+fn leaving_an_empty_alpha_mask_redraws_without_a_native_clip_patch() {
+    let props = Mask::default();
+    props.alpha.set(true);
+    let mut mask_args = args(props.clone(), CommonProperties::default());
+    mask_args.children = Some(RefCell::new(vec![
+        RectangleInstance::instantiate(args(Rectangle::default(), child_common())),
+        GroupInstance::instantiate(args(Group::default(), child_common())),
+    ]));
+    let fixture = Fixture::mount(MaskInstance::instantiate(mask_args));
+    let _graph = fixture.context.property_graph.enter();
+    let content = fixture.node.children.get()[0].clone();
+    for alpha in [false, true] {
+        fixture.context.clear_canvas_node_dirty(&content.id);
+        props.alpha.set(alpha);
+        let messages = fixture.messages();
+        assert!(fixture.context.is_canvas_node_dirty(&content.id));
+        assert!(messages.iter().all(|m| !matches!(m,
+            NativeMessage::FrameUpdate(p) if p.id == fixture.node.id.to_u32())));
+    }
+}
+
+#[test]
+fn link_measures_projected_content_only_for_implicit_autosized_axes() {
+    use crate::core::link::Link;
+    use pax_engine::api::properties::property_outbound_debug_names;
+    use pax_runtime::{Slot, SlotInstance};
+
+    let px = |n: i32| Some(Size::Pixels(n.into()));
+    let child = CommonProperties::default();
+    child.width.set(px(40));
+    child.height.set(px(24));
+    let common = CommonProperties::default();
+    common.width.set(px(120));
+    common.height.set(px(48));
+    let mut link = Link::default();
+    link.autosize.set(true);
+    let mut link_args = args(link.clone(), common.clone());
+    link_args.children = Some(RefCell::new(vec![RectangleInstance::instantiate(args(
+        Rectangle::default(),
+        child.clone(),
+    ))]));
+    let mut slot_args = args(Group::default(), CommonProperties::default());
+    slot_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+        Some(Rc::new(RefCell::new(Slot::default().to_pax_any())))
+    }));
+    link_args.component_template = Some(RefCell::new(vec![SlotInstance::instantiate(slot_args)]));
+    let fixture = Fixture::mount(ComponentInstance::instantiate(link_args));
+    let _graph = fixture.context.property_graph.enter();
+    let ctx = fixture.node.get_node_context(&fixture.context);
+    let hull = ctx.received_children.get()[0].subtree_layout_hull.untyped();
+    let hull_subscriptions = || property_outbound_debug_names(&hull).len();
+    let initial_subscriptions = hull_subscriptions();
+    link.on_mount(&ctx);
+    fixture.context.drain_node_effects();
+    assert_eq!(link._projected_children.get(), 1);
+    assert_eq!(fixture.node.measured_size.get(), None);
+    assert_eq!(hull_subscriptions(), initial_subscriptions);
+
+    child.height.set(px(35));
+    link.autosize_y.set(Some(false));
+    common.height.set(None);
+    fixture.context.drain_node_effects();
+    assert_eq!(fixture.node.measured_size.get(), None);
+    fixture.parent.height.set(px(200));
+    assert_eq!(fixture.node.transform_and_bounds.get().bounds, (120., 200.));
+
+    link.autosize_y.set(Some(true));
+    fixture.context.drain_node_effects();
+    assert_eq!(fixture.node.measured_size.get(), Some((120., 35.)));
+    assert!(hull_subscriptions() > initial_subscriptions);
+    child.height.set(px(46));
+    fixture.context.drain_node_effects();
+    assert_eq!(fixture.node.transform_and_bounds.get().bounds, (120., 46.));
+
+    common.height.set(px(50));
+    fixture.context.drain_node_effects();
+    assert_eq!(fixture.node.measured_size.get(), None);
+    assert_eq!(fixture.node.transform_and_bounds.get().bounds, (120., 50.));
+    assert_eq!(hull_subscriptions(), initial_subscriptions);
+}
+
+#[test]
 fn drawer_preview_keeps_its_padded_layout_width_during_motion() {
     let content = CommonProperties::default();
     content.width.set(Some(Size::Percent(100.into())));
@@ -429,12 +618,15 @@ fn image_placement_and_source_changes_redraw_without_reloading_for_motion() {
     let source = image.source.clone();
     let fixture = Fixture::mount(ImageInstance::instantiate(args(image, child_common())));
     let node = &fixture.node;
+    fixture.context.prepare_scene_geometry();
     let initial = node.canvas_transform_and_bounds.get();
     fixture.context.clear_canvas_node_dirty(&node.id);
     fixture.parent.x.set(Some(Size::Pixels(10.into())));
     assert_ne!(node.canvas_transform_and_bounds.get(), initial);
     let image_load = |m: &NativeMessage| matches!(m, NativeMessage::ImageLoad(_));
     assert!(!fixture.messages().iter().any(image_load));
+    // The tick settles inherited image motion when it prepares drawing geometry.
+    fixture.context.prepare_scene_geometry();
     assert!(fixture.context.is_canvas_node_dirty(&node.id));
 
     fixture.context.clear_canvas_node_dirty(&node.id);

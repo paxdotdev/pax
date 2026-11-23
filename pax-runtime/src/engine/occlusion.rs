@@ -344,6 +344,20 @@ impl From<&PreparedCanvasGeometry> for CoveragePlacement {
 }
 
 impl OcclusionRecord {
+    fn participates_in_coverage(&self) -> bool {
+        self.layer != Layer::DontCare || self.clip.is_some() || self.scrolls
+    }
+
+    fn inherited_coverage_clips(&self) -> &[u32] {
+        // Each contributing descendant has its complete inherited clip chain,
+        // including through layout-only parents and across presentation transfers.
+        if self.participates_in_coverage() {
+            &self.clips
+        } else {
+            &[]
+        }
+    }
+
     fn coverage_path(&self) -> Option<Rc<BezPath>> {
         #[cfg(feature = "3d")]
         if let Some(mesh) = &self.mesh_path {
@@ -743,6 +757,9 @@ pub(crate) fn update_node_occlusion_observed(
         return;
     }
 
+    // Validate roles above before filtering: a formerly layout-only node can
+    // start clipping its children or materialize a native backing surface.
+    dirty.retain(|id| state.records[id].participates_in_coverage());
     // Clip lineage and layer/z-order remain fixed on this path. Revisit only
     // records inheriting a dirty clip, including their old/new native overlaps.
     // The same index includes nested containers but excludes escaped content.
@@ -881,7 +898,7 @@ fn refresh_container_membership(ctx: &RuntimeContext, state: &mut OcclusionState
     let mut container_layers = HashSet::new();
     let mut unsafe_branches = HashSet::new();
     for (&id, record) in &state.records {
-        for &clip in &record.clips {
+        for &clip in record.inherited_coverage_clips() {
             state.clip_dependents.entry(clip).or_default().push(id);
         }
         if record.unclippable || (record.scrolls && !state.owned_layers.contains_key(&id)) {
@@ -1418,7 +1435,7 @@ fn try_reconcile_structure(
     for record in std::mem::take(&mut state.removed) {
         include_old_overlaps(&record, ctx, affected);
         if !migrated {
-            removed_clips.extend(record.clips);
+            removed_clips.extend(record.inherited_coverage_clips().iter().copied());
         }
         if record.path_bounds.is_some() && record.opacity > f64::EPSILON {
             if let Some(geometry) = &record.geometry {
@@ -1492,7 +1509,7 @@ fn try_reconcile_structure(
         // new containers extend their ancestors' scroll-presentation work.
         for id in added_ids {
             let record = &state.records[&id];
-            for &clip in &record.clips {
+            for &clip in record.inherited_coverage_clips() {
                 state.clip_dependents.entry(clip).or_default().push(id);
             }
             if record.scrolls || record.clip.is_some() {

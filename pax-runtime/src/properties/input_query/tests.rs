@@ -485,6 +485,7 @@ fn perspective_input_reprojects_on_scroll_and_matches_uncached_queries() {
         .z
         .set(Some(100.0.into()));
     native_scroll(&engine.runtime_context, &host, 0.);
+    let native = leaf.native_placement(&engine.runtime_context);
     engine.tick();
     query(&engine.runtime_context, None, (200., 200.), false);
     let mut before = engine.runtime_context.input_query_stats().bounds_prepared;
@@ -492,6 +493,11 @@ fn perspective_input_reprojects_on_scroll_and_matches_uncached_queries() {
         native_scroll(&engine.runtime_context, &host, offset);
         engine.tick();
         let ctx = &engine.runtime_context;
+        assert_eq!(
+            native.get(),
+            (None, ctx.native_presentation_matrix_for_node(&leaf)),
+            "native scroll compensation at {offset}"
+        );
         for x in (50..700).step_by(43) {
             for y in (50..500).step_by(41) {
                 let p = (x as f64, y as f64);
@@ -865,6 +871,41 @@ fn retained_scroll_follows_reactive_writes_page_delegation_and_reparenting() {
         prepared.upgrade().is_none(),
         "retired mounts release their projection"
     );
+}
+
+#[test]
+fn pending_placement_reads_follow_each_pose_and_preserve_displayed_hits() {
+    use crate::properties::input_capture::InputPublisher;
+
+    let leaf = HitNode::new(vec![], true, false, None, Default::default());
+    let (mut engine, root) = fixture(vec![leaf]);
+    let node = root.children.get()[0].clone();
+    place(&node, 10., 10., 20., 20.);
+    engine.tick();
+    let mut publisher = InputPublisher::default();
+    let displayed = publisher.capture(&engine.runtime_context).unwrap();
+    let points = [10.25, 30.25, 50.25];
+    let hits =
+        |ctx: &RuntimeContext| points.map(|x| query(ctx, None, (x, 20.), false).contains(&node.id));
+    let x = node.get_common_properties().borrow().x.clone();
+    x.set(Some(Size::Pixels(30.into())));
+    assert_eq!(hits(&engine.runtime_context), [false, true, false]);
+    x.set(Some(Size::Pixels(50.into())));
+    assert_eq!(hits(&engine.runtime_context), [false, false, true]);
+    {
+        let ctx = &engine.runtime_context;
+        let _scope = displayed.enter(ctx, &HashMap::new()).unwrap();
+        assert_eq!(hits(ctx), [true, false, false]);
+    }
+    engine.tick();
+    let ctx = &engine.runtime_context;
+    let next = publisher.capture(ctx).unwrap();
+    for view in [&next, &InputPublisher::default().capture(ctx).unwrap()] {
+        let _scope = view.enter(ctx, &HashMap::new()).unwrap();
+        assert_eq!(hits(ctx), [false, false, true]);
+    }
+    let _scope = displayed.enter(ctx, &HashMap::new()).unwrap();
+    assert_eq!(hits(ctx), [true, false, false]);
 }
 
 #[test]

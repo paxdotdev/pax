@@ -645,11 +645,12 @@ it matters most:
 | `fit` | Result |
 | --- | --- |
 | `ImageFit::Fit` (default) | Preserves proportions and shows the whole image; may leave unused space |
-| `ImageFit::Fill` | Preserves proportions and covers the bounds; crops the excess |
+| `ImageFit::Paint` | Preserves proportions and covers the bounds; crops the excess |
 | `ImageFit::Stretch` | Maps the image directly to both dimensions; may distort it |
 
 Image centers the fitted result and clips it to its own rectangular bounds.
-With a square source in a wide box, Fit leaves space at the sides, Fill crops
+Changing `fit` at runtime redraws the image using the pixels already loaded.
+With a square source in a wide box, Fit leaves space at the sides, Paint crops
 the top and bottom, and Stretch makes the subject wider:
 
 ```pax
@@ -657,7 +658,7 @@ the top and bottom, and Stretch makes the subject wider:
     <Image width=128px height=80px
         source="assets/spaceship.png" fit=ImageFit::Fit />
     <Image x=136px width=128px height=80px
-        source="assets/spaceship.png" fit=ImageFit::Fill />
+        source="assets/spaceship.png" fit=ImageFit::Paint />
     <Image x=272px width=128px height=80px
         source="assets/spaceship.png" fit=ImageFit::Stretch />
 </Group>
@@ -674,7 +675,7 @@ changing opacity does not reload its source pixels. See
 overlapping translucent elements compose.
 
 On WGPU, the image's crop follows fractional transformed coordinates. Moving a
-Fill image by a fraction of a pixel keeps excess artwork clipped to its bounds,
+`ImageFit::Paint` image by a fraction of a pixel keeps excess artwork clipped to its bounds,
 including where an overlaid gradient meets the edge of the image.
 
 ### Raw pixel data
@@ -777,7 +778,7 @@ for mounted images to 256 MiB and each decoded axis to 16,384 pixels; exceeding
 a limit reports an error.
 
 The fit values are shared with Image. Web, Android, Windows, Linux, and
-iOS/iPadOS implement contain, cover, and stretch behavior. The current macOS NativeImage maps Fill to
+iOS/iPadOS implement contain, cover, and stretch behavior. The current macOS NativeImage maps Paint to
 stretching; use the canvas Image path when proportional fill cropping is
 required there.
 

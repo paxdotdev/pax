@@ -3142,7 +3142,9 @@ impl ExpandedNode {
 
         // Structural child changes are handled by children_listener after
         // reconciliation; data-only repeat invalidation is not an occlusion change.
-        let placement = self.retained_placement_dependency(self.local_compositing.clone());
+        let placement = self
+            .retained_placement_dependency(self.local_compositing.clone())
+            .for_presentation_listener(&self.occlusion_listener);
         let clip = if self.instance_node.borrow().may_supply_clip() {
             let eligible = self.local_compositing.clone();
             let local_placement = self.native_local_placement.clone();
@@ -3170,6 +3172,7 @@ impl ExpandedNode {
                 |a, b| a.0 == b.0,
                 "occlusion clip",
             )
+            .for_presentation_listener(&self.occlusion_listener)
         } else {
             self.world_clip_geometry.clone()
         };
@@ -3188,7 +3191,7 @@ impl ExpandedNode {
 
         let context = Rc::clone(ctx);
         let id = self.id.to_u32();
-        self.occlusion_listener.replace_with_computed(
+        self.occlusion_listener.replace_with_presentation_effect(
             move || {
                 placement.get();
                 clip.get();
@@ -3209,9 +3212,11 @@ impl ExpandedNode {
 
     fn bind_input_listener(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
         let instance = borrow!(self.instance_node);
-        let placement = self.retained_placement_dependency(LocalProperty::new(
-            instance.geometry_is_scroller_local(),
-        ));
+        let placement = self
+            .retained_placement_dependency(LocalProperty::new(
+                instance.geometry_is_scroller_local(),
+            ))
+            .for_presentation_listener(&self.input_listener);
         let mut deps: Vec<_> = borrow!(self.properties_scope)
             .iter()
             .filter(|(name, _)| instance.property_requires_input_recompute(name))
