@@ -621,6 +621,13 @@ pub trait RenderContext {
         None
     }
 
+    /// Whether an isolated surface recording can retain a complete shader
+    /// effect. A backend that returns false must support direct tile drawing.
+    #[cfg(feature = "shaders")]
+    fn can_record_surface_shader_effects(&self) -> bool {
+        true
+    }
+
     /// Begin an isolated, CPU-only drawing capture for one layer. Drawing hooks
     /// may run, but no GPU target may change or become presentable during capture.
     fn begin_surface_recording(&mut self, _layer: usize) -> bool {

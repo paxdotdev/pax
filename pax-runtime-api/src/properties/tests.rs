@@ -752,6 +752,68 @@ fn paint_cutoffs_settle_after_layout_but_read_the_current_pose_immediately() {
 }
 
 #[test]
+fn presentation_effect_coalesces_layout_writes_and_replacement_restores_normal_order() {
+    let source = LocalProperty::new(0);
+    let layout_target = LocalProperty::new(0);
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let effect = LocalProperty::new(());
+    let clip = LocalProperty::computed_with_cutoff(
+        {
+            let source = source.clone();
+            move || source.get()
+        },
+        &[source.untyped()],
+        i32::eq,
+    )
+    .for_presentation_listener(&effect);
+    effect.replace_with_presentation_effect(
+        {
+            let clip = clip.clone();
+            let seen = seen.clone();
+            move || seen.borrow_mut().push(clip.get())
+        },
+        &[source.untyped(), clip.untyped()],
+        None,
+    );
+    register_effect_property(&effect);
+    let layout = LocalProperty::computed(
+        {
+            let source = source.clone();
+            let target = layout_target.clone();
+            move || source.set(target.get())
+        },
+        &[layout_target.untyped()],
+    );
+    register_effect_property(&layout);
+    drain_effects(20);
+    seen.borrow_mut().clear();
+
+    source.set(1);
+    assert_eq!(clip.get(), 1);
+    layout_target.set(2);
+    assert_eq!(drain_effects_with_report(1).remaining, 1);
+    drain_effects(20);
+    assert_eq!(&*seen.borrow(), &[2]);
+
+    source.set(3);
+    effect.get();
+    assert_eq!(&*seen.borrow(), &[2, 3]);
+    source.set(4);
+    effect.replace_with_computed(
+        {
+            let source = source.clone();
+            let seen = seen.clone();
+            move || seen.borrow_mut().push(source.get())
+        },
+        &[source.untyped()],
+        None,
+    );
+    layout_target.set(5);
+    drain_effects(20);
+    assert_eq!(&*seen.borrow(), &[2, 3, 4, 5]);
+}
+
+#[test]
 fn unused_paint_is_pulled_on_read_or_on_its_first_subscription() {
     let source = LocalProperty::new(0);
     let placement = LocalProperty::new(0);

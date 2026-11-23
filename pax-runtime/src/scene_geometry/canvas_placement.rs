@@ -24,6 +24,13 @@ enum CanvasPaintBasis {
 }
 
 impl ExpandedNode {
+    /// Wakes clip consumers when reassignment changes the canvas owner even if
+    /// the layer index and transform stay equal.
+    #[doc(hidden)]
+    pub fn canvas_owner_dependency(&self) -> pax_runtime_api::properties::UntypedProperty {
+        self.canvas_owner.untyped()
+    }
+
     /// Whether ordinary paint is composed directly in an allocated affine
     /// scroller surface. Native placement and world-space queries stay separate.
     pub fn has_surface_local_canvas_placement(&self) -> bool {

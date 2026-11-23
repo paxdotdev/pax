@@ -346,7 +346,7 @@ fn rebind_content_measurement_effect<F>(
         ));
 }
 
-/// Bind Group or Frame autosizing only while at least one implicit axis uses its children.
+/// Measure content only while at least one implicit axis uses its children.
 #[doc(hidden)]
 pub fn bind_content_autosize(
     node: &Rc<ExpandedNode>,

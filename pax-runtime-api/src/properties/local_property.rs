@@ -362,7 +362,7 @@ impl<T: PropertyValue> LocalProperty<T> {
         name: Option<&str>,
     ) {
         PROPERTY_TABLE.with(|table| {
-            table.install_binding(self.untyped.id, value, binding, dependencies, name)
+            table.install_binding(self.untyped.id, value, binding, dependencies, name, false)
         });
     }
 
@@ -378,6 +378,16 @@ impl<T: PropertyValue> LocalProperty<T> {
                 None,
             )
         })
+    }
+
+    /// Schedules a local cutoff after layout while this presentation effect is
+    /// its only subscriber. Additional ordinary subscribers retain eager propagation.
+    #[doc(hidden)]
+    pub fn for_presentation_listener(self, listener: &LocalProperty<()>) -> Self {
+        PROPERTY_TABLE.with(|table| {
+            table.set_presentation_listener::<T>(self.untyped.id, listener.untyped.id)
+        });
+        self
     }
 
     /// Installs engine paint geometry. Queued placement can settle after layout
@@ -402,6 +412,29 @@ impl<T: PropertyValue> LocalProperty<T> {
     /// Casts this property to its untyped version.
     pub fn untyped(&self) -> UntypedProperty {
         self.untyped.clone()
+    }
+}
+
+impl LocalProperty<()> {
+    /// Installs a presentation side effect. Queue draining runs it after ordinary
+    /// effects and placement cutoffs settle; an explicit read still runs it immediately.
+    #[doc(hidden)]
+    pub fn replace_with_presentation_effect(
+        &self,
+        evaluator: impl Fn() + 'static,
+        dependencies: &[UntypedProperty],
+        name: Option<&str>,
+    ) {
+        PROPERTY_TABLE.with(|table| {
+            table.install_binding(
+                self.untyped.id,
+                (),
+                PropertyType::computed(evaluator, None),
+                dependencies,
+                name,
+                true,
+            )
+        });
     }
 }
 

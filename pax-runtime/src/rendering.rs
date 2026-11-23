@@ -507,6 +507,13 @@ pub trait InstanceNode {
         false
     }
 
+    /// Whether surface replay can request a drawing from this primitive. A
+    /// resource may need a canvas layer for ordering and coordinates without
+    /// emitting a drawing of its own.
+    fn has_canvas_drawing(&self) -> bool {
+        self.base().flags().layer == Layer::Canvas
+    }
+
     /// Whether paint geometry can be retained across world-placement changes.
     ///
     /// Opting in promises that `prepare_canvas_geometry` depends only on local

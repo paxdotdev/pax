@@ -33,6 +33,39 @@ fn args_with_properties<P: ToFromPaxAny + Clone + 'static>(
 }
 
 #[test]
+fn tiles_request_lit_content_without_requesting_drawings_from_emitters() {
+    use crate::drawing::rectangle::{Rectangle, RectangleInstance};
+
+    let context = Rc::new(crate::test_support::runtime_context());
+    let common = CommonProperties::default();
+    let mut root_args = args(common.clone());
+    root_args.component_template = Some(RefCell::new(vec![
+        RectangleInstance::instantiate(args_with_properties(common.clone(), Rectangle::default())),
+        LightSourceInstance::instantiate(args(common.clone())),
+        StripLightInstance::instantiate(args_with_properties(
+            common.clone(),
+            StripLight::default(),
+        )),
+        AmbientLightInstance::instantiate(args_with_properties(common, AmbientLight::default())),
+    ]));
+    let root = ExpandedNode::initialize_root(ComponentInstance::instantiate(root_args), &context);
+    root.recurse_update(&context);
+    context.drain_node_effects();
+    let nodes = root.children.get();
+    for node in &nodes {
+        context.canvas_geometry_for_node(node);
+    }
+    let lighting = context.collect_scene_lighting_for_layer(0);
+    assert!(lighting.ambient_is_authored);
+    assert_eq!(lighting.lights.len(), 2);
+    assert_eq!(context.canvas_node_light_mask(nodes[0].id).count_ones(), 2);
+    assert_eq!(
+        context.canvas_nodes_intersecting(0, &[kurbo::Rect::new(0., 0., 100., 100.)]),
+        Some(vec![nodes[0].id.to_u32()])
+    );
+}
+
+#[test]
 fn strip_is_one_light_primitive_with_reactive_height_and_no_wrapper() {
     let context = Rc::new(crate::test_support::runtime_context());
     let common = CommonProperties::default();

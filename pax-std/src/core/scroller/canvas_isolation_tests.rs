@@ -40,6 +40,10 @@ struct Fixture {
 
 impl Fixture {
     fn new(count: usize, nested_layers: bool) -> Self {
+        Self::with_wrapper(count, nested_layers, false)
+    }
+
+    fn with_wrapper(count: usize, nested_layers: bool, wrap: bool) -> Self {
         let cards = (0..count)
             .map(|_| {
                 RectangleInstance::instantiate(args(Rectangle::default(), vec![]))
@@ -47,8 +51,15 @@ impl Fixture {
             })
             .collect();
         let inner = FrameInstance::instantiate(args(Frame::default(), cards));
+        let content: Rc<dyn InstanceNode> = if wrap {
+            let mut wrapper = args(Frame::default(), vec![]);
+            wrapper.component_template = Some(RefCell::new(vec![inner]));
+            ComponentInstance::instantiate(wrapper)
+        } else {
+            inner
+        };
         let scroller =
-            ScrollerHostInstance::instantiate(args(ScrollerHost::default(), vec![inner]));
+            ScrollerHostInstance::instantiate(args(ScrollerHost::default(), vec![content]));
         let outer = FrameInstance::instantiate(args(Frame::default(), vec![scroller]));
         let outer_scroll =
             ScrollerHostInstance::instantiate(args(ScrollerHost::default(), vec![outer]));
@@ -73,6 +84,11 @@ impl Fixture {
         let outer = outer_scroll.children.get()[0].clone();
         let scroller = outer.children.get()[0].clone();
         let inner = scroller.children.get()[0].clone();
+        let inner = if wrap {
+            inner.children.get()[0].clone()
+        } else {
+            inner
+        };
         let cards = inner.children.get();
         let mut fixture = Self {
             engine,
@@ -333,6 +349,160 @@ fn disabled_frame_resizes_without_repainting_fixed_children() {
 }
 
 #[test]
+fn resizing_an_outer_scrollport_preserves_fixed_shelf_drawings() {
+    let mut f = Fixture::new(8, true);
+    let root_scroll = f.engine.root_expanded_node.as_ref().unwrap().children.get()[0].clone();
+    let width = root_scroll.get_common_properties().borrow().width.clone();
+    width.set(Some(Size::Pixels(320.into())));
+    f.outer
+        .get_common_properties()
+        .borrow()
+        .width
+        .set(Some(Size::Pixels(300.into())));
+    let shelf = f.scroller.get_common_properties();
+    shelf.borrow().width.set(Some(Size::Pixels(210.into())));
+    for card in &f.cards {
+        let properties = card.get_common_properties();
+        properties.borrow().width.set(Some(Size::Pixels(32.into())));
+        properties
+            .borrow()
+            .height
+            .set(Some(Size::Pixels(24.into())));
+    }
+    f.settle();
+    let ctx = f.engine.runtime_context.clone();
+    let layer = f.cards[0].occlusion.get().render_layer_id;
+    assert_eq!(ctx.get_layer_scroller_owner(layer), Some(f.scroller.id));
+    let old: Vec<_> = f
+        .cards
+        .iter()
+        .map(|node| ctx.canvas_geometry_for_node(node))
+        .collect();
+    f.clear();
+
+    width.set(Some(Size::Pixels(319.into())));
+    let messages = f.settle_messages();
+    assert!(messages.iter().any(
+        |m| matches!(m, pax_message::NativeMessage::ScrollerUpdate(p)
+        if p.id == root_scroll.id.to_u32() && p.size_x == Some(319.))
+    ));
+    for (card, old) in f.cards.iter().zip(old) {
+        let new = ctx.canvas_geometry_for_node(card);
+        assert_eq!(new.bounds, old.bounds);
+        assert_eq!(new.surface_transform, old.surface_transform);
+        assert_eq!(new.local_paint_revision, old.local_paint_revision);
+    }
+    assert!(!f.any_dirty());
+}
+
+#[test]
+fn resizing_a_shared_layer_clips_its_drawings_again() {
+    let mut f = Fixture::new(1, false);
+    let ctx = f.engine.runtime_context.clone();
+    let card = f.cards[0].clone();
+    assert_ne!(
+        ctx.get_layer_scroller_owner(card.occlusion.get().render_layer_id),
+        Some(f.scroller.id)
+    );
+    let width = f.scroller.get_common_properties().borrow().width.clone();
+    width.set(Some(Size::Pixels(220.into())));
+    card.get_common_properties()
+        .borrow()
+        .width
+        .set(Some(Size::Pixels(256.into())));
+    f.settle();
+    let before = ctx.canvas_geometry_for_node(&card);
+    width.set(Some(Size::Pixels(215.into())));
+    f.settle();
+    assert_ne!(
+        ctx.canvas_geometry_for_node(&card).local_paint_revision,
+        before.local_paint_revision
+    );
+}
+
+#[test]
+fn resizing_an_owned_surface_updates_percentage_children() {
+    let mut f = Fixture::new(1, true);
+    let ctx = f.engine.runtime_context.clone();
+    let card = f.cards[0].clone();
+    let width = f.scroller.get_common_properties().borrow().width.clone();
+    card.get_common_properties()
+        .borrow()
+        .width
+        .set(Some(Size::Percent(50.into())));
+    width.set(Some(Size::Pixels(200.into())));
+    f.settle();
+    let before = ctx.canvas_geometry_for_node(&card);
+    width.set(Some(Size::Pixels(210.into())));
+    f.settle();
+    let after = ctx.canvas_geometry_for_node(&card);
+    assert_eq!((before.bounds.0, after.bounds.0), (100., 105.));
+    assert_ne!(before.local_paint_revision, after.local_paint_revision);
+}
+
+#[test]
+fn a_wrapped_frame_tracks_its_clip_in_the_owning_shelf() {
+    let mut f = Fixture::with_wrapper(1, true, true);
+    let ctx = f.engine.runtime_context.clone();
+    let card = f.cards[0].clone();
+    // Observe invalidation from the Frame alone. A drawable can independently
+    // subscribe to world placement, as Rectangle does without retained motion.
+    card.changed_listener.replace_with(LocalProperty::new(()));
+    let frame = f.inner.get_common_properties();
+    frame.borrow().x.set(Some(Size::Pixels(13.37.into())));
+    frame.borrow().width.set(Some(Size::Pixels(91.into())));
+    f.inner
+        .with_properties_unwrapped(|p: &mut Frame| p.corner_radius.set(6.));
+    let stage = f.outer.get_common_properties();
+    f.settle();
+    let before = ctx.canvas_geometry_for_node(&card).local_paint_revision;
+    for scale in [76.3, 76.1, 76.3] {
+        stage
+            .borrow()
+            .scale_x
+            .set(Some(Size::Percent(scale.into())));
+        f.settle();
+        assert_eq!(
+            ctx.canvas_geometry_for_node(&card).local_paint_revision,
+            before
+        );
+    }
+
+    // A real change inside the shelf still moves the clip and repaints the card.
+    frame.borrow().x.set(Some(Size::Pixels(15.37.into())));
+    let placement = f.inner.canvas_transform_and_bounds.get();
+    assert!((Affine::from(placement.transform).as_coeffs()[4] - 15.37).abs() < 1e-9);
+    f.settle();
+    assert_ne!(
+        ctx.canvas_geometry_for_node(&card).local_paint_revision,
+        before
+    );
+}
+
+#[test]
+fn frame_observes_canvas_fallback_only_while_its_shelf_lacks_a_surface() {
+    let mut f = Fixture::with_wrapper(1, true, true);
+    let ctx = f.engine.runtime_context.clone();
+    let fallback = f.inner.canvas_transform_and_bounds.untyped();
+    let listener = f.inner.changed_listener.untyped();
+    let observes_fallback =
+        || pax_runtime::api::properties::property_has_direct_outbound(&fallback, &listener);
+    for owns_surface in [true, false, true] {
+        ctx.globals()
+            .browser_allows_nested_scroller_vector_layers
+            .set(owns_surface);
+        ctx.mark_occlusion_dirty();
+        f.engine.tick();
+        assert_eq!(
+            ctx.get_layer_scroller_owner(f.inner.occlusion.get().render_layer_id)
+                == Some(f.scroller.id),
+            owns_surface
+        );
+        assert_eq!(observes_fallback(), !owns_surface);
+    }
+}
+
+#[test]
 fn canvas_order_only_change_does_not_invalidate_local_paint() {
     let f = Fixture::new(3, true);
     f.cards[0].occlusion.update(|order| order.z_index += 10);
@@ -362,6 +532,11 @@ fn first_canvas_query_on_a_component_observes_earlier_and_later_motion() {
 #[test]
 fn entering_and_leaving_spatial_placement_restores_conservative_drawing() {
     let mut f = Fixture::new(3, true);
+    let fallback = f.inner.canvas_transform_and_bounds.untyped();
+    let listener = f.inner.changed_listener.untyped();
+    let observes_fallback =
+        || pax_runtime::api::properties::property_has_direct_outbound(&fallback, &listener);
+    assert!(!observes_fallback());
     // This observer keeps the original slot across both chart changes.
     let tab = f.cards[0].canvas_transform_and_bounds.clone();
     let deps = [tab.untyped()];
@@ -382,6 +557,7 @@ fn entering_and_leaving_spatial_placement_restores_conservative_drawing() {
         .set(Some(Rotation::Degrees(20.into())));
     f.settle();
     assert!(f.any_dirty());
+    assert!(observes_fallback());
     assert!(!f.cards[0].has_surface_local_canvas_placement());
     let mut previous = sample.get();
     for x in [14, 26] {
@@ -402,6 +578,7 @@ fn entering_and_leaving_spatial_placement_restores_conservative_drawing() {
         .set(Some(Rotation::Degrees(0.into())));
     f.settle();
     sample.get();
+    assert!(!observes_fallback());
     let before_host_motion = reads.get();
     f.clear();
     f.outer

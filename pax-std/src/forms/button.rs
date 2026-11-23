@@ -218,7 +218,7 @@ impl InstanceNode for ButtonInstance {
             .collect();
         expanded_node
             .changed_listener
-            .replace_with(LocalProperty::computed(
+            .replace_with_presentation_effect(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         return;
@@ -316,7 +316,8 @@ impl InstanceNode for ButtonInstance {
                     ()
                 },
                 &deps,
-            ));
+                None,
+            );
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {

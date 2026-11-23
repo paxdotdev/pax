@@ -165,6 +165,16 @@ runs after ordinary layout effects. A synchronous geometry read still resolves
 the current pose immediately. An additional reactive subscriber keeps eager
 placement notifications.
 
+Native Button and Mask updates, occlusion's private placement and clip
+calculations, and placement tracked only for the hit index also wait for
+ordinary effects in the current drain. Nested containers can update their
+child frames before the button emits its transform, the Mask publishes its
+clip, or the runtime checks coverage and hit bounds.
+A live raycast during layout still queries the current geometry. Input routed
+against a displayed frame uses that frame's hit targets.
+Native text measurement can supply a size that affects layout, so it continues
+to participate in layout settlement.
+
 Before returning native updates for a frame, the runtime settles geometry and
 compositing assignments together. If assigning layers triggers effects that
 mount more nodes, it reconciles again without advancing time or repeating
@@ -216,7 +226,7 @@ composes new world matrices without reevaluating descendant flow measurement or
 rebuilding their local spatial matrices. Moving bounds update spatial-index cells
 only when their grid membership changes; exact query bounds stay current.
 
-In builds with the `3d` feature, the standard Rectangle, Ellipse, Line, Path,
+In builds with the `3d` feature, the standard Image, Rectangle, Ellipse, Line, Path,
 Ellipsoid, and opaque Cuboid body also separate content effects from inherited
 movement. A local pose change schedules its affected subtree once at the settled
 geometry boundary. Each render root observes viewport motion directly and
@@ -225,9 +235,8 @@ also observes its new local pose. Moving a parent therefore preserves unchanged
 local paint geometry and avoids rerunning each child's paint-content effect. Components and
 control-flow nodes use the same placement notification path; no author-specified
 grouping is needed. Local content edits and resizing still invalidate their
-respective caches. Image redraws can also use the final canvas placement after
-layout settles. A synchronous placement read during layout still sees the current
-pose, and moving an Image reuses its loaded pixels.
+respective caches. An Image reuses its loaded pixels when its parent moves or
+its fit changes. A synchronous placement read during layout sees the current pose.
 
 The GPU renderer retains local fill and stroke commands for Rectangle, Ellipse,
 Line, and Path. When one of these nodes moves, it can replay those commands
@@ -255,8 +264,16 @@ its paint placement in that surface's local coordinates. Moving or rotating the
 whole surface does not re-record unchanged Rectangle, Ellipse, Line, Path, or
 Image drawings or rebuild their local paint bounds. Frame clips inside the
 surface use the same boundary. Content edits, local movement, resizing, and
-clip changes still invalidate affected drawings. Flat lighting follows the
-surface's world transform without baking that transform into every drawing.
+clip changes still invalidate affected drawings. When an affine Scroller owns
+its canvas, resizing its viewport or content pane refreshes the visible area
+without marking every descendant's drawing dirty. Children whose own dimensions
+change still repaint. A Frame whose native clip and canvas share a Scroller
+compares the clip in that Scroller's coordinates, including through component
+wrappers. It observes the canvas transform separately whenever the clip uses
+a different surface or needs projected geometry. Moving between surfaces
+updates that dependency even when the transform coefficients stay the same.
+Flat lighting follows the surface's world transform without baking that
+transform into every drawing.
 Camera-controlled or spatial placement, detached captures, and presentation flights keep
 world-dependent placement notifications so drawing can resume after a viewport jump.
 Shapes using local occlusion coverage inside an isolated Scroller switch to
@@ -279,7 +296,9 @@ style, and measurement preparation are separate from placement. Native Text uses
 local layout bounds for wrapping, and Frame uses them for its clip dimensions.
 A primitive can subscribe to `ExpandedNode::presentation_bounds()` for these dimensions.
 During an animated transfer the binding follows the size of the presented footprint.
-Placement still follows the current transform.
+When a Text or Frame needs world placement, its native transform follows the
+current world pose and camera. A perspective camera also accounts for ancestor
+scroll displacement before projection.
 The web and Apple chassis resolve these placements within their existing
 native hierarchy, preserving mixed text/control ordering and Frame clips.
 Spatial, camera-controlled, detached, and flight placements retain world updates.

@@ -6,10 +6,7 @@ use pax_engine::api::{Click, MouseOut, MouseOver, Property};
 use pax_engine::api::{Event, NavigationTarget};
 use pax_engine::*;
 use pax_runtime::api::NodeContext;
-use pax_runtime::{
-    bind_content_measurement_effect, resolve_axis_autosize, sync_content_autosize_with_axes,
-    ContentMeasurementGeometry,
-};
+use pax_runtime::bind_content_autosize;
 
 #[pax]
 #[engine_import_path("pax_engine")]
@@ -83,28 +80,13 @@ impl Link {
         let Some(expanded_node) = ctx.expanded_node.upgrade() else {
             return;
         };
-        let autosize = self.autosize.local();
-        let autosize_x = self.autosize_x.local();
-        let autosize_y = self.autosize_y.local();
-        let deps = [
-            autosize.untyped(),
-            autosize_x.untyped(),
-            autosize_y.untyped(),
-        ];
-        bind_content_measurement_effect(
+        bind_content_autosize(
             &expanded_node,
             ctx,
             "link autosize",
-            ContentMeasurementGeometry::Placed,
-            &deps,
-            move |node, node_ctx| {
-                sync_content_autosize_with_axes(
-                    node,
-                    node_ctx,
-                    resolve_axis_autosize(autosize.get(), autosize_x.get(), true),
-                    resolve_axis_autosize(autosize.get(), autosize_y.get(), true),
-                );
-            },
+            self.autosize.local(),
+            self.autosize_x.local(),
+            self.autosize_y.local(),
         );
     }
 

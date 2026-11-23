@@ -1,4 +1,5 @@
 use pax_engine::api::LocalProperty;
+use std::cell::Cell;
 use std::iter;
 use std::rc::Rc;
 
@@ -159,7 +160,7 @@ impl MaskInstance {
         let children = borrow!(expanded_node.mounted_children).clone();
         for child in children.iter().filter(|child| child.attached.get() > 0) {
             if borrow!(child.instance_node).base().flags().layer == Layer::Canvas {
-                context.mark_canvas_node_dirty(child.id);
+                context.mark_canvas_node_clip_dirty(child);
                 context.set_canvas_dirty(child.occlusion.get().render_layer_id);
             }
             Self::mark_canvas_descendants_dirty(child, context);
@@ -485,19 +486,19 @@ impl InstanceNode for MaskInstance {
             borrow_mut!(expanded_node.subscriptions).push(watcher);
         }
 
+        let previous_alpha = Cell::new(false);
         expanded_node
             .changed_listener
-            .replace_with(LocalProperty::computed(
+            .replace_with_presentation_effect(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         return;
                     };
 
                     Self::refresh_mask_source_layout(&expanded_node, &context);
-                    if Self::alpha_settings(&expanded_node).0 {
-                        Self::mark_canvas_descendants_dirty(&expanded_node, &context);
-                    }
-                    let clip_path = if Self::alpha_settings(&expanded_node).0 {
+                    let alpha = Self::alpha_settings(&expanded_node).0;
+                    let was_alpha = previous_alpha.replace(alpha);
+                    let clip_path = if alpha {
                         String::new()
                     } else {
                         Self::resolve_mask_path(&expanded_node)
@@ -549,17 +550,20 @@ impl InstanceNode for MaskInstance {
                         ),
                     ];
 
-                    if updates.into_iter().any(|updated| updated) {
-                        if !expanded_node.is_render_source() {
-                            context.enqueue_native_message(
-                                pax_message::NativeMessage::FrameUpdate(patch),
-                            );
-                        }
+                    let changed = updates.into_iter().any(|updated| updated);
+                    if changed && !expanded_node.is_render_source() {
+                        context
+                            .enqueue_native_message(pax_message::NativeMessage::FrameUpdate(patch));
+                    }
+                    // Alpha source paint and leaving an empty alpha mask can change
+                    // canvas coverage while the native clip path stays empty.
+                    if changed || alpha || was_alpha {
                         Self::mark_canvas_descendants_dirty(&expanded_node, &context);
                     }
                 },
                 &deps,
-            ));
+                None,
+            );
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {

@@ -56,16 +56,17 @@ pub struct PropertyData {
     // for literals, only time variable
     pub dirty: bool,
     pub(super) invalidation_events: Option<Box<super::untyped_property::DependencyReaders>>,
-    // Only this renderer-owned listener may observe a coalesced cutoff.
+    // Only this presentation listener may observe a coalesced cutoff.
     // A regular graph edge promotes the computation back to the eager queue.
-    paint_listener: Option<PropertyId>,
+    presentation_listener: Option<PropertyId>,
+    presentation_effect: bool,
     // Type-erased entry point used to settle cutoff properties from the worklist.
     pub(super) cutoff_settler: Option<Rc<dyn Fn(&PropertyTable, PropertyId) -> CutoffEvaluation>>,
 }
 
 impl PropertyData {
-    pub(super) fn has_unobserved_paint_cutoff(&self) -> bool {
-        self.paint_listener.is_some()
+    pub(super) fn has_unobserved_presentation_cutoff(&self) -> bool {
+        self.presentation_listener.is_some()
             && self.outbound.is_empty()
             && self.invalidation_events.is_none()
     }
@@ -167,7 +168,8 @@ pub(crate) struct PropertyTable {
     effect_properties: RefCell<HashSet<PropertyId>>,
     queued_effects: RefCell<super::work_queue::WorkQueue>,
     queued_cutoffs: RefCell<super::work_queue::WorkQueue>,
-    queued_paint: RefCell<super::work_queue::WorkQueue>,
+    queued_presentation_cutoffs: RefCell<super::work_queue::WorkQueue>,
+    queued_presentation_effects: RefCell<super::work_queue::WorkQueue>,
     retirement_watchers: RefCell<
         HashMap<PropertyId, HashMap<(u64, u64), std::sync::Weak<super::shared_graph::GraphInbox>>>,
     >,
@@ -183,7 +185,8 @@ impl PropertyTable {
     pub(crate) fn set_diagnostic_name(&self, id: PropertyId, name: &str) {
         if super::shared_graph::diagnostic_names_enabled() {
             if let Some(owner) = self
-                .work_owner(id)
+                .work_schedule(id)
+                .0
                 .filter(|owner| Some(*owner) == super::shared_graph::current_graph_id())
             {
                 self.diagnostic_names
@@ -235,10 +238,10 @@ impl PropertyTable {
             let typed = data.typed_data::<T>();
             typed.shared = Some(shared);
             typed.publisher = Some(publisher);
-            data.paint_listener.take().is_some() && data.dirty
+            data.presentation_listener.take().is_some() && data.dirty
         });
         if promote {
-            self.queued_paint.borrow_mut().remove(&id);
+            self.queued_presentation_cutoffs.borrow_mut().remove(&id);
             self.enqueue_cutoff(id);
         }
     }
@@ -366,7 +369,8 @@ impl PropertyTable {
                         transition_manager: None,
                     }),
                     outbound: Vec::with_capacity(0),
-                    paint_listener: None,
+                    presentation_listener: None,
+                    presentation_effect: false,
                     cutoff_settler,
                 }),
             };
@@ -538,7 +542,7 @@ impl PropertyTable {
         source_id: PropertyId,
         target_id: PropertyId,
         defer_unobserved_cutoff: bool,
-        paint_listener: Option<PropertyId>,
+        presentation_listener: Option<PropertyId>,
     ) {
         if source_id == target_id {
             return;
@@ -563,9 +567,10 @@ impl PropertyTable {
                         target_property_data.typed_data::<T>().property_type,
                         PropertyType::Literal
                     );
-                source_property_data.paint_listener =
+                source_property_data.presentation_effect = false;
+                source_property_data.presentation_listener =
                     if source_property_data.typed_data::<T>().shared.is_none() {
-                        paint_listener
+                        presentation_listener
                     } else {
                         None
                     };
@@ -620,6 +625,7 @@ impl PropertyTable {
         binding: PropertyType<T>,
         dependencies: &[super::UntypedProperty],
         name: Option<&str>,
+        presentation_effect: bool,
     ) {
         let literal = matches!(binding, PropertyType::Literal);
         self.disconnect_inbound(id);
@@ -629,7 +635,8 @@ impl PropertyTable {
             data.owner_graph = super::shared_graph::current_graph_id();
             data.owner_scope = super::shared_graph::current_binding_scope();
             data.dirty = !literal;
-            data.paint_listener = None;
+            data.presentation_listener = None;
+            data.presentation_effect = presentation_effect;
             data.cutoff_settler = binding.cutoff_settler();
             let typed = data.typed_data::<T>();
             typed.value = value;
@@ -659,10 +666,18 @@ impl PropertyTable {
         id: PropertyId,
         defer_unobserved_cutoff: bool,
     ) {
-        let owner = self.work_owner(id);
-        self.queued_effects.borrow_mut().reassign(id, owner);
+        let (owner, presentation) = self.work_schedule(id);
+        if presentation {
+            self.queued_effects.borrow_mut().remove(&id);
+            self.queued_presentation_effects
+                .borrow_mut()
+                .reassign(id, owner);
+        } else {
+            self.queued_presentation_effects.borrow_mut().remove(&id);
+            self.queued_effects.borrow_mut().reassign(id, owner);
+        }
         self.queued_cutoffs.borrow_mut().reassign(id, owner);
-        self.queued_paint.borrow_mut().remove(&id);
+        self.queued_presentation_cutoffs.borrow_mut().remove(&id);
 
         // Reconnect the new dependencies and enqueue any dirty upstream cutoffs.
         self.connect_inbound(id);
@@ -790,7 +805,7 @@ impl PropertyTable {
         let res = {
             self.unregister_effect(id);
             self.queued_cutoffs.borrow_mut().remove(&id);
-            self.queued_paint.borrow_mut().remove(&id);
+            self.queued_presentation_cutoffs.borrow_mut().remove(&id);
             self.disconnect_outbound(id);
             self.disconnect_inbound(id);
             let Ok(mut sm) = self.property_map.try_borrow_mut() else {
@@ -855,7 +870,7 @@ impl PropertyTable {
 
     pub(crate) fn pending_effect_count(&self) -> usize {
         let owner = super::shared_graph::current_graph_id();
-        self.queued_effects.borrow().len(owner) + self.pending_cutoffs(owner)
+        self.pending_effects(owner) + self.pending_cutoffs(owner)
     }
 
     pub(crate) fn drain_effects(&self, max_iterations: usize) -> usize {
@@ -1001,10 +1016,7 @@ impl PropertyTable {
             }
         }
 
-        report.remaining = self
-            .queued_effects
-            .borrow()
-            .len(super::shared_graph::current_graph_id());
+        report.remaining = self.pending_effects(super::shared_graph::current_graph_id());
         report.remaining_cutoffs = self.pending_cutoffs(super::shared_graph::current_graph_id());
         report.budget_exhausted =
             work_ran == max_iterations && (report.remaining > 0 || report.remaining_cutoffs > 0);
@@ -1035,22 +1047,54 @@ impl PropertyTable {
         }
     }
 
-    fn work_owner(&self, id: PropertyId) -> Option<u64> {
+    fn work_schedule(&self, id: PropertyId) -> (Option<u64>, bool) {
         self.property_map
             .borrow()
             .get(id)
             .and_then(|entry| entry.data.as_ref())
-            .and_then(|data| data.owner_graph)
+            .map(|data| (data.owner_graph, data.presentation_effect))
+            .unwrap_or_default()
     }
 
     fn enqueue_effect(&self, id: PropertyId) {
-        self.queued_effects
-            .borrow_mut()
-            .push(id, self.work_owner(id));
+        let (owner, presentation) = self.work_schedule(id);
+        let queue = if presentation {
+            &self.queued_presentation_effects
+        } else {
+            &self.queued_effects
+        };
+        queue.borrow_mut().push(id, owner);
+    }
+
+    pub(super) fn set_presentation_listener<T: PropertyValue>(
+        &self,
+        id: PropertyId,
+        listener: PropertyId,
+    ) {
+        let dirty = self.with_property_data_mut(id, |data| {
+            assert!(
+                data.cutoff_settler.is_some(),
+                "presentation input must be a cutoff"
+            );
+            if data.typed_data::<T>().shared.is_some() {
+                return false;
+            }
+            data.presentation_listener = Some(listener);
+            data.dirty && !data.has_unobserved_presentation_cutoff()
+        });
+        if dirty {
+            self.enqueue_cutoff(id);
+        }
+    }
+
+    fn pending_effects(&self, owner: Option<u64>) -> usize {
+        self.queued_effects.borrow().len(owner)
+            + self.queued_presentation_effects.borrow().len(owner)
     }
 
     fn pending_cutoffs(&self, owner: Option<u64>) -> usize {
-        self.queued_cutoffs.borrow().len(owner) + self.queued_paint.borrow().len(owner)
+        self.queued_cutoffs.borrow().len(owner)
+            + self.queued_presentation_cutoffs.borrow().len(owner)
     }
 
     fn pop_queued_work(&self) -> Option<(PropertyId, bool)> {
@@ -1061,28 +1105,33 @@ impl PropertyTable {
         if let Some(id) = self.queued_effects.borrow_mut().pop(owner) {
             return Some((id, false));
         }
-        self.queued_paint
+        if let Some(id) = self.queued_presentation_cutoffs.borrow_mut().pop(owner) {
+            return Some((id, true));
+        }
+        self.queued_presentation_effects
             .borrow_mut()
             .pop(owner)
-            .map(|id| (id, true))
+            .map(|id| (id, false))
     }
 
     pub(crate) fn enqueue_cutoff(&self, id: PropertyId) {
-        let (owner, listener, paint_only) = self.with_property_data(id, |data| {
+        let (owner, listener, presentation_only) = self.with_property_data(id, |data| {
             (
                 data.owner_graph,
-                data.paint_listener,
-                data.paint_listener.is_some_and(|listener| {
+                data.presentation_listener,
+                data.presentation_listener.is_some_and(|listener| {
                     data.outbound.iter().all(|&observer| observer == listener)
                 }),
             )
         });
-        if paint_only {
+        if presentation_only {
             self.queued_cutoffs.borrow_mut().remove(&id);
-            self.queued_paint.borrow_mut().push(id, owner);
+            self.queued_presentation_cutoffs
+                .borrow_mut()
+                .push(id, owner);
         } else {
             if listener.is_some() {
-                self.queued_paint.borrow_mut().remove(&id);
+                self.queued_presentation_cutoffs.borrow_mut().remove(&id);
             }
             self.queued_cutoffs.borrow_mut().push(id, owner);
         }
@@ -1099,6 +1148,7 @@ impl PropertyTable {
     fn unregister_effect(&self, id: PropertyId) {
         self.effect_properties.borrow_mut().remove(&id);
         self.effect_debug_names.borrow_mut().remove(&id);
+        self.queued_presentation_effects.borrow_mut().remove(&id);
         self.queued_effects.borrow_mut().remove(&id);
     }
 

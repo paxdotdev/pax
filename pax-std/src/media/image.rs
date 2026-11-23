@@ -173,6 +173,10 @@ impl InstanceNode for ImageInstance {
         false
     }
 
+    fn supports_retained_motion(&self) -> bool {
+        true
+    }
+
     fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
         false
     }
@@ -211,11 +215,11 @@ impl InstanceNode for ImageInstance {
             ..Default::default()
         }));
 
-        let source =
-            expanded_node.with_properties_unwrapped(|props: &mut Image| props.source.clone());
+        let (source, fit) = expanded_node.with_properties_unwrapped(|props: &mut Image| {
+            (props.source.untyped(), props.fit.untyped())
+        });
 
         let cloned_context = context.clone();
-        let deps = [source.untyped()];
         let needs_to_load_data = Rc::clone(&self.needs_to_load_data);
         let source_changed = LocalProperty::computed(
             move || {
@@ -248,17 +252,18 @@ impl InstanceNode for ImageInstance {
                     }
                 });
             },
-            &deps,
+            &[source],
         );
 
-        // A direct paint listener lets queued placement settle after layout.
-        // Source loading keeps its own dependency so movement never reloads an image.
-        let deps = [
+        // Fitting and clipping use image-local bounds. Moving the owning
+        // surface preserves both the source pixels and their placement on it.
+        let mut deps = vec![
             source_changed.untyped(),
-            expanded_node.canvas_transform_and_bounds.untyped(),
+            fit,
             expanded_node.computed_opacity.untyped(),
             expanded_node.computed_opacity_scopes.untyped(),
         ];
+        deps.extend(expanded_node.canvas_placement_dependencies());
         let context = Rc::clone(context);
         let node_id = expanded_node.id;
         let occlusion = expanded_node.occlusion.clone();

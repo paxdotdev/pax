@@ -160,6 +160,10 @@ impl RenderContext for RecordingRenderer {
                 .collect()
         })
     }
+    #[cfg(feature = "shaders")]
+    fn can_record_surface_shader_effects(&self) -> bool {
+        false
+    }
     fn begin_surface_recording(&mut self, _: usize) -> bool {
         assert!(!self.recording);
         self.recording = true;
@@ -714,6 +718,8 @@ fn cold_shader_capture_preserves_settlement_and_submits_after_surface_completion
         renderer.cached = true;
         renderer.jobs = vec![replay_job(0)];
         renderer.presented.clear();
+        renderer.events.clear();
+        renderer.shader_children.clear();
         let report = engine.present_surfaces(
             &mut renderer,
             &mut surface_work::SurfaceWorkBudget::new(4.0),
@@ -737,9 +743,11 @@ fn cold_shader_capture_preserves_settlement_and_submits_after_surface_completion
             preparations,
         );
         assert!(renderer.jobs.is_empty());
-        assert!(
-            !renderer.capture_ids.is_empty(),
-            "clean descendants must still be recaptured",
+        assert_eq!(renderer.recording_sessions, 0);
+        assert_eq!(renderer.shader_children.len(), if nested { 2 } else { 1 });
+        assert_eq!(
+            renderer.events,
+            [("fallback", 0), ("draw", 0), ("submit", 0)]
         );
         assert_eq!(renderer.presented, [0]);
     }

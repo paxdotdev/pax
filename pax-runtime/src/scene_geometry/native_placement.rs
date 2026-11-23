@@ -150,16 +150,34 @@ impl ExpandedNode {
     ) -> LocalProperty<(Option<u32>, Vec<f64>)> {
         let local = self.native_local_placement.clone();
         #[cfg(feature = "3d")]
-        let geometry = self.presentation_geometry().untyped();
+        let view = self.presentation_view.clone();
+        #[cfg(feature = "3d")]
+        let world_inputs = [
+            self.spatial_geometry.untyped(),
+            view.untyped(),
+            self.scroll_state.untyped(),
+        ];
         #[cfg(not(feature = "3d"))]
-        let geometry = self.presentation_transform_and_bounds.untyped();
-        let deps = [local.untyped(), geometry];
+        let world_inputs = [self.transform_and_bounds.untyped()];
+        let deps = [local.untyped()];
         let node = Rc::downgrade(self);
         let context = Rc::downgrade(ctx);
-        let fallback = LocalProperty::computed_with_cutoff_and_name(
-            move || {
-                let local = local.get();
-                if local.tab.is_some() {
+        let fallback = LocalProperty::computed_with_optional_inputs_and_cutoff(
+            &deps,
+            world_inputs,
+            move |observers| {
+                // Subscribe to the inputs the matrix actually reads. An unread
+                // derived projection can stay dirty across several parent poses.
+                let world = local.get().tab.is_none();
+                let [observe_pose, ..] = observers;
+                observe_pose(world);
+                #[cfg(feature = "3d")]
+                {
+                    let [_, observe_view, observe_scroll] = observers;
+                    observe_view(world);
+                    observe_scroll(world && view.get().is_perspective());
+                }
+                if !world {
                     return None;
                 }
                 let matrix = node.upgrade().zip(context.upgrade()).map_or_else(
@@ -168,7 +186,6 @@ impl ExpandedNode {
                 );
                 Some(matrix)
             },
-            &deps,
             PartialEq::eq,
             "native world fallback",
         );

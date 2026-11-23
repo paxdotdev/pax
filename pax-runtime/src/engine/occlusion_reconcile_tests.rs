@@ -14,6 +14,7 @@ enum Kind {
     Canvas,
     Native,
     Group,
+    ResponsiveGroup,
     Clip,
     Scroller,
     BeforeNative,
@@ -122,8 +123,9 @@ impl InstanceNode for Probe {
     fn scrolls_content(&self, _: &ExpandedNode) -> bool {
         matches!(self.kind, Kind::Scroller)
     }
-    fn materializes_native_surface(&self, _: &ExpandedNode) -> bool {
+    fn materializes_native_surface(&self, node: &ExpandedNode) -> bool {
         matches!(self.kind, Kind::BeforeNative)
+            || (matches!(self.kind, Kind::ResponsiveGroup) && node.layout_bounds.get().0 < 80.)
     }
     fn materializes_native_surface_before_children(&self, _: &ExpandedNode) -> bool {
         matches!(self.kind, Kind::BeforeNative)
@@ -141,7 +143,10 @@ impl InstanceNode for Probe {
         })
     }
     fn resolve_effect_clip_path(&self, node: &ExpandedNode) -> Option<BezPath> {
-        matches!(self.kind, Kind::Clip | Kind::Scroller).then(|| {
+        let clips = matches!(self.kind, Kind::Clip | Kind::Scroller)
+            || (matches!(self.kind, Kind::ResponsiveGroup)
+                && (80.0..160.0).contains(&node.layout_bounds.get().0));
+        clips.then(|| {
             let bounds = if matches!(self.kind, Kind::Scroller) {
                 node.transform_and_bounds.get().bounds
             } else {
@@ -486,6 +491,77 @@ fn rounded_clip_follows_its_selected_path_across_scroller_transfers() {
     check(false);
     handle.move_to_home().unwrap();
     check(true);
+}
+
+#[test]
+fn clip_dependencies_cross_layout_groups_and_follow_responsive_roles() {
+    let (ctx, root) = mount(vec![
+        probe(
+            Kind::Clip,
+            vec![probe(
+                Kind::ResponsiveGroup,
+                vec![probe(Kind::Group, vec![probe(Kind::Canvas, vec![])])],
+            )],
+        ),
+        probe(Kind::Native, vec![]),
+    ]);
+    let branch = root.children.get()[0].clone();
+    let clip = branch.children.get()[0].clone();
+    let native = branch.children.get()[1].clone();
+    let owner = clip.children.get()[0].clone();
+    let group = owner.children.get()[0].clone();
+    let canvas = group.children.get()[0].clone();
+    native
+        .get_common_properties()
+        .borrow()
+        .width
+        .set(Some(Size::Pixels(40.into())));
+
+    for width in [200, 120, 200, 60, 200] {
+        owner
+            .get_common_properties()
+            .borrow()
+            .width
+            .set(Some(Size::Pixels(width.into())));
+        settle_occlusion_effects(&root, &ctx);
+        {
+            let state = ctx.occlusion_state.borrow();
+            let links = &state.clip_dependents[&clip.id.to_u32()];
+            assert!(links.contains(&canvas.id.to_u32()));
+            assert!(!links.contains(&group.id.to_u32()));
+            assert_eq!(links.contains(&owner.id.to_u32()), width < 160);
+            let record = &state.records[&owner.id.to_u32()];
+            let clips = (80..160).contains(&width);
+            assert_eq!(record.clip.is_some(), clips);
+            assert_eq!(record.layer == Layer::Native, width < 80);
+            assert_eq!(
+                state.records[&canvas.id.to_u32()]
+                    .clips
+                    .contains(&owner.id.to_u32()),
+                clips,
+            );
+        }
+        // Force a direct placement notification and an inherited clip change
+        // in the same pass. The intermediate group needs neither coverage visit.
+        ctx.mark_node_occlusion_placement_dirty(group.id.to_u32());
+        ctx.mark_node_occlusion_dirty(clip.id.to_u32());
+        let before = ctx.occlusion_stats();
+        update_node_occlusion(&root, &ctx);
+        assert_eq!(
+            ctx.occlusion_stats().records_updated - before.records_updated,
+            if width < 160 { 3 } else { 2 }
+        );
+        assert_full_rebuild_matches(&root, &ctx);
+    }
+    assert_ne!(native.native_mask_hash.get(), 0);
+    group
+        .get_common_properties()
+        .borrow()
+        .x
+        .set(Some(Size::Pixels(100.into())));
+    settle_occlusion_effects(&root, &ctx);
+    assert_eq!(native.native_mask_hash.get(), 0);
+    assert_full_rebuild_matches(&root, &ctx);
 }
 
 #[test]
@@ -1519,6 +1595,72 @@ fn shared_clips_are_not_baked_into_native_cutouts() {
         "the shared native container already enforces this clip"
     );
     assert_full_rebuild_matches(&root, &ctx);
+}
+
+#[test]
+fn moving_clip_batches_coverage_and_keeps_displayed_edge_hits() {
+    use crate::properties::input_capture::InputPublisher;
+
+    let (ctx, root) = mount(vec![
+        probe(Kind::Clip, vec![probe(Kind::Canvas, vec![])]),
+        probe(Kind::Native, vec![]),
+    ]);
+    ctx.register_root_expanded_node(&root);
+    let group = root.children.get()[0].clone();
+    let clip = group.children.get()[0].clone();
+    let canvas = clip.children.get()[0].clone();
+    let native = group.children.get()[1].clone();
+    for (node, width) in [(&clip, 40), (&canvas, 40), (&native, 100)] {
+        let properties = node.get_common_properties();
+        properties
+            .borrow()
+            .width
+            .set(Some(Size::Pixels(width.into())));
+        properties
+            .borrow()
+            .height
+            .set(Some(Size::Pixels(40.into())));
+    }
+    settle_occlusion_effects(&root, &ctx);
+    let original_mask = native.native_mask_hash.get();
+    assert_ne!(original_mask, 0);
+    let points = [19.75, 20.25, 39.75, 40.25, 59.75, 60.25];
+    let hits = |view: &crate::properties::input_capture::CapturedInputView| {
+        points.map(|x| {
+            view.hit_targets((x, 20.).into(), &HashMap::new(), true)
+                .unwrap()
+                .iter()
+                .find(|hit| {
+                    hit.identity.id == canvas.id.to_u32() || hit.identity.id == native.id.to_u32()
+                })
+                .map(|hit| hit.identity.id)
+        })
+    };
+    let mut publisher = InputPublisher::default();
+    let front = publisher.capture(&ctx).unwrap();
+    let old_hits = hits(&front);
+    let x = clip.get_common_properties().borrow().x.clone();
+    x.set(Some(Size::Pixels(120.into())));
+    assert_eq!(
+        Affine::from(clip.presentation_transform_and_bounds.get().transform).as_coeffs()[4],
+        120.
+    );
+    x.set(Some(Size::Pixels(20.into())));
+    settle_occlusion_effects(&root, &ctx);
+    assert_ne!(native.native_mask_hash.get(), original_mask);
+    assert_ne!(native.native_mask_hash.get(), 0);
+    let moved = hits(&publisher.capture(&ctx).unwrap());
+    let c = Some(canvas.id.to_u32());
+    let n = Some(native.id.to_u32());
+    assert_eq!(old_hits, [c, c, c, n, n, n]);
+    assert_eq!(moved, [n, c, c, c, c, n]);
+    assert_eq!(hits(&front), old_hits);
+    assert_full_rebuild_matches(&root, &ctx);
+    settle_occlusion_effects(&root, &ctx);
+    assert_eq!(
+        hits(&InputPublisher::default().capture(&ctx).unwrap()),
+        moved
+    );
 }
 
 #[test]

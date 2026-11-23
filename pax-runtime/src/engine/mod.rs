@@ -1438,9 +1438,9 @@ impl PaxEngine {
                 }
             }
             if direct {
-                // A single overlarge record or cache churn must not deadlock a
-                // cold tile. This rare fallback is one non-preemptible unit,
-                // confined to the currently selected physical surface.
+                // Shader subtrees and drawings that the cache cannot retain
+                // must still reach first paint. Draw them as one unit on the
+                // selected physical surface.
                 if !rcs.begin_surface_fallback(update.layer) {
                     deferred.push(update.layer);
                     continue;
@@ -1476,6 +1476,18 @@ impl PaxEngine {
     }
 
     fn record_surface_nodes(&self, rcs: &mut dyn RenderContext, layer: usize, ids: &[u32]) -> bool {
+        // A missing shader owner requires the complete subtree on this tile.
+        // Recording its leaves first cannot produce the owner's drawing.
+        #[cfg(feature = "shaders")]
+        if !rcs.can_record_surface_shader_effects()
+            && ids.iter().any(|&id| {
+                self.runtime_context
+                    .get_expanded_node_by_eid(ExpandedNodeIdentifier(id))
+                    .is_some_and(|node| node.shader_effect_bound.get())
+            })
+        {
+            return false;
+        }
         let _capture = preparation_diagnostics::Span::new(preparation_diagnostics::Stage::Capture);
         if !rcs.begin_surface_recording(layer) {
             return false;

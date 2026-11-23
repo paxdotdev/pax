@@ -1693,6 +1693,16 @@ impl RuntimeContext {
         self.mark_canvas_placement_dirty(&node);
     }
 
+    /// Redraw under a changed ancestor clip. Local geometry and paint can be
+    /// reused with the new clip unless the primitive depends on its surroundings.
+    pub fn mark_canvas_node_clip_dirty(&self, node: &ExpandedNode) {
+        if borrow!(node.instance_node).canvas_geometry_is_local() {
+            self.mark_canvas_placement_dirty(node);
+        } else {
+            self.mark_canvas_node_dirty(node.id);
+        }
+    }
+
     pub(crate) fn mark_canvas_placement_dirty(&self, node: &ExpandedNode) {
         let id = node.id;
         let owner = node
@@ -2601,8 +2611,8 @@ impl RuntimeContext {
         }
         // Detached mask sources reuse prepared geometry without entering visible
         // replay or native-compositing indexes.
-        prepared.is_canvas = !node.is_render_source()
-            && borrow!(node.instance_node).base().flags().layer == crate::api::Layer::Canvas;
+        prepared.is_canvas =
+            !node.is_render_source() && borrow!(node.instance_node).has_canvas_drawing();
         prepared.is_native = !node.is_render_source()
             && (matches!(
                 borrow!(node.instance_node).base().flags().layer,

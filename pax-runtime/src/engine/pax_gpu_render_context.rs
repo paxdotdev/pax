@@ -2334,6 +2334,11 @@ impl RenderContext for PaxGpuRenderer {
         })
     }
 
+    #[cfg(feature = "shaders")]
+    fn can_record_surface_shader_effects(&self) -> bool {
+        false
+    }
+
     fn begin_surface_recording(&mut self, layer: usize) -> bool {
         if !self.prepare_surface_content || self.recording_layer.is_some() {
             return false;
