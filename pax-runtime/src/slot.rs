@@ -629,6 +629,53 @@ mod tests {
     }
 
     #[test]
+    fn import_scope_follows_a_projected_provider_and_skips_a_component_boundary() {
+        let index = LocalProperty::new(Numeric::I64(0));
+        let mut marker = leaf_args("import");
+        marker.template_node_type_id = Some(pax_manifest::TypeId::build_singleton(
+            "test::ImportSettings",
+            Some("ImportSettings"),
+        ));
+        let boundary = ComponentInstance::instantiate(component_args(Some(vec![]), None));
+        let owner = ComponentInstance::instantiate(component_args(
+            Some(vec![SlotInstance::instantiate(slot_args(Some(
+                index.clone(),
+            )))]),
+            Some(vec![TestLeaf::instantiate(marker), boundary.clone()]),
+        ));
+        let empty = forwarding_component(vec![boundary]);
+        let root = ComponentInstance::instantiate(component_args(Some(vec![owner, empty]), None));
+        let ctx = Rc::new(crate::test_support::runtime_context(test_globals()));
+        let root = ExpandedNode::initialize_root(root, &ctx);
+        root.recurse_update(&ctx);
+        let owners = root.children.get();
+        let importer = owners[0].children.get()[0].children.get()[0].clone();
+        let mut theme = component_args(Some(vec![]), None);
+        theme.component_settings = Some(vec![pax_manifest::SettingsBlockElement::SelectorBlock(
+            pax_manifest::Token::new_without_location(".card".into()),
+            pax_manifest::LiteralBlockDefinition::new(vec![]),
+        )]);
+        let providers = importer.create_children_detached(
+            [(
+                ComponentInstance::instantiate(theme) as Rc<dyn InstanceNode>,
+                importer.stack.clone(),
+            )],
+            &ctx,
+            &Rc::downgrade(&importer),
+        );
+        importer.attach_sidecar_children(providers, &ctx, &importer.parent_frame);
+        ctx.drain_node_effects();
+        assert_eq!(owners[0].imported_settings_layers.borrow().len(), 1);
+        assert_eq!(owners[1].settings_discoveries.get(), 0);
+        index.set(Numeric::I64(1));
+        root.recurse_update(&ctx);
+        ctx.drain_node_effects();
+        assert!(owners[0].imported_settings_layers.borrow().is_empty());
+        assert_eq!(owners[1].settings_discoveries.get(), 0);
+        root.recurse_unmount(&ctx);
+    }
+
+    #[test]
     fn forwarded_duplicate_does_not_steal_an_earlier_slot() {
         let first: Rc<dyn InstanceNode> =
             SlotInstance::instantiate(slot_args(Some(LocalProperty::new(Numeric::I64(0)))));

@@ -229,7 +229,7 @@ impl InstanceNode for RouterInstance {
         Self: Sized,
     {
         Rc::new(Self {
-            base: BaseInstance::new(
+            base: BaseInstance::with_authored_children(
                 args,
                 InstanceFlags {
                     invisible_to_slot: true,
@@ -287,7 +287,7 @@ impl RouterInstance {
         branch_child_ranges: Vec<Range<usize>>,
     ) -> Rc<Self> {
         Rc::new(Self {
-            base: BaseInstance::new(
+            base: BaseInstance::with_authored_children(
                 args,
                 InstanceFlags {
                     invisible_to_slot: true,

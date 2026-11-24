@@ -49,8 +49,12 @@ impl InstanceNode for ComponentInstance {
 
     fn instantiate(mut args: InstantiationArgs) -> Rc<Self> {
         let component_template = args.component_template.take();
+        let import_reach = component_template.as_ref().map_or(
+            crate::rendering::ImportReach::Possible,
+            crate::rendering::ImportReach::children,
+        );
         let template = component_template.unwrap_or_default();
-        let base = BaseInstance::new(
+        let mut base = BaseInstance::new(
             args,
             InstanceFlags {
                 invisible_to_slot: false,
@@ -60,6 +64,7 @@ impl InstanceNode for ComponentInstance {
                 is_slot: false,
             },
         );
+        base.scope_import_reach = import_reach.with_projection(base.projected_import_reach);
         Rc::new(ComponentInstance {
             base,
             template,

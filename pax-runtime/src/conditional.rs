@@ -65,7 +65,7 @@ impl InstanceNode for ConditionalInstance {
         Self: Sized,
     {
         Rc::new(Self {
-            base: BaseInstance::new(
+            base: BaseInstance::with_authored_children(
                 args,
                 InstanceFlags {
                     invisible_to_slot: true,
@@ -114,7 +114,7 @@ impl ConditionalInstance {
         branch_child_ranges: Vec<Range<usize>>,
     ) -> Rc<Self> {
         Rc::new(Self {
-            base: BaseInstance::new(
+            base: BaseInstance::with_authored_children(
                 args,
                 InstanceFlags {
                     invisible_to_slot: true,

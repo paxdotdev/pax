@@ -875,6 +875,46 @@ pub trait InstanceNode {
     }
 }
 
+pub(crate) fn is_import_settings_type_id(type_id: Option<&TypeId>) -> bool {
+    use pax_manifest::PaxType;
+    matches!(
+        type_id.map(TypeId::get_pax_type),
+        Some(
+            PaxType::Primitive { pascal_identifier }
+                | PaxType::Singleton { pascal_identifier }
+                | PaxType::BlankComponent { pascal_identifier }
+        ) if pascal_identifier == "ImportSettings"
+    )
+}
+
+// Reachability within one component's import scope. A slot borrows the
+// reachability of the children supplied at its call site.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum ImportReach {
+    Empty,
+    Projected,
+    Possible,
+}
+
+impl ImportReach {
+    pub(crate) fn children(children: &InstanceNodePtrList) -> Self {
+        children
+            .borrow()
+            .iter()
+            .map(|child| child.base().import_reach)
+            .max()
+            .unwrap_or(Self::Empty)
+    }
+
+    pub(crate) fn with_projection(self, projected: Self) -> Self {
+        if self == Self::Projected {
+            projected
+        } else {
+            self
+        }
+    }
+}
+
 /// Shared storage carried by every concrete `InstanceNode`.
 pub struct BaseInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
@@ -889,6 +929,10 @@ pub struct BaseInstance {
     pub template_node_selector_info: Option<TemplateNodeSelectorInfo>,
     pub transition_config: ComponentTransitionConfig,
     pub properties_scope: PropertiesScopeInit,
+    pub(crate) is_import_settings: bool,
+    pub(crate) import_reach: ImportReach,
+    pub(crate) scope_import_reach: ImportReach,
+    pub(crate) projected_import_reach: ImportReach,
     instance_children: InstanceNodePtrList,
     flags: InstanceFlags,
 }
@@ -1029,6 +1073,17 @@ impl BaseInstance {
 
     /// Build shared instance state from compiler-generated instantiation args.
     pub fn new(args: InstantiationArgs, flags: InstanceFlags) -> Self {
+        let is_import_settings = is_import_settings_type_id(args.template_node_type_id.as_ref());
+        let import_reach = if is_import_settings {
+            ImportReach::Possible
+        } else if flags.is_component {
+            ImportReach::Empty
+        } else if flags.is_slot {
+            ImportReach::Projected
+        } else {
+            // Custom primitives can synthesize children beyond their template.
+            ImportReach::Possible
+        };
         BaseInstance {
             handler_registry: args.handler_registry,
             instance_prototypical_common_properties: args.prototypical_common_properties,
@@ -1037,6 +1092,13 @@ impl BaseInstance {
             component_settings: args
                 .component_settings
                 .map(crate::PreparedRuntimeSettings::from),
+            is_import_settings,
+            import_reach,
+            scope_import_reach: ImportReach::Possible,
+            projected_import_reach: args
+                .children
+                .as_ref()
+                .map_or(ImportReach::Empty, ImportReach::children),
             instance_children: args.children.unwrap_or_default(),
             flags,
             template_node_identifier: args.template_node_identifier,
@@ -1045,6 +1107,17 @@ impl BaseInstance {
             transition_config: args.transition_config,
             properties_scope: args.properties_scope,
         }
+    }
+
+    /// Constructs a primitive whose rendered and sidecar children come from
+    /// its authored children. Branching, repetition and filtering are allowed.
+    /// Primitives that synthesize additional children should use [Self::new].
+    pub fn with_authored_children(args: InstantiationArgs, flags: InstanceFlags) -> Self {
+        let mut base = Self::new(args, flags);
+        if !base.is_import_settings && !base.flags.is_slot && !base.flags.is_component {
+            base.import_reach = base.projected_import_reach;
+        }
+        base
     }
 
     /// Returns a handle to a node-managed HandlerRegistry, a mapping between event types and handlers.
@@ -1058,11 +1131,8 @@ impl BaseInstance {
         }
     }
 
-    /// Return the list of instance nodes that are children of this one. Intuitively, this returns
-    /// the nodes owned directly by this instance's definition.
-    ///
-    /// For `Component`s, this returns the root(s) of the component template, not the
-    /// projected children supplied by the containing component.
+    /// Returns the children authored at this node's call site. A component
+    /// projects them through its slots and stores its own roots separately.
     pub fn get_instance_children(&self) -> &InstanceNodePtrList {
         &self.instance_children
     }

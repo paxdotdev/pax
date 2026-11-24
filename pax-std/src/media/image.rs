@@ -186,7 +186,7 @@ impl InstanceNode for ImageInstance {
         Self: Sized,
     {
         Rc::new(Self {
-            base: BaseInstance::new(
+            base: BaseInstance::with_authored_children(
                 args,
                 InstanceFlags {
                     invisible_to_slot: false,

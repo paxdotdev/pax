@@ -1676,9 +1676,23 @@ fn import_discovery_preserves_provider_order_replacement_and_removal() {
     let node = child(&root, ctx, template(&plan), HashMap::new());
     root.children.set(vec![import.clone(), node.clone()]);
     assert_eq!(values(&node).0, 20.0);
+    let first_stack = root.imported_settings_layers.borrow()[0]
+        .provider_stack
+        .clone();
+    let second_stack = root.imported_settings_layers.borrow()[1]
+        .provider_stack
+        .clone();
     import.attach_sidecar_children(vec![second, first], ctx, &import.parent_frame);
     ctx.drain_node_effects();
     assert_eq!(values(&node).0, 10.0);
+    assert!(Rc::ptr_eq(
+        &root.imported_settings_layers.borrow()[0].provider_stack,
+        &second_stack
+    ));
+    assert!(Rc::ptr_eq(
+        &root.imported_settings_layers.borrow()[1].provider_stack,
+        &first_stack
+    ));
     let replacement = settings_provider(&root, ctx, &LocalProperty::new(30.0));
     import.attach_sidecar_children(vec![replacement], ctx, &import.parent_frame);
     ctx.drain_node_effects();
@@ -1689,6 +1703,47 @@ fn import_discovery_preserves_provider_order_replacement_and_removal() {
     assert!(root.imported_settings_layers.borrow().is_empty());
     root.recurse_unmount(ctx);
     ctx.drain_node_effects();
+}
+
+#[test]
+fn fixed_import_ignores_admission_of_siblings_with_their_own_scope() {
+    let (engine, root) = fixture();
+    let ctx = &engine.runtime_context;
+    let import = settings_import(&root, ctx);
+    let palette = LocalProperty::new(12.0);
+    let provider = settings_provider(&root, ctx, &palette);
+    import.attach_sidecar_children(vec![provider.clone()], ctx, &import.parent_frame);
+    root.children.set(vec![import.clone()]);
+    ctx.drain_node_effects();
+    let discoveries = root.settings_discoveries.get();
+    let copies = provider.settings_layer_materializations.get();
+    assert_eq!(copies, 1);
+    let nested = child(
+        &root,
+        ctx,
+        ComponentInstance::instantiate(args()),
+        HashMap::new(),
+    );
+    root.children.set(vec![import.clone(), nested]);
+    ctx.drain_node_effects();
+    assert_eq!(root.settings_discoveries.get(), discoveries);
+
+    let receiver = child(
+        &root,
+        ctx,
+        template(&plan(vec![], None, None)),
+        HashMap::new(),
+    );
+    receiver.recurse_mount(ctx);
+    assert_eq!(
+        MOUNTS.with(|seen| seen.borrow().last().copied()),
+        Some((12.0, 19.0))
+    );
+    palette.set(24.0);
+    assert_eq!(values(&receiver).0, 24.0);
+    assert_eq!(provider.settings_layer_materializations.get(), copies);
+    assert_eq!(root.settings_discoveries.get(), discoveries);
+    root.recurse_unmount(ctx);
 }
 
 #[test]
@@ -1825,6 +1880,229 @@ impl InstanceNode for ThemeImport {
     ) -> std::fmt::Result {
         f.write_str("ThemeImport")
     }
+}
+
+// Reference walk over settled children. It deliberately ignores template
+// reachability and the cached projection. Never use it to drive admission.
+fn full_import_order(owner: &ExpandedNode) -> Vec<ExpandedNodeIdentifier> {
+    fn visit(
+        node: &ExpandedNode,
+        inside: bool,
+        transitive: bool,
+        ids: &mut Vec<ExpandedNodeIdentifier>,
+    ) {
+        if node.is_import_settings_node() {
+            for provider in node.sidecar_children.borrow().iter() {
+                visit(provider, true, true, ids);
+            }
+            return;
+        }
+        let instance = node.instance_node.borrow();
+        let component = instance.base().flags().is_component;
+        if component && !transitive {
+            return;
+        }
+        if component
+            && inside
+            && instance
+                .base()
+                .component_settings
+                .as_ref()
+                .is_some_and(|s| !s.is_empty())
+        {
+            ids.push(node.id);
+        }
+        for child in node
+            .children
+            .get()
+            .iter()
+            .chain(node.sidecar_children.borrow().iter())
+        {
+            visit(child, inside && !component, transitive, ids);
+        }
+    }
+    let mut ids = Vec::new();
+    for child in owner
+        .children
+        .get()
+        .iter()
+        .chain(owner.sidecar_children.borrow().iter())
+    {
+        visit(child, false, false, &mut ids);
+    }
+    ids
+}
+
+fn assert_import_order(owner: &ExpandedNode) -> Vec<ExpandedNodeIdentifier> {
+    let actual: Vec<_> = owner
+        .imported_settings_layers
+        .borrow()
+        .iter()
+        .map(|layer| layer.provider_id)
+        .collect();
+    assert_eq!(actual, full_import_order(owner));
+    actual
+}
+
+#[test]
+fn subtree_reload_can_add_the_first_import_to_an_empty_scope() {
+    let (mut engine, _) = fixture();
+    engine.unmount();
+    let mut outer = args();
+    let boundary = ComponentInstance::instantiate(args());
+    outer.component_template = Some(RefCell::new(vec![boundary.clone()]));
+    let root = engine.mount_root_component(ComponentInstance::instantiate(outer));
+    let ctx = &engine.runtime_context;
+    let node = root.children.get()[0].clone();
+    assert_eq!(root.settings_discoveries.get(), 0);
+    node.fully_recreate_with_new_data(ThemeImport::instantiate(args()), ctx);
+    ctx.drain_node_effects();
+    assert_eq!(assert_import_order(&root).len(), 1);
+    node.fully_recreate_with_new_data(boundary, ctx);
+    ctx.drain_node_effects();
+    assert!(assert_import_order(&root).is_empty());
+    engine.unmount();
+}
+
+#[test]
+fn nested_provider_exports_cross_component_boundaries_only_inside_an_import() {
+    let (engine, root) = fixture();
+    let ctx = &engine.runtime_context;
+    let source = LocalProperty::new(14.);
+    let outer = settings_import(&root, ctx);
+    let theme = settings_provider(&root, ctx, &source);
+    let wrapper = child(
+        &theme,
+        ctx,
+        ComponentInstance::instantiate(args()),
+        HashMap::new(),
+    );
+    let nested = settings_import(&wrapper, ctx);
+    let transitive = settings_provider(&wrapper, ctx, &source);
+    nested.attach_sidecar_children(vec![transitive.clone()], ctx, &nested.parent_frame);
+    wrapper.children.set(vec![nested]);
+    theme.children.set(vec![wrapper]);
+    outer.attach_sidecar_children(vec![theme.clone()], ctx, &outer.parent_frame);
+    root.children.set(vec![outer.clone()]);
+    ctx.drain_node_effects();
+    assert_eq!(assert_import_order(&root), [theme.id, transitive.id]);
+    outer.attach_sidecar_children(vec![], ctx, &outer.parent_frame);
+    ctx.drain_node_effects();
+    assert!(assert_import_order(&root).is_empty());
+    root.recurse_unmount(ctx);
+}
+
+#[test]
+fn startup_settles_an_import_free_branch_before_reporting_full_mount() {
+    let (mut engine, _) = fixture();
+    engine.unmount();
+    engine.enable_resumable_startup();
+    let mut inner = args();
+    inner.component_template = Some(RefCell::new(vec![Leaf::instantiate(args())]));
+    let mut branch = args();
+    branch.children = Some(RefCell::new(vec![ComponentInstance::instantiate(inner)]));
+    branch.properties_scope = PropertiesScopeInit::None;
+    branch.prototypical_properties = PropertiesInit::ControlFlow {
+        allocate: || ConditionalProperties::default().to_pax_any(),
+        bind: Box::new(|_, node| {
+            node.with_properties_unwrapped(|p: &mut ConditionalProperties| {
+                p.boolean_expression.set(true)
+            })
+        }),
+    };
+    let mut outer = args();
+    outer.component_template = Some(RefCell::new(vec![ConditionalInstance::instantiate(branch)]));
+    let root = engine.mount_root_component(ComponentInstance::instantiate(outer));
+    for _ in 0..1_000 {
+        if !engine.startup_pending() {
+            break;
+        }
+        if engine.accept_startup_measurements() {
+            engine.resume_startup_after_presentation();
+        }
+        engine.service_startup(0., || 0.);
+    }
+    assert!(!engine.startup_pending());
+    // Reading the branch here would itself expand it and conceal lost admission work.
+    assert_eq!(MOUNTS.with(|seen| seen.borrow().clone()), [(7., 19.)]);
+    assert_eq!(root.settings_discoveries.get(), 0);
+    engine.unmount();
+}
+
+#[test]
+fn conditional_keyed_imports_reuse_layers_in_active_order() {
+    let (mut engine, _) = fixture();
+    engine.unmount();
+    let keys = |values: &[&str]| {
+        PaxValue::Vec(
+            values
+                .iter()
+                .map(|value| PaxValue::String(value.to_string()))
+                .collect(),
+        )
+    };
+    let items = LocalProperty::new(keys(&["a", "b"]));
+    let mut repeat = args();
+    repeat.children = Some(RefCell::new(vec![ThemeImport::instantiate(args())]));
+    repeat.properties_scope = PropertiesScopeInit::None;
+    let source = items.clone();
+    repeat.prototypical_properties = PropertiesInit::ControlFlow {
+        allocate: || RepeatProperties::default().to_pax_any(),
+        bind: Box::new(move |_, node| {
+            node.with_properties_unwrapped(|p: &mut RepeatProperties| {
+                p.source_expression = source.clone();
+                p.iterator_elem_symbol.set(Some("item".into()));
+                p.repeat_key_expression = Some(ExpressionInfo::new(
+                    pax_language::parse_pax_expression("item").unwrap(),
+                ));
+            })
+        }),
+    };
+    let enabled = LocalProperty::new(true);
+    let visible = enabled.clone();
+    let mut branch = args();
+    branch.children = Some(RefCell::new(vec![RepeatInstance::instantiate(repeat)]));
+    branch.properties_scope = PropertiesScopeInit::None;
+    branch.prototypical_properties = PropertiesInit::ControlFlow {
+        allocate: || ConditionalProperties::default().to_pax_any(),
+        bind: Box::new(move |_, node| {
+            node.with_properties_unwrapped(|p: &mut ConditionalProperties| {
+                p.boolean_expression = visible.clone()
+            })
+        }),
+    };
+    let mut outer = args();
+    outer.component_template = Some(RefCell::new(vec![
+        ThemeImport::instantiate(args()),
+        ConditionalInstance::instantiate(branch),
+    ]));
+    let root = engine.mount_root_component(ComponentInstance::instantiate(outer));
+    let ctx = &engine.runtime_context;
+    ctx.drain_node_effects();
+    let layers = root.imported_settings_layers.borrow().clone();
+    assert_eq!(layers.len(), 3);
+    items.set(keys(&["b", "a"]));
+    ctx.drain_node_effects();
+    let order = || assert_import_order(&root);
+    assert_eq!(
+        order(),
+        [
+            layers[0].provider_id,
+            layers[2].provider_id,
+            layers[1].provider_id
+        ]
+    );
+    enabled.set(false);
+    ctx.drain_node_effects();
+    assert_eq!(order(), [layers[0].provider_id]);
+    enabled.set(true);
+    ctx.drain_node_effects();
+    assert_eq!(order().len(), 3);
+    assert!(Rc::ptr_eq(
+        &layers[0].provider_stack,
+        &root.imported_settings_layers.borrow()[0].provider_stack
+    ));
+    engine.unmount();
 }
 
 #[test]

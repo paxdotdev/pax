@@ -57,16 +57,20 @@ this explicitly, see e.g. `[pax_std::drawing::rectangle::RectangleInstance#get_h
 ##### `get_instance_children`
 <pre><code class="api-signature language-rust ignore">pub fn get_instance_children(&amp;self) -&gt; &amp;InstanceNodePtrList</code></pre>
 
-Return the list of instance nodes that are children of this one. Intuitively, this returns
-the nodes owned directly by this instance's definition.
-
-For `Component`s, this returns the root(s) of the component template, not the
-projected children supplied by the containing component.
+Returns the children authored at this node's call site. A component
+projects them through its slots and stores its own roots separately.
 
 ##### `new`
 <pre><code class="api-signature language-rust ignore">pub fn new(args: <a href="../../../api/internal/pax-runtime/rendering.md#instantiationargs">InstantiationArgs</a>, flags: <a href="../../../api/internal/pax-runtime/rendering.md#instanceflags">InstanceFlags</a>) -&gt; Self</code></pre>
 
 Build shared instance state from compiler-generated instantiation args.
+
+##### `with_authored_children`
+<pre><code class="api-signature language-rust ignore">pub fn with_authored_children(args: <a href="../../../api/internal/pax-runtime/rendering.md#instantiationargs">InstantiationArgs</a>, flags: <a href="../../../api/internal/pax-runtime/rendering.md#instanceflags">InstanceFlags</a>) -&gt; Self</code></pre>
+
+Constructs a primitive whose rendered and sidecar children come from
+its authored children. Branching, repetition and filtering are allowed.
+Primitives that synthesize additional children should use [Self::new].
 
 ---
 

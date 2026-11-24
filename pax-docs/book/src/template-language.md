@@ -458,10 +458,11 @@ The provider can expose reactive properties of its own. Expressions in its
 settings use that provider's `self` and state, so a shared palette can change
 reactively. Stable imports reuse their provider layers on unchanged frames;
 provider-property updates continue through the existing reactive bindings.
-Import discovery subscribes to the tree's structural inputs rather than
-traversing it every tick. Conditional imports, provider order changes, and
-template reloads refresh those subscriptions and settings before rendering;
-ordinary palette-value changes do not rediscover the provider tree.
+A component observes the ordered branches that can supply its imports. A slot
+can supply an import from its caller. A nested component owns the imports in
+its own template. An `if` or `for` that changes the active providers updates the
+layers in their new order. Changing a color or switching a provider's palette
+updates the bound properties directly.
 
 For ordinary template nodes, import changes retain bindings whose prepared
 definitions and provider scopes are unchanged. Added or changed settings replace

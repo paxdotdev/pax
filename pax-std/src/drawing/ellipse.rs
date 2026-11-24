@@ -63,7 +63,7 @@ impl InstanceNode for EllipseInstance {
         Self: Sized,
     {
         Rc::new(EllipseInstance {
-            base: BaseInstance::new(
+            base: BaseInstance::with_authored_children(
                 args,
                 InstanceFlags {
                     invisible_to_slot: false,

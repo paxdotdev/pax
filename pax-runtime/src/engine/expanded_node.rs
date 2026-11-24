@@ -82,7 +82,7 @@ use pax_manifest::cartridge_generation::{
     TRANSITION_PLAYHEAD_SYMBOL, TRANSITION_TAKEOVER_SYMBOL,
 };
 use pax_manifest::{
-    ExpressionInfo, LocationInfo, PaxType, SelectorExpr, TypeId, UniqueTemplateNodeIdentifier,
+    ExpressionInfo, LocationInfo, SelectorExpr, TypeId, UniqueTemplateNodeIdentifier,
     ValueDefinition,
 };
 
@@ -156,6 +156,14 @@ impl DiscoveredSettingsProvider {
                 .template_node_type_id
                 .clone()
                 .unwrap_or_default(),
+        }
+    }
+
+    fn has_same_transition(&self, layer: &RuntimeSettingsLayer) -> bool {
+        match (&self.transition, &layer.transition) {
+            (None, None) => true,
+            (Some(a), Some(b)) => a.untyped().get_id() == b.untyped().get_id(),
+            _ => false,
         }
     }
 
@@ -568,6 +576,10 @@ pub struct ExpandedNode {
     // Allocated only for nodes visited by import discovery. Ordinary nodes do
     // not need another graph edge until an importing component observes them.
     settings_source_revision: RefCell<Option<LocalProperty<u64>>>,
+    // A partial reload or a runtime attachment can introduce an import outside
+    // the original template. Widen only the path back to its component.
+    extra_import_path: Cell<bool>,
+    import_children: RefCell<Option<LocalProperty<Vec<Rc<ExpandedNode>>>>>,
     imported_settings_observer: RefCell<
         Option<(
             LocalProperty<()>,
@@ -1495,6 +1507,8 @@ impl ExpandedNode {
             exit_cleanup_active: Cell::new(false),
             imported_settings_layers: RefCell::new(Vec::new()),
             settings_source_revision: RefCell::new(None),
+            extra_import_path: Cell::new(false),
+            import_children: RefCell::new(None),
             imported_settings_observer: RefCell::new(None),
             #[cfg(test)]
             settings_discoveries: Cell::new(0),
@@ -1556,11 +1570,7 @@ impl ExpandedNode {
                 .map(|(name, value)| (name.clone(), value.get_untyped_property().get_id()))
                 .collect::<HashMap<_, _>>()
         });
-        let source_changed = !Rc::ptr_eq(&borrow!(self.instance_node), &template);
-        *borrow_mut!(self.instance_node) = Rc::clone(&template);
-        if source_changed {
-            self.invalidate_settings_source();
-        }
+        self.replace_instance_for_settings(Rc::clone(&template), context);
         template.base().bind_properties(self);
         self.refresh_properties_scope(&template);
         if let Some(previous) = previous {
@@ -1605,7 +1615,7 @@ impl ExpandedNode {
         let _graph = context.property_graph.enter();
         let _scope = self.property_binding_scope.borrow().enter();
         Rc::clone(self).recurse_unmount(context);
-        *borrow_mut!(self.instance_node) = template;
+        self.replace_instance_for_settings(template, context);
         self.prepare_remount(context);
         let _scope = self.property_binding_scope.borrow().enter();
 
@@ -2616,6 +2626,16 @@ impl ExpandedNode {
             context.viewport_structure_changed();
         }
         *borrow_mut!(self.render_parent) = Rc::downgrade(parent);
+        if !same_parent && self.branch_may_import() {
+            let parent_may_import = if parent.instance_node.borrow().base().flags().is_component {
+                parent.scope_may_import()
+            } else {
+                parent.branch_may_import()
+            };
+            if !parent_may_import {
+                parent.widen_import_path(context);
+            }
+        }
         let frame = frame.clone();
         let deps = [frame.untyped()];
         self.parent_frame
@@ -3295,6 +3315,12 @@ impl ExpandedNode {
                     let Some(node) = weak_self.upgrade() else {
                         return;
                     };
+                    // During admission logical_children exposes only mounted nodes.
+                    // Settle the authored list first so a lazy router, repeat or slot
+                    // can enqueue its selected children before startup declares itself idle.
+                    if node.attached.get() > 0 && context.startup.borrow().is_active() {
+                        node.children.read(|_| ());
+                    }
                     if !node.child_structure_changed(&previous, &node.logical_children(&context)) {
                         return;
                     }
@@ -3821,7 +3847,11 @@ impl ExpandedNode {
                 // A projected child can have been constructed before its owner's
                 // ImportSettings subtree was prepared. Refresh that dependency
                 // before creating mount-time subscriptions or running user code.
-                if let Some(owner) = self.containing_component.upgrade() {
+                if let Some(owner) = self
+                    .containing_component
+                    .upgrade()
+                    .filter(|owner| owner.scope_may_import())
+                {
                     let discovery = owner
                         .imported_settings_observer
                         .borrow()
@@ -3983,6 +4013,7 @@ impl ExpandedNode {
             borrow_mut!(self.import_settings_transition).take();
             borrow_mut!(self.imported_settings_layers).clear();
             borrow_mut!(self.imported_settings_signature).clear();
+            self.import_children.borrow_mut().take();
             if let Some((observer, dependencies)) =
                 self.imported_settings_observer.borrow_mut().as_mut()
             {
@@ -4072,12 +4103,7 @@ impl ExpandedNode {
     }
 
     pub fn is_import_settings_node(&self) -> bool {
-        is_import_settings_type_id(
-            borrow!(self.instance_node)
-                .base()
-                .template_node_type_id
-                .as_ref(),
-        )
+        self.instance_node.borrow().base().is_import_settings
     }
 
     pub fn is_in_import_settings_subtree(&self) -> bool {
@@ -4091,6 +4117,115 @@ impl ExpandedNode {
         false
     }
 
+    fn resolve_import_reach(&self, reach: crate::rendering::ImportReach) -> bool {
+        use crate::rendering::ImportReach::*;
+        match reach {
+            Empty => false,
+            Possible => true,
+            Projected => self.containing_component.upgrade().is_some_and(|owner| {
+                let projected = owner.instance_node.borrow().base().projected_import_reach;
+                owner.resolve_import_reach(projected)
+            }),
+        }
+    }
+
+    fn scope_may_import(&self) -> bool {
+        self.extra_import_path.get()
+            || self.resolve_import_reach(self.instance_node.borrow().base().scope_import_reach)
+    }
+
+    fn branch_may_import(&self) -> bool {
+        let instance = self.instance_node.borrow();
+        instance.base().is_import_settings
+            || !instance.base().flags().is_component
+                && (self.extra_import_path.get()
+                    || self.resolve_import_reach(instance.base().import_reach))
+    }
+
+    fn replace_instance_for_settings(
+        self: &Rc<Self>,
+        replacement: Rc<dyn InstanceNode>,
+        context: &Rc<RuntimeContext>,
+    ) {
+        let previous = self.instance_node.replace(replacement.clone());
+        if Rc::ptr_eq(&previous, &replacement) {
+            return;
+        }
+        let old = previous.base();
+        let new = replacement.base();
+        if old.import_reach != new.import_reach || old.is_import_settings != new.is_import_settings
+        {
+            if let Some(parent) = self.render_parent.borrow().upgrade() {
+                parent.widen_import_path(context);
+            }
+        }
+        if new.flags().is_component
+            && (old.scope_import_reach != new.scope_import_reach
+                || old.projected_import_reach != new.projected_import_reach)
+        {
+            self.widen_import_path(context);
+        } else {
+            self.invalidate_settings_source();
+        }
+    }
+
+    fn widen_import_path(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        let mut next = Some(Rc::clone(self));
+        while let Some(node) = next {
+            node.extra_import_path.set(true);
+            if node.instance_node.borrow().base().flags().is_component {
+                let needs_observer = node.imported_settings_observer.borrow().as_ref()
+                    .is_none_or(|(_, dependencies)| dependencies.is_empty());
+                if node.attached.get() > 0 && needs_observer {
+                    // A replacement can be running in the departing child's binding scope.
+                    // The newly observed structural signal belongs to the still-mounted owner.
+                    let _scope = node.property_binding_scope.borrow().enter();
+                    node.bind_imported_settings_observer(
+                        context,
+                        vec![node.settings_revision().untyped()],
+                    );
+                }
+                node.invalidate_settings_source();
+                break;
+            }
+            node.invalidate_settings_source();
+            next = node.render_parent.borrow().upgrade();
+        }
+    }
+
+    fn settings_revision(&self) -> LocalProperty<u64> {
+        self.settings_source_revision
+            .borrow_mut()
+            .get_or_insert_with(|| LocalProperty::new(0))
+            .clone()
+    }
+
+    // Observe ordered active branches. Adding an ordinary sibling cannot
+    // invalidate discovery. The slot/if/repeat continues to own selection.
+    fn scoped_import_children(self: &Rc<Self>) -> LocalProperty<Vec<Rc<Self>>> {
+        if let Some(children) = self.import_children.borrow().as_ref() {
+            return children.clone();
+        }
+        let children = self.children.clone();
+        let deps = [children.untyped(), self.settings_revision().untyped()];
+        let filtered = LocalProperty::computed_with_cutoff_and_name(
+            move || {
+                children.read(|children| {
+                    children
+                        .iter()
+                        .filter(|child| child.branch_may_import())
+                        .cloned()
+                        .collect::<Vec<_>>()
+                })
+            },
+            &deps,
+            |left, right| Self::same_children(left, right),
+            "children with imported settings",
+        );
+        *self.import_children.borrow_mut() = Some(filtered.clone());
+        filtered
+    }
+
     fn collect_imported_settings_from_node(
         node: &Rc<Self>,
         in_import_settings: bool,
@@ -4099,7 +4234,15 @@ impl ExpandedNode {
         transition: Option<LocalProperty<Option<crate::SettingsTransitionConfig>>>,
         dependencies: &mut Vec<pax_runtime_api::properties::UntypedProperty>,
     ) {
-        node.settings_discovery_dependencies(dependencies);
+        // Inside a provider we also discover nested imports across component
+        // boundaries. The outer-scope template summary stops at those boundaries.
+        let children = if descend_components || node.is_import_settings_node() {
+            node.children.clone()
+        } else {
+            node.scoped_import_children()
+        };
+        dependencies.push(children.untyped());
+        dependencies.push(node.settings_revision().untyped());
         if node.is_import_settings_node() {
             if let Some(policy) = node.import_settings_transition.borrow().as_ref() {
                 dependencies.push(policy.untyped());
@@ -4133,7 +4276,7 @@ impl ExpandedNode {
                         transition: transition.clone(),
                     });
                 }
-                let children = node.children.get();
+                let children = children.get();
                 for child in children.iter() {
                     Self::collect_imported_settings_from_node(
                         child,
@@ -4162,7 +4305,7 @@ impl ExpandedNode {
             }
         }
 
-        let children = node.children.get();
+        let children = children.get();
         for child in children.iter() {
             Self::collect_imported_settings_from_node(
                 child,
@@ -4175,6 +4318,9 @@ impl ExpandedNode {
         }
         let sidecar_children = borrow!(node.sidecar_children).clone();
         for child in sidecar_children.iter() {
+            if !descend_components && !child.branch_may_import() {
+                continue;
+            }
             Self::collect_imported_settings_from_node(
                 child,
                 in_import_settings,
@@ -4187,14 +4333,17 @@ impl ExpandedNode {
     }
 
     pub fn sync_imported_settings(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        if !self.scope_may_import() && self.imported_settings_signature.borrow().is_empty() {
+            return;
+        }
         let _phase = context.startup_phase("settings.discover");
         #[cfg(test)]
         self.settings_discoveries
             .set(self.settings_discoveries.get() + 1);
-        let mut dependencies = Vec::new();
-        self.settings_discovery_dependencies(&mut dependencies);
+        let children = self.scoped_import_children();
+        let mut dependencies = vec![children.untyped(), self.settings_revision().untyped()];
         let mut providers = Vec::new();
-        let children = self.children.get();
+        let children = children.get();
         for child in children.iter() {
             Self::collect_imported_settings_from_node(
                 child,
@@ -4206,7 +4355,10 @@ impl ExpandedNode {
             );
         }
         let sidecar_children = borrow!(self.sidecar_children).clone();
-        for child in sidecar_children.iter() {
+        for child in sidecar_children
+            .iter()
+            .filter(|child| child.branch_may_import())
+        {
             Self::collect_imported_settings_from_node(
                 child,
                 false,
@@ -4222,15 +4374,39 @@ impl ExpandedNode {
             .iter()
             .map(DiscoveredSettingsProvider::signature)
             .collect::<Vec<_>>();
-        if *borrow!(self.imported_settings_signature) == signature {
+        let mut previous = self.imported_settings_signature.borrow_mut();
+        let mut layers = self.imported_settings_layers.borrow_mut();
+        if *previous == signature
+            && providers
+                .iter()
+                .zip(layers.iter())
+                .all(|(provider, layer)| provider.has_same_transition(layer))
+        {
             return;
         }
 
-        *borrow_mut!(self.imported_settings_signature) = signature;
-        *borrow_mut!(self.imported_settings_layers) = providers
-            .into_iter()
-            .map(DiscoveredSettingsProvider::materialize)
+        // Retain lexical stacks when another import is added, removed or
+        // reordered. Their identity is also how receivers recognize a binding
+        // whose inputs are unchanged.
+        let mut retained: HashMap<_, _> = previous
+            .drain(..)
+            .zip(layers.drain(..))
+            .map(|(entry, layer)| (entry.provider_id, (entry, layer)))
             .collect();
+        layers.extend(
+            providers
+                .into_iter()
+                .zip(&signature)
+                .map(|(provider, entry)| {
+                    retained
+                        .remove(&entry.provider_id)
+                        .filter(|(old, layer)| old == entry && provider.has_same_transition(layer))
+                        .map_or_else(|| provider.materialize(), |(_, layer)| layer)
+                }),
+        );
+        *previous = signature;
+        drop(layers);
+        drop(previous);
 
         let root_children = self.children.get();
         for child in root_children.iter() {
@@ -4240,19 +4416,6 @@ impl ExpandedNode {
             child.recurse_reapply_runtime_settings_for_component_owner(self.id, context);
             child.recurse_emit_mount_updates();
         }
-    }
-
-    fn settings_discovery_dependencies(
-        &self,
-        dependencies: &mut Vec<pax_runtime_api::properties::UntypedProperty>,
-    ) {
-        dependencies.push(self.children.untyped());
-        let mut revision = self.settings_source_revision.borrow_mut();
-        dependencies.push(
-            revision
-                .get_or_insert_with(|| LocalProperty::new(0))
-                .untyped(),
-        );
     }
 
     fn invalidate_settings_source(&self) {
@@ -5186,22 +5349,9 @@ impl ExpandedNode {
     }
 }
 
-fn is_import_settings_type_id(type_id: Option<&TypeId>) -> bool {
-    // Discovery visits ordinary nodes too. Borrow the name rather than allocating
-    // a Pascal identifier for every visit; keep the existing name-based identity.
-    matches!(
-        type_id.map(TypeId::get_pax_type),
-        Some(
-            PaxType::Primitive { pascal_identifier }
-                | PaxType::Singleton { pascal_identifier }
-                | PaxType::BlankComponent { pascal_identifier }
-        ) if pascal_identifier == "ImportSettings"
-    )
-}
-
 #[cfg(test)]
 mod import_settings_identity_tests {
-    use super::is_import_settings_type_id;
+    use crate::rendering::is_import_settings_type_id;
     use pax_manifest::{binary, PaxManifest, TypeId};
 
     #[test]
