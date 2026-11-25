@@ -1,8 +1,12 @@
 //! Experimental, host-serviced initial mounting. A continuation owns identities
 //! and phase cursors only; no property evaluation or borrow crosses a host yield.
 use super::occlusion;
+use super::selection_policy::live::{Mounts, Unit as SelectionUnit};
+pub(crate) mod admission;
 pub mod plan;
 mod profile;
+pub mod selection_capture;
+pub(crate) mod visible_groups;
 use crate::{ExpandedNode, ExpandedNodeIdentifier, PaxEngine, RuntimeContext};
 use pax_runtime_api::properties;
 pub use plan::{StartupAxes, StartupDemand, StartupPlan};
@@ -28,10 +32,29 @@ pub(crate) struct Startup {
     active: bool,
     ready: bool,
     viewport_published: bool,
+    background: bool,
+    viewport_order: bool,
+    viewport_changed: bool,
+    classifying_frontier: bool,
+    warm_turn: bool,
+    admission_counts: [u32; 3],
+    // Structural effects can realize an admitted parent's children in a later
+    // foreground tick. Keep those initial descendants under the same budget.
+    background_parents: HashSet<(ExpandedNodeIdentifier, u64)>,
+    awaiting_background_settlement: bool,
     settling_viewport: bool,
     measurements_ready: bool,
+    prioritize_owners: bool,
+    pub(super) live_mounts: Option<Mounts>,
+    pub(super) share_viewport_demand: bool,
+    enqueue_order: u32,
+    resume_mode: u8,
+    measure_selection: bool,
+    admission_view: Option<crate::viewport_proximity::AdmissionView>,
+    rank_stats: crate::viewport_proximity::RankStats,
+    spatial: admission::AdmissionQueue,
     incoming: Vec<PendingMount>,
-    stack: Vec<PendingMount>,
+    stack: VecDeque<PendingMount>,
     deferred: VecDeque<PendingMount>,
     plans: HashMap<(ExpandedNodeIdentifier, u64), (StartupDemand, Rc<StartupRequirements>)>,
     demands: HashMap<(ExpandedNodeIdentifier, u64), StartupDemand>,
@@ -47,6 +70,11 @@ pub(crate) struct Startup {
     draining_background_effects: bool,
 }
 
+impl Startup {
+    pub(super) fn accepts_mount_input(&self) -> bool {
+        self.active || self.background
+    }
+}
 fn startup_key(node: &ExpandedNode) -> (ExpandedNodeIdentifier, u64) {
     (
         node.id,
@@ -57,12 +85,38 @@ fn startup_key(node: &ExpandedNode) -> (ExpandedNodeIdentifier, u64) {
 }
 
 #[derive(Clone)]
-struct PendingMount {
-    parent: Weak<ExpandedNode>,
-    child: Weak<ExpandedNode>,
-    parent_epoch: u64,
-    child_epoch: u64,
-    key: (ExpandedNodeIdentifier, u64, ExpandedNodeIdentifier, u64),
+pub(super) struct PendingMount {
+    pub(super) arrival: u32,
+    pub(super) parent: Weak<ExpandedNode>,
+    pub(super) child: Weak<ExpandedNode>,
+    pub(super) parent_epoch: u64,
+    pub(super) child_epoch: u64,
+    pub(super) key: (ExpandedNodeIdentifier, u64, ExpandedNodeIdentifier, u64),
+}
+
+impl PendingMount {
+    pub(super) fn legal_now(&self) -> bool {
+        self.parent
+            .upgrade()
+            .zip(self.child.upgrade())
+            .is_some_and(|(p, c)| self.runnable(&p, &c))
+    }
+    pub(super) fn runnable(&self, parent: &Rc<ExpandedNode>, child: &Rc<ExpandedNode>) -> bool {
+        child.attached.get() == 0
+            && parent.mount_epoch.get() == self.parent_epoch
+            && child.mount_epoch.get() == self.child_epoch
+            && parent.accepts_pending_child(child)
+            && (child
+                .render_parent_node()
+                .is_some_and(|p| Rc::ptr_eq(&p, parent))
+                // Overlays escape render ancestry but remain owned by the
+                // attachment that queued their mount. Validate that attachment
+                // so a stale continuation cannot mount a removed contribution.
+                || (child.instance_node.borrow().is_overlay()
+                    && child.authored_attachment.borrow().as_ref().is_some_and(|a| {
+                        a.parent.upgrade().is_some_and(|p| Rc::ptr_eq(&p, parent))
+                    })))
+    }
 }
 
 enum MountOutcome {
@@ -109,6 +163,11 @@ pub struct StartupReport {
 }
 
 impl RuntimeContext {
+    pub(super) fn settled_admission(&self) {
+        self.startup.borrow_mut().awaiting_background_settlement = false;
+        self.visible_groups.borrow_mut().did_settle();
+    }
+
     pub(crate) fn startup_phase(&self, name: &'static str) -> Option<StartupPhaseGuard> {
         let state = self.startup.borrow();
         if !state.active {
@@ -199,9 +258,11 @@ impl RuntimeContext {
 
     fn should_defer_startup_child(&self, child: &ExpandedNode) -> bool {
         let _phase = self.startup_phase("mount.classify");
-        if !self.startup.borrow().is_prioritizing() {
+        let state = self.startup.borrow();
+        if !state.is_prioritizing() && !(state.background && state.viewport_order) {
             return false;
         }
+        drop(state);
         self.startup_demand(child).is_none()
     }
 
@@ -249,62 +310,177 @@ impl RuntimeContext {
             child.id,
             child.mount_epoch.get(),
         );
+        if startup.background
+            && !startup
+                .background_parents
+                .contains(&(parent.id, parent.mount_epoch.get()))
+        {
+            return startup.queued.contains(&key);
+        }
         if startup.queued.insert(key) {
-            startup.incoming.push(PendingMount {
+            startup.enqueue_order = startup
+                .enqueue_order
+                .checked_add(1)
+                .expect("mount enqueue identity exhausted");
+            let work = PendingMount {
+                arrival: startup.enqueue_order,
                 parent: Rc::downgrade(parent),
                 child: Rc::downgrade(child),
                 parent_epoch: parent.mount_epoch.get(),
                 child_epoch: child.mount_epoch.get(),
                 key,
-            });
+            };
+            self.visible_groups.borrow_mut().queue(parent, child, &work);
+
+            startup.incoming.push(work);
         }
         true
     }
 
-    fn mount_one_pending(self: &Rc<Self>) -> Option<MountOutcome> {
-        let pending = {
-            let mut state = self.startup.borrow_mut();
-            let incoming = std::mem::take(&mut state.incoming);
+    fn take_ordinary_mount(&self) -> (Option<PendingMount>, bool) {
+        let mut state = self.startup.borrow_mut();
+        let incoming = std::mem::take(&mut state.incoming);
+        if state.background {
+            for child in incoming {
+                state.stack.push_front(child);
+            }
+        } else {
             state.stack.extend(incoming.into_iter().rev());
-            state.stack.pop()
+        }
+        if std::mem::take(&mut state.warm_turn) {
+            // Charge an unsuccessful priority lookup to one real FIFO mount.
+            // Even a continuously moving scroller cannot consume every slice
+            // reclassifying the same detached roots.
+            let pending = state
+                .deferred
+                .pop_front()
+                .or_else(|| state.stack.pop_back());
+            (pending, true)
+        } else if state.stack.is_empty() && state.background && state.viewport_order {
+            // A changing viewport may invalidate priorities while a pass is
+            // running. Consume at least one waiting mount before revisiting
+            // that same frontier again.
+            state.classifying_frontier = false;
+            (state.deferred.pop_front(), true)
+        } else {
+            (state.stack.pop_back(), false)
+        }
+    }
+
+    fn take_spatial_mount(
+        &self,
+        view: &mut crate::viewport_proximity::AdmissionView,
+    ) -> Option<PendingMount> {
+        let started = view.measuring().then(web_time::Instant::now);
+        view.begin_choice(self);
+        let (mut queue, mut incoming) = {
+            let mut state = self.startup.borrow_mut();
+            let mut incoming = std::mem::take(&mut state.incoming);
+            // Gradually transfer the old breadth frontier when the user first scrolls.
+            for _ in 0..4 {
+                let Some(pending) = state.stack.pop_back() else {
+                    break;
+                };
+                incoming.push(pending);
+            }
+            (std::mem::take(&mut state.spatial), incoming)
+        };
+        for work in incoming.drain(..) {
+            let priority = work
+                .parent
+                .upgrade()
+                .map_or(admission::Priority::Background, |parent| {
+                    self.admission_priority(&parent, view)
+                });
+            queue.push(work, priority);
+        }
+        // Recheck the provisional winner and one other live owner. A scroll
+        // reversal and late layout feedback cannot strand an old classification.
+        for owner in [queue.next_to_refresh(), queue.first()]
+            .into_iter()
+            .flatten()
+        {
+            if let Some(parent) = self
+                .get_expanded_node_by_eid(owner.0)
+                .filter(|p| p.mount_epoch.get() == owner.1)
+            {
+                queue.rerank(owner, self.admission_priority(&parent, view));
+            }
+        }
+        selection_capture::before(self, &queue);
+        let pending = self
+            .visible_groups
+            .borrow_mut()
+            .next(self, view, &mut queue)
+            .or_else(|| queue.pop());
+        selection_capture::after(pending.as_ref());
+        self.startup.borrow_mut().spatial = queue;
+        if let Some(started) = started {
+            let ms = started.elapsed().as_secs_f64() * 1000.;
+            if view.first {
+                view.stats.first_choices += 1;
+                view.stats.first_choice_ms += ms;
+            } else {
+                view.stats.later_choice_ms += ms;
+            }
+        }
+        view.first = false;
+        pending
+    }
+
+    fn mount_one_pending(
+        self: &Rc<Self>,
+        view: Option<&mut crate::viewport_proximity::AdmissionView>,
+    ) -> Option<MountOutcome> {
+        let (pending, warm) = if let Some(view) = view {
+            (self.take_spatial_mount(view), true)
+        } else {
+            self.take_ordinary_mount()
         };
         let Some(pending) = pending else {
             return None;
         };
+        self.apply_pending(pending, warm)
+    }
+    fn apply_pending(self: &Rc<Self>, pending: PendingMount, warm: bool) -> Option<MountOutcome> {
         let Some(child) = pending.child.upgrade() else {
             self.startup.borrow_mut().queued.remove(&pending.key);
+            self.visible_groups.borrow_mut().discard_work(&pending);
             return Some(MountOutcome::Stale);
         };
         let Some(parent) = pending.parent.upgrade() else {
             self.startup.borrow_mut().queued.remove(&pending.key);
+            self.visible_groups.borrow_mut().discard_work(&pending);
             return Some(MountOutcome::Stale);
         };
-        if child.attached.get() == 0
-            && parent.mount_epoch.get() == pending.parent_epoch
-            && child.mount_epoch.get() == pending.child_epoch
-            && parent.accepts_pending_child(&child)
-            && (child
-                .render_parent_node()
-                .is_some_and(|p| Rc::ptr_eq(&p, &parent))
-                // Overlays escape render ancestry but remain owned by the
-                // attachment that queued their mount. Validate that attachment
-                // so a stale continuation cannot mount a removed contribution.
-                || (child.instance_node.borrow().is_overlay()
-                    && child.authored_attachment.borrow().as_ref().is_some_and(|a| {
-                        a.parent.upgrade().is_some_and(|p| Rc::ptr_eq(&p, &parent))
-                    })))
-        {
-            if self.should_defer_startup_child(&child) {
-                self.startup.borrow_mut().deferred.push_back(pending);
+        if pending.runnable(&parent, &child) {
+            if !warm && self.should_defer_startup_child(&child) {
+                let mut state = self.startup.borrow_mut();
+                state.warm_turn = state.background && state.viewport_order;
+                state.deferred.push_back(pending);
                 return Some(MountOutcome::Deferred);
             }
-            self.startup.borrow_mut().queued.remove(&pending.key);
+            {
+                let mut state = self.startup.borrow_mut();
+                state.queued.remove(&pending.key);
+                if state.background {
+                    state.background_parents.insert(startup_key(&child));
+                    state.awaiting_background_settlement = true;
+                }
+            }
+
+            self.visible_groups
+                .borrow_mut()
+                .before_mount(&child, self.startup.borrow().background);
+
             child.recurse_mount(self);
             parent.finish_pending_child(&child, self);
+            selection_capture::mounted(self, &pending, &child);
             return Some(MountOutcome::Mounted(child));
         } else {
             self.startup.borrow_mut().queued.remove(&pending.key);
         }
+        self.visible_groups.borrow_mut().discard_work(&pending);
         Some(MountOutcome::Stale)
     }
 }
@@ -367,7 +543,7 @@ impl PaxEngine {
     /// advance application time or replay already-dispatched lifecycle handlers.
     pub fn request_startup_settlement(&mut self) {
         let mut state = self.runtime_context.startup.borrow_mut();
-        if !state.active || state.is_prioritizing() {
+        if !state.active || state.background || state.is_prioritizing() {
             return;
         }
         if let Some(profile) = &mut state.profile {
@@ -478,6 +654,255 @@ impl PaxEngine {
         }
     }
 
+    /// Transfer the remaining mount identities to the ordinary frame loop after
+    /// the host has acknowledged the first viewport. Pending nodes stay detached.
+    pub fn begin_background_mounting(&mut self) -> bool {
+        {
+            let state = self.runtime_context.startup.borrow();
+            if !state.active || !state.ready || state.viewport_published {
+                return false;
+            }
+        }
+        self.resume_startup_after_presentation();
+        self.runtime_context
+            .visible_groups
+            .borrow_mut()
+            .first_viewport_published();
+        self.runtime_context.startup.borrow_mut().background = true;
+        true
+    }
+
+    /// Select the cold, retained, or checked priority path in the startup experiment.
+    pub fn configure_admission_resumption(&self, mode: u8, measure: bool) {
+        let mut state = self.runtime_context.startup.borrow_mut();
+        state.resume_mode = mode;
+        state.measure_selection = measure;
+        state.admission_view = None;
+        state.rank_stats = Default::default();
+        self.runtime_context.admission_changes.borrow_mut().enabled = mode != 0;
+    }
+
+    /// Snapshot cumulative selection work without disturbing queue order.
+    pub fn admission_rank_stats(&self) -> crate::viewport_proximity::RankStats {
+        self.runtime_context.startup.borrow().rank_stats
+    }
+
+    pub fn prioritize_background_owners(&self) {
+        let mut state = self.runtime_context.startup.borrow_mut();
+        if state.background && !state.viewport_order {
+            state.prioritize_owners = true;
+        }
+    }
+
+    pub fn background_counts(&self) -> [u32; 6] {
+        let state = self.runtime_context.startup.borrow();
+        let [m, d, s] = state.admission_counts;
+        [
+            m,
+            d,
+            s,
+            state.incoming.len() as u32,
+            (state.stack.len()
+                + state.spatial.len
+                + state.live_mounts.as_ref().map_or(0, Mounts::len)) as u32,
+            state.deferred.len() as u32,
+        ]
+    }
+
+    pub fn use_viewport_order(&mut self) {
+        let mut state = self.runtime_context.startup.borrow_mut();
+        state.viewport_order = true;
+        state.viewport_changed = true;
+    }
+
+    pub fn refresh_background_viewport(&self) {
+        let mut state = self.runtime_context.startup.borrow_mut();
+        if state.background && state.viewport_order {
+            state.viewport_changed = true;
+        }
+    }
+
+    pub fn admission_can_continue(&self) -> bool {
+        let ctx = &self.runtime_context;
+        let s = ctx.startup.borrow();
+        let _g = ctx.property_graph.enter();
+        s.background
+            && (s.live_mounts.as_ref().is_some_and(|l| l.len() != 0)
+                || s.spatial.len > 0
+                || !s.stack.is_empty()
+                || !s.incoming.is_empty()
+                || !s.deferred.is_empty())
+            && properties::pending_effect_count() < BACKGROUND_EFFECT_LIMIT
+    }
+    pub fn has_indexed_mounts(&self) -> bool {
+        let s = self.runtime_context.startup.borrow();
+        s.share_viewport_demand
+            || (s.accepts_mount_input()
+                && s.live_mounts.as_ref().is_some_and(|l| {
+                    l.needs_first_observation() || (s.background && s.prioritize_owners)
+                }))
+    }
+    /// Diagnostic existence witness. Stops at the first attached parent whose queued child is legal.
+    pub fn has_runnable_background_mount(&self) -> bool {
+        let s = self.runtime_context.startup.borrow();
+        s.background
+            && (s
+                .incoming
+                .iter()
+                .chain(s.stack.iter())
+                .chain(s.deferred.iter())
+                .chain(s.spatial.all_pending())
+                .any(PendingMount::legal_now)
+                || s.live_mounts.as_ref().is_some_and(Mounts::any_legal))
+    }
+    fn service_indexed_frontier(&self, deadline: f64, now: &mut impl FnMut() -> f64) -> bool {
+        let ctx = &self.runtime_context;
+        let mut live = ctx
+            .startup
+            .borrow_mut()
+            .live_mounts
+            .take()
+            .expect("active mount frontier");
+        live.begin_grant();
+        let mounted = live.counts.mounted;
+        loop {
+            let start = web_time::Instant::now();
+            let incoming = {
+                let mut state = ctx.startup.borrow_mut();
+                state
+                    .incoming
+                    .pop()
+                    .or_else(|| state.stack.pop_back())
+                    .or_else(|| state.deferred.pop_front())
+            };
+            let action = live.step(ctx, incoming);
+            let mut maintenance = false;
+            match action {
+                SelectionUnit::Empty => break,
+                SelectionUnit::Maintenance => maintenance = true,
+                SelectionUnit::Mount(work) => {
+                    let id = work.key.2.to_u32();
+                    // Release the scheduler's borrow before running user hooks
+                    // or synchronous reads. Attachments append to ordinary ingress.
+                    ctx.startup.borrow_mut().live_mounts = Some(live);
+                    let t = web_time::Instant::now();
+                    let outcome = ctx
+                        .apply_pending(work, true)
+                        .expect("selected a mount unit");
+                    let okay = matches!(outcome, MountOutcome::Mounted(_));
+                    let mut s = ctx.startup.borrow_mut();
+                    s.admission_counts[if okay { 0 } else { 2 }] += 1;
+                    live = s.live_mounts.take().expect("active mount frontier");
+                    drop(s);
+                    live.finish_mount(
+                        ctx,
+                        id,
+                        okay,
+                        t.elapsed().as_micros().min(u32::MAX as u128) as u32,
+                    );
+                }
+            }
+            live.counted(start.elapsed().as_secs_f64() * 1000., maintenance);
+            if now() >= deadline {
+                break;
+            }
+        }
+        if live.counts.mounted > mounted {
+            live.counts.grants_with_mount += 1;
+        } else {
+            live.counts.slices_all_maintenance += 1;
+        }
+        ctx.startup.borrow_mut().live_mounts = Some(live);
+        true
+    }
+    /// Admit a batch before an ordinary tick. That tick settles its effects and
+    /// runs lifecycle handlers on the mounted tree. Return whether more work exists.
+    pub fn service_background_mounts(
+        &mut self,
+        budget_ms: f64,
+        mut now_ms: impl FnMut() -> f64,
+    ) -> bool {
+        let ctx = &self.runtime_context;
+        if !ctx.startup.borrow().background {
+            return false;
+        }
+        {
+            let mut state = ctx.startup.borrow_mut();
+            if std::mem::take(&mut state.viewport_changed) {
+                state.plans.clear();
+                state.demands.clear();
+                state.measured.clear();
+                state.measurements_ready = true;
+                // Reclassify one pending identity at a time. Never traverse the mounted tree.
+                if !state.classifying_frontier {
+                    let parked = std::mem::take(&mut state.deferred);
+                    state.stack.extend(parked.into_iter().rev());
+                    state.classifying_frontier = true;
+                }
+            }
+            if state.live_mounts.as_ref().is_none_or(|l| l.len() == 0)
+                && state.spatial.len == 0
+                && state.stack.is_empty()
+                && state.incoming.is_empty()
+                && state.deferred.is_empty()
+            {
+                if state.awaiting_background_settlement {
+                    return true;
+                }
+                state.background = false;
+                state.admission_view = None;
+                *ctx.admission_changes.borrow_mut() = Default::default();
+                state.active = false;
+                state.background_parents.clear();
+                state.spatial = Default::default();
+                state.resolvers.clear();
+                state.measurement_axes.clear();
+                return false;
+            }
+        }
+        let deadline = now_ms() + budget_ms;
+        let _graph = ctx.property_graph.enter();
+
+        if ctx.startup.borrow().prioritize_owners && ctx.startup.borrow().live_mounts.is_some() {
+            return self.service_indexed_frontier(deadline, &mut now_ms);
+        }
+        let mut view = {
+            let mut state = ctx.startup.borrow_mut();
+            state.prioritize_owners.then(|| {
+                let mut view = state.admission_view.take().unwrap_or_else(|| {
+                    let mut v = ctx.new_admission_view(state.resume_mode, state.measure_selection);
+                    v.stats = state.rank_stats;
+                    v
+                });
+                view.first = true;
+                view
+            })
+        };
+        loop {
+            let Some(outcome) = ctx.mount_one_pending(view.as_mut()) else {
+                break;
+            };
+            let index = match outcome {
+                MountOutcome::Mounted(_) => 0,
+                MountOutcome::Deferred => 1,
+                MountOutcome::Stale => 2,
+            };
+            ctx.startup.borrow_mut().admission_counts[index] += 1;
+            if now_ms() >= deadline {
+                break;
+            }
+        }
+        if let Some(view) = view {
+            let mut state = ctx.startup.borrow_mut();
+            state.rank_stats = view.stats;
+            if state.resume_mode != 0 {
+                state.admission_view = Some(view);
+            }
+        }
+        // The following ordinary tick may enqueue children of the last parent.
+        true
+    }
+
     /// Service part of the first logical tick without advancing it once per host
     /// slice. Native patches may be drained between calls for measurement, but
     /// rendering waits for `prepare_startup_presentation`. A ready checkpoint can
@@ -539,7 +964,7 @@ impl PaxEngine {
             if drained_background {
                 report.effects += 1;
                 name = "effect";
-            } else if let Some(outcome) = ctx.mount_one_pending() {
+            } else if let Some(outcome) = ctx.mount_one_pending(None) {
                 report.mounted += 1;
                 name = "mount";
                 if let Some(profile) = &mut profile {
@@ -752,8 +1177,12 @@ impl Startup {
         !self.active || self.viewport_published
     }
 
+    pub(crate) fn holds_foreground_tick(&self) -> bool {
+        self.active && !self.background
+    }
+
     pub(crate) fn blocks_presentation(&self) -> bool {
-        self.active && !self.ready
+        self.active && !self.background && !self.ready
     }
 }
 
@@ -806,7 +1235,19 @@ mod tests {
     use crate::api::NodeContext;
 
     thread_local! { static CALLS: RefCell<Vec<(&'static str, u32)>> = RefCell::new(Vec::new()); }
+    thread_local! {
+        static REPLAY_READS: RefCell<Option<Vec<(u32, (f64, f64))>>> = const { RefCell::new(None) };
+    }
     fn mount(_: Rc<RefCell<PaxAny>>, ctx: &NodeContext, _: Option<PaxAny>) {
+        REPLAY_READS.with_borrow_mut(|reads| {
+            if let Some(reads) = reads {
+                reads.push((
+                    ctx.expanded_node.upgrade().unwrap().id.0,
+                    ctx.bounds_self.get(),
+                ));
+            }
+        });
+
         CALLS.with_borrow_mut(|v| v.push(("mount", ctx.expanded_node.upgrade().unwrap().id.0)));
     }
     fn tick(_: Rc<RefCell<PaxAny>>, ctx: &NodeContext, _: Option<PaxAny>) {
@@ -1712,5 +2153,496 @@ mod tests {
         assert!(!ctx.accepts_startup_input(&root));
         drop(guard);
         assert!(ctx.accepts_startup_input(&root));
+    }
+    #[test]
+    fn visible_group_releases_only_its_own_mounted_lifetime() {
+        struct Output<const NATIVE: bool>(crate::BaseInstance);
+        impl<const NATIVE: bool> InstanceNode for Output<NATIVE> {
+            fn instantiate(args: InstantiationArgs) -> Rc<Self> {
+                Rc::new(Self(crate::BaseInstance::new(
+                    args,
+                    crate::InstanceFlags {
+                        invisible_to_slot: false,
+                        invisible_to_raycasting: false,
+                        layer: if NATIVE {
+                            crate::api::Layer::Native
+                        } else {
+                            crate::api::Layer::Canvas
+                        },
+                        is_component: false,
+                        is_slot: false,
+                    },
+                )))
+            }
+            fn base(&self) -> &crate::BaseInstance {
+                &self.0
+            }
+            fn awaits_native_first_content(&self) -> bool {
+                NATIVE
+            }
+            fn resolve_debug(
+                &self,
+                f: &mut std::fmt::Formatter,
+                _: Option<&ExpandedNode>,
+            ) -> std::fmt::Result {
+                f.write_str("TestOutput")
+            }
+        }
+        let args = || InstantiationArgs {
+            prototypical_common_properties: crate::CommonPropertiesInit::Default,
+            prototypical_properties: crate::PropertiesInit::Factory(Box::new(|_, _| {
+                Some(Rc::new(RefCell::new(PaxAny::Builtin(PaxValue::default()))))
+            })),
+            handler_registry: None,
+            children: None,
+            component_template: None,
+            component_settings: None,
+            component_camera: None,
+            template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
+            transition_config: Default::default(),
+            properties_scope: crate::PropertiesScopeInit::None,
+        };
+        let shell = |x, selected: bool| {
+            use pax_runtime_api::pax_value::ToFromPaxAny;
+            let mut branch = args();
+            branch.children = Some(RefCell::new(vec![
+                Output::<true>::instantiate(args()),
+                Output::<false>::instantiate(args()),
+            ]));
+            branch.prototypical_properties =
+                crate::PropertiesInit::Factory(Box::new(move |_, existing| {
+                    existing.is_none().then(|| {
+                        Rc::new(RefCell::new(
+                            crate::ConditionalProperties {
+                                boolean_expression: pax_runtime_api::LocalProperty::new(selected),
+                                conditional_branches: vec![],
+                            }
+                            .to_pax_any(),
+                        ))
+                    })
+                }));
+            box_at(x, vec![crate::ConditionalInstance::instantiate(branch)])
+        };
+        let mut engine = new_engine();
+        let ctx = Rc::clone(&engine.runtime_context);
+        ctx.configure_visible_groups(true);
+        engine.hold_presentation();
+        REPLAY_READS.with_borrow_mut(|r| *r = Some(Vec::new()));
+        let root = engine.mount_root_component(component(vec![
+            box_at(0., vec![]),
+            shell(1000., true),
+            shell(2000., true),
+            shell(3000., false),
+        ]));
+        assert!(reach_checkpoint(&mut engine).pending);
+        assert!(engine.begin_background_mounting());
+        engine.publish_presentation();
+        for _ in 0..64 {
+            let mut clock = 0.;
+            let more = engine.service_background_mounts(2., || {
+                clock += 1.;
+                clock
+            });
+            let ordinary = root.current_attached_children();
+            for (id, _, resources) in ctx.ready_visible_groups() {
+                let node = ordinary.iter().find(|n| n.id.to_u32() == id).unwrap();
+                let pax_runtime_api::Size::Pixels(px) =
+                    node.get_common_properties().borrow().x.get().unwrap()
+                else {
+                    unreachable!()
+                };
+                let x = px.to_float();
+                if x < 2900. {
+                    assert_eq!(
+                        resources.len(),
+                        1,
+                        "selected lazy child was still undiscovered"
+                    );
+                }
+            }
+            engine.tick();
+            if !more {
+                break;
+            }
+        }
+        let _graph = ctx.property_graph.enter();
+        let ready = ctx.ready_visible_groups();
+        assert_eq!(ready.len(), 3);
+        assert_eq!(ready[2].2.len(), 0);
+        let (a, ae, ar) = &ready[0];
+        let (b, be, br) = &ready[1];
+        assert_eq!((ar.len(), br.len()), (1, 1));
+        assert!(
+            ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(ar[0]))
+                .unwrap()
+                .attached
+                .get()
+                > 0
+        );
+        assert_eq!(root.current_attached_children().len(), 4);
+        assert_eq!(root.mounted_presentation_children(&ctx).len(), 1);
+        assert!(!ctx.open_visible_group(*a, ae.wrapping_add(1)));
+        assert!(ctx.open_visible_group(*a, *ae));
+        assert!(!ctx.open_visible_group(*a, *ae));
+        assert_eq!(root.mounted_presentation_children(&ctx).len(), 2);
+        assert_eq!(ctx.hidden_native_group_members(&[ar[0], br[0]]), [br[0]]);
+        let reads = REPLAY_READS.with_borrow_mut(|r| r.take().unwrap());
+        for id in [a, b] {
+            assert_eq!(
+                reads
+                    .iter()
+                    .filter(|r| r.0 == *id && r.1 == (100., 100.))
+                    .count(),
+                1
+            );
+        }
+        let (inactive, initial_publication, _) = ready[2];
+        assert!(ctx.open_visible_group(inactive, initial_publication));
+        let conditional = ctx
+            .get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(inactive))
+            .unwrap()
+            .current_attached_children()[0]
+            .clone();
+        let condition =
+            conditional.with_properties_unwrapped(|p: &mut crate::ConditionalProperties| {
+                p.boolean_expression.clone()
+            });
+        condition.set(true);
+        let first = conditional.children.get();
+        assert_eq!(first.len(), 2);
+        assert!(first.iter().all(|n| n.attached.get() == 1));
+        assert_eq!(first[0].transform_and_bounds.get().bounds, (100., 100.));
+        engine.tick();
+        let selected = |ctx: &RuntimeContext| {
+            ctx.ready_visible_groups()
+                .into_iter()
+                .find(|(id, _, _)| *id == conditional.id.to_u32())
+                .unwrap()
+        };
+        let (_, old, old_resources) = selected(&ctx);
+        assert_eq!(old_resources, [first[0].id.to_u32()]);
+        assert_eq!(
+            ctx.hidden_native_group_members(&old_resources),
+            old_resources
+        );
+        condition.set(false);
+        assert!(conditional.children.get().is_empty());
+        assert!(first.iter().all(|n| n.attached.get() == 0));
+        condition.set(true);
+        let replacement = conditional.children.get();
+        engine.tick();
+        let (id, current, resources) = selected(&ctx);
+        assert_ne!(current, old);
+        assert!(!ctx.open_visible_group(id, old));
+        assert_eq!(resources, [replacement[0].id.to_u32()]);
+        assert!(ctx.open_visible_group(id, current));
+        assert!(ctx.hidden_native_group_members(&resources).is_empty());
+        engine.unmount();
+        assert!(!ctx.open_visible_group(*b, *be));
+        assert!(ctx.ready_visible_groups().is_empty());
+    }
+    #[test]
+    fn foreground_ticks_while_initial_mounts_are_parked_then_admitted() {
+        let mut engine = new_engine();
+        engine.hold_presentation();
+        let root = engine.mount_root_component(component(vec![
+            box_at(0., vec![]),
+            box_at(500., vec![component(vec![])]),
+        ]));
+        assert!(reach_checkpoint(&mut engine).pending);
+        assert!(engine.accept_startup_measurements());
+        assert!(engine.begin_background_mounting());
+        let parked = root.children.get()[1].clone();
+        engine.publish_presentation();
+        for frame in 1..=3 {
+            engine.tick();
+            assert_eq!(parked.attached.get(), 0);
+            assert_eq!(engine.runtime_context.globals().elapsed_frames.get(), frame);
+        }
+        assert!(engine.service_background_mounts(0., || 0.));
+        engine.tick();
+        assert_eq!(parked.attached.get(), 1);
+        for _ in 0..20 {
+            if !engine.service_background_mounts(0., || 0.) {
+                break;
+            }
+            engine.tick();
+        }
+        assert!(!engine.startup_pending());
+        assert_eq!(parked.children.get()[0].attached.get(), 1);
+        CALLS.with_borrow(|calls| {
+            assert_eq!(
+                calls
+                    .iter()
+                    .filter(|&&(kind, id)| kind == "mount" && id == parked.id.0)
+                    .count(),
+                1
+            );
+        });
+    }
+
+    #[test]
+    fn indexed_mount_dispatch_preserves_hook_lifetimes_and_synchronous_bounds_across_yields() {
+        fn run(indexed: bool) -> (Vec<(u32, (f64, f64))>, Vec<u32>) {
+            let mut engine = new_engine();
+            engine.hold_presentation();
+            REPLAY_READS.with_borrow_mut(|r| *r = Some(Vec::new()));
+            let root = engine.mount_root_component(component(
+                (0..7)
+                    .map(|i| {
+                        box_at(
+                            400. * i as f64,
+                            vec![box_at(0., vec![]), box_at(2., vec![])],
+                        ) as Rc<dyn InstanceNode>
+                    })
+                    .collect(),
+            ));
+            assert!(reach_checkpoint(&mut engine).pending);
+            assert!(engine.begin_background_mounting());
+            engine.configure_admission_resumption(1, false);
+            if indexed {
+                engine.enable_indexed_mounts(0.);
+                engine.observe_mount_hosts(
+                    0.,
+                    [0., 0., 300., 300.],
+                    &Default::default(),
+                    &[],
+                    250.,
+                );
+            }
+            engine.prioritize_background_owners();
+            engine.publish_presentation();
+            for turn in 0..600 {
+                if indexed && turn == 10 {
+                    engine.observe_mount_hosts(
+                        10.,
+                        [600., 0., 900., 300.],
+                        &Default::default(),
+                        &[],
+                        250.,
+                    );
+                }
+                let more = engine.service_background_mounts(0., || 0.);
+                engine.tick();
+                if !more {
+                    break;
+                }
+            }
+            assert!(!engine.startup_pending());
+            if indexed {
+                let state = engine.runtime_context.startup.borrow();
+                let counts = &state.live_mounts.as_ref().unwrap().counts;
+                assert!(counts.mounted > 0 && counts.slices_all_maintenance > 0);
+            }
+            let hooks = CALLS.with_borrow(|v| {
+                v.iter()
+                    .filter(|p| p.0 == "mount")
+                    .map(|p| p.1)
+                    .collect::<Vec<_>>()
+            });
+            let mut todo = vec![root.clone()];
+            while let Some(parent) = todo.pop() {
+                for n in parent.children.get() {
+                    assert_eq!(n.attached.get(), 1);
+                    let before = hooks.iter().position(|&id| id == parent.id.0).unwrap();
+                    let after = hooks.iter().position(|&id| id == n.id.0).unwrap();
+                    assert!(before < after);
+                    todo.push(n);
+                }
+            }
+            let mut ids: Vec<_> = hooks.into_iter().map(|id| id - root.id.0).collect();
+            ids.sort_unstable();
+            assert!(ids.windows(2).all(|i| i[0] != i[1]));
+            let mut reads = REPLAY_READS.with_borrow_mut(|r| r.take().unwrap());
+            for r in &mut reads {
+                r.0 -= root.id.0;
+            }
+            reads.sort_by_key(|r| r.0);
+            (reads, ids)
+        }
+        assert_eq!(run(false), run(true));
+    }
+
+    #[test]
+    fn indexed_mount_discards_a_replaced_branch_and_drains_its_new_lifetime() {
+        let mut engine = new_engine();
+        engine.hold_presentation();
+        let root = engine.mount_root_component(component(
+            (0..8)
+                .map(|i| box_at(3000. + 400. * i as f64, vec![]) as Rc<dyn InstanceNode>)
+                .collect(),
+        ));
+        assert!(reach_checkpoint(&mut engine).pending);
+        assert!(engine.begin_background_mounting());
+        engine.enable_indexed_mounts(0.);
+        engine.observe_mount_hosts(0., [0., 0., 320., 240.], &Default::default(), &[], 250.);
+        engine.prioritize_background_owners();
+        engine.publish_presentation();
+        let mut children = root.children.get();
+        let retired = children[3].clone();
+        for _ in 0..40 {
+            if engine
+                .runtime_context
+                .startup
+                .borrow()
+                .live_mounts
+                .as_ref()
+                .unwrap()
+                .len()
+                == children.len()
+            {
+                break;
+            }
+            assert!(engine.service_background_mounts(0., || 0.));
+            engine.tick();
+        }
+        assert_eq!(
+            engine
+                .runtime_context
+                .startup
+                .borrow()
+                .live_mounts
+                .as_ref()
+                .unwrap()
+                .len(),
+            children.len()
+        );
+        assert_eq!(retired.attached.get(), 0);
+        let replacement = root
+            .create_children_detached(
+                [(
+                    box_at(10., vec![]) as Rc<dyn InstanceNode>,
+                    root.stack.clone(),
+                )],
+                &engine.runtime_context,
+                &Rc::downgrade(&root),
+            )
+            .remove(0);
+        children[3] = replacement.clone();
+        root.attach_children(children, &engine.runtime_context, &root.parent_frame);
+        for _ in 0..600 {
+            if !engine.service_background_mounts(0., || 0.) {
+                break;
+            }
+            engine.tick();
+        }
+        assert!(!engine.startup_pending());
+        assert_eq!(retired.attached.get(), 0);
+        assert_eq!(replacement.attached.get(), 1);
+        let active = root.current_attached_children();
+        assert_eq!(active.len(), 8);
+        assert!(!active.iter().any(|n| n.id == retired.id));
+        CALLS.with_borrow(|calls| {
+            assert!(!calls.contains(&("mount", retired.id.0)));
+            assert_eq!(
+                calls
+                    .iter()
+                    .filter(|(kind, id)| *kind == "mount" && *id == replacement.id.0)
+                    .count(),
+                1
+            );
+        });
+        engine.unmount();
+        assert!(!engine.startup_pending());
+    }
+
+    #[test]
+    fn retained_admission_replays_the_same_mounts_and_hooks_as_fresh_choices() {
+        let run = |mode| {
+            let mut engine = new_engine();
+            engine.hold_presentation();
+            let branches = (0..8)
+                .map(|i| {
+                    let leaves = (0..4)
+                        .map(|_| box_at(0., vec![]) as Rc<dyn InstanceNode>)
+                        .collect();
+                    box_at(400. * i as f64, leaves) as Rc<dyn InstanceNode>
+                })
+                .collect();
+            let root = engine.mount_root_component(component(branches));
+            assert!(reach_checkpoint(&mut engine).pending);
+            assert!(engine.begin_background_mounting());
+            engine.configure_admission_resumption(mode, false);
+            engine.prioritize_background_owners();
+            engine.publish_presentation();
+            let mut checkpoints = Vec::new();
+            for turn in 0..256 {
+                // Exactly one attempt makes the cold mode fresh at every choice.
+                if [4, 9, 13].contains(&turn) {
+                    let child = root.children.get()[1].clone();
+                    let x = if turn == 9 { 720. } else { 15. };
+                    child
+                        .get_common_properties()
+                        .borrow()
+                        .x
+                        .set(Some(pax_runtime_api::Size::Pixels(x.into())));
+                }
+                let more = engine.service_background_mounts(0., || 0.);
+                engine.tick();
+                checkpoints.push(CALLS.with_borrow(|c| c.len()));
+                if !more {
+                    break;
+                }
+            }
+            assert!(!engine.startup_pending());
+            let stats = engine.admission_rank_stats();
+            assert!(stats.choices > 10);
+            if mode == 2 {
+                assert_eq!(stats.choices, stats.checked_choices);
+            }
+            engine.unmount();
+            assert!(!engine.runtime_context.admission_changes.borrow().enabled);
+            let mut calls = CALLS.with_borrow(|c| c.clone());
+            for (_, id) in &mut calls {
+                *id -= root.id.to_u32();
+            }
+            (calls, checkpoints)
+        };
+        assert_eq!(run(0), run(2));
+    }
+
+    #[test]
+    fn admission_priority_refreshes_current_geometry_after_each_yield() {
+        use admission::Priority;
+        let mut engine = new_engine();
+        let root = engine.mount_root_component(component(vec![
+            box_at(10., vec![]),
+            box_at(500., vec![]),
+            box_at(1200., vec![]),
+        ]));
+        finish(&mut engine);
+        let ctx = &engine.runtime_context;
+        let _graph = ctx.property_graph.enter();
+        let children = root.current_attached_children();
+        let mut view = ctx.admission_view();
+        let ranks = children
+            .iter()
+            .map(|n| ctx.admission_priority(n, &mut view))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            ranks,
+            [Priority::Visible, Priority::Nearby, Priority::Background]
+        );
+        children[0]
+            .get_common_properties()
+            .borrow()
+            .x
+            .set(Some(pax_runtime_api::Size::Pixels(1400.into())));
+        children[2]
+            .get_common_properties()
+            .borrow()
+            .x
+            .set(Some(pax_runtime_api::Size::Pixels(10.into())));
+        let mut view = ctx.admission_view();
+        assert_eq!(
+            ctx.admission_priority(&children[0], &mut view),
+            Priority::Background
+        );
+        assert_eq!(
+            ctx.admission_priority(&children[2], &mut view),
+            Priority::Visible
+        );
     }
 }

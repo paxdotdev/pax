@@ -1034,12 +1034,14 @@ loader_exit = "first_viewport" # default: "full_mount"
 
 This starts the loader's `@out` at the first settled viewport, after native
 measurement and visible surface submission. Once the exit finishes, the host
-hides the loader even if background mounting is still pending. Ordinary
-animations remain at their prepared entry pose until full mounting completes;
-scrolling, application input, and accessibility become available as soon as the
-loader's exit finishes. Mounted controls can respond while the remaining scene
-mounts; their time-based animations wait for the main clock to start. Choose an
-initial composition that is useful while stationary. This
+hides the loader even if background mounting is still pending. On the WebGPU
+presentation path, the prepared viewport can animate during the loader exit.
+Scrolling, application input, and accessibility become available when the
+exit finishes. The host uses spare frame time to mount additional branches
+and gives newly visible content priority when the user scrolls. A component
+with both canvas artwork and native text can mount and measure its text before
+the host presents the artwork, text, and hit targets together. The fallback
+renderer starts the main animation clock after full mounting. This
 option works in debug and release web builds with a configured loader; it does
 not affect Apple targets or applications without a loader. Rebuild after changing
 metadata. A custom JavaScript host can override it with
@@ -1106,7 +1108,7 @@ boundary has been reached and the loader can begin its exit. With
 `"first_viewport"`, remaining mounts may still be pending. `revealing` covers
 the exit and any remaining wait for full mounting, including time after the
 loader disappears and input is enabled. `active` means full mounting has
-finished and the main animation clock has started.
+finished. On the WebGPU first-viewport path the main clock is already running.
 
 A completed download is not a ready application. There is no overall percentage
 for compilation, mounting or rendering. The default screen dedicates the first

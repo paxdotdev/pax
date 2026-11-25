@@ -72,7 +72,120 @@ fn has_handlers(node: &ExpandedNode, key: &str) -> bool {
         })
 }
 
+use crate::engine::startup::admission::Priority;
+
+pub(crate) mod admission_cache;
+pub use admission_cache::RankStats;
+use admission_cache::RetainedRanks;
+
+pub(crate) struct AdmissionView {
+    viewport: Rect,
+    frames: HashMap<u32, ViewportFrame>,
+    ranks: HashMap<u32, Priority>,
+    retained: Option<RetainedRanks>,
+    verify: bool,
+    measure: bool,
+    pub(crate) stats: RankStats,
+    pub(crate) first: bool,
+}
+
+impl AdmissionView {
+    pub(crate) fn begin_choice(&mut self, ctx: &RuntimeContext) {
+        self.stats.choices += 1;
+        if let Some(cache) = &mut self.retained {
+            self.viewport = ctx.viewport_observation_rect();
+            cache.begin_choice(ctx, self.viewport, &mut self.stats);
+            if self.verify {
+                // A choice never spans an attachment, hook, or browser turn.
+                self.frames.clear();
+                self.ranks.clear();
+                self.stats.checked_choices += 1;
+            }
+        }
+    }
+    pub(crate) fn measuring(&self) -> bool {
+        self.measure
+    }
+}
+
 impl RuntimeContext {
+    pub(crate) fn admission_view(&self) -> AdmissionView {
+        self.new_admission_view(0, false)
+    }
+
+    pub(crate) fn new_admission_view(&self, mode: u8, measure: bool) -> AdmissionView {
+        AdmissionView {
+            viewport: self.viewport_observation_rect(),
+            frames: HashMap::new(),
+            ranks: HashMap::new(),
+            retained: (mode != 0).then(RetainedRanks::default),
+            verify: mode == 2,
+            measure,
+            stats: RankStats::default(),
+            first: true,
+        }
+    }
+
+    pub(crate) fn admission_priority(
+        &self,
+        node: &ExpandedNode,
+        view: &mut AdmissionView,
+    ) -> Priority {
+        let id = node.id.to_u32();
+        view.stats.rank_requests += 1;
+        let retained = if let Some(cache) = &mut view.retained {
+            let rank = cache.priority(self, node, &mut view.stats);
+            if !view.verify {
+                return rank;
+            }
+            Some(rank)
+        } else {
+            None
+        };
+        let fresh = *view.ranks.entry(id).or_insert_with(|| {
+            if view.verify {
+                view.stats.reference_ranks += 1;
+            } else {
+                view.stats.rank_calculations += 1;
+            }
+            self.viewport_frame(id, view.viewport, &mut view.frames)
+                .map_or(Priority::Background, |frame| {
+                    self.priority_in_frame(node, frame)
+                })
+        });
+        if let Some(retained) = retained {
+            assert_eq!(
+                retained,
+                fresh,
+                "admission rank at choice {} for owner {} epoch {}",
+                view.stats.choices,
+                id,
+                node.mount_epoch.get()
+            );
+        }
+        fresh
+    }
+
+    fn priority_in_frame(&self, node: &ExpandedNode, frame: ViewportFrame) -> Priority {
+        (|| {
+            let region = frame.child_near?;
+            let (width, height) = node.transform_and_bounds.get().bounds;
+            let projection = self.presented_projection_for_node(node)?;
+            let local = Rect::new(0., 0., width, height);
+            let bounds = if let Some(matrix) = projection.mapping().as_affine() {
+                intersect(Some(matrix.transform_rect_bbox(local)), Some(region))?
+            } else {
+                projection.coverage(local, Some(region))?
+            };
+            Some(if intersect(Some(bounds), frame.child_visible).is_some() {
+                Priority::Visible
+            } else {
+                Priority::Nearby
+            })
+        })()
+        .unwrap_or(Priority::Background)
+    }
+
     /// Whether a native canvas layer may contribute pixels to the window.
     /// Clipped scroll islands outside the viewport need no backing surfaces.
     /// Unclipped or escaped content remains resident conservatively. This query
@@ -122,6 +235,7 @@ impl RuntimeContext {
     }
 
     pub(crate) fn viewport_structure_changed(&self) {
+        self.admission_ancestry_changed();
         let mut state = self.viewport_proximity.borrow_mut();
         if !state.registrations.is_empty() {
             state.rebind = true;
@@ -277,6 +391,7 @@ impl RuntimeContext {
     }
 
     pub(crate) fn unregister_viewport_proximity(&self, id: u32) {
+        self.forget_admission_owner(id);
         let registration = {
             let mut state = self.viewport_proximity.borrow_mut();
             state.active.remove(&id);
@@ -673,6 +788,35 @@ impl RuntimeContext {
             }
         };
         let parent = parent.and_then(|parent| self.viewport_frame(parent, viewport, frames));
+        let geometry = self.canvas_geometry_for_node(&node);
+        let page_root =
+            self.get_root_scroller_id() == Some(id) && self.get_visual_viewport_state().is_some();
+        let clip = node.instance_node.borrow().resolve_effect_clip_path(&node);
+        let frame = self.compose_viewport_frame(
+            &node,
+            parent,
+            viewport,
+            scrolls,
+            escapes,
+            page_root,
+            clip.as_ref(),
+            || (geometry.world_transform, geometry.bounds),
+        );
+        frames.insert(id, frame);
+        Some(frame)
+    }
+
+    fn compose_viewport_frame(
+        &self,
+        node: &ExpandedNode,
+        parent: Option<ViewportFrame>,
+        viewport: Rect,
+        scrolls: bool,
+        escapes: bool,
+        page_root: bool,
+        clip: Option<&kurbo::BezPath>,
+        scroller_box: impl FnOnce() -> (Affine, (f64, f64)),
+    ) -> ViewportFrame {
         let inherited_scroll = parent.map_or(Affine::IDENTITY, |p| p.child_scroll);
         let root_near = Some(viewport.inflate(viewport.width(), viewport.height()));
         let visible = if escapes {
@@ -685,24 +829,20 @@ impl RuntimeContext {
         } else {
             parent.map_or(root_near, |p| p.child_near)
         };
-        let geometry = self.canvas_geometry_for_node(&node);
         let mut child_visible = visible;
         let mut child_near = near;
         let instance = node.instance_node.borrow();
-        let page_root =
-            self.get_root_scroller_id() == Some(id) && self.get_visual_viewport_state().is_some();
-        let clip = instance
-            .resolve_effect_clip_path(&node)
-            .map(|path| (inherited_scroll * path).bounding_box());
-        if scrolls && instance.clips_content(&node) {
+        let clip = clip.map(|path| (inherited_scroll * path).bounding_box());
+        if scrolls && instance.clips_content(node) {
             let bounds = if page_root {
                 viewport
             } else {
-                (inherited_scroll * geometry.world_transform).transform_rect_bbox(Rect::new(
+                let (world, size) = scroller_box();
+                (inherited_scroll * world).transform_rect_bbox(Rect::new(
                     0.0,
                     0.0,
-                    geometry.bounds.0,
-                    geometry.bounds.1,
+                    size.0,
+                    size.1,
                 ))
             };
             child_visible = intersect(child_visible, Some(bounds));
@@ -724,24 +864,22 @@ impl RuntimeContext {
         }
         drop(instance);
         let child_scroll = if scrolls {
-            inherited_scroll * self.scroller_content_presentation_transform(&node)
+            inherited_scroll * self.scroller_content_presentation_transform(node)
         } else {
             inherited_scroll
         };
-        let frame = ViewportFrame {
+        ViewportFrame {
             inherited_scroll,
             child_scroll,
             visible,
             near,
             child_visible,
             child_near,
-        };
-        frames.insert(id, frame);
-        Some(frame)
+        }
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct ViewportFrame {
     inherited_scroll: Affine,
     child_scroll: Affine,

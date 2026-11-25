@@ -32,12 +32,14 @@ pollster = "0.4.0"
 web-time = "1.1.0"
 
 [features]
+scroll-selection-shadow = ["dep:serde_json"]
 3d = ["pax-runtime-api/3d", "pax-gpu/3d"]
 # Opt-in GPU subtree filters, including runtime WGSL validation.
 shaders = ["pax-runtime-api/shaders", "pax-gpu/shaders"]
 designtime = ["dep:pax-designtime", "dep:serde_json", "pax-language/parser", "pax-manifest/designtime"]
 
 [dev-dependencies]
+serde_json = "1.0.114"
 pax-language = {version="0.39.1", path = "../pax-language", default-features = false, features = ["parser"]}
 
 [target.'cfg(target_os = "macos")'.dev-dependencies]
@@ -46,3 +48,7 @@ objc2 = "0.6.4"
 # Android renders through WGPU; piet-common has no Android platform backend.
 [target.'cfg(not(target_os = "android"))'.dependencies]
 piet-common = "0.7.0"
+
+[[example]]
+name = "scroll_selection_replay"
+required-features = ["scroll-selection-shadow"]

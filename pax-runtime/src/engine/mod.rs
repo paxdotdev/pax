@@ -24,6 +24,8 @@ pub mod node_interface;
 pub mod occlusion;
 mod preparation_diagnostics;
 mod render_work;
+#[doc(hidden)]
+pub mod selection_policy;
 pub mod startup;
 pub mod surface_metrics;
 pub mod surface_preparation;
@@ -822,6 +824,7 @@ impl PaxEngine {
         #[cfg(feature = "designtime")]
         let root_id = root_expanded_node.id;
         *self.runtime_context.startup.borrow_mut() = Default::default();
+        *self.runtime_context.admission_changes.borrow_mut() = Default::default();
         root_expanded_node.recurse_unmount(&self.runtime_context);
         self.runtime_context.clear_root_expanded_node();
         self.runtime_context.layer_count.set(0);
@@ -944,7 +947,12 @@ impl PaxEngine {
         &mut self,
         mut completed: impl FnMut(&'static str),
     ) -> Vec<NativeMessage> {
-        if self.startup_pending() {
+        if self
+            .runtime_context
+            .startup
+            .borrow()
+            .holds_foreground_tick()
+        {
             return self.runtime_context.take_native_messages();
         }
         if matches!(
@@ -1053,7 +1061,12 @@ impl PaxEngine {
     /// preserves the scene clock and does not dispatch tick or proximity handlers.
     #[doc(hidden)]
     pub fn settle_render_feedback(&self) -> Vec<NativeMessage> {
-        if self.startup_pending() || matches!(
+        if self
+            .runtime_context
+            .startup
+            .borrow()
+            .holds_foreground_tick()
+            || matches!(
             self.runtime_context.application.context().phase(),
             pax_runtime_api::AppPhase::Closing | pax_runtime_api::AppPhase::Closed
         ) {
@@ -1153,6 +1166,7 @@ impl PaxEngine {
         occlusion::update_native_culling(ctx, self.scroller_tiling_policy);
         completed("native_culling");
         ctx.update_wheel_regions();
+        ctx.settled_admission();
         let native_messages = ctx.take_native_messages();
         #[cfg(target_os = "windows")]
         if let Some(timing) = &mut startup_timing {

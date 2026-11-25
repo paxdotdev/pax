@@ -33,6 +33,10 @@ pub struct NativeImageInstance {
 }
 
 impl InstanceNode for NativeImageInstance {
+    fn awaits_native_first_content(&self) -> bool {
+        true
+    }
+
     fn property_requires_input_recompute(&self, _property_name: &str) -> bool {
         false
     }

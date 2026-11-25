@@ -1155,6 +1155,7 @@ impl PaxChassisWeb {
                         let delta_x = presentation_scroll_x - previous_x;
                         let delta_y = presentation_scroll_y - previous_y;
                         if delta_x.abs() > f64::EPSILON || delta_y.abs() > f64::EPSILON {
+                            engine.refresh_background_viewport();
                             if self.startup_hold_input || !self.startup_input.is_empty() {
                                 self.startup_input.push_back((
                                     StartupEvent::Scroll {
@@ -1933,6 +1934,34 @@ impl PaxChassisWeb {
         self.engine.borrow_mut().accept_startup_measurements()
     }
 
+    pub fn admission_display_hit(&self, x: f64, y: f64) -> JsValue {
+        let e = self.engine.borrow();
+        let Ok(_scope) = self.displayed_input_scope() else {
+            return JsValue::NULL;
+        };
+        let ids: Vec<_> = e
+            .runtime_context
+            .get_elements_beneath_ray(None, Point2::new(x, y), true, vec![], false)
+            .into_iter()
+            .map(|n| n.id.to_u32())
+            .collect();
+        js_value_serde::to_value(&ids)
+    }
+    pub fn begin_background_mounting(&mut self) -> bool {
+        self.engine.borrow_mut().begin_background_mounting()
+    }
+
+    pub fn service_background_mounts(&mut self, budget_ms: f64) -> bool {
+        let start = Instant::now();
+        self.engine
+            .borrow_mut()
+            .service_background_mounts(budget_ms, || start.elapsed().as_secs_f64() * 1000.0)
+    }
+
+    pub fn admission_can_continue(&self) -> bool {
+        self.engine.borrow().admission_can_continue()
+    }
+
     pub fn resume_startup_after_presentation(&mut self) {
         self.engine.borrow_mut().resume_startup_after_presentation();
     }
@@ -2071,15 +2100,114 @@ impl PaxChassisWeb {
         Ok(js_value_serde::to_value(&decision))
     }
 
+    pub fn prioritize_background_owners(&self) {
+        self.engine.borrow().prioritize_background_owners();
+    }
+
+    pub fn configure_admission_resumption(&self, mode: u8, measure: bool) {
+        self.engine
+            .borrow()
+            .configure_admission_resumption(mode, measure);
+    }
+    pub fn admission_rank_stats(&self) -> JsValue {
+        js_value_serde::to_value(&self.engine.borrow().admission_rank_stats())
+    }
+    pub fn configure_visible_groups(&self, park: bool) {
+        self.engine
+            .borrow()
+            .runtime_context
+            .configure_visible_groups(park);
+    }
+    pub fn ready_visible_groups(&self) -> JsValue {
+        js_value_serde::to_value(&self.engine.borrow().ordered_visible_groups())
+    }
+    pub fn open_visible_group(&self, id: u32, epoch: f64) -> bool {
+        self.engine
+            .borrow()
+            .runtime_context
+            .open_visible_group(id, epoch as u64)
+    }
+    pub fn hidden_native_group_members(&self, ids: &[u32]) -> Vec<u32> {
+        self.engine
+            .borrow()
+            .runtime_context
+            .hidden_native_group_members(ids)
+    }
+    pub fn admission_group_diagnostics(&self) -> JsValue {
+        js_value_serde::to_value(
+            &self
+                .engine
+                .borrow()
+                .runtime_context
+                .admission_group_diagnostics(),
+        )
+    }
+    pub fn visible_group_progress(&self) -> Vec<u32> {
+        self.engine
+            .borrow()
+            .runtime_context
+            .visible_group_progress()
+            .to_vec()
+    }
+    pub fn has_runnable_background_mount(&self) -> bool {
+        self.engine.borrow().has_runnable_background_mount()
+    }
+    pub fn enable_indexed_mounts(&self, at: f64) {
+        self.engine.borrow().enable_indexed_mounts(at);
+    }
+    pub fn share_viewport_demand(&self) {
+        self.engine.borrow().share_viewport_demand();
+    }
+    pub fn check_mount_selection(&self, limit: u32, stride: u32) {
+        self.engine.borrow().check_mount_selection(limit, stride);
+    }
+    pub fn mount_scroll_intent(&self, host: Option<u32>, dx: f64, dy: f64) {
+        self.engine.borrow().mount_scroll_intent(host, dx, dy);
+    }
+    pub fn live_mount_counts(&self) -> JsValue {
+        js_value_serde::to_value(&self.engine.borrow().live_mount_counts())
+    }
+    pub fn start_selection_capture(&self, base: f64, maximum: usize) {
+        pax_runtime::engine::startup::selection_capture::start(base, maximum);
+    }
+    pub fn selection_observation(&self, serial: u32) {
+        pax_runtime::engine::startup::selection_capture::observation(serial);
+    }
+    pub fn finish_selection_capture(&self) -> JsValue {
+        js_value_serde::to_value(&pax_runtime::engine::startup::selection_capture::finish())
+    }
+    pub fn background_counts(&self) -> JsValue {
+        js_value_serde::to_value(&self.engine.borrow().background_counts())
+    }
+
     pub fn prepare_surface_hosts(&self, value: JsValue) -> Result<JsValue, JsValue> {
-        let snapshot = serde_wasm_bindgen::from_value(value)
+        let snapshot: surface_scheduling::PreparationSnapshot = serde_wasm_bindgen::from_value(value)
             .map_err(|e| JsValue::from_str(&format!("invalid preparation snapshot: {e}")))?;
-        let prepared = surface_scheduling::prepare(
+        let mount_inputs = self
+            .engine
+            .borrow()
+            .has_indexed_mounts()
+            .then(|| snapshot.mount_inputs());
+        let mut prepared = surface_scheduling::prepare(
             snapshot,
             &mut self.surface_activity.borrow_mut(),
             &mut self.surface_preparation_latency.borrow_mut(),
         )
         .map_err(JsValue::from_str)?;
+        if let Some((viewport, observed)) = mount_inputs {
+            let horizon = prepared
+                .plans
+                .values()
+                .next()
+                .map_or(250., |p| p.horizon_ms());
+            prepared.demand = self.engine.borrow().observe_mount_hosts(
+                prepared.now,
+                viewport,
+                &prepared.hosts,
+                &observed,
+                horizon,
+            );
+        }
         let result = js_value_serde::to_value(&prepared.summaries());
         *self.surface_preparation.borrow_mut() = Some(prepared);
         Ok(result)

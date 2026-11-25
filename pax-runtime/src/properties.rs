@@ -118,6 +118,9 @@ pub struct RuntimeContext {
     pub(crate) presentation: RefCell<crate::presentation::PresentationState>,
     pub(crate) presentation_order_generation: LocalProperty<u64>,
     pub(crate) startup: RefCell<crate::engine::startup::Startup>,
+    pub(crate) admission_changes:
+        RefCell<crate::viewport_proximity::admission_cache::AdmissionChanges>,
+    pub(crate) visible_groups: RefCell<crate::engine::startup::visible_groups::VisibleGroups>,
     input_capture_changes: RefCell<Option<input_capture::CaptureChanges>>,
     captured_input_scopes: RefCell<Vec<Rc<input_capture::CapturedInputRouting>>>,
     captured_input_hover: RefCell<Option<input_capture::CapturedInputHover>>,
@@ -302,6 +305,8 @@ impl RuntimeContext {
             presentation: Default::default(),
             presentation_order_generation: LocalProperty::new(0),
             startup: Default::default(),
+            admission_changes: Default::default(),
+            visible_groups: Default::default(),
             input_capture_changes: Default::default(),
             captured_input_scopes: Default::default(),
             captured_input_hover: Default::default(),
@@ -377,6 +382,8 @@ impl RuntimeContext {
             presentation: Default::default(),
             presentation_order_generation: LocalProperty::new(0),
             startup: Default::default(),
+            admission_changes: Default::default(),
+            visible_groups: Default::default(),
             input_capture_changes: Default::default(),
             captured_input_scopes: Default::default(),
             captured_input_hover: Default::default(),
@@ -454,6 +461,8 @@ impl RuntimeContext {
             presentation: Default::default(),
             presentation_order_generation: LocalProperty::new(0),
             startup: Default::default(),
+            admission_changes: Default::default(),
+            visible_groups: Default::default(),
             input_capture_changes: Default::default(),
             captured_input_scopes: Default::default(),
             captured_input_hover: Default::default(),
@@ -4725,6 +4734,7 @@ impl RuntimeContext {
     /// for example when a detached Mask source changes. Ordinary reactive clip
     /// properties are tracked automatically.
     pub fn mark_node_clip_dirty(&self, id: u32) {
+        self.forget_admission_owner(id);
         self.invalidate_clip_input(id);
         self.mark_node_occlusion_dirty(id);
     }

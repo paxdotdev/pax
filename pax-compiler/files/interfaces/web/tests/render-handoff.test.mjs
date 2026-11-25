@@ -20,6 +20,7 @@ function harness(synchronized = false) {
     }
     const module = {exports: {}};
     vm.runInNewContext(transformSync(`
+        let admission;
         let ordinaryRenderPending = false, frameInProgress = false;
         const presentation = synchronized ? {settled() {return true;}} : undefined;
         const surfaceTraceEnabled = false;
@@ -156,8 +157,9 @@ test('a held revision settles drawing feedback and waits for its fence before ad
     const calls = [];
     const module = {exports: {}};
     vm.runInNewContext(transformSync(`
+        let admission;
         let ordinaryRenderPending = true, frameInProgress = false, renderEpoch = 0;
-        const frameScheduler = {}, mountYieldEnabled = false, liveSession = undefined;
+        const frameScheduler = {}, mountYieldEnabled = false, liveSession = {options: {}, didMount() {calls.push('mounted');}};
         const currentMount = {}, currentChassis = {
             render_work_is_settled: () => false,
             settle_render_feedback() {calls.push('settle'); return ['pose'];},
@@ -178,9 +180,10 @@ test('a held revision settles drawing feedback and waits for its fence before ad
         function withProfileMeasure() {calls.push('ordinary frame');}
         ${frame}
         export {presentation};
+        export function awaitFinalPublication() { admission = { finishIf: () => true }; }
         export function run() {runFrame(currentChassis, currentMount);}
     `, {loader:'ts', format:'cjs'}).code, {calls, module, exports:module.exports});
-    const {presentation, run} = module.exports;
+    const {presentation, run, awaitFinalPublication} = module.exports;
     presentation.canSettleFeedback = () => false;
     run();
     run();
@@ -191,11 +194,12 @@ test('a held revision settles drawing feedback and waits for its fence before ad
     assert.deepEqual(calls, ['observe', 'settle', 'pose', 'begin', 'draw']);
     calls.length = 0;
     presentation.awaitingFence = true;
+    awaitFinalPublication();
     run();
     run();
     assert.deepEqual(calls, ['observe', 'observe']);
     calls.length = 0;
     presentation.ready = true;
     run();
-    assert.deepEqual(calls, ['observe', 'ordinary frame']);
+    assert.deepEqual(calls, ['observe', 'mounted', 'ordinary frame']);
 });

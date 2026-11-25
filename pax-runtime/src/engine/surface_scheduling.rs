@@ -422,6 +422,17 @@ pub fn schedule_surfaces(
     candidates: &[SurfaceCandidate],
     budget: SurfaceBudget,
 ) -> SurfaceSchedule {
+    schedule_surfaces_with_demand(candidates, budget, None)
+}
+
+/// Apply a common spatial order to eligible speculative work. Actual visible
+/// coverage, reverse residency, and the pixel and surface limits remain binding.
+pub fn schedule_surfaces_with_demand(
+    candidates: &[SurfaceCandidate],
+    budget: SurfaceBudget,
+    demand: Option<&[(u8, u64)]>,
+) -> SurfaceSchedule {
+    debug_assert!(demand.is_none_or(|ranks| ranks.len() == candidates.len()));
     let mut required_count = 0usize;
     let mut required_pixels = 0u64;
     for c in candidates
@@ -432,9 +443,14 @@ pub fn schedule_surfaces(
         required_pixels = required_pixels.saturating_add(c.backing_pixels);
     }
     let overloaded = required_count > budget.surfaces || required_pixels > budget.backing_pixels;
-    let compare = |a: &SurfaceCandidate, b: &SurfaceCandidate| {
-        a.coverage
-            .cmp(&b.coverage)
+    let compare = |i: usize, j: usize| {
+        let a = &candidates[i];
+        let b = &candidates[j];
+        let optional = |c: Coverage| c > Coverage::Visible && c < Coverage::OutsidePreparation;
+        let shared = demand
+            .filter(|_| optional(a.coverage) && optional(b.coverage))
+            .map_or(Ordering::Equal, |ranks| ranks[i].cmp(&ranks[j]));
+        shared.then_with(|| a.coverage.cmp(&b.coverage))
             .then_with(|| {
                 if overloaded {
                     b.retained.cmp(&a.retained)
@@ -447,7 +463,7 @@ pub fn schedule_surfaces(
     };
     let mut sorted: Vec<_> = (0..candidates.len()).collect();
     sorted.sort_by(|&a, &b| {
-        compare(&candidates[a], &candidates[b])
+        compare(a, b)
             .then_with(|| candidates[a].branch.cmp(&candidates[b].branch))
             .then_with(|| candidates[a].id.cmp(&candidates[b].id))
     });
@@ -456,7 +472,7 @@ pub fn schedule_surfaces(
     while start < sorted.len() {
         let mut end = start + 1;
         while end < sorted.len()
-            && compare(&candidates[sorted[start]], &candidates[sorted[end]]) == Ordering::Equal
+            && compare(sorted[start], sorted[end]) == Ordering::Equal
         {
             end += 1;
         }
@@ -706,6 +722,32 @@ mod tests {
             ready: false,
             backing_pixels: 20_000,
         }
+    }
+
+    #[test]
+    fn shared_demand_orders_optional_tiles_inside_the_existing_residency_limits() {
+        let candidates = [
+            candidate("current", 1, Coverage::Visible),
+            candidate("other shelf", 3, Coverage::MovingAhead),
+            candidate("active shelf", 2, Coverage::StationaryNear),
+            candidate("unavailable", 4, Coverage::OutsidePreparation),
+        ];
+        let demand = [(7, 0), (4, 0), (1, 1), (0, 0)];
+        let schedule =
+            schedule_surfaces_with_demand(&candidates, SurfaceBudget::count_only(2), Some(&demand));
+        assert_eq!(schedule.admitted, [0, 2]);
+        assert_eq!(schedule.backing_pixels, 40_000);
+        assert_eq!(schedule.denied.len(), 2);
+        let reversed = [(7, 0), (1, 1), (4, 0), (0, 0)];
+        assert_eq!(
+            schedule_surfaces_with_demand(
+                &candidates,
+                SurfaceBudget::count_only(2),
+                Some(&reversed)
+            )
+            .admitted,
+            [0, 1]
+        );
     }
 
     #[test]

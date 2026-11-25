@@ -6,7 +6,7 @@ import {transformSync} from 'esbuild';
 
 const source = readFileSync(new URL('../src/classes/web-presentation.ts', import.meta.url), 'utf8');
 
-function harness(onApply = () => {}) {
+function harness(onApply = () => {}, groups) {
     const log = [];
     const listeners = new Map();
     const root = {
@@ -45,11 +45,36 @@ function harness(onApply = () => {}) {
     const applied = [];
     const owner = new module.exports.WebPresentation(root, chassis,
         messages => messages.forEach(msg => { applied.push(msg); log.push(Object.keys(msg)[0]); onApply(msg); }),
-        () => state.coverage, () => []);
+        () => state.coverage, () => [], groups);
     owner.settled();
     log.length = 0;
     return {canvas: new Canvas(), owner, state, log, applied};
 }
+
+test('a rejected scroll revision cannot open a measured group or its displayed hit', () => {
+    let parked = [11];
+    const events = [];
+    const {owner, canvas, state, log} = harness(() => events.push('native'), {
+        snapshot: () => [...parked], publish: ids => events.push(['hidden', ...ids]),
+    });
+    canvas.submit('previous');
+    owner.receive([{TextUpdate: {id: 11}}]);
+    owner.settled();
+    parked = [];
+    state.coverage = 'after reversal';
+    state.complete = 1n;
+    assert.equal(owner.publish(), false);
+    assert.deepEqual(events, []);
+    assert.equal(log.includes('input'), false);
+    canvas.submit('destination');
+    state.fence = 2n;
+    owner.settled();
+    assert.equal(owner.publish(), false);
+    state.complete = 2n;
+    assert.equal(owner.publish(), true);
+    assert.deepEqual(events, ['native', ['hidden']]);
+    assert.deepEqual(log.slice(-2), ['draw destination', 'input']);
+});
 
 test('scroll observations coalesce across a rejected fence and preserve command and ownership barriers', () => {
     const {owner, state, applied} = harness();

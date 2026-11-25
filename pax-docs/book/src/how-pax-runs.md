@@ -519,13 +519,14 @@ frame clock or repeat `@mount`, `@tick`, or `@pre_render` handlers. Wall time st
 passes during ordinary initialization, so this does not pause elapsed-time animations.
 When a [loading screen](components-composition.md#loading-context-components-experimental)
 is configured, the loader and main application instead have independent clocks
-and reactive graphs. The main clock stays paused until mounting completes.
-By default the loader remains active over the prepared viewport until then.
+and reactive graphs. By default the main clock stays paused and the loader
+remains active over the prepared viewport until mounting completes.
 `loader_exit = "first_viewport"` under `[package.metadata.pax.web]` starts its
-exit as soon as that viewport settles, leaving the prepared scene visible while
-remaining mounts complete. Scrolling, application input, and accessibility are
-released when the loader's exit finishes, even while the main clock remains
-paused. Their rendering scenes are independent while sharing
+exit as soon as that viewport settles. With WebGPU, the main clock can advance
+as the loader exits and the host admits further mounts between foreground
+frames. Other renderers keep the prepared entry pose until mounting completes.
+Scrolling, application input, and accessibility are released when the loader's
+exit finishes. The two rendering scenes are independent while sharing
 the runtime's GPU device. Cooperative preparation and rendering share a 4 ms
 allowance per animation-frame opportunity across these hosted applications;
 an indivisible callback can exceed this soft budget.
@@ -554,7 +555,8 @@ The first preparation checkpoint prioritizes the initial viewport. Without a
 loading screen, this checkpoint permits the first reveal described below. A
 configured loading screen additionally waits for the initial visible surfaces
 to be submitted before revealing that viewport underneath the active loader.
-The rest of the scene mounts cooperatively with ordinary ticks still held.
+The rest of the scene mounts cooperatively. With a WebGPU first-viewport
+loader, ordinary ticks can run while lower sections are still mounting.
 Input waits for loader exit, or full mounting when there is no loader.
 Loader exit follows the configured `loader_exit` policy; see its
 [publication contract](components-composition.md#loading-context-components-experimental).

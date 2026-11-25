@@ -1,4 +1,5 @@
 import type {PaxChassisWeb} from '../types/pax-chassis-web';
+import type {AdmissionGroups} from './admission-groups';
 
 type Tile = {
     canvas: HTMLCanvasElement;
@@ -63,7 +64,7 @@ type DisplayedTile = {
 // can overwrite it. Sealing detaches the ordered native prefix and input view.
 export class WebPresentation {
     private working = revision();
-    private sealed?: {batch: Revision; fence: bigint; coverage: string};
+    private sealed?: {batch: Revision; fence: bigint; coverage: string; hidden?: Uint32Array};
     private armed = false;
     private disposed = false;
     private fronts = new Map<HTMLCanvasElement, DisplayedTile>();
@@ -117,7 +118,7 @@ export class WebPresentation {
 
     constructor(private root: Element, private chassis: PaxChassisWeb,
         private apply: (messages: any[]) => void, private coverage: () => string | undefined,
-        readScroll: () => [number, number, number][]) {
+        readScroll: () => [number, number, number][], private groups?: AdmissionGroups) {
         root.setAttribute('data-pax-private-tiles', '');
         root.addEventListener('pax-tile-submission', this.submitted);
         chassis.set_displayed_scroll_reader(readScroll);
@@ -176,6 +177,12 @@ export class WebPresentation {
     }
 
     get awaitingFence() { return !!this.sealed; }
+    get pendingFence() { return this.sealed?.fence; }
+    get tracksGroups() { return !!this.groups; }
+
+    advanceGroups() {
+        this.groups?.advance(this.sealed ? [this.working.messages, this.sealed.batch.messages] : [this.working.messages]);
+    }
 
     // During bootstrap native work still applies directly. Once armed, admit
     // another animation sample only after this revision reaches the display.
@@ -192,7 +199,7 @@ export class WebPresentation {
         }
         const fence = this.chassis.web_submission_fence();
         if (fence === undefined || !this.chassis.prepare_displayed_input()) return false;
-        this.sealed = {batch: this.working, fence, coverage};
+        this.sealed = {batch: this.working, fence, coverage, hidden: this.groups?.snapshot(this.working.messages)};
         this.working = revision();
         return true;
     }
@@ -220,6 +227,7 @@ export class WebPresentation {
         }
         flushObservations(sealed.batch);
         this.apply(sealed.batch.messages);
+        if (sealed.hidden) this.groups?.publish(sealed.hidden);
         // Structural native work can retire an island and release its canvas.
         for (const tile of sealed.batch.tiles.values()) {
             if (current(tile)) this.display(tile);
@@ -234,6 +242,7 @@ export class WebPresentation {
 
     dispose() {
         this.disposed = true;
+        this.groups?.publish([]);
         this.root.removeEventListener('pax-tile-submission', this.submitted);
         for (const [source, front] of this.fronts) {
             source.removeEventListener('pax-tile-retirement', this.retire);

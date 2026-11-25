@@ -609,6 +609,20 @@ pub trait InstanceNode {
         //no-op default implementation
     }
 
+    // Repeated items create separate admission lifetimes. Conditional branches keep their owner.
+    fn repeats_admission_items(&self) -> bool {
+        false
+    }
+    /// A change to the selected children replaces this node's presentation content.
+    fn selects_admission_branch(&self) -> bool {
+        false
+    }
+
+    // Native resources with asynchronous first content acknowledge readiness from the chassis.
+    fn awaits_native_first_content(&self) -> bool {
+        false
+    }
+
     fn get_template(&self) -> Option<&InstanceNodePtrList> {
         None
     }

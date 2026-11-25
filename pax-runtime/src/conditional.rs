@@ -48,6 +48,10 @@ impl ToPaxValue for ConditionalProperties {
 }
 
 impl InstanceNode for ConditionalInstance {
+    fn selects_admission_branch(&self) -> bool {
+        true
+    }
+
     fn may_supply_clip(&self) -> bool {
         false
     }

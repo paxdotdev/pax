@@ -226,6 +226,10 @@ impl TextInstance {
 }
 
 impl InstanceNode for TextInstance {
+    fn awaits_native_first_content(&self) -> bool {
+        true
+    }
+
     fn may_supply_clip(&self) -> bool {
         false
     }

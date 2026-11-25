@@ -437,6 +437,9 @@ If control flow removes the child before attachment, it has no mounted lifetime
 and receives neither mount nor teardown callbacks. A mounted child's
 `on_pre_unmount` and `on_unmount` run during teardown, which an authored exit
 transition can delay. GPU submission and display follow their own schedule.
+On the WebGPU first-viewport path, a newly mounted component can measure its
+native content before it appears or accepts a pointer hit. Its mount handler
+and synchronous property reads already see the attached component.
 When input is enabled before an offscreen component mounts, an already-mounted
 control can change shared state. A subscription installed by the later
 component's `on_mount` reads the current value on its first evaluation.

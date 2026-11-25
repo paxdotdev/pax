@@ -1371,6 +1371,10 @@ impl ToPaxValue for RepeatItem {
 }
 
 impl InstanceNode for RepeatInstance {
+    fn repeats_admission_items(&self) -> bool {
+        true
+    }
+
     fn may_supply_clip(&self) -> bool {
         false
     }

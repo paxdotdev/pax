@@ -33,6 +33,7 @@ function harness(holdPresentation = false) {
     const mount = {removeAttribute: () => state.events.push('reveal')};
     const module = {exports: {}};
     vm.runInNewContext(transformSync(`
+        let admission;
         let currentChassis = chassis, currentMount = mount;
         let frameInProgress = false, startupPresented = false, startupViewportPresented = false, startupViewportReady = false, startupFeedbackFrameReady = false;
         let pendingAsyncInterruptFlush = false;
@@ -318,6 +319,7 @@ test('a hidden startup receives a presentation opportunity without waiting for r
         const calls = [];
         const chassis = {}, mount = {};
         vm.runInNewContext(transformSync(`
+        let admission;
             const currentChassis = chassis, currentMount = mount;
             const frameInProgress = false, startupWork = {}, startupPresented = false;
             const startupScheduler = {request() { calls.push('work'); }};

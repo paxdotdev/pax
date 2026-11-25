@@ -74,6 +74,7 @@ for (const partial of [false, true]) test(`revealing ${partial ? 'a viewport' : 
     };
     const module = {exports: {}};
     vm.runInNewContext(transformSync(`
+        let admission;
         let liveSession = null;
         function captureStartupProfile() {}
         const currentChassis = {

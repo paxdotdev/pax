@@ -1252,3 +1252,26 @@ mod tests {
         assert_eq!(p[&1].prepared, r(0.0, 0.0, 400.0, 600.0));
     }
 }
+
+/// Immutable input to the admission shadow. Use the tile planner's joint
+/// motion interval so simultaneous ancestor and child scrolls share one clock.
+pub(crate) struct ObservedExposure {
+    clips: Vec<MovingClip>,
+    pub(crate) bounds: CoverageRect,
+}
+impl PreparedHost {
+    pub(crate) fn observed_exposure(
+        chain: &[&PreparationHost],
+        viewport: CoverageRect,
+        deltas: &[[f64; 2]],
+    ) -> ObservedExposure {
+        let clips = trajectory(chain, viewport, deltas);
+        let bounds = swept_intersection(&clips);
+        ObservedExposure { clips, bounds }
+    }
+}
+impl ObservedExposure {
+    pub(crate) fn intersects(&self, target: CoverageRect) -> bool {
+        intersection_start(&self.clips, target).is_some()
+    }
+}

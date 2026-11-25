@@ -465,6 +465,7 @@ pub struct ExpandedNode {
     /// each slot child, but only the ones that have a "connected" slot should
     /// trigger mount/dismount updates
     pub attached: Cell<u32>,
+    pub(crate) admission_parked: Cell<bool>,
     pub(crate) mount_epoch: Cell<u64>,
 
     /// Logical render-layer assignment plus z-order for the current render tree pass.
@@ -1389,6 +1390,7 @@ impl ExpandedNode {
             stack: env,
             instance_node: RefCell::new(Rc::clone(&template)),
             attached: Cell::new(0),
+            admission_parked: Cell::new(false),
             mount_epoch: Cell::new(0),
             properties: RefCell::new(properties),
             common_properties: RefCell::new(common_properties),
@@ -1731,7 +1733,9 @@ impl ExpandedNode {
     /// Presentation/dirty-walk children. During incremental startup this reads
     /// only mounted attachments, without forcing reactive structural expansion.
     pub fn presentation_children(&self, context: &RuntimeContext) -> Vec<Rc<ExpandedNode>> {
-        context.flight_children(self, self.logical_children(context))
+        let mut children = context.flight_children(self, self.logical_children(context));
+        children.retain(|child| !child.admission_parked.get());
+        children
     }
 
     // Occlusion owns the coverage records while it walks. Resolving reactive
@@ -1745,7 +1749,9 @@ impl ExpandedNode {
             self.mounted_presentation_candidates(),
             Self::mounted_presentation_children,
         );
-        context.flight_children(self, children)
+        let mut children = context.flight_children(self, children);
+        children.retain(|child| !child.admission_parked.get());
+        children
     }
 
     fn mounted_presentation_candidates(&self) -> Vec<Rc<ExpandedNode>> {
@@ -2517,6 +2523,7 @@ impl ExpandedNode {
                     Rc::clone(child).recurse_unmount(context);
                 }
             }
+            context.visible_groups.borrow_mut().branch_changed(self, &new_children);
             for child in new_children.iter() {
                 if context.is_detached(child.id) {
                     continue;
@@ -2526,6 +2533,7 @@ impl ExpandedNode {
                         child.start_enter_transition_tree(context);
                     } else if child.attached.get() == 0 {
                         if !context.defer_initial_mount(self, child) {
+                            context.visible_groups.borrow_mut().immediate(self, child);
                             Rc::clone(child).recurse_mount(context);
                             newly_mounted_children.push(Rc::clone(child));
                         }
@@ -2624,6 +2632,9 @@ impl ExpandedNode {
         }
         if self.attached.get() > 0 && context.viewport_dependency(self.id.to_u32()) {
             context.viewport_structure_changed();
+        }
+        if !same_parent && self.attached.get() != 0 {
+            context.forget_admission_owner(self.id.to_u32());
         }
         *borrow_mut!(self.render_parent) = Rc::downgrade(parent);
         if !same_parent && self.branch_may_import() {
@@ -3948,6 +3959,11 @@ impl ExpandedNode {
     }
 
     fn unmount_internal(self: Rc<Self>, context: &Rc<RuntimeContext>, preserve_recovery: bool) {
+        context
+            .visible_groups
+            .borrow_mut()
+            .discard(self.id.to_u32());
+        self.admission_parked.set(false);
         if self.attached.get() != 1 {
             if !preserve_recovery {
                 self.reference_epoch
@@ -4498,6 +4514,7 @@ impl ExpandedNode {
     }
 
     pub(crate) fn rebind_move_presentation(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        context.forget_admission_owner(self.id.to_u32());
         if let Some(parent) = self.render_parent_node() {
             if self.move_in_flight.get() {
                 self.ensure_parent_bindings(

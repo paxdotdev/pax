@@ -13,8 +13,8 @@ title = "Pax — Build creative user interfaces with Rust"
 
 [package.metadata.pax.web]
 yield_mount = true
-# Keep the loader over the prepared hero until its animation clock can run.
-loader_exit = "full_mount"
+# The prepared hero starts its animation clock as the loader exits.
+loader_exit = "first_viewport"
 background_color = "#000000"
 server_owned_prefixes = ["/blog", "/ai", "/ai.md", "/paxflix", "/calculator", "/oscilloscope"]
 title = "Pax — Build creative user interfaces with Rust"

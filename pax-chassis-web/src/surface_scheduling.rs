@@ -66,7 +66,17 @@ pub(crate) struct PreparationSnapshot {
     readiness: Vec<(String, f64)>,
 }
 
+impl PreparationSnapshot {
+    pub(crate) fn mount_inputs(&self) -> ([f64; 4], Vec<(u32, [f64; 2])>) {
+        (
+            self.viewport,
+            self.hosts.iter().map(|h| (h.id, h.observed)).collect(),
+        )
+    }
+}
+
 pub(crate) struct PreparedTransaction {
+    pub demand: Option<std::rc::Rc<pax_runtime::engine::selection_policy::ViewportDemand>>,
     pub now: f64,
     pub hosts: BTreeMap<u32, PreparationHost>,
     pub plans: BTreeMap<u32, PreparedHost>,
@@ -153,6 +163,7 @@ pub(crate) fn prepare(
             .collect(),
     );
     Ok(PreparedTransaction {
+        demand: None,
         now: snapshot.now,
         hosts,
         plans,
@@ -294,6 +305,10 @@ pub(crate) fn schedule(
         activity.retain(&hosts.keys().copied().collect::<HashSet<_>>());
     }
     let mut candidates = Vec::new();
+    let demand = prepared
+        .and_then(|p| p.demand.as_deref())
+        .filter(|_| snapshot.version == 2);
+    let mut priorities = demand.map(|_| Vec::with_capacity(snapshot.candidates.len()));
     for c in snapshot.candidates {
         if !c.rect.iter().all(|v| v.is_finite()) {
             return Err("non-finite surface coverage");
@@ -330,6 +345,12 @@ pub(crate) fn schedule(
                 snapshot.now,
             );
         }
+        if let (Some(demand), Some(priorities)) = (demand, &mut priorities) {
+            let projected = c.owner.and_then(|id| prepared?.hosts.get(&id))
+                .map_or(rect(c.rect), |h| shared::project_surface(rect(c.rect), &h.geometry));
+            priorities.push(demand.priority(c.owner,
+                [projected.left, projected.top, projected.right, projected.bottom]));
+        }
         candidates.push(candidate);
     }
     let policy = shared::ResidencyPolicy::default();
@@ -352,7 +373,7 @@ pub(crate) fn schedule(
         }
         None => SurfaceBudget::count_only(snapshot.capacity),
     };
-    let result = shared::schedule_surfaces(&candidates, budget);
+    let result = shared::schedule_surfaces_with_demand(&candidates, budget, priorities.as_deref());
     Ok(Decision {
         admitted: result.admitted,
         denied: result

@@ -340,6 +340,8 @@ export class NativeElementPool {
         this.observeScrollerPositions();
     }
 
+    onAdmissionScroll?: (id: number, page: boolean) => void;
+
     private observeScrollerPositions() {
         this.scrollerMeasurementStates.forEach((state, id) => {
             let leaf = this.nodesLookup.get(id);
@@ -369,6 +371,14 @@ export class NativeElementPool {
 
             if (moved) this.surfaceTrace?.observeScroll(id, measurement.presentationScrollX, measurement.presentationScrollY,
                 [state.lastMeasuredPresentationScrollX, state.lastMeasuredPresentationScrollY]);
+            if (moved && this.onAdmissionScroll) {
+                const viewport = this.layoutViewport;
+                const page = state.delegatesToPageScroll || !!(state.isRootScroller && viewport && state.clipContent &&
+                    state.viewportWidth !== undefined && state.viewportHeight !== undefined &&
+                    nearlyEqual(state.viewportWidth, viewport.width) && nearlyEqual(state.viewportHeight, viewport.height) &&
+                    isViewportAnchoredTransform(state.transform));
+                this.onAdmissionScroll(id, page);
+            }
 
             state.lastMeasuredScrollX = measurement.scrollX;
             state.lastMeasuredScrollY = measurement.scrollY;
@@ -1332,6 +1342,16 @@ export class NativeElementPool {
 
     presentationCoverage(): string | undefined {
         return this.surfaceCoordinator?.presentationCoverage();
+    }
+
+    admissionNode(id: number) { return this.nodesLookup.get(id); }
+
+    firstContentState(id: number) {
+        const text = this.textStates.get(id);
+        if (text) return text.startupReady && text.presented ? 'ready' : 'text';
+        const image = this.nodesLookup.get(id)?.firstElementChild;
+        if (image instanceof HTMLImageElement) return image.complete ? 'ready' : 'image';
+        return 'missing';
     }
 
     startupSurfacesReady(reason?: unknown): boolean {

@@ -60,6 +60,8 @@ import { readStartupOptions, readLoaderExit, type LoaderExit } from "./utils/sta
 import { readWheelEvents, type WheelEvents } from "./utils/input-options";
 import { FrameScheduler } from "./utils/frame-scheduler";
 import { CooperativeRenderScheduler } from "./utils/cooperative-render";
+import {BackgroundAdmission} from "./utils/background-admission";
+import {AdmissionGroups} from "./classes/admission-groups";
 
 declare global { interface Window { chassis?: PaxChassisWeb; } }
 
@@ -210,6 +212,7 @@ let startupWork: StartupWork | undefined;
 let startupFeedbackFrameReady = false;
 let mountYieldEnabled = false;
 let presentation: WebPresentation | undefined;
+let admission: BackgroundAdmission | undefined;
 let cooperativeRender: CooperativeRenderScheduler | undefined;
 let renderEpoch = 0;
 let hiddenTabPumpHandle: number | null = null;
@@ -313,8 +316,12 @@ class MountSession implements MountedApp {
         this.options.holdPresentation = false;
         if (!startupViewportPresented) {
             startupViewportPresented = true;
-            currentChassis.resume_startup_after_presentation();
-            startupScheduler?.request();
+            if (admission?.begin()) {
+                startupPresented = true;
+            } else {
+                currentChassis.resume_startup_after_presentation();
+                startupScheduler?.request();
+            }
         }
         if (startupPresented) this.startPresentation();
         runFrame(currentChassis, this.region);
@@ -331,6 +338,7 @@ class MountSession implements MountedApp {
         // must not delay input or release the application's animation clock.
         if (!currentChassis || this.options.holdPresentation) return false;
         currentChassis.finish_startup_presentation();
+        admission?.enableInput();
         this.region.inert = false;
         this.region.removeAttribute("aria-hidden");
         return true;
@@ -465,6 +473,7 @@ async function loadWasmModule(extensionlessUrl: string, session: MountSession): 
 }
 
 function resetHostState() {
+    admission?.dispose(); admission = undefined;
     nativePool.dispose();
     startupScheduler?.dispose();
     startupScheduler = undefined;
@@ -477,6 +486,7 @@ function resetHostState() {
 }
 
 function disposeCurrentChassis() {
+    admission?.dispose(); admission = undefined;
     startupScheduler?.dispose();
     startupScheduler = undefined;
     startupWork = undefined;
@@ -517,8 +527,21 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element, session
 
 function attachChassis(chassis: PaxChassisWeb, mount: Element) {
     if (!liveSession?.options.loader && chassis.web_submission_fence() !== undefined) {
+        let groups: AdmissionGroups | undefined;
+        if (liveSession?.options.holdPresentation && liveSession.options.loaderExit === 'first_viewport') {
+            const policy = new URLSearchParams(location.search).get('pax_mount_policy');
+            const shared = policy === 'shared';
+            const indexed = shared || policy === 'indexed';
+            admission = new BackgroundAdmission(chassis, mount, indexed, job => {
+                if (frameInProgress || ordinaryRenderPending || frameScheduler.suspended || chassis !== currentChassis) return;
+                frameInProgress = true;
+                try { job(); } finally { finishEngineTurn(chassis, mount); }
+            }, shared);
+            groups = new AdmissionGroups(chassis, nativePool, shared);
+            nativePool.onAdmissionScroll = (id, page) => admission?.observedScroll(id, page);
+        }
         presentation = new WebPresentation(mount, chassis, messages => processMessages(messages, chassis, objectManager),
-            () => nativePool.presentationCoverage(), () => nativePool.displayedScrollOffsets());
+            () => nativePool.presentationCoverage(), () => nativePool.displayedScrollOffsets(), groups);
     }
     nativeMessageOwners.set(chassis, (messages, manager) => {
         if (presentation) presentation.receive(messages);
@@ -621,6 +644,9 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
                     // The engine still owns first paint. Let the lease monitor
                     // attribute a persistent wait even before the next seal.
                     nativePool.startupSurfacesReady(report.preparation.visible_wait);
+                }
+                if (admission && presentation && !ordinaryRenderPending && !report.visible_pending && !report.blocker) {
+                    admission.afterSubmission(presentation.pendingFence, () => presentation?.pendingFence);
                 }
                 recordService?.(report);
                 return report;
@@ -922,6 +948,15 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
         runStartupFrame(chassis, mount);
         return;
     }
+    const finishBackgroundMount = () => {
+        if (admission?.finishIf(() => nativePool.startupTextReady() && nativePool.startupSurfacesReady()
+            && chassis.render_work_is_settled() && !chassis.has_pending_properties())) {
+            nativePool.onAdmissionScroll = undefined;
+            if (!admission.shareDemand) admission = undefined;
+            liveSession?.didMount();
+        }
+    };
+    if (!presentation?.awaitingFence) finishBackgroundMount();
     if (liveSession?.options.holdPresentation) {
         if ((mountYieldEnabled && !startupViewportReady) || !chassis.prepare_startup_presentation() || startupWork?.patchesPending) {
             startupPresented = false;
@@ -940,6 +975,10 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
                 if (presentation.awaitingFence) return;
                 // A surface changed after submission. Repair the same revision.
                 ordinaryRenderPending = true;
+            } else {
+                // A continuously animating scene can already have another fence
+                // by the next frame entry. Observe completion at publication.
+                finishBackgroundMount();
             }
         }
         if (ordinaryRenderPending) {
@@ -979,6 +1018,9 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             pendingViewportResize = undefined;
             if (chassis.startup_input_pending()) chassis.replay_startup_input();
             nativePool.sampleFrameInputs();
+            admission?.beforeTick();
+            const foregroundStart = admission ? performance.now() : 0;
+            if (presentation?.tracksGroups) presentation.advanceGroups();
             const messages = withProfileMeasure("tick", () => {
                 if (!perfTraceEnabled) return chassis.tick();
                 const [messages, phases, compositing, input] = chassis.tick_profiled();
@@ -994,6 +1036,7 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             withProfileMeasure("syncRenderSurfaceLayoutsPhase", () => {
                 nativePool.syncRenderSurfaceLayouts();
             });
+            admission?.afterTick(performance.now() - foregroundStart);
             // draw canvas elements
             withProfileMeasure("render", () => {
                 ordinaryRenderPending = false;
@@ -1021,6 +1064,7 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element) {
     }
     initializeChassis(chassis, mount);
     renderEpoch = (renderEpoch + 1) >>> 0;
+    admission?.frame(renderEpoch, Number(document.timeline.currentTime ?? performance.now()));
     runFrame(chassis, mount);
 
     if (chassis !== currentChassis || mount !== currentMount) {
