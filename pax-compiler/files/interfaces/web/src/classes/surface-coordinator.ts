@@ -22,15 +22,40 @@ export class SurfaceCoordinator {
     private lastCanvasLayerCounts = new Map<number, number>();
     private revision = 0;
     private requiredForPresentation = new Set<string>();
+    private submissionWaits = new Map<string, {
+        canvas: HTMLCanvasElement; generation: string; revision: string; since: number; warned: boolean;
+    }>();
 
-    presentationReady(): boolean {
+    // Only a configured lease can owe a submission. The clock feeds a
+    // diagnostic, while the actual revision always controls publication.
+    presentationReady(reason: unknown = 'awaiting submission', now?: number): boolean {
+        let ready = true;
         for (const id of this.requiredForPresentation) {
             const canvas = this.canvases.get(id);
-            if (!canvas || canvas.dataset.surfaceConfiguredGeneration !== canvas.dataset.surfaceGeneration
-                || !canvas.dataset.surfaceContentRevision
-                || canvas.dataset.surfaceSubmittedRevision !== canvas.dataset.surfaceContentRevision) return false;
+            const data = canvas?.dataset;
+            const generation = data?.surfaceGeneration, revision = data?.surfaceContentRevision;
+            if (!canvas || !generation || !revision || data?.surfaceConfiguredGeneration !== generation) {
+                this.submissionWaits.delete(id);
+                ready = false;
+                continue;
+            }
+            if (data.surfaceSubmittedRevision === revision) {
+                if (this.submissionWaits.size) this.submissionWaits.delete(id);
+                continue;
+            }
+
+            ready = false;
+            now ??= performance.now();
+            const wait = this.submissionWaits.get(id);
+            if (wait?.canvas !== canvas || wait.generation !== generation || wait.revision !== revision) {
+                this.submissionWaits.set(id, {canvas, generation, revision, since: now, warned: false});
+            } else if (!wait.warned && now - wait.since >= 1000) {
+                wait.warned = true;
+                console.warn("Pax is waiting for a visible tile submission", {id, layer: data.layerId,
+                    key: data.tileKey, host: data.hostSignature, generation, revision, reason});
+            }
         }
-        return true;
+        return ready;
     }
 
     // WebGPU publication compares the visible assignments at submission and
@@ -97,6 +122,9 @@ export class SurfaceCoordinator {
                 active: canvas.parentElement.dataset.renderState !== 'parked'});
         });
         this.publish(installed);
+        for (const id of this.submissionWaits.keys()) {
+            if (!this.requiredForPresentation.has(id)) this.submissionWaits.delete(id);
+        }
         const capacity = this.capacity?.();
         this.trace?.record('installed', {revision: installed.revision,
             surfaces: installed.surfaces, pending: installed.pending,

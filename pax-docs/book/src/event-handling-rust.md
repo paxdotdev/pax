@@ -432,8 +432,18 @@ or measuring when the parent's mount handler runs.
 
 The opt-in [resumable web startup experiment](how-pax-runs.md#experimental-resumable-startup-on-web)
 can yield to the browser between descendant mounts and initial lifecycle phases.
-It queues application input during bootstrap while allowing native measurement
-feedback to settle. Do not use browser yields as application tick boundaries.
+A queued child runs `on_mount` synchronously when its attachment is serviced.
+If control flow removes the child before attachment, it has no mounted lifetime
+and receives neither mount nor teardown callbacks. A mounted child's
+`on_pre_unmount` and `on_unmount` run during teardown, which an authored exit
+transition can delay. GPU submission and display follow their own schedule.
+When input is enabled before an offscreen component mounts, an already-mounted
+control can change shared state. A subscription installed by the later
+component's `on_mount` reads the current value on its first evaluation.
+For example, two earlier increments appear as a count of two in that evaluation.
+The experiment queues application input during bootstrap while allowing native
+measurement feedback to settle. Do not use browser yields as application tick
+boundaries.
 
 The short names `mount`, `tick`, `pre_render`, `pre_unmount`, and `unmount` are also recognized.
 When both forms exist, the `on_*` name is selected. To use a different method

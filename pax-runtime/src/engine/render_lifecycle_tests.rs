@@ -1308,6 +1308,72 @@ fn cooperative_visible_first_paint_finishes_despite_repeated_dirty_ticks() {
 }
 
 #[test]
+fn empty_visible_tile_submits_while_another_layer_is_dirty() {
+    let (engine, mut renderer, nodes) = dirty_render_probe();
+    engine.runtime_context.prepare_scene_geometry();
+    engine.runtime_context.layer_count.set(3);
+    engine.runtime_context.resize_canvas_layers_to(3);
+    renderer.resize_layers_to(3, Rc::clone(&engine.runtime_context.dirty_canvases));
+    engine.runtime_context.dirty_canvases.borrow_mut()[2] = false;
+    renderer.priorities.insert(2, -1);
+    renderer.cold_preparation = true;
+    renderer.cold_records = Some(HashSet::new());
+    let outside = Rect::new(16000.0, 0.0, 17100.0, 600.0);
+    assert!(engine
+        .runtime_context
+        .settled_canvas_nodes_intersecting(2, &[outside])
+        .is_empty());
+    renderer
+        .jobs
+        .push(pax_runtime_api::ReplayCanvasLayerUpdate {
+            layer: 2,
+            regions: Some(vec![outside]),
+        });
+
+    let report = engine.present_surfaces(
+        &mut renderer,
+        &mut surface_work::SurfaceWorkBudget::new(3.0),
+        || 0.0,
+        1,
+        &Default::default(),
+        true,
+    );
+    assert_eq!(
+        report.submitted, 1,
+        "an empty tile needs a transparent submission"
+    );
+    assert_eq!(renderer.prepared_tiles, [2]);
+    assert_eq!(renderer.recording_sessions, 0);
+    assert_eq!(report.deferred, 0);
+    assert!(engine.runtime_context.is_canvas_node_dirty(&nodes[1].id));
+    assert!(engine.runtime_context.is_canvas_dirty(&0));
+}
+
+#[test]
+fn unsubmitted_visible_replay_releases_its_wait_when_demoted() {
+    let (mut engine, mut renderer, _) = dirty_render_probe();
+    engine.render(&mut renderer);
+    renderer.cold_preparation = true;
+    renderer.blocked_layers.insert(1);
+    renderer.jobs.push(replay_job(1));
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let mut budget = surface_work::SurfaceWorkBudget::new(3.0);
+    let report = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert!(report.visible_pending);
+    assert_eq!(
+        report.preparation.visible_wait,
+        Some((1, surface_work::SurfaceWait::ReplayTarget))
+    );
+    renderer.priorities.insert(1, 2);
+    renderer.ordinary_priorities.insert(1, 2);
+    let report = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert!(!report.visible_pending);
+    assert_eq!(report.preparation.visible_wait, None);
+    assert!(renderer.jobs.iter().any(|job| job.layer == 1));
+}
+
+#[test]
 fn cooperative_first_paint_waits_for_failed_prerequisites() {
     for failed_removal in [false, true] {
         let (mut engine, mut renderer, _) = dirty_render_probe();
@@ -1839,15 +1905,18 @@ fn unfiltered_capture_waits_until_unrelated_dirty_work_has_finished() {
         .dirty_canvases
         .borrow_mut()
         .resize(1, true);
-    assert!(engine.can_capture_surface_nodes(&[root.id.to_u32()]));
+    assert_eq!(engine.check_surface_capture(&[root.id.to_u32()]), Ok(()));
     root.get_common_properties()
         .borrow()
         .unclippable
         .set(Some(true));
-    assert!(!engine.can_capture_surface_nodes(&[root.id.to_u32()]));
+    assert_eq!(
+        engine.check_surface_capture(&[root.id.to_u32()]),
+        Err("unclippable_path")
+    );
     assert!(engine.runtime_context.is_canvas_dirty(&0));
     engine.runtime_context.clear_all_dirty_canvases();
-    assert!(engine.can_capture_surface_nodes(&[root.id.to_u32()]));
+    assert_eq!(engine.check_surface_capture(&[root.id.to_u32()]), Ok(()));
 }
 
 #[test]

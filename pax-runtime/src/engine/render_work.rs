@@ -208,6 +208,7 @@ impl PaxEngine {
             // work. One tile (including missing captures) is atomic: a CPU
             // overrun is reported, never presented as a half-built replacement.
             let next = self.present_surfaces(rcs, budget, &now_ms, 1, &state.preparation, true);
+            let visible_wait = next.visible_wait.is_some();
             let mut prepared = next.initializations + next.submitted > 0;
             let visible_needs_draw = next.dirty_layers > 0 || next.unfiltered_layers > 0;
             report.preparation.accumulate(next.clone());
@@ -263,7 +264,9 @@ impl PaxEngine {
                 }
                 // Always offer one host boundary between urgent and optional
                 // work, even if urgent work happened to complete very cheaply.
-                if !visible && !state.urgent_complete {
+                if visible_wait {
+                    state.urgent_complete = false;
+                } else if !visible && !state.urgent_complete {
                     state.urgent_complete = true;
                     // A previous slice already returned to the host. With no
                     // urgent work in this call, don't schedule another input/

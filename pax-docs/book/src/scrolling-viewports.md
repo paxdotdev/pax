@@ -1495,6 +1495,16 @@ unapplied order changes, failed removals, or failed flushes. Inseparable paths
 retain the ordinary full-tree fallback; warm-only preparation and synchronous
 rendering retain their existing admission rules.
 
+A newly visible tile can cover an empty part of a scroller, including space
+reserved for content that is still mounting. WebGPU submits transparent pixels
+for that tile. A tile whose drawings are already retained can also submit
+without traversing their scene paths. Coherent web presentation waits for the
+current generation and content revision of each visible tile before publishing
+its native changes, canvas pixels, and input snapshot. Scrolling a tile out of
+the required set releases that wait. If a configured visible tile keeps waiting
+for its first submission, the browser console reports its host, layer, tile key,
+generation, revision, and the preparation prerequisite when available.
+
 Preparation considers ready candidates in current priority order. If one layer
 is blocked by a pending content update, other eligible layers can still use the
 remaining allowance; a blocked warm layer does not hold up all later warm work.

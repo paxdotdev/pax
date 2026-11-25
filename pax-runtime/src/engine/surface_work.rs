@@ -54,6 +54,19 @@ impl PreparationDiagnostics {
     }
 }
 
+/// Prerequisite for retrying a selected first-paint job on its current assignment.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SurfaceWait {
+    Region,
+    DirtyLayer,
+    RenderPath(&'static str),
+    Settlement(&'static str),
+    Allowance,
+    FallbackTarget,
+    ReplayTarget,
+}
+
 #[derive(Clone, Default, serde::Serialize)]
 pub struct SurfaceWorkReport {
     pub initializations: usize,
@@ -67,6 +80,9 @@ pub struct SurfaceWorkReport {
     pub cache_misses: usize,
     pub dirty_layers: usize,
     pub unfiltered_layers: usize,
+    /// First deferred visible layer and its prerequisite at the most recent selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub visible_wait: Option<(usize, SurfaceWait)>,
     pub blocked: bool,
     pub blocker: Option<&'static str>,
     pub elapsed_ms: f64,
@@ -86,6 +102,7 @@ impl SurfaceWorkReport {
         // Deferred is the queue snapshot from the latest opportunity, not work
         // completed; the other counts describe attempts across opportunities.
         self.deferred = next.deferred;
+        self.visible_wait = next.visible_wait;
         self.cache_misses += next.cache_misses;
         self.dirty_layers += next.dirty_layers;
         self.unfiltered_layers += next.unfiltered_layers;

@@ -34,6 +34,7 @@ function harness(synchronized = false) {
             sampleFrameInputs() {throw Error('continuation published application input');},
             observeFrameInputs() {state.calls.push('observe'); state.observe();},
             syncRenderSurfaceLayouts() {state.calls.push('layout');},
+            startupSurfacesReady(reason) { state.waitReason = reason; },
         };
         const sharedWorkBudget = {
             get remaining() {return state.remaining;},
@@ -138,6 +139,10 @@ test('completion wakes survive exhausted preflight and a fresh frame resumes wor
 
 test('synchronized presentation holds the animation clock across visible backpressure', () => {
     const h = harness(true);
+    const wait = [2, 'replay_target'];
+    h.state.report = {blocked:true, visible_pending:true, preparation:{visible_wait:wait}};
+    assert.equal(h.run(true).holdsTick, true);
+    assert.equal(h.state.waitReason, wait);
     for (const blocker of ['effects', 'gpu_backpressure']) {
         h.state.report = {blocked:true, visible_pending:true, blocker};
         assert.equal(h.run(true).holdsTick, true);

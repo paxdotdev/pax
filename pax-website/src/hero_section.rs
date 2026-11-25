@@ -105,7 +105,12 @@ impl HeroSection {
                 self.settle = FrameSettle::default();
                 return;
             }
-            if !self.settle.ready(now, elapsed, height - previous_height, if replay { 900.0 } else { 5000.0 }) {
+            let start = if replay {
+                LogoStart::ThemeReplay
+            } else {
+                LogoStart::FirstReveal
+            };
+            if !self.settle.ready(now, elapsed, height - previous_height, start) {
                 return;
             }
             if replay {
@@ -309,13 +314,24 @@ pub struct FrameSettle {
     quiet_ms: f64,
 }
 
+enum LogoStart {
+    FirstReveal,
+    ThemeReplay,
+}
+
 impl FrameSettle {
-    fn ready(&mut self, now: f64, dt: f64, height_change: f64, max_wait: f64) -> bool {
+    fn ready(&mut self, now: f64, dt: f64, height_change: f64, start: LogoStart) -> bool {
         let Some(started) = self.started else {
             self.started = Some(now);
-            return false; // This frame's interval predates the theme change.
+            return false; // Only count intervals observed after this intro was armed.
         };
-        self.quiet_ms = if dt <= 40.0 && height_change.abs() < 0.5 {
+        // A late frame can still have a settled layout. Theme replay also waits
+        // for frame times to recover after the palette change.
+        let (cadence_ready, max_wait) = match start {
+            LogoStart::FirstReveal => (true, 5000.0),
+            LogoStart::ThemeReplay => (dt <= 40.0, 900.0),
+        };
+        self.quiet_ms = if cadence_ready && height_change.abs() < 0.5 {
             self.quiet_ms + dt
         } else {
             0.0
@@ -382,12 +398,25 @@ mod portal_tests {
     }
 
     #[test]
+    fn first_reveal_waits_for_layout_even_with_late_frames() {
+        let mut window = FrameSettle::default();
+        let mut frame = |now, height_change| {
+            window.ready(now, 50.0, height_change, LogoStart::FirstReveal)
+        };
+        assert!(!frame(1000.0, 0.0));
+        assert!(!frame(1050.0, 0.0));
+        assert!(!frame(1100.0, 2.0));
+        assert!(!frame(1150.0, 0.0));
+        assert!(frame(1200.0, 0.0));
+    }
+
+    #[test]
     fn replay_waits_for_settled_frames_after_the_switch() {
         let mut window = FrameSettle::default();
         let mut now = 1000.0;
         let mut frame = |dt: f64, reflow: f64| {
             now += dt;
-            window.ready(now, dt, reflow, 900.0)
+            window.ready(now, dt, reflow, LogoStart::ThemeReplay)
         };
         assert!(!frame(500.0, 0.0)); // the pre-switch interval does not count
         assert!(!frame(35.0, 0.0));
@@ -404,9 +433,9 @@ mod portal_tests {
     fn persistently_slow_frames_do_not_suppress_the_replay() {
         let mut window = FrameSettle::default();
         for i in 0..9 {
-            assert!(!window.ready(7000.0 + i as f64 * 100.0, 100.0, 0.0, 900.0));
+            assert!(!window.ready(7000.0 + i as f64 * 100.0, 100.0, 0.0, LogoStart::ThemeReplay));
         }
-        assert!(window.ready(7900.0, 100.0, 0.0, 900.0));
+        assert!(window.ready(7900.0, 100.0, 0.0, LogoStart::ThemeReplay));
     }
 
     #[test]

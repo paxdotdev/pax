@@ -252,7 +252,17 @@ impl InstanceNode for StackerInstance {
         let Some(region) = demand.region else {
             return;
         };
-        let end = if vertical { region.y1 } else { region.x1 };
+        let (start, end) = if vertical {
+            (region.y0, region.y1)
+        } else {
+            (region.x0, region.x1)
+        };
+        let extent = StartupDemand::measure(StartupAxes {
+            x: !vertical,
+            y: vertical,
+        });
+        let sizes = node.with_properties_unwrapped(|p: &mut Stacker| p.sizes.get());
+        let retained = !node.exiting_children_view.read(Vec::is_empty);
         let children = node.active_children_view.get();
         let flow: Vec<_> = children
             .iter()
@@ -267,7 +277,20 @@ impl InstanceNode for StackerInstance {
                 break;
             }
             plan.require(child, demand);
-            if !plan.measured(child, demand) {
+            // An explicit cell allocation places the next sibling independently of
+            // this child's contents. Retained exits can change the cell indices.
+            if !retained
+                && sizes.get(index).copied().flatten().is_some_and(|size| {
+                    !size_depends_on_parent(size)
+                        && (0.0..f64::INFINITY).contains(&size.get_pixels(0.0))
+                })
+            {
+                continue;
+            }
+            // A preceding child outside the viewport cannot satisfy a visible
+            // demand. Ask for the extent that places the next cell directly.
+            let before = bounds.is_some_and(|b| if vertical { b.y1 < start } else { b.x1 < start });
+            if !before && !plan.measured(child, demand) {
                 break;
             }
             // A resolved visible prefix can cover the viewport without finalizing
@@ -277,10 +300,7 @@ impl InstanceNode for StackerInstance {
             {
                 break;
             }
-            let exact = demand.merge(StartupDemand::measure(StartupAxes {
-                x: !vertical,
-                y: vertical,
-            }));
+            let exact = if before { extent } else { demand.merge(extent) };
             plan.require(child, exact);
             if !plan.measured(child, exact) {
                 break;
@@ -2516,6 +2536,103 @@ mod tests {
         assert_eq!(interface.measured_size(), Some((100.0, 240.0)));
         assert_eq!(height.get(), Some(Size::Pixels(400.into())));
         engine.unmount();
+    }
+
+    #[test]
+    fn startup_reaches_the_visible_cell_past_an_offscreen_prefix() {
+        fn cell(size: i64, children: Vec<Rc<dyn InstanceNode>>) -> Rc<dyn InstanceNode> {
+            let mut args = component_args(children);
+            args.prototypical_common_properties =
+                CommonPropertiesInit::Factory(Box::new(move |_, _| {
+                    Some(Rc::new(RefCell::new(CommonProperties {
+                        width: LocalProperty::new(Some(Size::Pixels(size.into()))),
+                        height: LocalProperty::new(Some(Size::Pixels(size.into()))),
+                        ..Default::default()
+                    })))
+                }));
+            ComponentInstance::instantiate(args)
+        }
+        for vertical in [true, false] {
+            for allocated in [false, true] {
+                // The intrinsically allocated cell grows when its descendant mounts.
+                let contents = if allocated {
+                    Vec::new()
+                } else {
+                    vec![cell(150, Vec::new())]
+                };
+                let children = vec![
+                    cell(120, contents),
+                    cell(120, vec![]),
+                    cell(120, vec![]),
+                    cell(120, vec![]),
+                ];
+                let mut args = stacker_args_with(
+                    children,
+                    Stacker {
+                        direction: Property::new(if vertical {
+                            StackerDirection::Vertical
+                        } else {
+                            StackerDirection::Horizontal
+                        }),
+                        autosize: Property::new(true),
+                        sizes: Property::new(if allocated {
+                            vec![Some(Size::Pixels(120.into())); 4]
+                        } else {
+                            Vec::new()
+                        }),
+                        ..Default::default()
+                    },
+                );
+                args.prototypical_common_properties =
+                    CommonPropertiesInit::Factory(Box::new(move |_, _| {
+                        Some(Rc::new(RefCell::new(CommonProperties {
+                            width: LocalProperty::new(vertical.then_some(Size::Pixels(100.into()))),
+                            height: LocalProperty::new(
+                                (!vertical).then_some(Size::Pixels(100.into())),
+                            ),
+                            x: LocalProperty::new(
+                                (!vertical).then_some(Size::Pixels((-130).into())),
+                            ),
+                            y: LocalProperty::new(vertical.then_some(Size::Pixels((-130).into()))),
+                            ..Default::default()
+                        })))
+                    }));
+                let mut engine = pax_runtime::PaxEngine {
+                    runtime_context: Rc::new(crate::test_support::runtime_context()),
+                    root_expanded_node: None,
+                    scroller_tiling_policy: Default::default(),
+                };
+                engine.enable_resumable_startup();
+                let root = engine.mount_root_component(ComponentInstance::instantiate(
+                    component_args(vec![StackerInstance::instantiate(args)]),
+                ));
+                let mut ready = false;
+                for _ in 0..2000 {
+                    engine.service_startup(0.0, || 0.0);
+                    if engine.accept_startup_measurements() {
+                        ready = true;
+                        break;
+                    }
+                }
+                assert!(ready);
+                let stack = &root.children.get()[0];
+                let attached: Vec<_> = stack
+                    .children
+                    .get()
+                    .iter()
+                    .map(|child| child.attached.get() > 0)
+                    .collect();
+                assert_eq!(
+                    attached,
+                    [!allocated, true, false, false],
+                    "vertical={vertical}, allocated={allocated}"
+                );
+                let frame = stack.children.get()[1].container_frame.get().unwrap();
+                let origin = frame.transform.m[if vertical { 5 } else { 4 }];
+                assert_eq!(origin, if allocated { 120.0 } else { 150.0 });
+                engine.unmount();
+            }
+        }
     }
 
     #[test]

@@ -1209,10 +1209,6 @@ impl PaxEngine {
             }
         }
 
-        if !render_path_nodes.contains(&root.id) {
-            return Err("missing_root_path");
-        }
-
         Ok(FilteredRenderPlan {
             dirty_nodes,
             render_path_nodes,
@@ -1300,14 +1296,6 @@ impl PaxEngine {
             self.runtime_context.occlusion_state.borrow().diagnostics,
         );
         let mut completed_units = previous.initializations + previous.recorded + previous.submitted;
-        let captures_cold = rcs.prepares_surface_content();
-        let can_prepare = |layer, ids: &[u32]| {
-            if captures_cold {
-                self.runtime_context.can_prepare_settled_layer(layer)
-            } else {
-                self.runtime_context.can_replay_settled_layer(layer, ids)
-            }
-        };
         let mut deferred = Vec::new();
         loop {
             let selection =
@@ -1377,82 +1365,30 @@ impl PaxEngine {
                 report.blocker = Some(blocker);
                 break;
             }
-            let Some(regions) = update.regions.as_deref() else {
-                deferred.push(update.layer);
-                report.cache_misses += 1;
-                continue;
-            };
-            let ids = self
-                .runtime_context
-                .settled_canvas_nodes_intersecting(update.layer, regions);
-            drop(selection);
-            if !can_prepare(update.layer, &ids) {
-                // A visible first paint owns its prerequisite redraw and tile
-                // submission as one unit. Yielding between them lets the next
-                // input/tick dirty this layer again and starve first paint.
-                // Repair only this selected layer, including its surviving
-                // tiles; geometry/effects and structural changes still block.
-                let repaired = captures_cold
-                    && one_unit
-                    && priority_before == 1
-                    && self.repair_visible_surface_layer(rcs, update.layer);
-                if !repaired || self.runtime_context.settled_surface_blocker().is_some() {
-                    report.dirty_layers += 1;
-                    deferred.push(update.layer);
-                    continue;
-                }
-            }
-            if captures_cold && !self.can_capture_surface_nodes(&ids) {
-                report.unfiltered_layers += 1;
-                deferred.push(update.layer);
-                continue;
-            }
-            let mut direct = false;
-            if let Some(missing) = rcs.missing_surface_drawings(update.layer, &ids) {
-                report.cache_misses += usize::from(!missing.is_empty());
-                // Cooperative work already owns one complete tile. Share its
-                // ancestor traversal/recording session, not one per primitive.
-                // Synchronous preparation retains per-primitive budget checks.
-                let batch_size = if one_unit { missing.len().max(1) } else { 1 };
-                for batch in missing.chunks(batch_size) {
-                    if !one_unit
-                        && !budget.admits(completed_units, previous.elapsed_ms + now_ms() - start)
-                    {
-                        break;
-                    }
-                    if !self.record_surface_nodes(rcs, update.layer, batch) {
-                        direct = true;
-                        break;
-                    }
-                    completed_units += batch.len();
-                    report.recorded += batch.len();
-                }
-                if !can_prepare(update.layer, &ids)
-                    || self.runtime_context.settled_surface_blocker().is_some()
-                    || (!one_unit
-                        && !direct
-                        && !budget.admits(completed_units, previous.elapsed_ms + now_ms() - start))
-                {
-                    deferred.push(update.layer);
-                    continue;
-                }
-            }
-            if direct {
-                // Shader subtrees and drawings that the cache cannot retain
-                // must still reach first paint. Draw them as one unit on the
-                // selected physical surface.
-                if !rcs.begin_surface_fallback(update.layer) {
-                    deferred.push(update.layer);
-                    continue;
-                }
-                self.render_surface_nodes(rcs, update.layer, &ids);
-                report.fallbacks += 1;
-            } else if !rcs.prepare_settled_surface_replay(update.layer, &ids) {
-                deferred.push(update.layer);
-                report.cache_misses += 1;
-                continue;
-            }
             let urgent = rcs.surface_replay_priority(update.layer) <= 0;
+            let recorded_before = report.recorded;
+            let result = self.prepare_surface_job(
+                rcs,
+                &update,
+                one_unit,
+                host_sliced_visible,
+                |recorded| {
+                    budget.admits(
+                        completed_units + recorded,
+                        previous.elapsed_ms + now_ms() - start,
+                    )
+                },
+                &mut report,
+                selection,
+            );
+            completed_units += report.recorded - recorded_before;
+            if let Err(wait) = result {
+                if urgent {
+                    report.visible_wait.get_or_insert((update.layer, wait));
+                }
+                deferred.push(update.layer);
+                continue;
+            }
             rcs.flush(
                 update.layer,
                 Rc::clone(&self.runtime_context.dirty_canvases),
@@ -1473,6 +1409,95 @@ impl PaxEngine {
         report.elapsed_ms = now_ms() - start;
         report.diagnostics = diagnostics.finish();
         report
+    }
+
+    // The scheduler owns the job until this returns. A successful preparation
+    // proceeds to flush. A failed one retains its physical scope for retry.
+    fn prepare_surface_job(
+        &self,
+        rcs: &mut dyn RenderContext,
+        job: &pax_runtime_api::ReplayCanvasLayerUpdate,
+        one_unit: bool,
+        repair_visible: bool,
+        admits: impl Fn(usize) -> bool,
+        report: &mut surface_work::SurfaceWorkReport,
+        selection: preparation_diagnostics::Span,
+    ) -> Result<(), surface_work::SurfaceWait> {
+        use surface_work::SurfaceWait;
+        let layer = job.layer;
+        let Some(regions) = job.regions.as_deref() else {
+            report.cache_misses += 1;
+            return Err(SurfaceWait::Region);
+        };
+        let ids = self
+            .runtime_context
+            .settled_canvas_nodes_intersecting(layer, regions);
+        drop(selection);
+        let cold = rcs.prepares_surface_content();
+        let can_prepare = || {
+            if cold {
+                self.runtime_context.can_prepare_settled_layer(layer)
+            } else {
+                self.runtime_context.can_replay_settled_layer(layer, &ids)
+            }
+        };
+        // Keep a visible tile's prerequisite redraw and submission in one unit.
+        if !can_prepare()
+            && !(cold
+                && repair_visible
+                && self.repair_visible_surface_layer(rcs, layer)
+                && self.runtime_context.settled_surface_blocker().is_none())
+        {
+            report.dirty_layers += 1;
+            return Err(SurfaceWait::DirtyLayer);
+        }
+        let mut direct = false;
+        if let Some(missing) = rcs.missing_surface_drawings(layer, &ids) {
+            if !missing.is_empty() {
+                report.cache_misses += 1;
+                // Only a recording or direct fallback traverses the scene. A retained
+                // replay, including a transparent tile with no drawings, needs no path.
+                if cold {
+                    self.check_surface_capture(&ids).map_err(|reason| {
+                        report.unfiltered_layers += 1;
+                        SurfaceWait::RenderPath(reason)
+                    })?;
+                }
+            }
+            let batch_size = if one_unit { missing.len().max(1) } else { 1 };
+            let mut recorded = 0;
+            for batch in missing.chunks(batch_size) {
+                if !one_unit && !admits(recorded) {
+                    return Err(SurfaceWait::Allowance);
+                }
+                if !self.record_surface_nodes(rcs, layer, batch) {
+                    direct = true;
+                    break;
+                }
+                recorded += batch.len();
+                report.recorded += batch.len();
+            }
+            if !can_prepare() {
+                return Err(SurfaceWait::DirtyLayer);
+            }
+            if let Some(reason) = self.runtime_context.settled_surface_blocker() {
+                return Err(SurfaceWait::Settlement(reason));
+            }
+            if !one_unit && !direct && !admits(recorded) {
+                return Err(SurfaceWait::Allowance);
+            }
+        }
+        if direct {
+            if !rcs.begin_surface_fallback(layer) {
+                return Err(SurfaceWait::FallbackTarget);
+            }
+            self.render_surface_nodes(rcs, layer, &ids);
+            report.fallbacks += 1;
+        } else if !rcs.prepare_settled_surface_replay(layer, &ids) {
+            report.cache_misses += 1;
+            return Err(SurfaceWait::ReplayTarget);
+        }
+        Ok(())
     }
 
     fn record_surface_nodes(&self, rcs: &mut dyn RenderContext, layer: usize, ids: &[u32]) -> bool {
@@ -1500,18 +1525,18 @@ impl PaxEngine {
                 .is_some_and(|missing| missing.is_empty())
     }
 
-    fn can_capture_surface_nodes(&self, ids: &[u32]) -> bool {
+    fn check_surface_capture(&self, ids: &[u32]) -> Result<(), &'static str> {
         if !self.runtime_context.has_dirty_canvas_layers() {
-            return true;
+            return Ok(());
         }
         let Some(root) = &self.root_expanded_node else {
-            return true;
+            return Ok(());
         };
         let ids: Vec<_> = ids.iter().map(|id| ExpandedNodeIdentifier(*id)).collect();
         // The unclippable fallback traverses the whole tree. During an early
         // recording-only pass it could consume another layer's dirty flags
         // without updating that layer's GPU content. Ordinary render owns it.
-        self.build_filtered_render_plan(root, &ids).is_ok()
+        self.build_filtered_render_plan(root, &ids).map(|_| ())
     }
 
     fn render_surface_nodes(&self, rcs: &mut dyn RenderContext, layer: usize, ids: &[u32]) {

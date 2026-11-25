@@ -1334,8 +1334,8 @@ export class NativeElementPool {
         return this.surfaceCoordinator?.presentationCoverage();
     }
 
-    startupSurfacesReady(): boolean {
-        return this.surfaceCoordinator?.presentationReady() ?? false;
+    startupSurfacesReady(reason?: unknown): boolean {
+        return this.surfaceCoordinator?.presentationReady(reason) ?? false;
     }
 
     startupTextReady(): boolean {

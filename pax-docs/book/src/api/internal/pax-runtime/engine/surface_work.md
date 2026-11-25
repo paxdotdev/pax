@@ -143,8 +143,26 @@ Type: `usize`
 Visible initialization/submission units serviced in this display epoch.
 Diagnostic only: starting initialization is not presented content.
 
+##### `visible_wait`
+Type: `Option`<(`usize`, [`SurfaceWait`](../../../../api/internal/pax-runtime/engine/surface_work.md#surfacewait))>
+
+First deferred visible layer and its prerequisite at the most recent selection.
+
 ##### `diagnostics`
 Type: `Option`<[`PreparationDiagnostics`](../../../../api/internal/pax-runtime/engine/surface_work.md#preparationdiagnostics)>
 
 Absent unless runtime diagnostics are enabled. Fixed-size stage aggregates,
 never per-node or per-command logs; no effect on admission or readiness.
+
+## Enums
+### `SurfaceWait`
+Prerequisite for retrying a selected first-paint job on its current assignment.
+
+#### Variants
+##### `Region`
+##### `DirtyLayer`
+##### `RenderPath`(&'`static` `str`)
+##### `Settlement`(&'`static` `str`)
+##### `Allowance`
+##### `FallbackTarget`
+##### `ReplayTarget`

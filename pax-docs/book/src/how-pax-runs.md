@@ -578,7 +578,11 @@ require mounting its entire content. A start-aligned Stacker with a fixed cross
 axis resolves a visible prefix, accepting native measurements before deciding
 whether another child is needed. A child that already covers the viewport can
 keep its trailing content deferred. If a following child is needed, the preceding
-child's exact main-axis extent becomes a dependency and is resolved first.
+cell's main-axis extent determines its sibling's placement. When the viewport
+starts partway through a stack, earlier intrinsic cells can still need
+measurement, including overflow from children that participate in layout.
+A fixed pixel entry in `Stacker.sizes` supplies the cell extent directly,
+so its offscreen content can stay queued.
 Centered, rotated, reversed, or cross-axis-measured flows conservatively require
 complete content. Scroller's total scroll extent can grow as deferred content
 mounts; it is separate from its viewport and child layout frame.

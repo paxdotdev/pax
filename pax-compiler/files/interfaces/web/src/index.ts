@@ -617,6 +617,10 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
                 ordinaryRenderPending = report.visible_pending && (!report.blocked || !!presentation);
                 if (presentation && !report.visible_pending && !report.blocker) {
                     ordinaryRenderPending = !presentation.settled();
+                } else if (presentation && report.preparation?.visible_wait) {
+                    // The engine still owns first paint. Let the lease monitor
+                    // attribute a persistent wait even before the next seal.
+                    nativePool.startupSurfacesReady(report.preparation.visible_wait);
                 }
                 recordService?.(report);
                 return report;

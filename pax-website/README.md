@@ -390,7 +390,10 @@ scroll. Animated transforms leave the reserved home and section layout unchanged
 The island measures 552 × 52px on desktop, 14px below the safe top. Below 760px
 it is at most 312 × 48px, with an 8px top gap and at least 10px on either side.
 Pages without
-a hero show the static `NavLogo`. The hero logo replays on a scroll
+a hero show the static `NavLogo`. On first reveal, the logo starts unfurling
+after its layout height has been stable for 100 ms, including on slower displays.
+If the layout keeps changing, the intro starts after five seconds.
+The hero logo replays on a scroll
 return from the nav. A return holds the intro's initial pose during the portal
 trip, then replays the full unfurl and lighting sequence once the hero home is
 reached. Departures into the nav and hiding it for a full-screen source sheet do not trigger the

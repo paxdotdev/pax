@@ -25,7 +25,7 @@ export function surfaceRequire(name) {
     const module = {exports: {}};
     const source = readFileSync(new URL(`../src/classes/${name.slice(2)}.ts`, import.meta.url), 'utf8');
     vm.runInNewContext(transformSync(source, {loader: 'ts', format: 'cjs'}).code, {
-        module, exports: module.exports, require: surfaceRequire, performance, AbortController,
+        module, exports: module.exports, require: surfaceRequire, performance, AbortController, console,
     });
     return module.exports;
 }

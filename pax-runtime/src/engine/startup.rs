@@ -816,6 +816,12 @@ mod tests {
         CALLS
             .with_borrow_mut(|v| v.push(("pre_render", ctx.expanded_node.upgrade().unwrap().id.0)));
     }
+    fn pre_unmount(_: Rc<RefCell<PaxAny>>, ctx: &NodeContext, _: Option<PaxAny>) {
+        CALLS.with_borrow_mut(|v| v.push(("pre_unmount", ctx.expanded_node.upgrade().unwrap().id.0)));
+    }
+    fn unmount(_: Rc<RefCell<PaxAny>>, ctx: &NodeContext, _: Option<PaxAny>) {
+        CALLS.with_borrow_mut(|v| v.push(("unmount", ctx.expanded_node.upgrade().unwrap().id.0)));
+    }
     fn component(children: Vec<Rc<dyn InstanceNode>>) -> Rc<ComponentInstance> {
         component_with_common(children, crate::CommonPropertiesInit::Default)
     }
@@ -838,6 +844,8 @@ mod tests {
             ),
             ("tick", tick),
             ("pre_render", pre_render),
+            ("pre_unmount", pre_unmount),
+            ("unmount", unmount),
         ] {
             handlers
                 .handlers
@@ -1465,7 +1473,14 @@ mod tests {
         finish(&mut engine);
         assert_eq!(children[0].attached.get(), 0);
         assert_eq!(children[1].attached.get(), 1);
-        assert!(!CALLS.with_borrow(|c| c.contains(&("mount", children[0].id.0))));
+        assert!(CALLS.with_borrow(|c| c.iter().all(|(_, id)| *id != children[0].id.0)));
+        CALLS.with_borrow_mut(Vec::clear);
+        root.attach_children(Vec::new(), &engine.runtime_context, &root.parent_frame);
+        assert_eq!(
+            CALLS.with_borrow(Clone::clone),
+            [("pre_unmount", children[1].id.0), ("unmount", children[1].id.0)],
+            "teardown finishes in the attachment call"
+        );
         let mut another = new_engine();
         another.mount_root_component(component(vec![component(vec![])]));
         another.unmount();
@@ -1602,6 +1617,83 @@ mod tests {
         );
         assert!(!ctx.accepts_startup_input(&pending));
         assert_eq!(ctx.globals().elapsed_frames.get(), 0);
+    }
+
+    #[test]
+    fn input_before_an_offscreen_subscription_mounts_is_observed_as_current_state() {
+        use crate::api::{ButtonClick, Event, LocalProperty, Store};
+
+        struct Selection {
+            value: LocalProperty<u32>,
+            observations: Rc<RefCell<Vec<u32>>>,
+        }
+        impl Store for Selection {}
+
+        let mut engine = new_engine();
+        engine.hold_presentation();
+        let button = box_at(0., vec![]);
+        let subscriber = box_at(500., vec![]);
+        let bind = |node: &ComponentInstance, name: &str, handler: Handler| {
+            node.base()
+                .handler_registry
+                .as_ref()
+                .unwrap()
+                .borrow_mut()
+                .handlers
+                .insert(name.to_owned(), vec![handler]);
+        };
+        bind(
+            &button,
+            "button_click",
+            Handler::new_component_handler(|_, ctx, _| {
+                ctx.with_store::<Selection, _>(|s| s.value.set(s.value.get() + 1))
+                    .unwrap();
+            }),
+        );
+        bind(
+            &subscriber,
+            "mount",
+            Handler::new_component_handler(|_, ctx, _| {
+                let (value, observations) = ctx
+                    .with_store::<Selection, _>(|s| (s.value.clone(), s.observations.clone()))
+                    .unwrap();
+                ctx.subscribe(&[value.untyped()], move || {
+                    observations.borrow_mut().push(value.get())
+                });
+            }),
+        );
+        let root = engine.mount_root_component(component(vec![button, subscriber]));
+        let ctx = Rc::clone(&engine.runtime_context);
+        let _graph = ctx.property_graph.enter();
+        let value = LocalProperty::new(0);
+        let observations = Rc::new(RefCell::new(Vec::new()));
+        root.get_node_context(&ctx)
+            .provide_store(Selection {
+                value: value.clone(),
+                observations: observations.clone(),
+            })
+            .unwrap();
+        assert!(reach_checkpoint(&mut engine).pending);
+        engine.resume_startup_after_presentation();
+        let children = root.children.get();
+        assert_eq!(children[1].attached.get(), 0);
+        let click = || {
+            children[0].dispatch_button_click(Event::new(ButtonClick {}), &ctx.globals(), &ctx);
+            ctx.drain_node_effects();
+        };
+        click();
+        click();
+        assert_eq!(value.get(), 2);
+        assert!(observations.borrow().is_empty());
+
+        finish(&mut engine);
+        assert_eq!(&*observations.borrow(), &[2]);
+        click();
+        assert_eq!(&*observations.borrow(), &[2, 3]);
+        children[1].clone().recurse_unmount(&ctx);
+        click();
+        assert_eq!(value.get(), 4);
+        assert_eq!(&*observations.borrow(), &[2, 3]);
     }
 
     #[test]
