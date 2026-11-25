@@ -54,6 +54,12 @@ struct ChildStructure {
     exiting: Vec<ExpandedNodeIdentifier>,
 }
 
+impl ChildStructure {
+    fn has_children(&self) -> bool {
+        !self.rendered.is_empty() || !self.active.is_empty() || !self.exiting.is_empty()
+    }
+}
+
 fn received_children_signature(
     nodes: &[Rc<ExpandedNode>],
 ) -> Vec<(ExpandedNodeIdentifier, u64, u64)> {
@@ -1598,9 +1604,9 @@ impl ExpandedNode {
         self.bind_to_parent_bounds(context);
         self.bind_occlusion_listener(context);
         self.mark_non_reactive_update_subtree_dirty();
-        context.mark_occlusion_dirty_for_node(self.id.to_u32());
-        context.set_canvas_dirty(self.occlusion.get().render_layer_id);
         if self.attached.get() > 0 {
+            context.mark_occlusion_dirty_for_node(self.id.to_u32());
+            context.set_canvas_dirty(self.occlusion.get().render_layer_id);
             context.refresh_scene_lighting_node(self);
             context.viewport_structure_changed();
             context.outside_clicks.borrow_mut().register(self);
@@ -3283,8 +3289,12 @@ impl ExpandedNode {
         self.reset_removed_runtime_properties.set(false);
         self.refresh_properties_scope(&instance);
         self.mark_non_reactive_update_subtree_dirty();
-        context.mark_occlusion_dirty_for_node(self.id.to_u32());
-        context.set_canvas_dirty(self.occlusion.get().render_layer_id);
+        // A detached prototype has no displayed occurrence. Registration
+        // invalidates its first placement after these bindings are installed.
+        if self.attached.get() > 0 {
+            context.mark_occlusion_dirty_for_node(self.id.to_u32());
+            context.set_canvas_dirty(self.occlusion.get().render_layer_id);
+        }
     }
 
     fn bind_selector_classes_listener(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
@@ -3333,6 +3343,13 @@ impl ExpandedNode {
                     if node.attached.get() > 0 && context.startup.borrow().is_active() {
                         node.children.read(|_| ());
                     }
+                    let has_children = || {
+                        previous
+                            .borrow()
+                            .as_ref()
+                            .is_some_and(ChildStructure::has_children)
+                    };
+                    let had_children = has_children();
                     if !node.child_structure_changed(&previous, &node.logical_children(&context)) {
                         return;
                     }
@@ -3364,10 +3381,10 @@ impl ExpandedNode {
                             ancestor = parent.template_parent.upgrade();
                         }
                     }
-                    // Mount registers visible occurrences. Detached projection
-                    // controllers still notify their slots below, and settings
-                    // sidecars can evaluate children without ever mounting.
-                    if node.attached.get() > 0 {
+                    // Mount registers visible occurrences. Detached controllers
+                    // and rebound leaves still notify their slots below. Empty
+                    // lists on both sides cannot change displayed membership.
+                    if node.attached.get() > 0 && (had_children || has_children()) {
                         context.mark_occlusion_dirty_for_node(node.id.to_u32());
                     }
 

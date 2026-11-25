@@ -1625,6 +1625,9 @@ impl InputPublisher {
             .clone()
             .filter(|_| topology == TopologyChange::None)
         {
+            // With unchanged membership, only a record in the displayed view
+            // can receive a replacement. Parked nodes can still signal a pose.
+            dirty.retain(|id| previous.nodes.get(*id as usize).is_some());
             // A world-space property can be invalidated throughout a subtree
             // whose resolved pose did not move. Keep the immutable body and its
             // dynamic read subscriptions if every potentially changed source

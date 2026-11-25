@@ -2393,10 +2393,17 @@ mod tests {
             assert_eq!(footprint(&anchor.1), [1200., 0., 1300., 100.]);
         }
         let mut publisher = crate::properties::input_capture::InputPublisher::default();
+        let mut parked_view = None;
         for _ in 0..32 {
             let more = engine.service_background_mounts(0., || 0.);
             engine.tick();
             let view = publisher.capture(&ctx).unwrap();
+            if let Some(previous) = parked_view.replace(view.clone()) {
+                assert!(
+                    Rc::ptr_eq(&previous, &view),
+                    "hidden attachments rebuilt displayed input"
+                );
+            }
             let _displayed = view.enter(&ctx, &HashMap::new()).unwrap();
             assert!(!ctx.accepts_displayed_input(&later));
             if !more {
