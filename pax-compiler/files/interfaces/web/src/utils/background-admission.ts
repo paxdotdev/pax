@@ -20,6 +20,7 @@ export class BackgroundAdmission {
     private ticks = 0;
     private lastGrantTick = 0;
     private foregroundLate = false;
+    private heldPreparationMs = 0;
     private deadline = 0;
     private epoch = 0;
     private interrupt = 0;
@@ -29,7 +30,7 @@ export class BackgroundAdmission {
 
     constructor(private chassis: PaxChassisWeb, root: Element,
         indexed: boolean, private runContinuation: (job: () => void) => void,
-        readonly shareDemand = false) {
+        readonly shareDemand = false, private prepareWhileWaiting = false) {
         chassis.configure_admission_resumption(1, false);
         chassis.configure_visible_groups(true);
         if (indexed) chassis.enable_indexed_mounts(performance.now());
@@ -100,10 +101,24 @@ export class BackgroundAdmission {
     }
     afterTick(duration: number) {
         this.foregroundLate = duration >= framePeriod;
+        this.heldPreparationMs = 0;
         if (this.phase === 'draining' && !this.chassis.admission_can_continue() &&
             this.chassis.background_counts().slice(3).every(count => count === 0) && !this.chassis.service_background_mounts(0)) {
             this.phase = 'settling';
         }
+    }
+    // The host has just checked the sealed revision's fence. The displayed
+    // scene stays frozen while detached attachments use spare time on this rAF.
+    // Charge actual time until the next tick settles the resulting effects.
+    waitingForSubmission() {
+        if (!this.prepareWhileWaiting || this.phase !== 'draining' || !this.input || !this.spatial ||
+            document.hidden || this.previouslyServed === this.epoch || inputPending() ||
+            !this.chassis.admission_can_continue()) return;
+        const cap = Math.min(1, mountAllowance - this.heldPreparationMs, this.slack());
+        if (cap <= minimumSlack) return;
+        const start = performance.now();
+        this.grant(cap);
+        this.heldPreparationMs += performance.now() - start;
     }
     afterSubmission(fence: bigint | undefined, currentFence: () => bigint | undefined) {
         if (this.phase !== 'draining' || !this.input || document.hidden || this.previouslyServed === this.epoch ||

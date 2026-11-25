@@ -1194,21 +1194,25 @@ impl PaxEngine {
             .push(dirty_node_ids.to_vec());
         let dirty_nodes: HashSet<_> = dirty_node_ids.iter().copied().collect();
         let mut render_path_nodes = HashSet::new();
+        let mut local_path = HashSet::new();
 
         for dirty_node_id in &dirty_nodes {
             let mut node = self
                 .runtime_context
                 .get_expanded_node_by_eid(*dirty_node_id)
                 .ok_or("missing_dirty_node")?;
-            let mut local_path = HashSet::new();
             loop {
+                // Every node here already has a validated path to this root.
+                // Siblings can share that suffix within this plan.
+                if render_path_nodes.contains(&node.id) {
+                    break;
+                }
                 if !local_path.insert(node.id) {
                     return Err("render_parent_cycle");
                 }
                 if node.is_unclippable() {
                     return Err("unclippable_path");
                 }
-                render_path_nodes.insert(node.id);
                 if node.id == root.id {
                     break;
                 }
@@ -1221,6 +1225,7 @@ impl PaxEngine {
                     })
                     .ok_or("missing_render_parent")?;
             }
+            render_path_nodes.extend(local_path.drain());
         }
 
         Ok(FilteredRenderPlan {

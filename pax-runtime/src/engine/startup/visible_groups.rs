@@ -1,6 +1,6 @@
 //! Admission of a component's first mixed native and canvas output.
-//! A repeat's items are independent. A projected slot keeps the actual render
-//! parent, so a card's authored media and lettering can settle together.
+//! A repeated item can own an independent presentation. Repeated details of
+//! an enclosing component share its publication until it is first shown.
 use super::{
     admission::{AdmissionQueue, Priority},
     PendingMount,
@@ -19,12 +19,16 @@ struct Shape {
     native: bool,
     canvas: bool,
     discovery: bool,
+    // A slot projecting the current template's caller. A nested component’s
+    // private slot contributes only the content supplied at its call site.
+    projects: bool,
 }
 impl Shape {
     fn include(&mut self, other: Self) {
         self.native |= other.native;
         self.canvas |= other.canvas;
         self.discovery |= other.discovery;
+        self.projects |= other.projects;
     }
 }
 #[derive(Default)]
@@ -58,6 +62,9 @@ pub(crate) struct VisibleGroups {
     pub(crate) parked: u32,
 }
 impl VisibleGroups {
+    pub(crate) fn may_have_parked_nodes(&self) -> bool {
+        !self.lanes.is_empty() && self.parked != self.opened
+    }
     pub(crate) fn configure(&mut self, park: bool) {
         self.enabled = true;
         self.park = park;
@@ -77,7 +84,8 @@ impl VisibleGroups {
         let mut result = Shape {
             native: matches!(f.layer, Layer::Native | Layer::NativeNonOccluding),
             canvas: matches!(f.layer, Layer::Canvas),
-            discovery: f.is_slot,
+            discovery: false,
+            projects: f.is_slot,
         };
         if let Some(template) = instance.get_template() {
             for child in template.borrow().iter() {
@@ -102,6 +110,7 @@ impl VisibleGroups {
             // Content authored between these component tags still belongs
             // to the caller, including when delivered through nested slots.
             shape.native = false;
+            shape.projects = false;
             for payload in child.base().get_instance_children().borrow().iter() {
                 self.include_child(&mut shape, payload);
             }
@@ -200,10 +209,16 @@ impl VisibleGroups {
             return;
         }
         let shape = self.shape(&instance);
-        // A bare slot in a repeat forwards the caller’s payload (for example a link).
-        // A repeated item wrapper starts its own visual lifetime.
-        let inherited = (!parent.instance_node.borrow().repeats_admission_items()
-            || instance.base().flags().is_slot)
+        let flags = instance.base().flags();
+        let projects = shape.projects
+            && (!flags.is_component
+                || !instance.base().get_instance_children().borrow().is_empty());
+        // A repeated card or a wrapper discovering projected cards can publish
+        // independently. A single-surface detail belongs to the enclosing item.
+        let separate = parent.instance_node.borrow().repeats_admission_items()
+            && !flags.is_slot
+            && (shape.discovery || projects);
+        let inherited = (!separate)
             .then(|| self.membership.get(&parent.id.to_u32()).copied())
             .flatten()
             .filter(|id| self.lanes.contains_key(id));
@@ -230,7 +245,7 @@ impl VisibleGroups {
                 return;
             }
         }
-        if let Some(work) = work.filter(|_| shape.discovery) {
+        if let Some(work) = work.filter(|_| shape.discovery || projects) {
             self.discovery.insert(id, work.clone());
         }
     }
@@ -258,7 +273,7 @@ impl VisibleGroups {
     }
     pub(in crate::engine) fn capture_anchor(&self, child: Id) -> Option<(Id, Rc<ExpandedNode>)> {
         let group = *self.membership.get(&child)?;
-        Some((group, Self::candidate(self.lanes.get(&group)?)?))
+        Some((group, self.lanes.get(&group)?.root.upgrade()?))
     }
     fn candidate(lane: &Lane) -> Option<Rc<ExpandedNode>> {
         if lane.mounted {
@@ -318,6 +333,14 @@ impl VisibleGroups {
             return;
         }
         let id = child.id.to_u32();
+        if !spatial {
+            // The first viewport has its own atomic publication. A component
+            // admitted into it cannot lend its geometry or age to all future
+            // page content after it has appeared. Its deferred children
+            // register in their own scopes as the component mounts.
+            self.discard(id);
+            return;
+        }
         self.discovery.remove(&id);
         if let Some(lane) = self.lanes.get_mut(&id) {
             lane.mounted = true;
@@ -325,7 +348,7 @@ impl VisibleGroups {
                 .mount_epoch
                 .get()
                 .wrapping_add(u64::from(child.attached.get() == 0));
-            if self.park && spatial {
+            if self.park {
                 child.admission_parked.set(true);
                 self.parked += 1;
             }
@@ -470,19 +493,29 @@ impl RuntimeContext {
         true
     }
     pub fn hidden_native_group_members(&self, ids: &[u32]) -> Vec<u32> {
+        if !self.visible_groups.borrow().may_have_parked_nodes() {
+            return Vec::new();
+        }
         ids.iter()
             .copied()
             .filter(|id| {
-                let mut current = self.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(*id));
-                while let Some(node) = current {
-                    if node.admission_parked.get() {
-                        return true;
-                    }
-                    current = node.presentation_parent_node();
-                }
-                false
+                self.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(*id))
+                    .is_some_and(|node| self.behind_parked_presentation(&node))
             })
             .collect()
+    }
+    pub(crate) fn behind_parked_presentation(&self, node: &ExpandedNode) -> bool {
+        if node.admission_parked.get() {
+            return true;
+        }
+        let mut current = node.presentation_parent_node();
+        while let Some(parent) = current {
+            if parent.admission_parked.get() {
+                return true;
+            }
+            current = parent.presentation_parent_node();
+        }
+        false
     }
     pub fn admission_group_diagnostics(&self) -> Vec<(u32, String, usize, usize, bool, u8)> {
         let state = self.visible_groups.borrow();

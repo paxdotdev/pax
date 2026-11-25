@@ -133,6 +133,22 @@ Accept the host's quiet font/native-measurement checkpoint before the
 next reveal. A flow can now admit its next visible child using resolved
 preceding geometry. Returns false when that adds work to service first.
 
+##### `admission_rank_stats`
+<pre><code class="api-signature language-rust ignore">pub fn admission_rank_stats(&amp;self) -&gt; RankStats</code></pre>
+
+Snapshot cumulative selection work without disturbing queue order.
+
+##### `begin_background_mounting`
+<pre><code class="api-signature language-rust ignore">pub fn begin_background_mounting(&amp;mut self) -&gt; bool</code></pre>
+
+Transfer the remaining mount identities to the ordinary frame loop after
+the host has acknowledged the first viewport. Pending nodes stay detached.
+
+##### `configure_admission_resumption`
+<pre><code class="api-signature language-rust ignore">pub fn configure_admission_resumption(&amp;self, mode: u8, measure: bool)</code></pre>
+
+Select the cold, retained, or checked priority path in the startup experiment.
+
 ##### `enable_resumable_startup`
 <pre><code class="api-signature language-rust ignore">pub fn enable_resumable_startup(&amp;mut self)</code></pre>
 
@@ -146,6 +162,11 @@ This changes scheduling only; every initially selected node still mounts.
 Enable queue and mount attribution after enabling resumable startup and
 before mounting the root. Profiling adds overhead and retains diagnostic
 names in both debug and release; it never changes the scheduling budget.
+
+##### `has_runnable_background_mount`
+<pre><code class="api-signature language-rust ignore">pub fn has_runnable_background_mount(&amp;self) -&gt; bool</code></pre>
+
+Diagnostic existence witness. Stops at the first attached parent whose queued child is legal.
 
 ##### `prepare_startup_presentation`
 <pre><code class="api-signature language-rust ignore">pub fn prepare_startup_presentation(&amp;mut self) -&gt; bool</code></pre>
@@ -170,6 +191,12 @@ Acknowledge a rendered startup checkpoint and eagerly start the next
 deferred subtrees. Ordinary ticks remain held until all work ends; the host
 can release input separately once its loading screen has exited.
 The first acknowledgement must follow the host's font/measurement gate.
+
+##### `service_background_mounts`
+<pre><code class="api-signature language-rust ignore">pub fn service_background_mounts(&amp;mut self, budget_ms: f64, now_ms: impl FnMut() -&gt; f64) -&gt; bool</code></pre>
+
+Admit a batch before an ordinary tick. That tick settles its effects and
+runs lifecycle handlers on the mounted tree. Return whether more work exists.
 
 ##### `service_startup`
 <pre><code class="api-signature language-rust ignore">pub fn service_startup(&amp;mut self, budget_ms: f64, now_ms: impl FnMut() -&gt; f64) -&gt; <a href="../../../api/internal/pax-runtime/engine/startup.md#startupreport">StartupReport</a></code></pre>

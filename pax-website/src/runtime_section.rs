@@ -4,8 +4,10 @@ use crate::{runtime_glass::RuntimeGlass, PaxflixShowcase, SiteTheme};
 use pax_kit::*;
 
 const COMPACT_BREAKPOINT_PX: f64 = 760.0;
+const BOTTOM_INSET: f64 = 24.0;
 
 #[pax]
+#[has_helpers]
 #[file("runtime_section.pax")]
 pub struct RuntimeSection {
     pub light_mode: Property<bool>,
@@ -27,6 +29,30 @@ fn showcase_scale(section_width: f64, compact: bool) -> f64 {
         section_width * 0.88
     };
     width.max(0.0) / 1280.0
+}
+
+#[helpers]
+impl RuntimeSection {
+    pub fn stage_height(scale: f64, compact: bool) -> f64 {
+        scale * 729.0 + if compact { 52.0 } else { 0.0 }
+    }
+
+    pub fn copy_inset(compact: bool) -> f64 {
+        if compact { 56.0 } else { 80.0 }
+    }
+}
+
+// The demo and editorial insets have an intrinsic height before any native
+// text is measured. The live content measurement takes over at the actual
+// preview width, including when a drawer changes the available space.
+pub(crate) fn pending_section_height(width: f64) -> f64 {
+    let compact = width < COMPACT_BREAKPOINT_PX;
+    let scale = showcase_scale(width, compact);
+    (RuntimeSection::stage_height(scale, compact)
+        + 2.0 * RuntimeSection::copy_inset(compact)
+        + BOTTOM_INSET)
+        .ceil()
+        .max(400.0)
 }
 
 #[cfg(test)]
@@ -134,7 +160,7 @@ impl RuntimeSection {
                     ctx,
                     "runtime_content",
                     &self.content_height,
-                    &Property::new(24.0),
+                    &Property::new(BOTTOM_INSET),
                 ));
         }
     }

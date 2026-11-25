@@ -1820,11 +1820,12 @@ impl ExpandedNode {
         child: &Rc<Self>,
         context: &Rc<RuntimeContext>,
     ) {
-        self.sync_mounted_children_from_active_and_exiting();
+        // attach_children already installed this child's place in the active
+        // and exiting lists. Only its eligibility for presentation changes here.
         context.authored_order_changed(self);
         child.trigger_bound_enter_transitions_for_mounted_sources_recursive(context);
         self.mark_non_reactive_update_subtree_dirty();
-        context.mark_occlusion_dirty_for_node(self.id.to_u32());
+        context.mark_occlusion_dirty_for_attachment(self.id, child);
     }
 
     fn has_child(children: &[Rc<ExpandedNode>], target: &Rc<ExpandedNode>) -> bool {

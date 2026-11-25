@@ -654,9 +654,13 @@ has to drain. The admission threshold is soft: one mount, resize, or indivisible
 handler can enqueue a large amount of work, and the initial required viewport is
 not constrained by it. A late resize can therefore still take multiple slices.
 
-Native leaves appear as their own readiness permits; the canvas keeps its last
-presentation until each feedback checkpoint settles. The whole-scene visibility
-gate stays open.
+With WebGPU and `loader_exit = "first_viewport"`, a newly mounted mixed
+component can measure its native leaves while its first artwork is prepared.
+Its native leaves, canvas pixels, and hit geometry become visible together
+after the required submission completes. Repeated vector details in that
+component share its first presentation. Independently presentable siblings
+can open on different frames. The rest of the page stays interactive through
+these publications.
 The final readiness check holds application input and the `init_web` Promise,
 without hiding already presented content. These checkpoints do not advance an
 application tick for each slice or repeat the initial handlers on existing nodes.

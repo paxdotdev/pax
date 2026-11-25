@@ -530,13 +530,14 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
         let groups: AdmissionGroups | undefined;
         if (liveSession?.options.holdPresentation && liveSession.options.loaderExit === 'first_viewport') {
             const policy = new URLSearchParams(location.search).get('pax_mount_policy');
-            const shared = policy === 'shared';
+            const prepareWhileWaiting = policy === 'shared-wait';
+            const shared = policy === 'shared' || prepareWhileWaiting;
             const indexed = shared || policy === 'indexed';
             admission = new BackgroundAdmission(chassis, mount, indexed, job => {
                 if (frameInProgress || ordinaryRenderPending || frameScheduler.suspended || chassis !== currentChassis) return;
                 frameInProgress = true;
                 try { job(); } finally { finishEngineTurn(chassis, mount); }
-            }, shared);
+            }, shared, prepareWhileWaiting);
             groups = new AdmissionGroups(chassis, nativePool, shared);
             nativePool.onAdmissionScroll = (id, page) => admission?.observedScroll(id, page);
         }
@@ -972,7 +973,10 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             nativePool.observeFrameInputs();
             nativePool.syncRenderSurfaceLayouts(true);
             if (!presentation.publish()) {
-                if (presentation.awaitingFence) return;
+                if (presentation.awaitingFence) {
+                    admission?.waitingForSubmission();
+                    return;
+                }
                 // A surface changed after submission. Repair the same revision.
                 ordinaryRenderPending = true;
             } else {

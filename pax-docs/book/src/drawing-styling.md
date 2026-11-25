@@ -694,6 +694,10 @@ but not percentages. The light emits no visible surface to order by depth.
 Directional lights are also
 available through `shape=LightShape::Directional` and a `direction` vector.
 
+During staged mounting, a light inside a component begins contributing when the
+component is first presented. Once presented, a light outside the viewport can
+still illuminate visible surfaces within its scope.
+
 LightSource now uses common `z`, with the same zero default as other elements.
 If an older light omitted its light-specific `z`, add `z=200px` to preserve
 its previous default depth. Explicit `z` continues to work, but now inherits

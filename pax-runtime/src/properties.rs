@@ -573,7 +573,7 @@ impl RuntimeContext {
             self.import_settings_node_count
                 .set(self.import_settings_node_count.get() + 1);
         }
-        self.mark_occlusion_dirty_for_node(node.id.to_u32());
+        self.mark_occlusion_dirty_for_attachment(node.id, node);
     }
 
     /// Remove a node from runtime lookup caches.
@@ -1533,17 +1533,34 @@ impl RuntimeContext {
 
     #[track_caller]
     pub fn mark_occlusion_dirty(&self) {
-        self.mark_occlusion_dirty_with_origin(None);
+        self.mark_occlusion_dirty_with_origin(None, true);
     }
 
     #[track_caller]
     pub(crate) fn mark_occlusion_dirty_for_node(&self, id: u32) {
-        self.mark_occlusion_dirty_with_origin(Some(id));
+        self.mark_occlusion_dirty_with_origin(Some(id), true);
     }
 
     #[track_caller]
-    fn mark_occlusion_dirty_with_origin(&self, node: Option<u32>) {
-        self.invalidate_input_topology(node);
+    pub(crate) fn mark_occlusion_dirty_for_attachment(
+        &self,
+        origin: ExpandedNodeIdentifier,
+        added: &ExpandedNode,
+    ) {
+        // A newly attached child behind a closed presentation boundary cannot
+        // add a displayed hit or change its visible siblings' order. Opening
+        // the boundary invalidates the parent and subtree together. Reparenting,
+        // teardown, and geometry changes keep their own invalidations.
+        let changes_input = !self.visible_groups.borrow().may_have_parked_nodes()
+            || !self.behind_parked_presentation(added);
+        self.mark_occlusion_dirty_with_origin(Some(origin.to_u32()), changes_input);
+    }
+
+    #[track_caller]
+    fn mark_occlusion_dirty_with_origin(&self, node: Option<u32>, changes_input: bool) {
+        if changes_input {
+            self.invalidate_input_topology(node);
+        }
         self.occlusion_dirty.set(true);
         let mut state = self.occlusion_state.borrow_mut();
         state.structural = true;
@@ -1851,7 +1868,7 @@ impl RuntimeContext {
     /// Light values remain live on every render. Structural changes reconcile recipient
     /// layer and LightFrame ancestry once; stable light slots only revisit changed
     /// recipients. Slot/scope changes rebuild masks within the affected layer.
-    /// Contributors are independent of visibility; unlit scenes need no recipient scan.
+    /// Published contributors can illuminate the layer from outside the viewport.
     pub fn collect_scene_lighting_for_layer(&self, layer: usize) -> SceneLighting {
         if borrow!(self.scene_lighting_nodes).is_empty()
             && borrow!(self.canvas_node_light_masks).is_empty()
@@ -1870,12 +1887,13 @@ impl RuntimeContext {
         let node_cache = borrow!(self.node_cache);
         let mut scoped_lights = Vec::new();
         let mut topmost_ambient = None;
+        let has_parked = self.visible_groups.borrow().may_have_parked_nodes();
 
         for id in borrow!(self.scene_lighting_nodes).iter() {
             let Some(node) = node_cache.eid_to_node.get(id) else {
                 continue;
             };
-            if node.is_render_source() {
+            if node.is_render_source() || (has_parked && self.behind_parked_presentation(node)) {
                 continue;
             }
             let occlusion = node.occlusion.get();

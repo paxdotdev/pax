@@ -795,7 +795,6 @@ impl PaxEngine {
                     live = s.live_mounts.take().expect("active mount frontier");
                     drop(s);
                     live.finish_mount(
-                        ctx,
                         id,
                         okay,
                         t.elapsed().as_micros().min(u32::MAX as u128) as u32,
@@ -2154,41 +2153,46 @@ mod tests {
         drop(guard);
         assert!(ctx.accepts_startup_input(&root));
     }
-    #[test]
-    fn visible_group_releases_only_its_own_mounted_lifetime() {
-        struct Output<const NATIVE: bool>(crate::BaseInstance);
-        impl<const NATIVE: bool> InstanceNode for Output<NATIVE> {
-            fn instantiate(args: InstantiationArgs) -> Rc<Self> {
-                Rc::new(Self(crate::BaseInstance::new(
-                    args,
-                    crate::InstanceFlags {
-                        invisible_to_slot: false,
-                        invisible_to_raycasting: false,
-                        layer: if NATIVE {
-                            crate::api::Layer::Native
-                        } else {
-                            crate::api::Layer::Canvas
-                        },
-                        is_component: false,
-                        is_slot: false,
+    struct Output<const NATIVE: bool, const LIGHT: bool = false>(crate::BaseInstance);
+    impl<const NATIVE: bool, const LIGHT: bool> InstanceNode for Output<NATIVE, LIGHT> {
+        fn instantiate(args: InstantiationArgs) -> Rc<Self> {
+            Rc::new(Self(crate::BaseInstance::new(
+                args,
+                crate::InstanceFlags {
+                    invisible_to_slot: false,
+                    invisible_to_raycasting: false,
+                    layer: if NATIVE {
+                        crate::api::Layer::Native
+                    } else {
+                        crate::api::Layer::Canvas
                     },
-                )))
-            }
-            fn base(&self) -> &crate::BaseInstance {
-                &self.0
-            }
-            fn awaits_native_first_content(&self) -> bool {
-                NATIVE
-            }
-            fn resolve_debug(
-                &self,
-                f: &mut std::fmt::Formatter,
-                _: Option<&ExpandedNode>,
-            ) -> std::fmt::Result {
-                f.write_str("TestOutput")
-            }
+                    is_component: false,
+                    is_slot: false,
+                },
+            )))
         }
-        let args = || InstantiationArgs {
+        fn base(&self) -> &crate::BaseInstance {
+            &self.0
+        }
+        fn awaits_native_first_content(&self) -> bool {
+            NATIVE
+        }
+        fn has_scene_lighting(&self) -> bool {
+            LIGHT
+        }
+        fn resolve_scene_light(&self, _: &ExpandedNode, _: &RuntimeContext) -> Option<crate::api::SceneLight> {
+            LIGHT.then(crate::api::SceneLight::default)
+        }
+        fn resolve_debug(
+            &self,
+            f: &mut std::fmt::Formatter,
+            _: Option<&ExpandedNode>,
+        ) -> std::fmt::Result {
+            f.write_str("TestOutput")
+        }
+    }
+    fn output_args() -> InstantiationArgs {
+        InstantiationArgs {
             prototypical_common_properties: crate::CommonPropertiesInit::Default,
             prototypical_properties: crate::PropertiesInit::Factory(Box::new(|_, _| {
                 Some(Rc::new(RefCell::new(PaxAny::Builtin(PaxValue::default()))))
@@ -2203,13 +2207,17 @@ mod tests {
             template_node_selector_info: None,
             transition_config: Default::default(),
             properties_scope: crate::PropertiesScopeInit::None,
-        };
+        }
+    }
+
+    #[test]
+    fn visible_group_releases_only_its_own_mounted_lifetime() {
         let shell = |x, selected: bool| {
             use pax_runtime_api::pax_value::ToFromPaxAny;
-            let mut branch = args();
+            let mut branch = output_args();
             branch.children = Some(RefCell::new(vec![
-                Output::<true>::instantiate(args()),
-                Output::<false>::instantiate(args()),
+                Output::<true>::instantiate(output_args()),
+                Output::<false>::instantiate(output_args()),
             ]));
             branch.prototypical_properties =
                 crate::PropertiesInit::Factory(Box::new(move |_, existing| {
@@ -2342,6 +2350,165 @@ mod tests {
         engine.unmount();
         assert!(!ctx.open_visible_group(*b, *be));
         assert!(ctx.ready_visible_groups().is_empty());
+    }
+    #[test]
+    fn first_viewport_shell_leaves_a_deferred_mixed_child_its_own_priority() {
+        let text = || Output::<true>::instantiate(output_args());
+        let canvas = || Output::<false>::instantiate(output_args());
+        let mut engine = new_engine();
+        let ctx = engine.runtime_context.clone();
+        ctx.configure_visible_groups(true);
+        engine.hold_presentation();
+        let root = engine.mount_root_component(component(vec![box_at(
+            0.,
+            vec![
+                text(),
+                canvas(),
+                box_at(1200., vec![text(), Output::<false, true>::instantiate(output_args())]),
+            ],
+        )]));
+        assert!(reach_checkpoint(&mut engine).pending);
+        let shell = root.current_attached_children()[0].clone();
+        let later = shell.children.get()[2].clone();
+        assert_eq!(later.attached.get(), 0);
+        assert!(engine.begin_background_mounting());
+        engine.publish_presentation();
+        let anchor = ctx
+            .visible_groups
+            .borrow()
+            .capture_anchor(later.id.to_u32())
+            .unwrap();
+        assert_eq!(anchor.0, later.id.to_u32());
+        assert_eq!(anchor.1.id, later.id);
+        {
+            let _graph = ctx.property_graph.enter();
+            let footprint = |node| selection_capture::footprint(&ctx, node).bounds.unwrap();
+            assert_eq!(footprint(&anchor.1), [1200., 0., 1300., 100.]);
+            let common = later.get_common_properties();
+            let width = common.borrow().width.clone();
+            let explicit = width.get();
+            width.set(None);
+            assert_eq!(footprint(&anchor.1), footprint(&shell));
+            width.set(explicit);
+            assert_eq!(footprint(&anchor.1), [1200., 0., 1300., 100.]);
+        }
+        let mut publisher = crate::properties::input_capture::InputPublisher::default();
+        for _ in 0..32 {
+            let more = engine.service_background_mounts(0., || 0.);
+            engine.tick();
+            let view = publisher.capture(&ctx).unwrap();
+            let _displayed = view.enter(&ctx, &HashMap::new()).unwrap();
+            assert!(!ctx.accepts_displayed_input(&later));
+            if !more {
+                break;
+            }
+        }
+        let ready = ctx.ready_visible_groups();
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].0, later.id.to_u32());
+        assert_eq!(ready[0].2.len(), 1);
+        assert!(ctx.collect_scene_lighting_for_layer(0).lights.is_empty());
+        assert!(shell
+            .mounted_presentation_children(&ctx)
+            .iter()
+            .all(|n| n.id != later.id));
+        assert!(ctx.open_visible_group(ready[0].0, ready[0].1));
+        engine.tick();
+        assert_eq!(ctx.collect_scene_lighting_for_layer(0).lights.len(), 1);
+        let displayed = publisher.capture(&ctx).unwrap();
+        {
+            let _displayed = displayed.enter(&ctx, &HashMap::new()).unwrap();
+            assert!(ctx.accepts_displayed_input(&later));
+        }
+        let rebuilt = crate::properties::input_capture::InputPublisher::default()
+            .capture(&ctx)
+            .unwrap();
+        assert_eq!(displayed.node_count(), rebuilt.node_count());
+        assert!(shell
+            .mounted_presentation_children(&ctx)
+            .iter()
+            .any(|n| n.id == later.id));
+    }
+    #[test]
+    fn repeated_visual_details_publish_with_their_owner_and_mixed_items_open_separately() {
+        use pax_runtime_api::pax_value::ToFromPaxAny;
+        let mut slot = output_args();
+        slot.prototypical_properties = crate::PropertiesInit::Factory(Box::new(|_, existing| {
+            existing
+                .is_none()
+                .then(|| Rc::new(RefCell::new(crate::Slot::default().to_pax_any())))
+        }));
+        let vector = || Output::<false>::instantiate(output_args());
+        let text = || Output::<true>::instantiate(output_args());
+        let detail = component(vec![component(vec![
+            crate::SlotInstance::instantiate(slot),
+            vector(),
+        ])]);
+        let independent = component(vec![text(), vector()]);
+        let mut repeat = output_args();
+        repeat.children = Some(RefCell::new(vec![detail, independent]));
+        repeat.prototypical_properties = crate::PropertiesInit::Factory(Box::new(|_, existing| {
+            existing.is_none().then(|| {
+                Rc::new(RefCell::new(
+                    crate::RepeatProperties {
+                        source_expression: pax_runtime_api::LocalProperty::new(PaxValue::Vec(
+                            vec![PaxValue::Bool(true); 2],
+                        )),
+                        ..Default::default()
+                    }
+                    .to_pax_any(),
+                ))
+            })
+        }));
+        let mut engine = new_engine();
+        let ctx = engine.runtime_context.clone();
+        ctx.configure_visible_groups(true);
+        engine.hold_presentation();
+        let root = engine.mount_root_component(component(vec![
+            box_at(0., vec![]),
+            box_at(
+                1000.,
+                vec![text(), vector(), crate::RepeatInstance::instantiate(repeat)],
+            ),
+        ]));
+        assert!(reach_checkpoint(&mut engine).pending);
+        assert!(engine.begin_background_mounting());
+        engine.publish_presentation();
+        let mut opened = Vec::new();
+        let mut package_seen = false;
+        for _ in 0..160 {
+            let more = engine.service_background_mounts(0., || 0.);
+            engine.tick();
+            for (id, publication, resources) in ctx.ready_visible_groups() {
+                assert_eq!(resources.len(), 1);
+                let package = root.current_attached_children()[1].clone();
+                if id == package.id.to_u32() {
+                    let repeated = package.current_attached_children()[2].clone();
+                    let items = repeated.children.get();
+                    assert_eq!(items.len(), 4);
+                    for detail in [&items[0], &items[2]] {
+                        let shape = detail.current_attached_children()[0].clone();
+                        assert_eq!(
+                            shape.current_attached_children().len(),
+                            2,
+                            "the repeated paint must already be mounted"
+                        );
+                    }
+                    package_seen = true;
+                }
+                assert!(ctx.open_visible_group(id, publication));
+                opened.push(id);
+            }
+            if !more {
+                break;
+            }
+        }
+        assert!(package_seen);
+        assert_eq!(
+            opened.len(),
+            3,
+            "one enclosing package and two independent mixed items"
+        );
     }
     #[test]
     fn foreground_ticks_while_initial_mounts_are_parked_then_admitted() {

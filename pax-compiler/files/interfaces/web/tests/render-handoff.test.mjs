@@ -180,7 +180,9 @@ test('a held revision settles drawing feedback and waits for its fence before ad
         function withProfileMeasure() {calls.push('ordinary frame');}
         ${frame}
         export {presentation};
-        export function awaitFinalPublication() { admission = { finishIf: () => true }; }
+        export function awaitFinalPublication() {
+            admission = { finishIf: () => true, waitingForSubmission() {calls.push('detached');} };
+        }
         export function run() {runFrame(currentChassis, currentMount);}
     `, {loader:'ts', format:'cjs'}).code, {calls, module, exports:module.exports});
     const {presentation, run, awaitFinalPublication} = module.exports;
@@ -197,7 +199,7 @@ test('a held revision settles drawing feedback and waits for its fence before ad
     awaitFinalPublication();
     run();
     run();
-    assert.deepEqual(calls, ['observe', 'observe']);
+    assert.deepEqual(calls, ['observe', 'detached', 'observe', 'detached']);
     calls.length = 0;
     presentation.ready = true;
     run();

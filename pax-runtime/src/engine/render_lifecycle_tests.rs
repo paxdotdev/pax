@@ -1145,6 +1145,18 @@ fn cooperative_layer_plan_keeps_ancestor_scopes_and_rejects_unclippable_paths() 
         plan.render_path_nodes,
         HashSet::from([root.id, clip.id, nodes[0].id])
     );
+    let both = [nodes[0].id, nodes[1].id];
+    let shared = engine.build_filtered_render_plan(root, &both).unwrap();
+    assert_eq!(
+        shared.render_path_nodes,
+        HashSet::from([root.id, clip.id, nodes[0].id, nodes[1].id])
+    );
+    let old = clip.render_parent.replace(Rc::downgrade(&clip));
+    assert!(matches!(
+        engine.build_filtered_render_plan(root, &both),
+        Err("render_parent_cycle")
+    ));
+    clip.render_parent.replace(old);
     clip.get_common_properties()
         .borrow()
         .unclippable

@@ -44,8 +44,6 @@ struct Anchor {
 struct Ticket {
     work: PendingMount,
     owner: Id,
-    group: Domain,
-    age: u32,
 }
 pub(in crate::engine) enum Unit {
     Maintenance,
@@ -65,7 +63,6 @@ pub(in crate::engine) struct Mounts {
     new_scene: bool,
     jobs: BTreeMap<Id, Ticket>,
     anchors: BTreeMap<Id, Anchor>,
-    groups: BTreeMap<Id, BTreeSet<Id>>,
     ready_geometry: VecDeque<Id>,
     dirty: BTreeSet<Id>,
     overflow: BTreeSet<Id>,
@@ -93,7 +90,6 @@ impl Mounts {
             new_scene: false,
             jobs: Default::default(),
             anchors: Default::default(),
-            groups: Default::default(),
             ready_geometry: Default::default(),
             dirty: Default::default(),
             signals: Default::default(),
@@ -316,7 +312,7 @@ impl Mounts {
         if !work.runnable(&parent, &child) {
             return Unit::Mount(work);
         }
-        let (group, a, age) =
+        let (_, a, age) =
             ctx.visible_groups
                 .borrow()
                 .scheduling_anchor(&parent, &child, work.arrival);
@@ -324,21 +320,8 @@ impl Mounts {
         let id = work.arrival;
         self.add_anchor(&a);
         self.input_job(id, owner, work.child_epoch, age);
-        if let Some(g) = group {
-            self.groups.entry(g).or_default().insert(id);
-        }
         assert!(
-            self.jobs
-                .insert(
-                    id,
-                    Ticket {
-                        work,
-                        owner,
-                        group,
-                        age
-                    }
-                )
-                .is_none(),
+            self.jobs.insert(id, Ticket { work, owner }).is_none(),
             "duplicate live mount ticket"
         );
         self.counts.registered += 1;
@@ -380,14 +363,6 @@ impl Mounts {
                     .expect("indexed ticket remains live");
                 self.index.remove_job(choice.id);
                 self.drop_anchor(ticket.owner);
-                if let Some(g) = ticket.group {
-                    if let Some(ids) = self.groups.get_mut(&g) {
-                        ids.remove(&choice.id);
-                        if ids.is_empty() {
-                            self.groups.remove(&g);
-                        }
-                    }
-                }
                 self.cycle = false;
                 self.chosen = Some(choice);
                 self.counts.selected += 1;
@@ -462,13 +437,7 @@ impl Mounts {
             ));
         }
     }
-    pub(in crate::engine) fn finish_mount(
-        &mut self,
-        ctx: &RuntimeContext,
-        child: Id,
-        mounted: bool,
-        micros: u32,
-    ) {
+    pub(in crate::engine) fn finish_mount(&mut self, child: Id, mounted: bool, micros: u32) {
         if let Some(c) = self.chosen.take() {
             if mounted {
                 self.meter.charge(c.tier, c.host, micros);
@@ -479,29 +448,13 @@ impl Mounts {
             return;
         }
         self.counts.mounted += 1;
-        // Discovery used the mounted parent as an estimate until the group's
-        // own lifetime acquired geometry. Transfer only its existing tickets.
-        if let Some(ids) = self.groups.get(&child).cloned() {
-            for id in ids {
-                let t = &self.jobs[&id];
-                let old = t.owner;
-                let epoch = t.work.child_epoch;
-                let age = t.age;
-                let Some((_, a)) = ctx
-                    .visible_groups
-                    .borrow()
-                    .capture_anchor(t.work.key.2.to_u32())
-                else {
-                    continue;
-                };
-                let new = a.id.to_u32();
-                if new != old {
-                    self.drop_anchor(old);
-                    self.add_anchor(&a);
-                    self.input_job(id, new, epoch, age);
-                    self.jobs.get_mut(&id).unwrap().owner = new;
-                }
+        // Attachment changes the lifetime and can replace a parent's discovery
+        // rectangle. These cells do not emit property invalidations.
+        if let Some(anchor) = self.anchors.get_mut(&child) {
+            if let Some(observation) = &mut anchor.observation {
+                observation.invalidate();
             }
+            self.mark(child);
         }
     }
     pub(in crate::engine) fn counted(&mut self, ms: f64, maintenance: bool) {

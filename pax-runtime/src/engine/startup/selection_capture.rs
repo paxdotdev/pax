@@ -137,16 +137,34 @@ pub(super) fn mounted(ctx: &RuntimeContext, work: &PendingMount, child: &Expande
     });
 }
 pub(in crate::engine) fn footprint(ctx: &RuntimeContext, owner: &Rc<ExpandedNode>) -> Footprint {
-    let (width, height) = owner.transform_and_bounds.get().bounds;
+    // Parent bindings are installed before a deferred attachment. A positioned
+    // item can already have a more precise rectangle than its entire scroller.
+    // Keep the owner's identity while its provisional geometry uses a parent.
+    let basis = if owner.attached.get() == 0 {
+        let (w, h) = owner.transform_and_bounds.get().bounds;
+        let common = owner.get_common_properties();
+        let common = common.borrow();
+        let sized = common.width.get().is_some()
+            && common.height.get().is_some()
+            && w.is_finite()
+            && h.is_finite()
+            && w > 0.
+            && h > 0.;
+        (!sized).then(|| owner.presentation_parent_node()).flatten()
+    } else {
+        None
+    };
+    let basis = basis.as_ref().unwrap_or(owner);
+    let (width, height) = basis.transform_and_bounds.get().bounds;
     let bounds = ctx
-        .presented_projection_for_node(owner)
+        .presented_projection_for_node(basis)
         .and_then(|p| p.coverage(Rect::new(0., 0., width, height), None));
     let mut clip: Option<Rect> = None;
     let mut host = None;
-    let mut n = Some(owner.clone());
+    let mut n = Some(basis.clone());
     while let Some(node) = n {
         let instance = node.instance_node.borrow();
-        if node.id != owner.id && instance.scrolls_content(&node) {
+        if node.id != basis.id && instance.scrolls_content(&node) {
             host = Some(node.id.to_u32());
             break;
         }

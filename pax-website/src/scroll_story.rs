@@ -20,7 +20,11 @@ impl OpeningStory {
         // Reserve space on mount until the hero reports its content and insets.
         let hero_span = if hero > 0.0 { hero } else { 580.0 };
         let authoring_span = authoring.max(640.0);
-        let runtime_span = runtime.max(400.0);
+        let runtime_span = if runtime > 0.0 {
+            runtime.max(400.0)
+        } else {
+            crate::runtime_section::pending_section_height(viewport.0)
+        };
         let scroll = scroll.max(0.0);
         Self {
             hero_span,
@@ -73,6 +77,17 @@ mod tests {
         assert_eq!(arrival.runtime_progress, 0.0);
         let arrival = OpeningStory::sample(1600.0, (1280.0, 720.0), 800.0, 1000.0, 1400.0);
         assert!(arrival.runtime_progress > 0.0 && arrival.runtime_progress < 50.0);
+    }
+
+    #[test]
+    fn reserve_known_showcase_height_until_the_live_preview_is_measured() {
+        let span = |width, measured| {
+            OpeningStory::sample(0., (width, 600.), 600., 640., measured).runtime_span
+        };
+        assert_eq!(span(1100., 0.), 736.);
+        assert_eq!(span(390., 0.), 400.);
+        assert_eq!(span(1100., 613.), 613., "a narrower open drawer's actual measurement wins");
+        assert_eq!(span(1100., 1036.), 1036.);
     }
 
     #[test]

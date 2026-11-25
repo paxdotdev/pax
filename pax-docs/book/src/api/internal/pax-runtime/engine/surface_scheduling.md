@@ -211,3 +211,11 @@ Visible coverage precedes all speculation. Reverse-buffer residency is
 funded next, before forward work can consume the optional allowance.
 Execution still follows coverage/deadline order. Equal-ranked branches
 interleave; visible survivors win genuine overload without rotating evictions.
+
+---
+
+### `schedule_surfaces_with_demand`
+<pre><code class="api-signature language-rust ignore">pub fn schedule_surfaces_with_demand(candidates: &amp;[<a href="../../../../api/internal/pax-runtime/engine/surface_scheduling.md#surfacecandidate">SurfaceCandidate</a>], budget: <a href="../../../../api/internal/pax-runtime/engine/surface_scheduling.md#surfacebudget">SurfaceBudget</a>, demand: Option&lt;&amp;[(u8, u64)]&gt;) -&gt; <a href="../../../../api/internal/pax-runtime/engine/surface_scheduling.md#surfaceschedule">SurfaceSchedule</a></code></pre>
+
+Apply a common spatial order to eligible speculative work. Actual visible
+coverage, reverse residency, and the pixel and surface limits remain binding.

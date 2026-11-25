@@ -1040,7 +1040,13 @@ Scrolling, application input, and accessibility become available when the
 exit finishes. The host uses spare frame time to mount additional branches
 and gives newly visible content priority when the user scrolls. A component
 with both canvas artwork and native text can mount and measure its text before
-the host presents the artwork, text, and hit targets together. The fallback
+the host presents the artwork, text, and hit targets together. Repeated
+decorations such as the leads on a labeled chip share that first presentation.
+Repeated cards with their own artwork and text can become interactive
+individually. A parked card never receives a click through its future location.
+When an earlier section obtains a new intrinsic height, later sections move
+with it. Reserving the known height of a responsive illustration helps a jump
+land closer to its final content while native text is being measured. The fallback
 renderer starts the main animation clock after full mounting. This
 option works in debug and release web builds with a configured loader; it does
 not affect Apple targets or applications without a loader. Rebuild after changing

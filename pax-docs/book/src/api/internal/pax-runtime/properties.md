@@ -258,7 +258,7 @@ Resolve registered direct/ambient contributors in the target layer's coordinates
 Light values remain live on every render. Structural changes reconcile recipient
 layer and LightFrame ancestry once; stable light slots only revisit changed
 recipients. Slot/scope changes rebuild masks within the affected layer.
-Contributors are independent of visibility; unlit scenes need no recipient scan.
+Published contributors can illuminate the layer from outside the viewport.
 
 ##### `depth_plane_in_presentation`
 <pre><code class="api-signature language-rust ignore">pub fn depth_plane_in_presentation(&amp;self, node: &amp;ExpandedNode, plane: Option&lt;<a href="../../../api/pax-runtime-api/rendering.md#depthplane">DepthPlane</a>&gt;) -&gt; Option&lt;<a href="../../../api/pax-runtime-api/rendering.md#depthplane">DepthPlane</a>&gt;</code></pre>
@@ -338,6 +338,12 @@ Return whether a render layer currently has canvas work to paint.
 <pre><code class="api-signature language-rust ignore">pub fn load_screenshot(&amp;self, id: u32, data: <a href="../../../api/internal/pax-message/index.md#screenshotdata">ScreenshotData</a>) -&gt; bool</code></pre>
 
 Store a screenshot payload delivered by the chassis.
+
+##### `mark_canvas_node_clip_dirty`
+<pre><code class="api-signature language-rust ignore">pub fn mark_canvas_node_clip_dirty(&amp;self, node: &amp;ExpandedNode)</code></pre>
+
+Redraw under a changed ancestor clip. Local geometry and paint can be
+reused with the new clip unless the primitive depends on its surroundings.
 
 ##### `mark_canvas_node_dirty`
 <pre><code class="api-signature language-rust ignore">pub fn mark_canvas_node_dirty(&amp;self, id: <a href="../../../api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>)</code></pre>
