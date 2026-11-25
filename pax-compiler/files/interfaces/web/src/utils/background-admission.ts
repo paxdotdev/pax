@@ -43,8 +43,14 @@ export class BackgroundAdmission {
             this.gestureHost = undefined;
             for (const el of event.composedPath()) {
                 if (!(el instanceof HTMLElement) || !el.classList.contains('scroller-container')) continue;
-                const at = horizontal ? el.scrollLeft : el.scrollTop;
-                const end = horizontal ? el.scrollWidth - el.clientWidth : el.scrollHeight - el.clientHeight;
+                // A delegated scroller keeps its Pax identity while the document owns its offsets.
+                const scroller = el.dataset.pageScrollDelegated === 'true'
+                    ? el.ownerDocument.scrollingElement ?? el.ownerDocument.documentElement
+                    : el;
+                const at = horizontal ? scroller.scrollLeft : scroller.scrollTop;
+                const end = horizontal
+                    ? scroller.scrollWidth - scroller.clientWidth
+                    : scroller.scrollHeight - scroller.clientHeight;
                 if (step < 0 ? at <= 0.5 : at >= end - 0.5) continue;
                 const id = el.closest('[pax_id]')?.getAttribute('pax_id');
                 if (id != null) this.gestureHost = Number(id);

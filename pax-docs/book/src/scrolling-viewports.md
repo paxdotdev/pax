@@ -753,7 +753,10 @@ This also works when iPad Safari requests the desktop site. On iPhone Safari,
 expanding or collapsing the address bar changes the visible
 area, not the root Scroller's layout height or owner. A swipe therefore keeps
 its document scroll position. The painted tile window follows that position
-even several screens down the page. Viewport-local siblings, such as an `Overlay`
+even several screens down the page. Staged WebGPU mounting also uses the
+document's scroll range to recognize a page swipe in either direction,
+including one that continues past the edge of a nested Scroller.
+Viewport-local siblings, such as an `Overlay`
 toolbar, stay in place while content scrolls beneath them. A separate Scroller
 inside that toolbar is prepared at its position on screen, not at the document's
 scroll offset. Giving it `scroll_width=100% scroll_height=100%` clips its

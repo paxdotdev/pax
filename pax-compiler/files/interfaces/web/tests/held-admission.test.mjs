@@ -35,3 +35,47 @@ test('a held submission lends bounded time across refreshes and settlement repay
     extra = 2; wait(7); wait(8);
     assert.deepEqual(grants, [1, 1, 1], 'charge an indivisible overrun before the next opportunity');
 });
+
+test('a reversal consumes the nested scroller or the delegated document at its live offset', () => {
+    const module = {exports: {}}, root = new EventTarget(), intents = [];
+    const document = {scrollingElement: {scrollTop: 900, scrollHeight: 3000, clientHeight: 600}};
+    class Scroller {
+        constructor(id, top, height) {
+            this.id = id;
+            this.scrollTop = top;
+            this.scrollHeight = height;
+            this.clientHeight = 200;
+            this.ownerDocument = document;
+            this.classList = {contains: name => name === 'scroller-container'};
+            this.dataset = {};
+        }
+        closest() { return this; }
+        getAttribute() { return String(this.id); }
+    }
+    vm.runInNewContext(transformSync(source, {loader: 'ts', format: 'cjs'}).code, {
+        module, exports: module.exports, require: () => ({}), HTMLElement: Scroller,
+        performance, document, window: new EventTarget(), AbortController,
+    });
+    const chassis = {
+        configure_admission_resumption() {}, configure_visible_groups() {}, enable_indexed_mounts() {},
+        mount_scroll_intent(id) { intents.push(id); },
+    };
+    const admission = new module.exports.BackgroundAdmission(chassis, root, true, () => {});
+    const page = new Scroller(12, 0, 200), child = new Scroller(17, 75, 800);
+    page.dataset.pageScrollDelegated = 'true';
+    const wheel = deltaY => {
+        const event = Object.assign(new Event('wheel'), {deltaX: 0, deltaY, composedPath: () => [child, page]});
+        root.dispatchEvent(event);
+    };
+    wheel(-80);
+    child.scrollTop = 0;
+    wheel(-80);
+    document.scrollingElement.scrollTop = 0;
+    wheel(-80);
+    child.scrollTop = 600;
+    wheel(80);
+    document.scrollingElement.scrollTop = 2400;
+    wheel(80);
+    assert.deepEqual(intents, [17, 12, undefined, 12, undefined]);
+    admission.dispose();
+});
