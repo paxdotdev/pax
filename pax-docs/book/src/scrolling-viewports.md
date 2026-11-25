@@ -923,7 +923,10 @@ These are color-backing estimates, not a bound on total GPU or application memor
 Visible coverage, including stationary siblings and the root page, precedes
 speculative preparation. Actual local scroll movement prioritizes preparation
 ahead of moving scrollers, with a 250ms activity tail and immediate direction
-reversal. Hover alone does not claim priority; input remains native.
+reversal. After a pause beyond the activity tail or a change of direction, the
+first new movement predicts travel from its own speed on that axis. Nearby
+tiles can remain resident through the pause. Hover alone does not claim
+priority; input remains native.
 Among equally near candidates, already-submitted content wins the tie; having
 a canvas assigned does not by itself mean the content is ready.
 
@@ -1001,7 +1004,9 @@ can still require new cells. Native and Vello CPU retain their prior sizing poli
 Coverage uses transformed presentation bounds, so scaling an embedded app
 does not mix local dimensions with screen-space distances. Affine projection
 preserves rotation/reflection; nonrectangular clips use conservative bounds,
-not exact pixel occlusion. Empty ancestor layers do not consume a canvas merely
+not exact pixel occlusion. In a perspective scroller, visibility follows
+the pane's actual content coordinates, including negative origins. Empty
+ancestor layers do not consume a canvas merely
 to retain their DOM ancestry. Obsolete canvas assignments across layers retire
 before replacement allocation; GPU ownership must still finish before reuse.
 Scrolling through a long collection can release distant drawing surfaces

@@ -301,7 +301,11 @@ fn swept_intersection(clips: &[MovingClip]) -> CoverageRect {
     }
 }
 
-fn unproject(rect: CoverageRect, h: &HostObservation, content: [f64; 2]) -> Option<CoverageRect> {
+fn unproject(
+    rect: CoverageRect,
+    h: &HostObservation,
+    content: CoverageRect,
+) -> Option<CoverageRect> {
     if !rect.has_area() {
         return Some(CoverageRect::default());
     }
@@ -311,10 +315,10 @@ fn unproject(rect: CoverageRect, h: &HostObservation, content: [f64; 2]) -> Opti
         let plane = plane.pre_affine(kurbo::Affine::translate((-h.offset[0], -h.offset[1])));
         let polygon = plane.clip_polygon(
             vec![
-                kurbo::Point::ZERO,
-                kurbo::Point::new(content[0], 0.),
-                kurbo::Point::new(content[0], content[1]),
-                kurbo::Point::new(0., content[1]),
+                kurbo::Point::new(content.left, content.top),
+                kurbo::Point::new(content.right, content.top),
+                kurbo::Point::new(content.right, content.bottom),
+                kurbo::Point::new(content.left, content.bottom),
             ],
             Some(kurbo::Rect::new(
                 rect.left,
@@ -576,8 +580,8 @@ pub fn prepare_hosts(
                 right: host.content_origin[0] + host.content[0],
                 bottom: host.content_origin[1] + host.content[1],
             };
-            let required = unproject(visible, &host.geometry, host.content)
-                .ok_or("singular surface transform")?;
+            let required =
+                unproject(visible, &host.geometry, content).ok_or("singular surface transform")?;
             let coverage = safety
                 .iter()
                 .chain(&reversal)
@@ -586,8 +590,8 @@ pub fn prepare_hosts(
                 .fold(swept_intersection(&clips), |bounds, path| {
                     union(bounds, swept_intersection(path))
                 });
-            let prepared = unproject(coverage, &host.geometry, host.content)
-                .ok_or("singular surface transform")?;
+            let prepared =
+                unproject(coverage, &host.geometry, content).ok_or("singular surface transform")?;
             Ok(PreparedHost {
                 unavailable_reason: None,
                 visible,
@@ -641,7 +645,7 @@ mod tests {
         h.geometry.projection = Some(plane);
         h.geometry.offset = [8., 0.];
         let visible = r(0., 0., 100., 100.);
-        let required = unproject(visible, &h.geometry, h.content).unwrap();
+        let required = unproject(visible, &h.geometry, r(0., 0., 500., 100.)).unwrap();
         assert!(required.has_area());
         assert!(required.left >= 0. && required.right <= 500.);
         assert!(required.top >= 0. && required.bottom <= 100.);
@@ -722,6 +726,81 @@ mod tests {
             h.geometry.offset = [42000.25, 0.0];
             h.content_origin = [origin, 0.0];
             h
+        }
+    }
+
+    #[test]
+    fn projected_pane_enumerates_visible_points_after_rebasing_its_origin() {
+        use crate::engine::layer_tiling::scroller_canvas_plan_for_coverage_at_origin;
+        use pax_runtime_api::math::{Generic, ProjectedPlane, Transform3};
+
+        let viewport = r(0., 0., 100. / 1.1, 100.);
+        let clip = r(4., 8., 80., 65.);
+        let projection = ProjectedPlane::new(
+            Transform3::<Generic>::new([
+                1., 0., 0., 0.001, 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0.5, 1.,
+            ]),
+            true,
+        )
+        .unwrap();
+        for origin in [[0., 0.], [-500., -90.], [500., 90.]] {
+            let outer = host(1, None, viewport, [500., 500.]);
+            let mut pane = host(2, Some(1), viewport, [1000., 100.]);
+            pane.geometry.viewport = [100., 100.];
+            pane.content_origin = origin;
+            pane.geometry.offset = origin;
+            pane.geometry.projection = Some(projection);
+            pane.intermediate_clip = Some(clip);
+            let hosts = BTreeMap::from([(1, outer), (2, pane)]);
+            let plans = prepare_hosts(
+                &hosts,
+                viewport,
+                &Default::default(),
+                0.,
+                Default::default(),
+            )
+            .unwrap();
+            let plan = &plans[&2];
+            let tiles = scroller_canvas_plan_for_coverage_at_origin(
+                1,
+                String::new(),
+                hosts[&2].content,
+                origin,
+                [100., 100.],
+                plan.prepared,
+                1.,
+                Default::default(),
+            );
+            // Directly project points through the clip, independently of candidate enumeration.
+            let mut visible = 0;
+            for x in (0..130).step_by(5) {
+                for y in (0..100).step_by(5) {
+                    let local = kurbo::Point::new(f64::from(x) + 0.5, f64::from(y) + 0.5);
+                    let screen = projection.mapping().project(local).unwrap();
+                    if !(clip.left..clip.right).contains(&screen.x)
+                        || !(clip.top..clip.bottom).contains(&screen.y)
+                    {
+                        continue;
+                    }
+                    visible += 1;
+                    let x = local.x + origin[0];
+                    let y = local.y + origin[1];
+                    assert!(
+                        (plan.required.left..plan.required.right).contains(&x)
+                            && (plan.required.top..plan.required.bottom).contains(&y),
+                        "required coverage at {origin:?}"
+                    );
+                    assert!(
+                        tiles
+                            .surfaces
+                            .iter()
+                            .any(|tile| (tile.left..tile.left + tile.width).contains(&x)
+                                && (tile.top..tile.top + tile.height).contains(&y)),
+                        "enumerated coverage at {origin:?}"
+                    );
+                }
+            }
+            assert!(visible > 0);
         }
     }
 

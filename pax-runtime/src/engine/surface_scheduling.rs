@@ -74,8 +74,18 @@ impl ScrollActivityTracker {
         for axis in 0..2 {
             let delta = offset[axis] - old.offset[axis];
             if delta.abs() > 0.1 {
-                old.activity.direction[axis] = delta.signum();
-                old.activity.speed[axis] = old.activity.speed[axis] * 0.5 + delta.abs() / dt * 0.5;
+                let direction = delta.signum();
+                let sample = delta.abs() / dt;
+                // Ease in from rest. A moving axis that reverses has a measured
+                // incoming speed, independent of its outgoing momentum.
+                old.activity.speed[axis] = if now - old.moved_at[axis] > self.tail_ms {
+                    0.5 * sample
+                } else if direction != old.activity.direction[axis] {
+                    sample
+                } else {
+                    0.5 * (old.activity.speed[axis] + sample)
+                };
+                old.activity.direction[axis] = direction;
                 old.moved_at[axis] = now;
             }
         }
@@ -836,6 +846,7 @@ mod tests {
         assert_eq!(t.get(2, 20.0).direction, [0.0, 0.0]);
         t.observe(1, [0.0, 99.0], 30.0, "a");
         assert_eq!(t.get(1, 30.0).direction[1], -1.0);
+        assert_eq!(t.get(1, 30.0).speed[1], 0.1);
         t.observe(2, [30.0, 0.0], 40.0, "a");
         assert_eq!(t.get(1, 281.0).direction[1], 0.0);
         assert_eq!(t.get(2, 281.0).direction[0], 1.0);
@@ -856,6 +867,30 @@ mod tests {
         assert_eq!(t.recent(1, 5000.0, f64::INFINITY).direction, [0.0, 1.0]);
         t.observe(1, [0.0, 100.0], 5010.0, "resized");
         assert_eq!(t.recent(1, 5010.0, f64::INFINITY).direction, [0.0; 2]);
+    }
+
+    #[test]
+    fn resumed_motion_uses_fresh_speed_per_axis() {
+        let mut tracker = ScrollActivityTracker::default();
+        // Two hosts approach the stationary control from opposite directions.
+        for step in 0..=10 {
+            let time = f64::from(16 * step);
+            tracker.observe(1, [0.0, f64::from(1000 + 48 * step)], time, "same");
+            tracker.observe(2, [0.0, 1480.0], time, "same");
+            tracker.observe(3, [0.0, f64::from(1960 - 48 * step)], time, "same");
+        }
+        // X resumes on all hosts while Y has been idle for five seconds.
+        for (time, x) in [(5144.0, 0.0), (5160.0, 32.0), (5176.0, 64.0)] {
+            let y = if time == 5176.0 { 1479.0 } else { 1480.0 };
+            for id in [1, 2, 3] {
+                tracker.observe(id, [x, y], time, "same");
+            }
+        }
+        let resumed = tracker.get(1, 5176.0);
+        assert_eq!(resumed.direction, [1.0, -1.0]);
+        assert_eq!(resumed.speed, tracker.get(2, 5176.0).speed);
+        assert_eq!(resumed.speed, tracker.get(3, 5176.0).speed);
+        assert!(resumed.speed[0] > 1.0);
     }
 
     #[test]
