@@ -21,7 +21,7 @@ function harness(synchronized = false) {
     const module = {exports: {}};
     vm.runInNewContext(transformSync(`
         let admission;
-        let ordinaryRenderPending = false, frameInProgress = false;
+        let ordinaryRenderPending = false, retainOnInterruption = false, frameInProgress = false;
         const presentation = synchronized ? {settled() {return true;}} : undefined;
         const surfaceTraceEnabled = false;
         const chassis = {
@@ -158,7 +158,8 @@ test('a held revision settles drawing feedback and waits for its fence before ad
     const module = {exports: {}};
     vm.runInNewContext(transformSync(`
         let admission;
-        let ordinaryRenderPending = true, frameInProgress = false, renderEpoch = 0;
+        let ordinaryRenderPending = true, retainOnInterruption = false, frameInProgress = false, renderEpoch = 0;
+        const sharedWorkBudget = {remaining: 3, run: (cap, work) => work(cap)};
         const frameScheduler = {}, mountYieldEnabled = false, liveSession = {options: {}, didMount() {calls.push('mounted');}};
         const currentMount = {}, currentChassis = {
             render_work_is_settled: () => false,
@@ -167,6 +168,8 @@ test('a held revision settles drawing feedback and waits for its fence before ad
         };
         const presentation = {
             awaitingFence: false, ready: false, canSettleFeedback: () => true,
+            get hasPendingFrame() {return this.awaitingFence;},
+            retain() {calls.push('retain'); this.awaitingFence = true; return true;},
             receive(messages) {calls.push(...messages);},
             publish() {if (!this.ready) return false; this.awaitingFence = false; return true;},
         };
@@ -174,7 +177,7 @@ test('a held revision settles drawing feedback and waits for its fence before ad
             beginTraceFrame() {}, observeFrameInputs() {calls.push('observe');},
             sampleFrameInputs() {throw Error('held scene sampled application scroll');}, syncRenderSurfaceLayouts() {}, finishTextFrame() {},
         };
-        const cooperativeRender = {beginFrame() {calls.push('draw'); ordinaryRenderPending = false;}};
+        const cooperativeRender = {beginFrame() {calls.push('draw');}};
         function initializeChassis() {}
         function finishEngineTurn() {frameInProgress = false;}
         function withProfileMeasure() {calls.push('ordinary frame');}
@@ -195,7 +198,10 @@ test('a held revision settles drawing feedback and waits for its fence before ad
     run();
     assert.deepEqual(calls, ['observe', 'settle', 'pose', 'begin', 'draw']);
     calls.length = 0;
-    presentation.awaitingFence = true;
+    run();
+    assert.deepEqual(calls, ['observe', 'settle', 'pose', 'begin', 'retain']);
+    assert.equal(presentation.awaitingFence, true);
+    calls.length = 0;
     awaitFinalPublication();
     run();
     run();

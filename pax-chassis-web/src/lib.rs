@@ -1742,6 +1742,27 @@ impl PaxChassisWeb {
     }
 
     #[doc(hidden)]
+    pub fn retain_visible_frame(&mut self) -> Result<bool, JsValue> {
+        if !self.engine.borrow_mut().retain_visible_frame(
+            self.render_context.as_mut(),
+            &mut self.render_work,
+        ) {
+            return Ok(false);
+        }
+        self.prepare_displayed_input()
+    }
+
+    #[doc(hidden)]
+    pub fn submit_retained_frame(&mut self, slice_ms: f64) -> bool {
+        let start = Instant::now();
+        self.engine.borrow().submit_retained_frame(
+            self.render_context.as_mut(),
+            slice_ms,
+            || start.elapsed().as_secs_f64() * 1000.0,
+        )
+    }
+
+    #[doc(hidden)]
     pub fn set_displayed_scroll_reader(&mut self, reader: js_sys::Function) {
         self.displayed_scrolls = Some(reader);
     }
@@ -2151,6 +2172,12 @@ impl PaxChassisWeb {
     }
     pub fn has_runnable_background_mount(&self) -> bool {
         self.engine.borrow().has_runnable_background_mount()
+    }
+    pub fn configure_projected_heights(&self, enabled: bool) {
+        self.engine.borrow().configure_projected_heights(enabled);
+    }
+    pub fn inspect_projected_heights(&self) -> JsValue {
+        js_value_serde::to_value(&self.engine.borrow().runtime_context.inspect_projected_heights())
     }
     pub fn enable_indexed_mounts(&self, at: f64) {
         self.engine.borrow().enable_indexed_mounts(at);

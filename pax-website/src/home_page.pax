@@ -66,7 +66,7 @@
             <AuthoringSection light_mode={self.light_mode} width=100% height={(self.authoring_span)px} content_height=bind:self.authoring_height
                 sources={self.authoring_sources} selected_source=bind:self.authoring_source_selected
                 source_open=bind:self.authoring_source_open/>
-            <ExampleHost class="site_source_tab" width=100% height={(self.runtime_span)px} title="Paxflix" sources={self.runtime_sources}
+            <ExampleHost id=runtime_row class="site_source_tab" width=100% height={(self.runtime_span)px} title="Paxflix" sources={self.runtime_sources}
                 drawer_open=bind:self.runtime_source_open inline_source_viewer={!self.compact_sources}
                 selected_source=bind:self.runtime_source_selected show_theme_toggle=false chrome_light_mode={self.light_mode} source_light_mode={self.light_mode}>
                 <RuntimeSection light_mode=bind:self.light_mode content_height=bind:self.runtime_height scene_progress={self.runtime_progress}/>

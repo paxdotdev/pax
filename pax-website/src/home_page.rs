@@ -50,6 +50,8 @@ pub struct HomePage {
 
 impl HomePage {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
+        ctx.declare_projected_height("runtime_row", crate::runtime_section::HEIGHT_SOURCE)
+            .expect("Paxflix row projects the runtime content stack");
         let viewport = ctx.bounds_self.clone();
         let scroll = self.scroll_y.local();
         let hero = self.hero_height.local();

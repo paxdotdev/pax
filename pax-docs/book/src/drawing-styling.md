@@ -760,7 +760,8 @@ additional sheen. The helper preserves the underlying paint through ambient
 lighting and uses no diffuse or ordinary specular contribution. Use
 `AmbientLight intensity=1` to keep the base color between highlights. For custom
 responses, `MaterialParams.frosted` controls the same sheen and `roughness`
-controls its width. Existing material presets default to `frosted=0`.
+controls its width. Changing the frosted strength on an existing fill or stroke
+repaints that layer. Existing material presets default to `frosted=0`.
 
 ```pax
 <LightFrame width=400px height=180px>

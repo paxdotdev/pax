@@ -19,6 +19,7 @@ struct RecordingRenderer {
     flushes: Vec<usize>,
     jobs: Vec<pax_runtime_api::ReplayCanvasLayerUpdate>,
     deferred: Vec<usize>,
+    retained_submissions: Vec<usize>,
     presented: Vec<usize>,
     prepared_tiles: Vec<usize>,
     cached: bool,
@@ -142,6 +143,23 @@ impl RenderContext for RecordingRenderer {
     }
     fn ordinary_layer_priority(&self, layer: usize) -> Option<i32> {
         self.ordinary_priorities.get(&layer).copied()
+    }
+    fn can_retain_visible_frame(&self) -> bool {
+        self.cold_preparation && self.in_flight.is_empty()
+    }
+    fn retain_layer_submission(&mut self, layer: usize, _: Rc<RefCell<Vec<bool>>>) {
+        self.events.push(("retain", layer));
+        self.retained_submissions.push(layer);
+    }
+    fn submit_deferred_surface(&mut self, visible_only: bool) -> bool {
+        let next = self
+            .retained_submissions
+            .iter()
+            .position(|layer| !visible_only || self.surface_replay_priority(*layer) <= 0);
+        let Some(index) = next else { return false };
+        let layer = self.retained_submissions.remove(index);
+        self.events.push(("submit", layer));
+        true
     }
     fn begin_node(&mut self, layer: usize, id: u32, _: i32, _: u32) -> bool {
         assert_eq!(self.clip_depths[&layer], 1, "ancestor clip missing");
@@ -827,6 +845,36 @@ fn cooperative_layers_yield_without_lifecycle_or_stale_selection() {
     let done = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
     assert!(!done.pending);
     assert_eq!(done.units, 0);
+}
+
+#[test]
+fn retained_visible_work_finishes_while_a_new_pose_is_dirty() {
+    let (mut engine, mut renderer, nodes) = dirty_render_probe();
+    renderer.cold_preparation = true;
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    renderer.in_flight.push(1);
+    assert!(!engine.retain_visible_frame(&mut renderer, &mut state));
+    assert!(renderer.events.is_empty());
+    renderer.in_flight.clear();
+    assert!(engine.retain_visible_frame(&mut renderer, &mut state));
+    assert_eq!(renderer.events, [("draw", 1), ("retain", 1)]);
+    assert!(engine.runtime_context.is_canvas_dirty(&0));
+
+    let x = nodes[0].common_properties.borrow().borrow().x.clone();
+    let next_x = Some(pax_runtime_api::Size::Pixels(12.into()));
+    x.set(next_x.clone());
+    assert_eq!(x.get(), next_x);
+    engine.runtime_context.mark_canvas_node_dirty(nodes[0].id);
+    engine.runtime_context.set_canvas_dirty(1);
+    renderer.gpu_busy = true;
+    assert!(!engine.submit_retained_frame(&mut renderer, 3., || 0.));
+    renderer.gpu_busy = false;
+    assert!(engine.submit_retained_frame(&mut renderer, 3., || 0.));
+    assert_eq!(renderer.events, [("draw", 1), ("retain", 1), ("submit", 1)]);
+    assert!(engine.runtime_context.is_canvas_node_dirty(&nodes[0].id));
+    assert!(engine.runtime_context.is_canvas_dirty(&1));
+    assert!(engine.runtime_context.is_canvas_dirty(&0));
 }
 
 #[test]

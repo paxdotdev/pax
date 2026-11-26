@@ -200,3 +200,56 @@ fn paint_changes_retain_path_coverage_until_its_shape_changes() {
     geometry_calls(&|| context.mark_node_occlusion_dirty(a.id.to_u32()), true);
     root.recurse_unmount(&context);
 }
+
+#[test]
+fn fill_and_stroke_material_reads_preserve_settlement_and_track_later_edits() {
+    use pax_runtime::api::{properties::has_pending_effects, ResolvedMaterial};
+
+    let context = Rc::new(crate::test_support::runtime_context());
+    let _graph = context.property_graph.enter();
+    let mut path_args = args();
+    path_args.properties_scope = PropertiesScopeInit::None;
+    let mut root_args = args();
+    root_args.component_template = Some(RefCell::new(vec![PathInstance::instantiate(path_args)]));
+    let root = ExpandedNode::initialize_root(ComponentInstance::instantiate(root_args), &context);
+    root.recurse_update(&context);
+    let path = &root.children.get()[0];
+    let (fill, stroke) = path.with_properties_unwrapped(|p: &mut Path| {
+        (
+            p.fill.get()[0].material.clone(),
+            p.stroke.get()[0].material.clone(),
+        )
+    });
+    fill.set(Material::matte());
+    stroke.set(Material::glossy(0.5));
+    context.drain_node_effects();
+
+    for layer in [fill, stroke] {
+        let material = layer.local().get();
+        let Material::Lit(params) = &material else {
+            panic!("expected lit material")
+        };
+        assert!(!has_pending_effects());
+        material.resolve_in_graph();
+        assert!(
+            !has_pending_effects(),
+            "reading settled paint queued more work"
+        );
+
+        context.clear_canvas_node_dirty(&path.id);
+        params.frosted.set(0.7);
+        context.drain_node_effects();
+        assert!(context.is_canvas_node_dirty(&path.id));
+        assert!(
+            matches!(material.resolve_in_graph(), ResolvedMaterial::Lit(p) if p.frosted == 0.7)
+        );
+
+        layer.set(Material::unlit());
+        context.drain_node_effects();
+        context.clear_canvas_node_dirty(&path.id);
+        params.frosted.set(0.3);
+        context.drain_node_effects();
+        assert!(!context.is_canvas_node_dirty(&path.id));
+    }
+    root.recurse_unmount(&context);
+}

@@ -59,3 +59,8 @@ A visible subtree with no deferred descendants also has complete extents.
 <pre><code class="api-signature language-rust ignore">pub fn require(&amp;mut self, child: &amp;ExpandedNode, demand: <a href="../../../../../api/internal/pax-runtime/engine/startup/plan.md#startupdemand">StartupDemand</a>)</code></pre>
 
 Require a child or detached rendering dependency. Repeated requirements merge.
+
+## Type Aliases
+### `MeasurementFlow`
+Ordered flow cells on one intrinsically measured axis. An allocation in
+pixels places subsequent cells independently of the allocated child's contents.

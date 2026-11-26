@@ -1732,6 +1732,21 @@ impl ExpandedNode {
         children
     }
 
+    pub(crate) fn create_conditional_child(
+        self: &Rc<Self>,
+        template: &Rc<dyn InstanceNode>,
+        context: &Rc<RuntimeContext>,
+    ) -> Rc<Self> {
+        let _work = context.profile_node_work(self.id.to_u32(), "conditional child construction");
+        Self::new(
+            Rc::clone(template),
+            Rc::clone(&self.stack),
+            context,
+            self.containing_component.clone(),
+            Rc::downgrade(self),
+        )
+    }
+
     pub(crate) fn current_attached_children(&self) -> Vec<Rc<ExpandedNode>> {
         borrow!(self.mounted_children).clone()
     }
@@ -3338,9 +3353,10 @@ impl ExpandedNode {
                         return;
                     };
                     // During admission logical_children exposes only mounted nodes.
-                    // Settle the authored list first so a lazy router, repeat or slot
-                    // can enqueue its selected children before startup declares itself idle.
-                    if node.attached.get() > 0 && context.startup.borrow().is_active() {
+                    // Settle the authored list so lazy control flow can enqueue
+                    // its children. A parked conditional already has a grant
+                    // responsible for its first list.
+                    if node.attached.get() > 0 && context.startup.borrow().needs_child_list(&node) {
                         node.children.read(|_| ());
                     }
                     let has_children = || {

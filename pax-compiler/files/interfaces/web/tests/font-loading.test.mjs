@@ -4,13 +4,13 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {transformSync} from 'esbuild';
 const code = transformSync(readFileSync(new URL('../src/classes/text.ts', import.meta.url), 'utf8'), {loader: 'ts', format: 'cjs'}).code;
-function harness({fontFailure = false} = {}) {
+function harness({fontFailure = false, check} = {}) {
     const module = {exports: {}}, requests = [], styles = [], descriptors = [], faces = [], warnings = [];
     const document = {
         baseURI: 'https://app.test/',
         head: {querySelectorAll: () => styles, appendChild: n => styles.push(n)},
         createElement: () => ({setAttribute(key, value) {this[key] = value;}, getAttribute(key) {return this[key];}}),
-        fonts: {ready: Promise.resolve(), load: async (s, text) => {descriptors.push([s, text]);}, add: face => faces.push(face), forEach: f => faces.forEach(f)},
+        fonts: {ready: Promise.resolve(), check, load: async (s, text) => {descriptors.push([s, text]);}, add: face => faces.push(face), forEach: f => faces.forEach(f)},
     };
     vm.runInNewContext(code, {
         module, exports: module.exports, require: () => ({}), document, URL, console: {warn: (...a) => warnings.push(a)},
@@ -57,6 +57,39 @@ test('different source URLs with the same family/style/weight register independe
     assert.deepEqual(h.faces.map(f => f.url), ['url("https://app.test/first.woff2")', 'url("https://app.test/replacement.woff2")']);
 });
 
+test('relative and absolute spellings reuse one face while another weight registers separately', async () => {
+    const h = harness(), registered = new Set();
+    const relative = new h.Font(), absolute = new h.Font(), bold = new h.Font();
+    relative.fromFontPatch({Web: {family: 'Example', url: 'assets/labels.ttf'}}, registered);
+    absolute.fromFontPatch({Web: {family: 'Example', url: '/assets/labels.ttf', style: 'Normal', weight: 'Normal'}}, registered);
+    bold.fromFontPatch({Web: {family: 'Example', url: '/assets/labels.ttf', style: 'Normal', weight: 'Bold'}}, registered);
+    assert.equal(relative.getTextLoader(), absolute.getTextLoader());
+    await Promise.all([relative, absolute, bold].map(f => f.getTextLoader()('Label')));
+    assert.equal(registered.size, 2);
+    assert.deepEqual(h.faces.map(f => f.descriptors.weight).sort(), ['400', '700']);
+});
+
+test('a registered face can satisfy new labels synchronously while a new Unicode subset still waits', async () => {
+    const checks = [];
+    const h = harness({check: (descriptor, text) => {
+        checks.push([descriptor, text]);
+        return !text.includes('Ж');
+    }});
+    const font = new h.Font();
+    font.fromFontPatch({Web: {family: 'Example', url: '/fonts/subsets.css', style: 'Normal', weight: 'Normal'}}, new Set());
+    const load = font.getTextLoader();
+    const first = load('First');
+    assert.ok(first, 'an unregistered family must wait even if browser fallback looks ready');
+    assert.deepEqual(checks, []);
+    await first;
+    assert.equal(load('U1 · ROOT'), undefined);
+    const other = load('Ж');
+    assert.ok(other, 'the browser requires another face for this string');
+    await other;
+    assert.deepEqual(h.descriptors, [['normal 400 16px "Example"', 'Ж']]);
+    assert.deepEqual(checks.map(([, text]) => text), ['First', 'U1 · ROOT', 'Ж']);
+});
+
 test('failed fonts keep stable fallback readiness across animated style patches', async () => {
     const h = harness({fontFailure: true});
     const patch = {Local: {family: 'Missing', path: 'missing.woff2', style: 'Normal', weight: 'Normal'}};
@@ -76,7 +109,7 @@ test('declared CSS sources load on demand and resolve relative assets without a 
     const font = new h.Font();
     font.fromFontPatch({Web: {family: 'Example', url: '/fonts/family.css?v=2', style: 'Normal', weight: 'Normal'}}, new Set());
     await font.getTextLoader()("Example");
-    assert.deepEqual(h.requests, ['/fonts/family.css?v=2']);
+    assert.deepEqual(h.requests, ['https://app.test/fonts/family.css?v=2']);
     assert.equal(h.faces.length, 0, 'CSS is not passed to FontFace as a binary font');
     assert.equal(h.styles.length, 1);
     assert.equal(h.warnings.length, 0);
@@ -89,12 +122,12 @@ test('capture embeds fonts on demand, resolves relative URLs and caches the resu
     font.fromFontPatch({Web: {family: 'Example', url: '/fonts/family.css', style: 'Normal', weight: 'Normal'}}, new Set());
     assert.equal(h.requests.length, 0);
     await font.getTextLoader()('Hello');
-    assert.deepEqual(h.requests, ['/fonts/family.css']);
+    assert.deepEqual(h.requests, ['https://app.test/fonts/family.css']);
     assert.match(h.styles[0].textContent, /https:\/\/app.test\/fonts\/example.woff2/);
     const css = await h.getRegisteredFontCssText();
     assert.match(css, /data:font\/woff2;base64,AQID/);
     assert.equal(await h.getRegisteredFontCssText(), css);
-    assert.deepEqual(h.requests, ['/fonts/family.css', 'https://app.test/fonts/example.woff2']);
+    assert.deepEqual(h.requests, ['https://app.test/fonts/family.css', 'https://app.test/fonts/example.woff2']);
 });
 
 test('unused link declarations and empty text never start a font request', async () => {

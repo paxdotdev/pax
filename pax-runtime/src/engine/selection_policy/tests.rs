@@ -147,6 +147,27 @@ fn clipped_nested_bands_donation_and_partial_discovery() {
     r.expect(12, Tier::Forward);
 }
 #[test]
+fn queued_extent_follows_two_later_rows_through_a_jump_and_reversal() {
+    let mut r = Rig::new(base());
+    r.owner(10, Some(1), Some(box_at(10., 900.)));
+    r.owner(11, Some(1), Some(box_at(10., 220.)));
+    r.owner(12, Some(1), Some(box_at(10., 520.)));
+    r.job(1, &[10, 11, 12], 0, Status::Runnable);
+    r.entry(3, 1, 10., 15.);
+    let home = r.scene.clone();
+    r.expect(3, Tier::Visible);
+    for offset in [200., 500., 200.] {
+        let mut next = home.clone();
+        next.hosts.get_mut(&1).unwrap().offset[1] += offset;
+        r.observe(next);
+        r.expect(1, Tier::Visible);
+    }
+    r.observe(home);
+    r.expect(3, Tier::Visible);
+    r.delete(3);
+    assert_eq!(r.check(0).unwrap().id, 1);
+}
+#[test]
 fn previous_loser_promotes_on_jump_and_demotes_on_reversal() {
     let mut r = Rig::new(base());
     r.entry(5, 1, 10., 10.);

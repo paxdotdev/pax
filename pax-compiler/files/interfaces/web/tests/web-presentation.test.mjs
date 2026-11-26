@@ -35,9 +35,10 @@ function harness(onApply = () => {}, groups) {
     const module = {exports: {}};
     vm.runInNewContext(transformSync(source, {loader: 'ts', format: 'cjs'}).code,
         {module, exports: module.exports, HTMLCanvasElement: Canvas});
-    const state = {coverage: 'A', complete: 0n, fence: 1n};
+    const state = {coverage: 'A', complete: 0n, fence: 1n, resident: true};
     const chassis = {
         set_displayed_scroll_reader() {}, prepare_displayed_input: () => true,
+        retain_visible_frame: () => state.resident,
         publish_displayed_input: () => log.push('input'),
         web_submission_fence: () => state.fence,
         web_submission_complete: serial => serial <= state.complete,
@@ -120,6 +121,50 @@ test('a late fence holds its native prefix, image and input and preserves later 
     state.complete = 2n;
     owner.publish();
     assert.deepEqual(log.slice(-2), ['ButtonDelete', 'input']);
+});
+
+test('later input cannot replace a retained pose during submission or its GPU wait', () => {
+    const {canvas, owner, state, log} = harness();
+    owner.receive([{ButtonUpdate: {}}]);
+    state.resident = false;
+    assert.equal(owner.retain(), false);
+    state.resident = true;
+    assert.equal(owner.retain(), true);
+    owner.receive([{ButtonDelete: {}}]);
+    assert.equal(owner.hasPendingFrame, true);
+    assert.equal(owner.hasRetainedFrame, true);
+    assert.equal(owner.settled(), false);
+    assert.equal(owner.publish(() => { canvas.submit('captured'); return false; }), false);
+    assert.equal(owner.awaitingFence, false);
+    assert.equal(owner.publish(() => true), false);
+    assert.equal(owner.awaitingFence, true);
+    assert.equal(owner.hasRetainedFrame, true);
+    assert.deepEqual(log, []);
+    state.complete = state.fence;
+    assert.equal(owner.publish(() => assert.fail('already submitted')), true);
+    assert.deepEqual(log, ['ButtonUpdate', 'draw captured', 'input']);
+    assert.equal(owner.hasRetainedFrame, false);
+    assert.equal(owner.settled(), true);
+    assert.equal(owner.publish(), true);
+    assert.equal(log.at(-2), 'ButtonDelete');
+});
+
+test('retargeting a tile between submission slices repairs the native prefix in order', () => {
+    const {canvas, owner, state, log} = harness();
+    owner.receive([{ButtonCreate: {}}]);
+    assert.equal(owner.retain(), true);
+    owner.publish(() => { canvas.submit('outgoing'); return false; });
+    owner.receive([{ButtonUpdate: {}}]);
+    canvas.dataset.surfaceGeneration = '2';
+    state.coverage = 'B';
+    assert.equal(owner.publish(() => assert.fail('obsolete work')), false);
+    assert.equal(owner.hasPendingFrame, false);
+    assert.deepEqual(log, ['close outgoing']);
+    canvas.submit('incoming');
+    assert.equal(owner.settled(), true);
+    state.complete = state.fence;
+    assert.equal(owner.publish(), true);
+    assert.deepEqual(log.slice(1), ['ButtonCreate', 'ButtonUpdate', 'draw incoming', 'input']);
 });
 
 test('a retained tile publishes its CSS rectangle with its bitmap after a late fence', () => {

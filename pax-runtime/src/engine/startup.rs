@@ -2,8 +2,11 @@
 //! and phase cursors only; no property evaluation or borrow crosses a host yield.
 use super::occlusion;
 use super::selection_policy::live::{Mounts, Unit as SelectionUnit};
+use crate::conditional::FirstExpansion;
 pub(crate) mod admission;
 pub mod plan;
+pub(in crate::engine) mod projected_height;
+pub use projected_height::HeightObservation;
 mod profile;
 pub mod selection_capture;
 pub(crate) mod visible_groups;
@@ -41,10 +44,13 @@ pub(crate) struct Startup {
     // Structural effects can realize an admitted parent's children in a later
     // foreground tick. Keep those initial descendants under the same budget.
     background_parents: HashSet<(ExpandedNodeIdentifier, u64)>,
+    first_expansion: Option<(ExpandedNodeIdentifier, Weak<FirstExpansion>)>,
     awaiting_background_settlement: bool,
     settling_viewport: bool,
     measurements_ready: bool,
     prioritize_owners: bool,
+    height_sources: HashMap<(u32, String), Rc<projected_height::Source>>,
+    pub(super) height_revision: u64,
     pub(super) live_mounts: Option<Mounts>,
     pub(super) share_viewport_demand: bool,
     enqueue_order: u32,
@@ -61,7 +67,7 @@ pub(crate) struct Startup {
     measured: HashMap<(ExpandedNodeIdentifier, u64), StartupDemand>,
     resolvers: HashMap<(ExpandedNodeIdentifier, u64), StartupResolver>,
     measurement_axes: HashMap<(ExpandedNodeIdentifier, u64), StartupAxes>,
-    queued: HashSet<(ExpandedNodeIdentifier, u64, ExpandedNodeIdentifier, u64)>,
+    queued: HashSet<MountKey>,
     phase: Phase,
     handlers: Option<VecDeque<ExpandedNodeIdentifier>>,
     ticked: HashSet<(ExpandedNodeIdentifier, u64)>,
@@ -71,6 +77,21 @@ pub(crate) struct Startup {
 }
 
 impl Startup {
+    fn first_expansion(&self) -> Option<Rc<FirstExpansion>> {
+        self.first_expansion.as_ref()?.1.upgrade()
+    }
+
+    fn preparing(&self) -> Option<ExpandedNodeIdentifier> {
+        self.first_expansion()?.owner().map(|node| node.id)
+    }
+
+    pub(crate) fn needs_child_list(&self, node: &ExpandedNode) -> bool {
+        self.active
+            && !self.first_expansion.as_ref().is_some_and(|(id, work)| {
+                *id == node.id && work.upgrade().is_some_and(|work| work.owner().is_some())
+            })
+    }
+
     pub(super) fn accepts_mount_input(&self) -> bool {
         self.active || self.background
     }
@@ -84,6 +105,8 @@ fn startup_key(node: &ExpandedNode) -> (ExpandedNodeIdentifier, u64) {
     )
 }
 
+pub(super) type MountKey = (ExpandedNodeIdentifier, u64, ExpandedNodeIdentifier, u64);
+
 #[derive(Clone)]
 pub(super) struct PendingMount {
     pub(super) arrival: u32,
@@ -91,7 +114,7 @@ pub(super) struct PendingMount {
     pub(super) child: Weak<ExpandedNode>,
     pub(super) parent_epoch: u64,
     pub(super) child_epoch: u64,
-    pub(super) key: (ExpandedNodeIdentifier, u64, ExpandedNodeIdentifier, u64),
+    pub(super) key: MountKey,
 }
 
 impl PendingMount {
@@ -164,8 +187,49 @@ pub struct StartupReport {
 
 impl RuntimeContext {
     pub(super) fn settled_admission(&self) {
-        self.startup.borrow_mut().awaiting_background_settlement = false;
-        self.visible_groups.borrow_mut().did_settle();
+        let mut state = self.startup.borrow_mut();
+        state.awaiting_background_settlement = false;
+        self.visible_groups
+            .borrow_mut()
+            .did_settle(state.preparing().map(|id| id.to_u32()));
+    }
+
+    pub(crate) fn schedule_first_expansion(
+        &self,
+        node: &ExpandedNode,
+        make_work: impl FnOnce() -> Rc<FirstExpansion>,
+    ) -> Option<Rc<FirstExpansion>> {
+        let mut state = self.startup.borrow_mut();
+        if !state.background
+            || !state.background_parents.contains(&startup_key(node))
+            || state.preparing().is_some()
+            || self
+                .visible_groups
+                .borrow()
+                .parked_owner(node.id.to_u32())
+                .is_none()
+            || !node.active_children.borrow().is_empty()
+            || !node.exiting_children.borrow().is_empty()
+        {
+            return None;
+        }
+        let work = make_work();
+        state.first_expansion = Some((node.id, Rc::downgrade(&work)));
+        Some(work)
+    }
+
+    fn prepare_first_child(self: &Rc<Self>, work: Rc<FirstExpansion>) {
+        if work.prepare_one(self) {
+            let mut state = self.startup.borrow_mut();
+            if state
+                .first_expansion
+                .as_ref()
+                .is_some_and(|(_, current)| current.as_ptr() == Rc::as_ptr(&work))
+            {
+                state.first_expansion = None;
+            }
+            state.awaiting_background_settlement = true;
+        }
     }
 
     pub(crate) fn startup_phase(&self, name: &'static str) -> Option<StartupPhaseGuard> {
@@ -727,7 +791,8 @@ impl PaxEngine {
         let s = ctx.startup.borrow();
         let _g = ctx.property_graph.enter();
         s.background
-            && (s.live_mounts.as_ref().is_some_and(|l| l.len() != 0)
+            && (s.preparing().is_some()
+                || s.live_mounts.as_ref().is_some_and(|l| l.len() != 0)
                 || s.spatial.len > 0
                 || !s.stack.is_empty()
                 || !s.incoming.is_empty()
@@ -746,13 +811,13 @@ impl PaxEngine {
     pub fn has_runnable_background_mount(&self) -> bool {
         let s = self.runtime_context.startup.borrow();
         s.background
-            && (s
-                .incoming
-                .iter()
-                .chain(s.stack.iter())
-                .chain(s.deferred.iter())
-                .chain(s.spatial.all_pending())
-                .any(PendingMount::legal_now)
+            && (s.preparing().is_some()
+                || s.incoming
+                    .iter()
+                    .chain(s.stack.iter())
+                    .chain(s.deferred.iter())
+                    .chain(s.spatial.all_pending())
+                    .any(PendingMount::legal_now)
                 || s.live_mounts.as_ref().is_some_and(Mounts::any_legal))
     }
     fn service_indexed_frontier(&self, deadline: f64, now: &mut impl FnMut() -> f64) -> bool {
@@ -765,8 +830,27 @@ impl PaxEngine {
             .expect("active mount frontier");
         live.begin_grant();
         let mounted = live.counts.mounted;
+        let conditional_units = live.counts.conditional_units;
         loop {
             let start = web_time::Instant::now();
+            let expansion = ctx.startup.borrow().first_expansion();
+            if let Some(work) = expansion {
+                // Child attachment can perform a synchronous settings read.
+                ctx.startup.borrow_mut().live_mounts = Some(live);
+                ctx.prepare_first_child(work);
+                live = ctx
+                    .startup
+                    .borrow_mut()
+                    .live_mounts
+                    .take()
+                    .expect("active mount frontier");
+                live.counts.conditional_units += 1;
+                live.counted(start.elapsed().as_secs_f64() * 1000., false);
+                if now() >= deadline {
+                    break;
+                }
+                continue;
+            }
             let incoming = {
                 let mut state = ctx.startup.borrow_mut();
                 state
@@ -781,7 +865,7 @@ impl PaxEngine {
                 SelectionUnit::Empty => break,
                 SelectionUnit::Maintenance => maintenance = true,
                 SelectionUnit::Mount(work) => {
-                    let id = work.key.2.to_u32();
+                    let key = work.key;
                     // Release the scheduler's borrow before running user hooks
                     // or synchronous reads. Attachments append to ordinary ingress.
                     ctx.startup.borrow_mut().live_mounts = Some(live);
@@ -795,7 +879,7 @@ impl PaxEngine {
                     live = s.live_mounts.take().expect("active mount frontier");
                     drop(s);
                     live.finish_mount(
-                        id,
+                        key,
                         okay,
                         t.elapsed().as_micros().min(u32::MAX as u128) as u32,
                     );
@@ -808,7 +892,7 @@ impl PaxEngine {
         }
         if live.counts.mounted > mounted {
             live.counts.grants_with_mount += 1;
-        } else {
+        } else if live.counts.conditional_units == conditional_units {
             live.counts.slices_all_maintenance += 1;
         }
         ctx.startup.borrow_mut().live_mounts = Some(live);
@@ -841,6 +925,7 @@ impl PaxEngine {
             }
             if state.live_mounts.as_ref().is_none_or(|l| l.len() == 0)
                 && state.spatial.len == 0
+                && state.preparing().is_none()
                 && state.stack.is_empty()
                 && state.incoming.is_empty()
                 && state.deferred.is_empty()
@@ -878,6 +963,14 @@ impl PaxEngine {
             })
         };
         loop {
+            let expansion = ctx.startup.borrow().first_expansion();
+            if let Some(work) = expansion {
+                ctx.prepare_first_child(work);
+                if now_ms() >= deadline {
+                    break;
+                }
+                continue;
+            }
             let Some(outcome) = ctx.mount_one_pending(view.as_mut()) else {
                 break;
             };
@@ -1223,6 +1316,7 @@ impl RuntimeContext {
 
 #[cfg(test)]
 mod tests {
+    mod first_expansion;
     use super::*;
     use crate::{ComponentInstance, Handler, HandlerRegistry, InstanceNode, InstantiationArgs};
     use pax_runtime_api::{

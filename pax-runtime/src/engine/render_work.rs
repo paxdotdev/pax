@@ -40,6 +40,16 @@ impl PaxEngine {
         layer: usize,
         plan: Option<&FilteredRenderPlan>,
     ) {
+        self.draw_layer(rcs, layer, plan);
+        rcs.flush_visible_first(layer, Rc::clone(&self.runtime_context.dirty_canvases));
+    }
+
+    fn draw_layer(
+        &self,
+        rcs: &mut dyn RenderContext,
+        layer: usize,
+        plan: Option<&FilteredRenderPlan>,
+    ) {
         if let Some(plan) = plan {
             self.draw_filtered_render_plan(rcs, self.root_expanded_node.as_ref().unwrap(), plan);
         }
@@ -51,7 +61,6 @@ impl PaxEngine {
         {
             self.runtime_context.set_canvas_dirty(layer);
         }
-        rcs.flush_visible_first(layer, Rc::clone(&self.runtime_context.dirty_canvases));
     }
 
     pub(super) fn repair_visible_surface_layer(
@@ -98,6 +107,151 @@ impl PaxEngine {
         }
         let root = self.root_expanded_node.as_ref().ok_or("missing_root")?;
         self.build_filtered_render_plan(root, &selected).map(Some)
+    }
+
+    fn setup_render_work(
+        &mut self,
+        rcs: &mut dyn RenderContext,
+        state: &mut RenderWorkState,
+        report: &mut RenderWorkReport,
+    ) {
+        let diagnostics = self.runtime_context.occlusion_state.borrow().diagnostics;
+        let dirty_before = diagnostics.then(|| self.runtime_context.dirty_canvas_layers());
+        let (layers, failed_removals, flush_layers) =
+            self.reconcile_render_work(rcs, &mut |_| {}, false);
+        state.retry_reconciliation = !failed_removals.is_empty();
+        if let Some(dirty_before) = dirty_before {
+            let mut counts = HashMap::<usize, usize>::new();
+            for id in self.runtime_context.dirty_canvas_node_ids() {
+                if let Some(node) = self.runtime_context.get_expanded_node_by_eid(id) {
+                    *counts
+                        .entry(node.occlusion.get().render_layer_id)
+                        .or_default() += 1;
+                }
+            }
+            report.layer_reconciliation = layers
+                .iter()
+                .take(32)
+                .map(|layer| {
+                    (
+                        *layer,
+                        dirty_before.contains(layer),
+                        counts.get(layer).copied().unwrap_or(0),
+                    )
+                })
+                .collect();
+        }
+        state.pending_lighting_flushes.extend(
+            flush_layers
+                .into_iter()
+                .filter(|layer| !layers.contains(layer)),
+        );
+        state
+            .pending_lighting_flushes
+            .retain(|layer| *layer < self.runtime_context.layer_count.get());
+        // Removals-only layers also remain authoritative pending work until
+        // their complete draw/flush attempt. No copied work queue is kept.
+        for layer in layers {
+            self.runtime_context.set_canvas_dirty(layer);
+        }
+        state.setup_complete = true;
+    }
+
+    /// Record a contested visible revision into its resident physical surfaces.
+    /// The host captures its native prefix and hit view in this same turn. Once
+    /// accepted, submission accesses only the renderer until publication or repair.
+    #[doc(hidden)]
+    pub fn retain_visible_frame(
+        &mut self,
+        rcs: &mut dyn RenderContext,
+        state: &mut RenderWorkState,
+    ) -> bool {
+        let _graph = self.runtime_context.property_graph.enter();
+        if !rcs.can_retain_visible_frame() {
+            return false;
+        }
+        let Ok(turn) = RenderTurn::begin(rcs, &self.runtime_context) else {
+            return false;
+        };
+        let rcs = &mut *turn.context;
+        if self
+            .runtime_context
+            .settled_surface_blocker()
+            .is_some_and(|b| b != "geometry")
+        {
+            return false;
+        }
+        if !state.setup_complete {
+            self.setup_render_work(rcs, state, &mut RenderWorkReport::default());
+        }
+        if !self.runtime_context.can_present_settled_surfaces() {
+            return false;
+        }
+        let visible = |layer: &usize| {
+            rcs.ordinary_layer_priority(*layer)
+                .is_none_or(|rank| rank <= 0)
+        };
+        let mut layers: Vec<_> = self
+            .runtime_context
+            .dirty_canvas_layers()
+            .into_iter()
+            .chain(state.pending_lighting_flushes.iter().copied())
+            .filter(visible)
+            .collect();
+        layers.sort_unstable();
+        layers.dedup();
+        // Preflight every required path before consuming any draw. Cold first
+        // paint and inseparable traversals remain owned by the ordinary service.
+        let mut plans = Vec::with_capacity(layers.len());
+        for layer in layers {
+            let plan = if self.runtime_context.is_canvas_dirty(&layer) {
+                let Ok(plan) = self.build_layer_render_plan(layer) else {
+                    return false;
+                };
+                plan
+            } else {
+                None
+            };
+            plans.push((layer, plan));
+        }
+        for (layer, plan) in plans {
+            self.draw_layer(rcs, layer, plan.as_ref());
+            rcs.retain_layer_submission(layer, Rc::clone(&self.runtime_context.dirty_canvases));
+            state.pending_lighting_flushes.remove(&layer);
+            if !self.runtime_context.can_present_settled_surfaces() {
+                return false;
+            }
+        }
+        !self
+            .runtime_context
+            .dirty_canvas_layers()
+            .into_iter()
+            .any(|layer| {
+                rcs.ordinary_layer_priority(layer)
+                    .is_none_or(|rank| rank <= 0)
+            })
+            && rcs.can_retain_visible_frame()
+    }
+
+    /// Submit resident visible tiles without inspecting the live scene. A later
+    /// host turn resumes after an overrun or GPU backpressure.
+    #[doc(hidden)]
+    pub fn submit_retained_frame(
+        &self,
+        rcs: &mut dyn RenderContext,
+        slice_ms: f64,
+        now_ms: impl Fn() -> f64,
+    ) -> bool {
+        let Ok(turn) = RenderTurn::begin(rcs, &self.runtime_context) else {
+            return false;
+        };
+        let start = now_ms();
+        while turn.context.submit_deferred_surface(true) {
+            if now_ms() - start >= slice_ms {
+                return false;
+            }
+        }
+        true
     }
 
     /// Service complete rendering units from the current settled scene. No node
@@ -149,45 +303,7 @@ impl PaxEngine {
         }
         if !state.setup_complete {
             let setup = now_ms();
-            let dirty_before = diagnostics.then(|| self.runtime_context.dirty_canvas_layers());
-            let (layers, failed_removals, flush_layers) =
-                self.reconcile_render_work(rcs, &mut |_| {}, false);
-            state.retry_reconciliation = !failed_removals.is_empty();
-            if let Some(dirty_before) = dirty_before {
-                let mut counts = HashMap::<usize, usize>::new();
-                for id in self.runtime_context.dirty_canvas_node_ids() {
-                    if let Some(node) = self.runtime_context.get_expanded_node_by_eid(id) {
-                        *counts
-                            .entry(node.occlusion.get().render_layer_id)
-                            .or_default() += 1;
-                    }
-                }
-                report.layer_reconciliation = layers
-                    .iter()
-                    .take(32)
-                    .map(|layer| {
-                        (
-                            *layer,
-                            dirty_before.contains(layer),
-                            counts.get(layer).copied().unwrap_or(0),
-                        )
-                    })
-                    .collect();
-            }
-            state.pending_lighting_flushes.extend(
-                flush_layers
-                    .into_iter()
-                    .filter(|layer| !layers.contains(layer)),
-            );
-            state
-                .pending_lighting_flushes
-                .retain(|layer| *layer < self.runtime_context.layer_count.get());
-            // Removals-only layers also remain authoritative pending work until
-            // their complete draw/flush attempt. No copied work queue is kept.
-            for layer in layers {
-                self.runtime_context.set_canvas_dirty(layer);
-            }
-            state.setup_complete = true;
+            self.setup_render_work(rcs, state, &mut report);
             report.max_unit_ms = now_ms() - setup;
             report.setup_ms = report.max_unit_ms;
             if now_ms() - start >= slice_ms {

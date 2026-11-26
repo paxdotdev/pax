@@ -226,6 +226,44 @@ impl TextInstance {
 }
 
 impl InstanceNode for TextInstance {
+    fn has_current_extent(
+        &self,
+        node: &Rc<ExpandedNode>,
+        axes: pax_runtime::engine::startup::StartupAxes,
+    ) -> bool {
+        let cp = node.get_common_properties();
+        let cp = cp.borrow();
+        let fixed_x = cp.width.get().is_some();
+        let fixed_y = cp.height.get().is_some();
+        if (!axes.x || fixed_x) && (!axes.y || fixed_y) {
+            return true;
+        }
+        let (w, h) = node.presentation_bounds().get();
+        let key = node.with_properties_unwrapped(|p: &mut Text| {
+            text_measurement_key(
+                p.text.get(),
+                p.markdown.get(),
+                p.wrap.get(),
+                p.clip.get(),
+                p.editable.get(),
+                p.selectable.get(),
+                p.style.get().message(true),
+                p._style_link.get().message(true),
+                if fixed_x { w } else { -1. },
+                if fixed_y { h } else { -1. },
+            )
+        });
+        node.measured_size.get().is_some()
+            && self
+                .measurements
+                .borrow()
+                .nodes
+                .get(&node.id.0)
+                .is_some_and(|m| {
+                    m.pending_generation.is_none() && key.is_some() && m.requested_key == key
+                })
+    }
+
     fn awaits_native_first_content(&self) -> bool {
         true
     }

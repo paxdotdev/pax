@@ -364,6 +364,26 @@ pub trait InstanceNode {
         false
     }
 
+    /// Whether native measurement feedback covers these axes at the current
+    /// constraints. Called by explicit settled-layout diagnostics.
+    fn has_current_extent(
+        &self,
+        _node: &Rc<ExpandedNode>,
+        _axes: crate::engine::startup::StartupAxes,
+    ) -> bool {
+        true
+    }
+
+    /// Ordered cells when exactly one requested axis follows an intrinsic flow.
+    /// Containers return the same fixed allocations used by ordinary layout.
+    fn measurement_flow(
+        &self,
+        _node: &ExpandedNode,
+        _axes: crate::engine::startup::StartupAxes,
+    ) -> Option<crate::engine::startup::plan::MeasurementFlow> {
+        None
+    }
+
     /// Describe dependencies required for initial presentation. The default
     /// traverses visible children and conservatively resolves exact extents.
     /// Override in the component, not in the scheduler; the hook must not mount

@@ -625,6 +625,29 @@ current mount and retained for viewport feedback checkpoints until startup
 mounting completes; use weak node references
 in captures. This is an experimental runtime API, not a new template property.
 
+A vertical autosizing Stacker can also have a row whose authored pixel height
+comes from Rust feedback. For example, a preview host can take its height from
+a content stack inside a slotted section. In the component that declares the
+row, identify the two template IDs in its mount handler.
+
+```rust,ignore
+ctx.declare_projected_height("preview_row", "content_stack")
+    .expect("preview_row projects a component with content_stack");
+```
+
+Here `preview_row` is the direct flow child, and `content_stack` is the intrinsic
+height source inside the component passed into that row. The ordinary binding
+publishes the measured height and any padding. With the experimental indexed
+web admission policy, later rows lend their current viewport priority to the
+selected slot and the work needed to measure its contents. When one content
+cell has a known height, express it in `Stacker.sizes` so its descendants can
+stay queued while text in other cells wraps. A page can continue using its
+reserved height during native feedback. In the browser, fallback-font dimensions
+can update provisional layout while the requested native measurement waits for
+the current fonts. The source height is exact after those responses pass through
+the ordinary layout effects. Registration schedules mount work and preserves
+synchronous layout reads.
+
 Before this first reveal, native Text fonts and their latest measurements must
 settle, followed by a browser layout opportunity and another readiness check.
 Feedback can promote deferred work if layout or viewport size changes. Font
@@ -661,6 +684,14 @@ after the required submission completes. Repeated vector details in that
 component share its first presentation. Independently presentable siblings
 can open on different frames. The rest of the page stays interactive through
 these publications.
+
+When a hidden component first mounts an `if`, background admission can prepare
+its selected children one at a time. A synchronous read of the child list
+finishes the current selection immediately, including after a condition change.
+The runtime attaches the complete list in template order. Children run their
+mount hooks through ordinary admission and appear with their component's first
+presentation.
+
 The final readiness check holds application input and the `init_web` Promise,
 without hiding already presented content. These checkpoints do not advance an
 application tick for each slice or repeat the initial handlers on existing nodes.
@@ -723,8 +754,14 @@ scroller. The outgoing scroller keeps its displayed pixels and hit targets until
 the browser publishes the replacement scene.
 
 While visible drawing is pending, the host can settle changes raised by drawing
-or input at the current animation time. It admits the next animation tick after
-publication. A responsive branch replacement can include thousands of ordered
+or input at the current animation time. When repeated input changes a scene
+whose visible tiles are already initialized, the host can retain a pose's
+drawings, native updates, and hit geometry together. Pointer handlers continue
+to run and read current property values while the GPU finishes that pose.
+Later changes appear in a subsequent presentation. Scrolling or resizing that
+reassigns a required tile causes the host to prepare the new coverage before
+publishing. The host admits the next animation tick after publication.
+A responsive branch replacement can include thousands of ordered
 native updates. The host keeps the whole change and samples the latest pending
 viewport resize at the next admitted tick. Native scrolling still moves clipped
 children and supplies their displayed offsets for hit testing. The application

@@ -31,10 +31,16 @@ fn showcase_scale(section_width: f64, compact: bool) -> f64 {
     width.max(0.0) / 1280.0
 }
 
+pub(crate) const HEIGHT_SOURCE: &str = "runtime_content";
+
 #[helpers]
 impl RuntimeSection {
     pub fn stage_height(scale: f64, compact: bool) -> f64 {
         scale * 729.0 + if compact { 52.0 } else { 0.0 }
+    }
+
+    pub fn cell_sizes(scale: f64, compact: bool) -> Vec<Option<Size>> {
+        vec![None, Some(Size::Pixels(Self::stage_height(scale, compact).into()))]
     }
 
     pub fn copy_inset(compact: bool) -> f64 {
@@ -158,7 +164,7 @@ impl RuntimeSection {
             self._height_bound
                 .set(crate::section_layout::bind_height_with_padding(
                     ctx,
-                    "runtime_content",
+                    HEIGHT_SOURCE,
                     &self.content_height,
                     &Property::new(BOTTOM_INSET),
                 ));

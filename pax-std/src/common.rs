@@ -428,7 +428,7 @@ pub(crate) fn watch_appearance(
     fills: pax_runtime_api::LocalProperty<Vec<pax_runtime_api::Fill>>,
     strokes: pax_runtime_api::LocalProperty<Vec<pax_runtime_api::Stroke>>,
 ) -> pax_runtime_api::LocalProperty<()> {
-    use pax_runtime_api::{LocalProperty, Material};
+    use pax_runtime_api::{LocalProperty, ToPaxValue};
     use std::{cell::RefCell, rc::Rc};
     let deps = [fills.untyped(), strokes.untyped()];
     let weak_node = Rc::downgrade(node);
@@ -503,18 +503,7 @@ pub(crate) fn watch_appearance(
                         };
                         let _work = context
                             .profile_node_work(node.id.to_u32(), "appearance material rebind");
-                        let material_dependencies = match material.get() {
-                            Material::Unlit => vec![],
-                            Material::Lit(p) => vec![
-                                p.ambient.local().untyped(),
-                                p.diffuse.local().untyped(),
-                                p.specular.local().untyped(),
-                                p.roughness.local().untyped(),
-                                p.metallic.local().untyped(),
-                                p.emissive.local().untyped(),
-                                p.emissive_intensity.local().untyped(),
-                            ],
-                        };
+                        let material_dependencies = material.get().nested_properties();
                         let invalidate_appearance = invalidate_appearance.clone();
                         material_watch.replace_with(LocalProperty::computed(
                             move || invalidate_appearance(),

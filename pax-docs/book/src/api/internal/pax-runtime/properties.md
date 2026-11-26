@@ -69,6 +69,12 @@ escaped descendants or mixed presentation domains. Pending structural or
 node changes are likewise insufficient evidence for removing surfaces.
 Call after property effects have settled, as in the engine tick path.
 
+##### `inspect_projected_heights`
+<pre><code class="api-signature language-rust ignore">pub fn inspect_projected_heights(&amp;self) -&gt; Vec&lt;HeightObservation&gt;</code></pre>
+
+Observe projected source measurements at a settled tick without mounting
+nodes. A pending native generation leaves the last ordinary layout readable.
+
 ##### `register_startup_measurement`
 <pre><code class="api-signature language-rust ignore">pub fn register_startup_measurement(&amp;self, node: &amp;ExpandedNode, axes: <a href="../../../api/internal/pax-runtime/engine/startup/plan.md#startupaxes">StartupAxes</a>)</code></pre>
 

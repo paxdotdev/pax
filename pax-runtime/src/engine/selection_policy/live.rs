@@ -6,8 +6,9 @@ use super::{
     *,
 };
 use crate::engine::startup::{
+    projected_height::Loans,
     selection_capture::{footprint, Footprint},
-    PendingMount,
+    MountKey, PendingMount,
 };
 use crate::engine::surface_preparation::PreparationHost;
 use crate::viewport_proximity::{admission_cache::Watched, RankStats};
@@ -27,6 +28,7 @@ pub(crate) struct Counts {
     cycles: u32,
     pub grant_count: u32,
     pub grants_with_mount: u32,
+    pub conditional_units: u32,
     pub peak_frontier: usize,
     pub max_unit_ms: f64,
     pub max_selection_ms: f64,
@@ -44,6 +46,8 @@ struct Anchor {
 struct Ticket {
     work: PendingMount,
     owner: Id,
+    age: u32,
+    borrowers: Vec<Id>,
 }
 pub(in crate::engine) enum Unit {
     Maintenance,
@@ -67,6 +71,11 @@ pub(in crate::engine) struct Mounts {
     dirty: BTreeSet<Id>,
     overflow: BTreeSet<Id>,
     signals: DependencyEventQueue,
+    heights_enabled: bool,
+    height_revision: u64,
+    height_observed_this_cycle: bool,
+    height_signals: DependencyEventQueue,
+    height_loans: Option<Watched<Loans>>,
     structure: u64,
     cycle: bool,
     watch_stats: RankStats,
@@ -93,6 +102,11 @@ impl Mounts {
             ready_geometry: Default::default(),
             dirty: Default::default(),
             signals: Default::default(),
+            heights_enabled: true,
+            height_revision: 0,
+            height_observed_this_cycle: false,
+            height_signals: Default::default(),
+            height_loans: None,
             structure: 0,
             cycle: false,
             watch_stats: Default::default(),
@@ -292,18 +306,93 @@ impl Mounts {
         a.observation = Some(fp);
         self.counts.geometry_reads += 1;
     }
-    fn input_job(&mut self, id: Id, owner: Id, epoch: u64, age: u32) {
+    fn input_job(&mut self, id: Id, epoch: u64, age: u32, owner: Id, borrowers: &[Id]) {
+        let mut owners = vec![owner];
+        owners.extend_from_slice(borrowers);
         self.index.put_job(
             id,
             Job {
-                age,
+                age: if borrowers.is_empty() { age } else { 0 },
                 lifetime: epoch,
                 content: 0,
                 resource: 0,
-                owners: vec![owner],
+                owners,
                 status: Status::Runnable,
             },
         );
+    }
+
+    // A scroll changes the owners' ranks in Indexed. Only a change to a
+    // measurement path, allocation or selected branch changes this set of edges.
+    fn refresh_height_loans(&mut self, ctx: &RuntimeContext) -> bool {
+        if !self.heights_enabled {
+            return false;
+        }
+        let revision = ctx.startup.borrow().height_revision;
+        let mut dirty = self.height_revision != revision;
+        while self.height_signals.pop().is_some() {
+            dirty = true;
+        }
+        if !dirty
+            && (self.height_observed_this_cycle
+                || self.height_loans.as_ref().is_none_or(Watched::reusable))
+        {
+            return false;
+        }
+        self.height_revision = revision;
+        self.height_observed_this_cycle = true;
+        let next = Watched::observe(
+            self.height_loans.as_mut(),
+            || ctx.height_loans(),
+            &self.height_signals,
+            0,
+            &mut self.watch_stats,
+        );
+        let old = self.height_loans.take();
+        let changed = |child: &MountKey| {
+            let prior = old.as_ref().and_then(|p| p.value.get(child));
+            let after = next.value.get(child);
+            !match (prior, after) {
+                (None, None) => true,
+                (Some(a), Some(b)) => a.keys().eq(b.keys()),
+                _ => false,
+            }
+        };
+        let ids: Vec<_> = self
+            .jobs
+            .iter()
+            .filter_map(|(&id, t)| changed(&t.work.key).then_some(id))
+            .collect();
+        for id in ids {
+            let t = self.jobs.get_mut(&id).unwrap();
+            let (child, owner, age, epoch) = (t.work.key, t.owner, t.age, t.work.child_epoch);
+            let old = std::mem::take(&mut t.borrowers);
+            let owners = next.value.get(&child);
+            let borrowers = self.retain_borrowers(owner, owners);
+            for b in old {
+                self.drop_anchor(b);
+            }
+            self.input_job(id, epoch, age, owner, &borrowers);
+            self.jobs.get_mut(&id).unwrap().borrowers = borrowers;
+        }
+        self.height_loans = Some(next);
+        true
+    }
+    fn retain_borrowers(
+        &mut self,
+        base: Id,
+        nodes: Option<&BTreeMap<Id, Rc<ExpandedNode>>>,
+    ) -> Vec<Id> {
+        let mut ids = Vec::new();
+        if let Some(nodes) = nodes {
+            for (&id, node) in nodes {
+                if id != base {
+                    self.add_anchor(node);
+                    ids.push(id);
+                }
+            }
+        }
+        ids
     }
     fn register(&mut self, ctx: &RuntimeContext, work: PendingMount) -> Unit {
         let (Some(parent), Some(child)) = (work.parent.upgrade(), work.child.upgrade()) else {
@@ -319,9 +408,25 @@ impl Mounts {
         let owner = a.id.to_u32();
         let id = work.arrival;
         self.add_anchor(&a);
-        self.input_job(id, owner, work.child_epoch, age);
+        let loans = self
+            .height_loans
+            .as_ref()
+            .and_then(|l| l.value.get(&work.key))
+            .cloned();
+        let borrowers = self.retain_borrowers(owner, loans.as_ref());
+        self.input_job(id, work.child_epoch, age, owner, &borrowers);
         assert!(
-            self.jobs.insert(id, Ticket { work, owner }).is_none(),
+            self.jobs
+                .insert(
+                    id,
+                    Ticket {
+                        work,
+                        owner,
+                        age,
+                        borrowers
+                    }
+                )
+                .is_none(),
             "duplicate live mount ticket"
         );
         self.counts.registered += 1;
@@ -338,6 +443,9 @@ impl Mounts {
         }
         if self.jobs.is_empty() {
             return Unit::Empty;
+        }
+        if self.refresh_height_loans(ctx) {
+            return Unit::Maintenance;
         }
         self.begin_cycle(ctx);
         while let Some(id) = self.ready_geometry.pop_front() {
@@ -363,6 +471,9 @@ impl Mounts {
                     .expect("indexed ticket remains live");
                 self.index.remove_job(choice.id);
                 self.drop_anchor(ticket.owner);
+                for id in ticket.borrowers {
+                    self.drop_anchor(id);
+                }
                 self.cycle = false;
                 self.chosen = Some(choice);
                 self.counts.selected += 1;
@@ -382,6 +493,11 @@ impl Mounts {
         }
         let mut jobs = BTreeMap::new();
         let mut owners = BTreeMap::new();
+        let loans = if self.heights_enabled {
+            ctx.height_loans()
+        } else {
+            Loans::new()
+        };
         let groups = ctx.visible_groups.borrow();
         for (&id, ticket) in &self.jobs {
             let w = &ticket.work;
@@ -392,17 +508,24 @@ impl Mounts {
                 continue;
             }
             let (_, node, age) = groups.scheduling_anchor(&parent, &child, w.arrival);
-            let owner = node.id.to_u32();
-            owners.entry(owner).or_insert_with(|| {
-                let f = footprint(ctx, &node);
-                Owner {
-                    domain: f.host,
-                    bounds: f
-                        .clipped_bounds()
-                        .map(|r| r + self.index.scene.bias(f.host)),
-                    epoch: f.epoch,
-                }
-            });
+            let mut candidates = vec![node.clone()];
+            if let Some(extra) = loans.get(&w.key) {
+                candidates.extend(extra.values().filter(|n| n.id != node.id).cloned());
+            }
+            let age = if candidates.len() > 1 { 0 } else { age };
+            let owner_ids = candidates.iter().map(|n| n.id.0).collect();
+            for n in candidates {
+                owners.entry(n.id.0).or_insert_with(|| {
+                    let f = footprint(ctx, &n);
+                    Owner {
+                        domain: f.host,
+                        bounds: f
+                            .clipped_bounds()
+                            .map(|r| r + self.index.scene.bias(f.host)),
+                        epoch: f.epoch,
+                    }
+                });
+            }
             jobs.insert(
                 id,
                 Job {
@@ -411,7 +534,7 @@ impl Mounts {
                     content: 0,
                     resource: 0,
                     status: Status::Runnable,
-                    owners: vec![owner],
+                    owners: owner_ids,
                 },
             );
         }
@@ -437,10 +560,17 @@ impl Mounts {
             ));
         }
     }
-    pub(in crate::engine) fn finish_mount(&mut self, child: Id, mounted: bool, micros: u32) {
+    pub(in crate::engine) fn finish_mount(&mut self, key: MountKey, mounted: bool, micros: u32) {
+        let child = key.2.to_u32();
         if let Some(c) = self.chosen.take() {
             if mounted {
                 self.meter.charge(c.tier, c.host, micros);
+            }
+        }
+        self.height_observed_this_cycle = false;
+        if let Some(loans) = self.height_loans.as_mut() {
+            if loans.value.contains_key(&key) {
+                loans.invalidate();
             }
         }
         if !mounted {
@@ -476,6 +606,17 @@ impl crate::PaxEngine {
         {
             live.check_limit = limit;
             live.check_stride = stride.max(1);
+        }
+    }
+    pub fn configure_projected_heights(&self, enabled: bool) {
+        if let Some(live) = self
+            .runtime_context
+            .startup
+            .borrow_mut()
+            .live_mounts
+            .as_mut()
+        {
+            live.heights_enabled = enabled;
         }
     }
     pub fn enable_indexed_mounts(&self, at: f64) {

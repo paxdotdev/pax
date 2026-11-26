@@ -397,15 +397,25 @@ impl ToPaxValue for Material {
     fn nested_properties(&self) -> Vec<crate::properties::UntypedProperty> {
         match self {
             Self::Unlit => vec![],
-            Self::Lit(p) => vec![
-                p.ambient.untyped(),
-                p.diffuse.untyped(),
-                p.specular.untyped(),
-                p.roughness.untyped(),
-                p.metallic.untyped(),
-                p.frosted.untyped(),
-                p.emissive.untyped(),
-                p.emissive_intensity.untyped(),
+            // Keep reactive consumers exhaustive when a shading coefficient is added.
+            Self::Lit(MaterialParams {
+                ambient,
+                diffuse,
+                specular,
+                roughness,
+                metallic,
+                frosted,
+                emissive,
+                emissive_intensity,
+            }) => vec![
+                ambient.untyped(),
+                diffuse.untyped(),
+                specular.untyped(),
+                roughness.untyped(),
+                metallic.untyped(),
+                frosted.untyped(),
+                emissive.untyped(),
+                emissive_intensity.untyped(),
             ],
         }
     }

@@ -62,6 +62,11 @@ pub(crate) struct VisibleGroups {
     pub(crate) parked: u32,
 }
 impl VisibleGroups {
+    pub(super) fn parked_owner(&self, id: Id) -> Option<Id> {
+        let owner = *self.membership.get(&id)?;
+        let root = self.lanes.get(&owner)?.root.upgrade()?;
+        root.admission_parked.get().then_some(owner)
+    }
     pub(crate) fn may_have_parked_nodes(&self) -> bool {
         !self.lanes.is_empty() && self.parked != self.opened
     }
@@ -362,12 +367,14 @@ impl VisibleGroups {
     // A conditional or slot installs its lazy children during mount. The ordinary
     // property/geometry settlement discovers that work. Empty mounts alone cannot
     // witness that this component has selected its first actual output.
-    pub(crate) fn did_settle(&mut self) {
+    pub(crate) fn did_settle(&mut self, preparing: Option<Id>) {
+        let preparing = preparing.and_then(|id| self.parked_owner(id));
         for id in std::mem::take(&mut self.changed) {
             if let Some(lane) = self.lanes.get_mut(&id) {
-                lane.settled = lane.jobs.is_empty();
+                lane.settled = lane.jobs.is_empty() && Some(id) != preparing;
             }
         }
+        self.changed.extend(preparing);
     }
     pub(super) fn discard_work(&mut self, work: &PendingMount) {
         let id = work.key.2.to_u32();

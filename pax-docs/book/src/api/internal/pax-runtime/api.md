@@ -304,6 +304,15 @@ It remains available for viewport feedback checkpoints until all startup
 mounting completes, and is ignored outside yielded startup. Capture weak
 references rather than retaining the node.
 
+##### `declare_projected_height`
+<pre><code class="api-signature language-rust ignore">pub fn declare_projected_height(&amp;self, row: &amp;str, source: &amp;str) -&gt; Result&lt;(), &amp;&#39;static str&gt;</code></pre>
+
+Describe a vertical Stacker row whose pixel height is supplied by Rust
+from a projected component's intrinsic content. `row` is an authored ID
+in this component. `source` is an ID inside the projected component.
+Register in the declaring component's mount handler. Only selected slot
+content participates. The ordinary measurement binding still owns the value.
+
 ##### `route_presentation`
 <pre><code class="api-signature language-rust ignore">pub fn route_presentation(&amp;self) -&gt; Option&lt;RoutePresentation&gt;</code></pre>
 

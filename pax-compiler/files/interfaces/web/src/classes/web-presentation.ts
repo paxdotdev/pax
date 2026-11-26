@@ -64,7 +64,7 @@ type DisplayedTile = {
 // can overwrite it. Sealing detaches the ordered native prefix and input view.
 export class WebPresentation {
     private working = revision();
-    private sealed?: {batch: Revision; fence: bigint; coverage: string; hidden?: Uint32Array};
+    private sealed?: {batch: Revision; retained: boolean; fence?: bigint; coverage: string; hidden?: Uint32Array};
     private armed = false;
     private disposed = false;
     private fronts = new Map<HTMLCanvasElement, DisplayedTile>();
@@ -136,8 +136,9 @@ export class WebPresentation {
             this.display(tile);
             return;
         }
-        this.working.tiles.get(canvas)?.image.close();
-        this.working.tiles.set(canvas, tile);
+        const batch = this.sealed && this.sealed.fence === undefined ? this.sealed.batch : this.working;
+        batch.tiles.get(canvas)?.image.close();
+        batch.tiles.set(canvas, tile);
     };
 
     receive(messages: any[]) {
@@ -176,12 +177,30 @@ export class WebPresentation {
         return fence !== undefined && this.chassis.web_submission_complete(fence);
     }
 
-    get awaitingFence() { return !!this.sealed; }
+    get hasPendingFrame() { return !!this.sealed; }
+    get hasRetainedFrame() { return this.sealed?.retained ?? false; }
+    get awaitingFence() { return this.sealed?.fence !== undefined; }
     get pendingFence() { return this.sealed?.fence; }
     get tracksGroups() { return !!this.groups; }
 
     advanceGroups() {
         this.groups?.advance(this.sealed ? [this.working.messages, this.sealed.batch.messages] : [this.working.messages]);
+    }
+
+    // Detach native messages and hit geometry while the retained tile scenes
+    // still describe that pose. New input remains live during GPU submission.
+    retain(): boolean {
+        if (!this.armed || this.sealed || this.disposed) return false;
+        const coverage = this.coverage();
+        if (coverage === undefined || !this.chassis.retain_visible_frame()) return false;
+        this.seal(coverage);
+        return true;
+    }
+
+    private seal(coverage: string, fence?: bigint) {
+        this.sealed = {batch: this.working, retained: fence === undefined, fence, coverage,
+            hidden: this.groups?.snapshot(this.working.messages)};
+        this.working = revision();
     }
 
     // During bootstrap native work still applies directly. Once armed, admit
@@ -199,18 +218,22 @@ export class WebPresentation {
         }
         const fence = this.chassis.web_submission_fence();
         if (fence === undefined || !this.chassis.prepare_displayed_input()) return false;
-        this.sealed = {batch: this.working, fence, coverage, hidden: this.groups?.snapshot(this.working.messages)};
-        this.working = revision();
+        this.seal(coverage, fence);
         return true;
     }
 
-    publish() {
+    publish(submitRetained?: () => boolean) {
         const sealed = this.sealed;
-        if (!sealed || !this.chassis.web_submission_complete(sealed.fence)) return false;
+        if (!sealed) return false;
+        if (sealed.fence === undefined && this.coverage() === sealed.coverage) {
+            if (!submitRetained?.()) return false;
+            sealed.fence = this.chassis.web_submission_fence();
+        }
+        if (sealed.fence !== undefined && !this.chassis.web_submission_complete(sealed.fence)) return false;
         // Surface reassignment can occur during browser-owned scrolling. Carry
         // the native prefix forward and let the renderer supply replacement
         // coverage. A retired tile can never write into a newer assignment.
-        if (this.coverage() !== sealed.coverage || [...sealed.batch.tiles.values()].some(tile => !current(tile))) {
+        if (sealed.fence === undefined || this.coverage() !== sealed.coverage || [...sealed.batch.tiles.values()].some(tile => !current(tile))) {
             const later = this.working;
             this.sealed = undefined;
             this.working = sealed.batch;

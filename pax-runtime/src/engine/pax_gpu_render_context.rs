@@ -53,9 +53,10 @@ pub struct LayerRenderer {
     publication_ready: bool,
 }
 
-enum SurfaceFlush<'a> {
+enum SurfaceFlush {
     All,
-    VisibleFirst(&'a LayerSurfaceLayout),
+    VisibleFirst,
+    Retain,
     Deferred(usize),
 }
 
@@ -1243,7 +1244,7 @@ impl PaxGpuRenderer {
         &mut self,
         layer: usize,
         dirty_canvases: Rc<RefCell<Vec<bool>>>,
-        visible_first: bool,
+        scope: SurfaceFlush,
     ) {
         self.replay_drawings(layer);
         self.drawings.finish_frame(layer);
@@ -1255,8 +1256,8 @@ impl PaxGpuRenderer {
         match backends.get_mut(layer) {
             Some(RenderLayerState::Pending) => {}
             Some(RenderLayerState::Failed) => {}
-            Some(RenderLayerState::Ready((target, provider))) => {
-                if !target.active {
+            Some(RenderLayerState::Ready(ready)) => {
+                if !ready.0.active {
                     return;
                 }
                 if let Some(failed) = self.failed_context_gets.borrow_mut().get_mut(layer) {
@@ -1269,14 +1270,7 @@ impl PaxGpuRenderer {
                         *failed = false;
                     }
                 }
-                let layout;
-                let scope = if visible_first {
-                    layout = provider();
-                    SurfaceFlush::VisibleFirst(&layout)
-                } else {
-                    SurfaceFlush::All
-                };
-                flushed_targeted_batch = self.flush_targeted_or_dirty(layer, target, scope);
+                flushed_targeted_batch = self.flush_targeted_or_dirty(layer, ready, scope);
             }
             None => log::warn!(
                 "tried to flush layer {} context for non-existent layer",
@@ -1295,8 +1289,8 @@ impl PaxGpuRenderer {
     fn flush_targeted_or_dirty(
         &self,
         layer: usize,
-        target: &mut LayerTarget,
-        scope: SurfaceFlush<'_>,
+        (target, provider): &mut LayerDef,
+        scope: SurfaceFlush,
     ) -> bool {
         #[cfg(test)]
         self.flushed_surfaces
@@ -1328,9 +1322,11 @@ impl PaxGpuRenderer {
         if matches!(scope, SurfaceFlush::All) && !self.submitting_prepared_surface {
             // A synchronous fallback must also drain work a cooperative draw
             // previously left on ready tiles. Cold jobs keep their own replay.
-            indices.extend(target.renderers.iter().enumerate().filter_map(|(i, r)| {
-                (r.deferred_submission && r.presentation_ready).then_some(i)
-            }));
+            indices.extend(
+                target.renderers.iter().enumerate().filter_map(|(i, r)| {
+                    (r.deferred_submission && r.presentation_ready).then_some(i)
+                }),
+            );
         }
         indices.sort_unstable();
         indices.dedup();
@@ -1343,7 +1339,17 @@ impl PaxGpuRenderer {
                 indices.clear();
                 indices.push(index);
             }
-            SurfaceFlush::VisibleFirst(layout) => {
+            SurfaceFlush::Retain => {
+                // Input may update the live scene before the next host turn.
+                // Only this lease's retained renderer is read during submission.
+                for &index in &indices {
+                    target.renderers[index].deferred_submission = true;
+                }
+                self.clear_dirty_render_surfaces(layer, &indices);
+                return false;
+            }
+            SurfaceFlush::VisibleFirst => {
+                let layout = provider();
                 indices.retain(|&index| {
                     let renderer = &mut target.renderers[index];
                     let warm = layout
@@ -2717,11 +2723,43 @@ impl RenderContext for PaxGpuRenderer {
     }
 
     fn flush(&mut self, layer: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>) {
-        self.flush_layer(layer, dirty_canvases, false);
+        self.flush_layer(layer, dirty_canvases, SurfaceFlush::All);
     }
 
     fn flush_visible_first(&mut self, layer: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>) {
-        self.flush_layer(layer, dirty_canvases, self.prepare_surface_content);
+        let scope = if self.prepare_surface_content {
+            SurfaceFlush::VisibleFirst
+        } else {
+            SurfaceFlush::All
+        };
+        self.flush_layer(layer, dirty_canvases, scope);
+    }
+
+    fn can_retain_visible_frame(&self) -> bool {
+        self.prepare_surface_content
+            && self.backends.borrow().iter().all(|state| {
+                let RenderLayerState::Ready((target, provider)) = state else {
+                    return true;
+                };
+                let layout = provider();
+                !layout.active
+                    || layout
+                        .surfaces
+                        .iter()
+                        .filter(|s| s.replay_priority <= 0)
+                        .all(|s| {
+                            target.active
+                                && target.renderers.iter().any(|r| {
+                                    r.matches_surface(s)
+                                        && r.presentation_ready
+                                        && !r.pending_backing_resize
+                                })
+                        })
+            })
+    }
+
+    fn retain_layer_submission(&mut self, layer: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>) {
+        self.flush_layer(layer, dirty_canvases, SurfaceFlush::Retain);
     }
 
     fn submit_deferred_surface(&mut self, visible_only: bool) -> bool {
@@ -2761,10 +2799,10 @@ impl RenderContext for PaxGpuRenderer {
         let Some((_, layer, index)) = next else {
             return false;
         };
-        let RenderLayerState::Ready((target, _)) = &mut backends[layer] else {
+        let RenderLayerState::Ready(ready) = &mut backends[layer] else {
             unreachable!()
         };
-        self.flush_targeted_or_dirty(layer, target, SurfaceFlush::Deferred(index));
+        self.flush_targeted_or_dirty(layer, ready, SurfaceFlush::Deferred(index));
         true
     }
 

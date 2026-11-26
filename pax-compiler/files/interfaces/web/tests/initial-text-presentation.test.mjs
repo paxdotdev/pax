@@ -27,6 +27,21 @@ test('autosized text waits for font, measurement, and parent layout feedback', a
     assert.equal(state.presented, true, 'subsequent edits never hide already presented text');
 });
 
+test('fallback metrics cannot acknowledge a newer wrapping request', async () => {
+    const state = new InitialTextPresentation();
+    let loaded;
+    const font = new Promise(resolve => loaded = resolve);
+    state.waitForFonts([font], () => {});
+    state.requestMeasurement(7);
+    assert.equal(state.measuredSize(), undefined);
+    state.requestMeasurement(8);
+    assert.equal(state.measuredSize(), undefined);
+    loaded(); await drain();
+    state.waitForFontMeasurement();
+    assert.equal(state.measuredSize(), 8);
+    assert.equal(state.measuredSize(), undefined);
+});
+
 test('superseded fonts cannot release text; failed current font permits fallback', async () => {
     const state = new InitialTextPresentation();
     state.updated = true;

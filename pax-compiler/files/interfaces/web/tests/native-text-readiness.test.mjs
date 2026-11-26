@@ -72,21 +72,21 @@ test('pooled text patches distinguish unchanged, local and world placement', () 
     assert.equal(patch.transform_scroller, null);
 });
 
-test('fallback metrics settle hidden layout; loaded metrics govern first presentation', async () => {
+test('fallback metrics size hidden layout and loaded metrics acknowledge the request', async () => {
     const h=harness(); let resolve;
     const ready = new Promise(r=>resolve=r);
     const patch={id:1, size_x:100, size_y:-1, measure_generation:7, style:{font:font(ready)}};
     h.pool.textUpdate(patch);
     patch.id=999; // Production patch instances are returned to their object pool.
     h.measure(); h.pool.finishTextFrame();
-    assert.deepEqual(h.messages,[{TextMeasurementResponse:{id:1,generation:7,width:100,height:20}}]);
+    assert.deepEqual(h.messages,[{ChassisResizeRequestCollection:[{id:1,width:100,height:20}]}]);
     assert.equal(h.leaf.style.visibility,'hidden');
     resolve(); await drain();
     assert.equal(h.flushes(),2, 'font completion still addresses original node after patch reuse');
     h.pool.finishTextFrame(); h.pool.finishTextFrame();
     assert.equal(h.leaf.style.visibility,'hidden', 'fallback metrics cannot release the font gate');
     h.measure(100,24);
-    assert.deepEqual(h.messages[1],{ChassisResizeRequestCollection:[{id:1,width:100,height:24}]});
+    assert.deepEqual(h.messages[1],{TextMeasurementResponse:{id:1,generation:7,width:100,height:24}});
     h.pool.finishTextFrame(); assert.equal(h.leaf.style.visibility,'hidden');
     h.pool.finishTextFrame(); assert.equal(h.leaf.style.visibility,'');
     h.measure(100,28);
@@ -191,6 +191,18 @@ test('previewed text still holds startup open for a new measurement generation',
     h.pool.textUpdate({id:1,size_x:120,measure_generation:2});
     assert.equal(h.pool.startupTextReady(), false);
     h.measure(120,20);
+    assert.equal(h.pool.startupTextReady(), true);
+});
+
+test('an already available font leaves the first autosize measurement outstanding', () => {
+    const h = harness();
+    h.leaf.firstChild.textContent = 'Measured paragraph';
+    h.pool.textUpdate({id: 1, size_x: 100, size_y: -1, measure_generation: 7, style: {font: font(undefined)}});
+    assert.equal(h.pool.startupTextReady(), false);
+    h.pool.finishTextFrame(true);
+    assert.equal(h.leaf.style.visibility, 'hidden');
+    h.measure(100, 38);
+    assert.deepEqual(h.messages.at(-1), {TextMeasurementResponse: {id: 1, generation: 7, width: 100, height: 38}});
     assert.equal(h.pool.startupTextReady(), true);
 });
 

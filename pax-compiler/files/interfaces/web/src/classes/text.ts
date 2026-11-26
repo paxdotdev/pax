@@ -7,7 +7,8 @@ type RegisteredFontDescriptor = {
     weight: string;
 };
 
-export type TextFontLoader = (text: string) => Promise<void>;
+// No promise means this text can already use the registered face.
+export type TextFontLoader = (text: string) => Promise<void> | undefined;
 
 type FontRegistration = {load: TextFontLoader; prepare: () => Promise<void>};
 const fontLoads = new Map<string, FontRegistration>();
@@ -169,7 +170,7 @@ export async function preloadManifestFonts(baseUrl: string): Promise<void> {
         if (!response.ok) return; // Older/custom hosts need not supply the catalog.
         const sources: {family: string; url: string}[] = await response.json();
         await Promise.allSettled(sources.map(async ({url}) => {
-            if (isFontStylesheet(url)) await loadFontStylesheet(url);
+            if (isFontStylesheet(url)) await loadFontStylesheet(new URL(url, document.baseURI).href);
         }));
     } catch (error) {
         console.warn("Failed to preload manifest fonts", error);
@@ -260,7 +261,7 @@ enum FontWeight {
 
 
 export class Font {
-    private textLoader: TextFontLoader = async () => {};
+    private textLoader: TextFontLoader = () => undefined;
     private prepare: () => Promise<void> = async () => {};
 
     // The returned function captures immutable values, not this pooled Font.
@@ -332,7 +333,7 @@ export class Font {
     }
 
     cleanUp(){
-        this.textLoader = async () => {};
+        this.textLoader = () => undefined;
         this.prepare = async () => {};
         this.type = undefined;
         this.family = undefined;
@@ -343,21 +344,23 @@ export class Font {
         this.path = undefined;
     }
 
-    private fontKey(): string {
-        return JSON.stringify([this.type, this.family, this.style, this.weight, this.url ?? this.path]);
-    }
-
     registerFontFace(registeredFontFaces: Set<string>) {
-        const fontKey = this.fontKey();
+        const {family, type} = this;
+        const style = this.style != undefined ? this.mapFontStyle(this.style) : 'normal';
+        const weight = this.weight != undefined ? String(this.mapFontWeight(this.weight)) : '400';
+        let url = this.url ?? this.path;
+        if (url) {
+            try { url = new URL(url, document.baseURI).href; }
+            catch { /* Registration below reports a malformed source through the font fallback. */ }
+        }
+        const fontKey = JSON.stringify([type, family, style, weight, url]);
         registeredFontFaces.add(fontKey);
         const existing = fontLoads.get(fontKey);
         if (existing) { this.textLoader = existing.load; this.prepare = existing.prepare; return; }
-        const {family, type} = this;
-        const url = this.url ?? this.path;
-        const style = this.style != undefined ? this.mapFontStyle(this.style) : 'normal';
-        const weight = this.weight != undefined ? String(this.mapFontWeight(this.weight)) : '400';
         const descriptor = family ? {family, style, weight} : undefined;
+        const shorthand = descriptor && buildFontShorthand(descriptor);
         let registration: Promise<void> | undefined;
+        let registered = false;
         let failed = false;
         const register = async () => {
             if (descriptor) registeredFontDescriptors.set(fontKey, descriptor);
@@ -376,16 +379,27 @@ export class Font {
             if (!failed) console.warn(`Failed to load font ${family}`, error);
             failed = true;
         };
-        const prepare = () => registration ??= register().catch(fallback);
+        const prepare = () => registration ??= register().then(() => { registered = true; }, fallback);
         this.prepare = prepare;
+        const select = (text: string) => {
+            const fonts = getDocumentFonts(document);
+            // A missing face also passes check(). Only ask after registration
+            // so a pending stylesheet or direct FontFace cannot look ready.
+            if (!shorthand || failed || !fonts || fonts.check?.(shorthand, text)) return;
+            return fonts.load(shorthand, text).then(() => {});
+        };
         this.textLoader = (text) => {
             // Unused link styles and empty text must not start font downloads.
-            if (!text || !descriptor || failed) return Promise.resolve();
-            const pending = prepare().then(() => {
-                if (!failed) return loadFontDescriptor(document, descriptor, text);
-            }).catch(fallback);
-            trackFontLoad(fontKey, pending);
-            return pending;
+            if (!text || !shorthand || failed) return;
+            try {
+                const pending = registered ? select(text) : prepare().then(() => select(text));
+                if (!pending) return;
+                const ready = pending.catch(fallback);
+                trackFontLoad(fontKey, ready);
+                return ready;
+            } catch (error) {
+                fallback(error);
+            }
         };
         fontLoads.set(fontKey, {load: this.textLoader, prepare});
     }

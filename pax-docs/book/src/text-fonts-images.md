@@ -416,11 +416,15 @@ assets. Generic `.css` source handling is web-only; check the Apple guidance bel
 when sharing a template across targets.
 
 On web, statically discovered font stylesheets are registered early, without
-preloading every weight or language subset they declare. Text requests its face
-using the actual content, so the browser can honor `unicode-range`. The initial
-Text presentation waits for those fonts and updated autosize measurements. A
-link font is requested only when the Text contains a link; runtime-created fonts
-and changes in text content use the same loading path. Failed loads permit the
+preloading every weight or language subset they declare. Relative and absolute
+URLs that resolve to the same source share a registration for the same family,
+style and weight. After registration,
+Pax checks whether the browser can draw the actual string with the available
+faces. A new label can use a ready face immediately. A string that needs another
+`unicode-range` subset waits for that subset. Autosized Text also waits for
+its current browser measurement before first presentation. A link font is
+requested only when the Text contains a link. Runtime-created fonts and
+changes in text content use the same loading path. Failed loads permit the
 browser's fallback font. Later changes do not hide an already-presented Text.
 
 Screenshot capture embeds registered font assets on demand so the serialized

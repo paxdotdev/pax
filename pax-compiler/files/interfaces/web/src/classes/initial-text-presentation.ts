@@ -69,6 +69,9 @@ export class InitialTextPresentation {
     }
 
     measuredSize(): number | undefined {
+        // Fallback metrics may size the provisional layout. The observer runs
+        // again after the current fonts settle, even for equal pixel dimensions.
+        if (!this.fontsReady) return undefined;
         const generation = this.generation;
         this.generation = undefined;
         this.measured = true;

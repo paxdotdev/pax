@@ -112,6 +112,8 @@ export class PaxChassisWeb {
   open_visible_group(id: number, epoch: number): boolean;
   hidden_native_group_members(ids: Uint32Array): Uint32Array;
   visible_group_progress(): Uint32Array;
+  configure_projected_heights(enabled: boolean): void;
+  inspect_projected_heights(): unknown;
   enable_indexed_mounts(at: number): void;
   share_viewport_demand(): void;
   mount_scroll_intent(host: number | undefined, dx: number, dy: number): void;
@@ -132,6 +134,8 @@ export class PaxChassisWeb {
   begin_render_work(epoch: number): void;
   set_displayed_scroll_reader(reader: () => [number, number, number][]): void;
   prepare_displayed_input(): boolean;
+  retain_visible_frame(): boolean;
+  submit_retained_frame(slice_ms: number): boolean;
   publish_displayed_input(): void;
   web_submission_fence(): bigint | undefined;
   web_submission_complete(serial: bigint): boolean;

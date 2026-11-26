@@ -187,6 +187,53 @@ impl InstanceNode for StackerInstance {
         });
     }
 
+    fn measurement_flow(
+        &self,
+        node: &ExpandedNode,
+        axes: pax_runtime::engine::startup::StartupAxes,
+    ) -> Option<pax_runtime::engine::startup::plan::MeasurementFlow> {
+        let common = node.get_common_properties();
+        let common = common.borrow();
+        node.with_properties_unwrapped(|p: &mut Stacker| {
+            let direction = p.direction.get();
+            let vertical = matches!(direction, StackerDirection::Vertical);
+            let (mx, my) = resolve_stacker_autosize_axes(
+                &direction,
+                p.autosize.get(),
+                p.autosize_x.get(),
+                p.autosize_y.get(),
+            );
+            let measures_x = mx && common.width.get().is_none();
+            let measures_y = my && common.height.get().is_none();
+            if axes.x == axes.y
+                || axes.y != vertical
+                || (measures_x, measures_y) != (axes.x, axes.y)
+                || !node.exiting_children_view.read(Vec::is_empty)
+            {
+                return None;
+            }
+            let sizes = p.sizes.get();
+            Some(
+                node.active_children_view
+                    .get()
+                    .into_iter()
+                    .filter(|c| !c.is_layout_breakout())
+                    .enumerate()
+                    .map(|(i, child)| {
+                        let allocation = sizes
+                            .get(i)
+                            .copied()
+                            .flatten()
+                            .filter(|s| !size_depends_on_parent(*s))
+                            .map(|s| s.get_pixels(0.0))
+                            .filter(|v| v.is_finite() && *v >= 0.0);
+                        (child, allocation)
+                    })
+                    .collect(),
+            )
+        })
+    }
+
     fn plan_startup(
         &self,
         node: &ExpandedNode,
@@ -226,6 +273,16 @@ impl InstanceNode for StackerInstance {
         };
         let stable_origin = !anchor.is_some_and(size_depends_on_parent);
         drop(common);
+        if !demand.complete && demand.region.is_none() && demand.measure.any() {
+            if let Some(cells) = self.measurement_flow(node, demand.measure) {
+                for (child, allocation) in cells {
+                    if allocation.is_none() {
+                        plan.require(&child, demand);
+                    }
+                }
+                return;
+            }
+        }
         if demand.complete || demand.measure.any() || cross || (main && !stable_origin) {
             plan.require_children(StartupDemand::complete());
             return;
@@ -2537,6 +2594,8 @@ mod tests {
         assert_eq!(height.get(), Some(Size::Pixels(400.into())));
         engine.unmount();
     }
+
+    mod projected_height;
 
     #[test]
     fn startup_reaches_the_visible_cell_past_an_offscreen_prefix() {

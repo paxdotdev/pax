@@ -1,4 +1,4 @@
-use std::{iter, ops::Range, rc::Rc};
+use std::{ops::Range, rc::Rc};
 use_RefCell!();
 
 use pax_runtime_api::pax_value::ImplToFromPaxAny;
@@ -8,6 +8,9 @@ use crate::api::Layer;
 use crate::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
+
+mod first_expansion;
+pub(crate) use first_expansion::FirstExpansion;
 
 /// A special "control-flow" primitive, Conditional (`if`) allows for a
 /// subtree of a component template to be rendered conditionally,
@@ -113,6 +116,17 @@ impl InstanceNode for ConditionalInstance {
 }
 
 impl ConditionalInstance {
+    fn selected_range(&self, branch: Option<usize>, len: usize) -> Range<usize> {
+        match branch {
+            Some(0) if self.branch_child_ranges.is_empty() => 0..len,
+            Some(i) => self
+                .branch_child_ranges
+                .get(i)
+                .map_or(0..0, |r| r.start.min(len)..r.end.min(len)),
+            None => 0..0,
+        }
+    }
+
     pub fn instantiate_with_branch_child_ranges(
         args: InstantiationArgs,
         branch_child_ranges: Vec<Range<usize>>,
@@ -160,7 +174,13 @@ impl ConditionalInstance {
             .iter()
             .map(|condition| condition.untyped())
             .collect::<Vec<_>>();
-        let branch_child_ranges = self.branch_child_ranges.clone();
+        let first = RefCell::new(if is_mount {
+            context.schedule_first_expansion(expanded_node, || {
+                FirstExpansion::new(expanded_node, &self, &branch_conditions)
+            })
+        } else {
+            None
+        });
 
         let old_active_branch = RefCell::new(None::<Option<usize>>);
         let cached_children = RefCell::new(Vec::new());
@@ -185,19 +205,18 @@ impl ConditionalInstance {
                     *borrow_mut!(old_active_branch) = Some(active_branch);
 
                     let children = borrow!(cloned_self.base().get_instance_children());
-                    let effective_branch_ranges = if branch_child_ranges.is_empty() {
-                        vec![0..children.len()]
-                    } else {
-                        branch_child_ranges.clone()
-                    };
-                    let selected_range = active_branch
-                        .and_then(|index| effective_branch_ranges.get(index).cloned())
-                        .unwrap_or(0..0);
-                    let start = selected_range.start.min(children.len());
-                    let end = selected_range.end.min(children.len());
-                    let env = Rc::clone(&cloned_expanded_node.stack);
-                    let mut selected_children = Vec::new();
-                    for template in children[start..end].iter() {
+                    let range = cloned_self.selected_range(active_branch, children.len());
+                    let mut prepared = first
+                        .borrow_mut()
+                        .take()
+                        .map(|work| work.take_children(active_branch))
+                        .unwrap_or_default()
+                        .into_iter();
+                    let mut selected_children = Vec::with_capacity(range.len());
+                    for template in &children[range] {
+                        let candidate = prepared
+                            .next()
+                            .filter(|child| Rc::ptr_eq(&child.instance_node.borrow(), template));
                         let rescued = (is_mount && cloned_expanded_node.attached.get() > 0)
                             .then(|| {
                                 cloned_expanded_node.rescue_exiting_child_matching(|child| {
@@ -206,15 +225,8 @@ impl ConditionalInstance {
                                 })
                             })
                             .flatten();
-                        let child = rescued.unwrap_or_else(|| {
-                            cloned_expanded_node
-                                .create_children_detached(
-                                    iter::once((Rc::clone(template), Rc::clone(&env))),
-                                    &cloned_context,
-                                    &Rc::downgrade(&cloned_expanded_node),
-                                )
-                                .pop()
-                                .expect("conditional child creation returned no child")
+                        let child = rescued.or(candidate).unwrap_or_else(|| {
+                            cloned_expanded_node.create_conditional_child(template, &cloned_context)
                         });
                         if !is_mount && child.attached.get() == 0 {
                             child.recurse_control_flow_expansion(&cloned_context);

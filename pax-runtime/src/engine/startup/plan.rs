@@ -16,6 +16,10 @@ impl StartupAxes {
     }
 }
 
+/// Ordered flow cells on one intrinsically measured axis. An allocation in
+/// pixels places subsequent cells independently of the allocated child's contents.
+pub type MeasurementFlow = Vec<(Rc<ExpandedNode>, Option<f64>)>;
+
 /// Requirements accumulate: visible content can also need an exact layout extent.
 /// Regions use window coordinates, including inherited scrolling transforms.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]

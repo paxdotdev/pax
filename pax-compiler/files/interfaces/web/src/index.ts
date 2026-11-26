@@ -206,6 +206,7 @@ let startupScheduler: StartupScheduler | undefined;
 let startupPresented = false;
 let startupRenderStarted = false;
 let ordinaryRenderPending = false;
+let retainOnInterruption = false;
 let startupViewportPresented = false;
 let startupViewportReady = false;
 let startupWork: StartupWork | undefined;
@@ -529,15 +530,18 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
     if (!liveSession?.options.loader && chassis.web_submission_fence() !== undefined) {
         let groups: AdmissionGroups | undefined;
         if (liveSession?.options.holdPresentation && liveSession.options.loaderExit === 'first_viewport') {
-            const policy = new URLSearchParams(location.search).get('pax_mount_policy');
+            const params = new URLSearchParams(location.search);
+            const policy = params.get('pax_mount_policy');
             const prepareWhileWaiting = policy === 'shared-wait';
             const shared = policy === 'shared' || prepareWhileWaiting;
             const indexed = shared || policy === 'indexed';
             admission = new BackgroundAdmission(chassis, mount, indexed, job => {
-                if (frameInProgress || ordinaryRenderPending || frameScheduler.suspended || chassis !== currentChassis) return;
+                if (frameInProgress || ordinaryRenderPending || frameScheduler.suspended || chassis !== currentChassis
+                    || (presentation?.hasPendingFrame && !presentation.awaitingFence)) return;
                 frameInProgress = true;
                 try { job(); } finally { finishEngineTurn(chassis, mount); }
             }, shared, prepareWhileWaiting);
+            if (indexed && params.get('pax_early_height') === '0') chassis.configure_projected_heights(false);
             groups = new AdmissionGroups(chassis, nativePool, shared);
             nativePool.onAdmissionScroll = (id, page) => admission?.observedScroll(id, page);
         }
@@ -612,6 +616,7 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
             // callback must not start a tick while a continuation owns Rust borrows.
             if (!fromFrame) frameInProgress = true;
             try {
+                if (presentation?.hasPendingFrame) return {pending: false, blocked: true};
                 if (sharedWorkBudget.remaining <= 0) {
                     // Do not measure/replan surfaces when this turn cannot draw.
                     // The next admitted turn still observes current input before
@@ -636,9 +641,12 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
                     }
                     nativePool.syncRenderSurfaceLayouts(true);
                 }
-                if (presentation?.awaitingFence) return {pending: false, blocked: true};
                 const report = sharedWorkBudget.run(3, budget => chassis.service_render_work(budget));
                 ordinaryRenderPending = report.visible_pending && (!report.blocked || !!presentation);
+                if (ordinaryRenderPending && presentation && !report.blocker && !retainOnInterruption) {
+                    // If this settled draw is dirty on re-entry, it changed between host turns.
+                    retainOnInterruption = chassis.render_work_is_settled();
+                }
                 if (presentation && !report.visible_pending && !report.blocker) {
                     ordinaryRenderPending = !presentation.settled();
                 } else if (presentation && report.preparation?.visible_wait) {
@@ -738,7 +746,7 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
     // Resolve responsive control flow once per admitted scene. While its
     // pixels are pending, repeated viewport changes only replace the sample.
     const resizeHandler = () => {
-        if (presentation && (ordinaryRenderPending || presentation.awaitingFence)) {
+        if (presentation && (ordinaryRenderPending || presentation.hasPendingFrame)) {
             pendingViewportResize = applyResize;
         } else {
             pendingViewportResize = undefined;
@@ -957,7 +965,7 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             liveSession?.didMount();
         }
     };
-    if (!presentation?.awaitingFence) finishBackgroundMount();
+    if (!presentation?.hasPendingFrame) finishBackgroundMount();
     if (liveSession?.options.holdPresentation) {
         if ((mountYieldEnabled && !startupViewportReady) || !chassis.prepare_startup_presentation() || startupWork?.patchesPending) {
             startupPresented = false;
@@ -969,17 +977,29 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
     try {
         nativePool.beginTraceFrame(renderEpoch);
         initializeChassis(chassis, mount);
-        if (presentation?.awaitingFence) {
+        const retainVisibleFrame = (frame: WebPresentation) => sharedWorkBudget.remaining > 0 &&
+            sharedWorkBudget.run(3, () => frame.retain());
+        let retainNextPose = false;
+        if (presentation?.hasPendingFrame) {
+            const retained = presentation.hasRetainedFrame;
             nativePool.observeFrameInputs();
             nativePool.syncRenderSurfaceLayouts(true);
-            if (!presentation.publish()) {
-                if (presentation.awaitingFence) {
-                    admission?.waitingForSubmission();
+            const awaitingFence = presentation.awaitingFence;
+            if (!presentation.publish(() => sharedWorkBudget.remaining > 0 &&
+                sharedWorkBudget.run(3, budget => chassis.submit_retained_frame(budget)))) {
+                if (presentation.hasPendingFrame) {
+                    if (presentation.awaitingFence) {
+                        if (!awaitingFence) admission?.afterSubmission(presentation.pendingFence, () => presentation?.pendingFence);
+                        else admission?.waitingForSubmission();
+                    }
                     return;
                 }
                 // A surface changed after submission. Repair the same revision.
                 ordinaryRenderPending = true;
             } else {
+                // Input that arrived during submission already superseded this
+                // pose. Capture its successor at the next tick's first draw.
+                retainNextPose = retained && !chassis.render_work_is_settled();
                 // A continuously animating scene can already have another fence
                 // by the next frame entry. Observe completion at publication.
                 finishBackgroundMount();
@@ -998,6 +1018,14 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
                     presentation.receive(chassis.settle_render_feedback());
                     nativePool.syncRenderSurfaceLayouts();
                     chassis.begin_render_work(renderEpoch);
+                    // Give feedback raised by drawing a normal repair. Repeated
+                    // repairs, or an update after a settled yield, can starve a pose.
+                    if (retainOnInterruption && retainVisibleFrame(presentation)) {
+                        ordinaryRenderPending = false;
+                        nativePool.finishTextFrame();
+                        return;
+                    }
+                    retainOnInterruption = true;
                 }
                 cooperativeRender!.beginFrame();
                 nativePool.finishTextFrame();
@@ -1044,8 +1072,9 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             // draw canvas elements
             withProfileMeasure("render", () => {
                 ordinaryRenderPending = false;
+                retainOnInterruption = retainNextPose;
                 chassis.begin_render_work(renderEpoch);
-                cooperativeRender!.beginFrame();
+                if (!retainNextPose || !presentation || !retainVisibleFrame(presentation)) cooperativeRender!.beginFrame();
             });
             nativePool.finishTextFrame();
         });

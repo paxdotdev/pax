@@ -458,6 +458,20 @@ pub trait RenderContext {
         self.flush(layer, dirty_canvases);
     }
 
+    /// Whether the exposed surfaces already have complete retained drawings.
+    /// The host independently validates its visible assignments through publication.
+    #[doc(hidden)]
+    fn can_retain_visible_frame(&self) -> bool {
+        false
+    }
+
+    /// Finish a logical layer's drawing and keep its submission on the owning
+    /// physical surfaces. Only called after `can_retain_visible_frame`.
+    #[doc(hidden)]
+    fn retain_layer_submission(&mut self, layer: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>) {
+        self.flush_visible_first(layer, dirty_canvases);
+    }
+
     /// Submit one retained dirty surface against current host demand. A visible
     /// opportunity admits only tiles required by the current viewport.
     fn submit_deferred_surface(&mut self, _visible_only: bool) -> bool {
