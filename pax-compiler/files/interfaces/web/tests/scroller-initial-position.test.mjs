@@ -26,7 +26,7 @@ function harness(ios = false) {
         objectManager: {getFromPool: element},
         layers: {addElement() {}, registerParentFrameHost() {}, registerScrollerIslandHosts() {}},
         nodesLookup: new Map(), scrollerHosts: new Map(),
-        scrollerMeasurementStates: new Map(), pendingScrollerUpdates: new Map(),
+        scrollerMeasurementStates: new Map(), pendingScrollerUpdates: new Map(), batchScrollCommands: new Map(),
         chassis: {interrupt(message) { messages.push(message.ScrollerPosition); }},
         getScrollerInnerPane: leaf => leaf.children[0],
         getScrollerSnapHost: leaf => leaf.children[0].children[0],
@@ -42,6 +42,34 @@ function harness(ios = false) {
 
 const initial = {sizeX: 360, sizeY: 120, sizeInnerPaneX: 8192, sizeInnerPaneY: 8192,
     scrollX: 3916, scrollY: 4036};
+
+test('restored offset uses the final autosize range, without replaying on later input', () => {
+    const h = harness();
+    h.create();
+    const leaf = h.pool.nodesLookup.get(1);
+    let y = 0;
+    const writes = [];
+    Object.defineProperty(leaf, 'scrollTop', {
+        get: () => y,
+        set(value) {
+            writes.push(value);
+            y = Math.min(value, parseFloat(leaf.children[0].style.height) - 120);
+        },
+    });
+    h.pool.withScrollCommandBatch(() => {
+        h.update({...initial, sizeInnerPaneY: 120, scrollY: 0});
+        h.update({scrollY: 1415});
+        h.update({sizeInnerPaneY: 4006});
+    });
+    h.pool.sampleFrameInputs();
+    assert.deepEqual(writes, [1415]);
+    assert.equal(h.messages.at(-1).scroll_y, 1415);
+    y = 800;
+    h.pool.activateScrollerMeasurement(1);
+    h.pool.sampleFrameInputs();
+    assert.equal(h.messages.at(-1).scroll_y, 800);
+    assert.deepEqual(writes, [1415]);
+});
 
 for (const ios of [false, true]) {
     test(`yielded creation cannot overwrite the authored center (iOS=${ios})`, () => {

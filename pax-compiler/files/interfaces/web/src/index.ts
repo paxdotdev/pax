@@ -1115,11 +1115,13 @@ function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager:
         return;
     }
     const profile = perfTraceEnabled ? new NativeMessageProfile() : undefined;
-    for (const message of messages) {
-        const started = profile ? performance.now() : 0;
-        processMessage(message, chassis, objectManager);
-        if (profile) profile.record(Object.keys(message)[0] ?? 'unknown', performance.now() - started);
-    }
+    nativePool.withScrollCommandBatch(() => {
+        for (const message of messages) {
+            const started = profile ? performance.now() : 0;
+            processMessage(message, chassis, objectManager);
+            if (profile) profile.record(Object.keys(message)[0] ?? 'unknown', performance.now() - started);
+        }
+    });
     if (profile) nativePool.recordNativeMessageBatch(profile.snapshot());
 }
 

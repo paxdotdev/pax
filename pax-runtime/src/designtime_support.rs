@@ -439,12 +439,15 @@ pub fn apply_designtime_userland_reload(
                     ),
                 };
 
+                let scroll =
+                    crate::properties::reload_scroll::ScrollBookmarks::capture(&engine.runtime_context);
                 for node in nodes {
                     node.fully_recreate_with_new_data(
                         Rc::clone(&instance_node),
                         &engine.runtime_context,
                     );
                 }
+                scroll.restore(&engine.runtime_context);
             }
             ReloadType::Node(uni, _) => {
                 let manifest = definition_to_instance_traverser.get_manifest();

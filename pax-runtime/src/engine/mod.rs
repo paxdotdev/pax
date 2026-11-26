@@ -916,7 +916,10 @@ impl PaxEngine {
             .unwrap();
         *borrow_mut!(self.runtime_context.userland_frame_instance_node) =
             Some(Rc::clone(&new_userland_instance));
+        let scroll =
+            crate::properties::reload_scroll::ScrollBookmarks::capture(&self.runtime_context);
         node.fully_recreate_with_new_data(new_userland_instance.clone(), &self.runtime_context);
+        scroll.restore(&self.runtime_context);
     }
 
     // NOTES: this is the order of different things being computed in recurse-expand-nodes

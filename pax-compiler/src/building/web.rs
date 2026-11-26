@@ -34,7 +34,7 @@ use std::os::unix::process::CommandExt;
 struct BundleStat {
     label: &'static str,
     raw_size: u64,
-    gzip_size: Option<u64>,
+    gzip_size: u64,
 }
 
 fn gzip_size(bytes: &[u8]) -> Result<u64, eyre::Report> {
@@ -62,27 +62,28 @@ fn collect_bundle_stat(
     build_dest: &std::path::Path,
     label: &'static str,
     filename: &'static str,
-    include_gzip: bool,
 ) -> Result<Option<BundleStat>, eyre::Report> {
-    let path = build_dest.join(filename);
-    if !path.exists() {
-        return Ok(None);
-    }
-    let bytes = fs::read(path)?;
-    let gzip_size = if include_gzip {
-        Some(gzip_size(&bytes)?)
-    } else {
-        None
+    let bytes = match fs::read(build_dest.join(filename)) {
+        Ok(bytes) => bytes,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(err.into()),
     };
     Ok(Some(BundleStat {
         label,
         raw_size: bytes.len() as u64,
-        gzip_size,
+        gzip_size: gzip_size(&bytes)?,
     }))
 }
 
-fn print_web_bundle_stats(build_dest: &std::path::Path, build_mode_name: &str) {
-    let include_gzip = build_mode_name != "debug";
+fn web_bundle_report_label(build_mode_name: &str) -> Option<&'static str> {
+    match build_mode_name {
+        "release" => Some("RELEASE MODE"),
+        "profiling" => Some("PROFILING MODE"),
+        _ => None,
+    }
+}
+
+fn print_web_bundle_stats(build_dest: &std::path::Path, label: &str) {
     let stats_result = [
         "pax-cartridge_bg.wasm",
         "split_application.wasm",
@@ -96,9 +97,7 @@ fn print_web_bundle_stats(build_dest: &std::path::Path, build_mode_name: &str) {
         "cartridge js",
         "interface js",
     ])
-    .filter_map(|(filename, label)| {
-        collect_bundle_stat(build_dest, label, filename, include_gzip).transpose()
-    })
+    .filter_map(|(filename, label)| collect_bundle_stat(build_dest, label, filename).transpose())
     .collect::<Result<Vec<_>, _>>();
 
     let stats = match stats_result {
@@ -117,55 +116,27 @@ fn print_web_bundle_stats(build_dest: &std::path::Path, build_mode_name: &str) {
     }
 
     println!("{} 📦 Web bundle stats", *PAX_BADGE);
-    println!(
-        "{}    {}",
-        *PAX_BADGE,
-        if build_mode_name == "profiling" {
-            "PROFILING MODE"
-        } else if build_mode_name == "release" {
-            "RELEASE MODE"
-        } else {
-            "DEBUG MODE"
-        }
-    );
+    println!("{}    {}", *PAX_BADGE, label);
     let mut total_raw = 0u64;
     let mut total_gzip = 0u64;
     for stat in &stats {
         total_raw += stat.raw_size;
-        if let Some(gzip_size) = stat.gzip_size {
-            total_gzip += gzip_size;
-            println!(
-                "{}    {:<12} {:>9} emitted  {:>9} gzip",
-                *PAX_BADGE,
-                stat.label,
-                format_bytes(stat.raw_size),
-                format_bytes(gzip_size),
-            );
-        } else {
-            println!(
-                "{}    {:<12} {:>9} emitted",
-                *PAX_BADGE,
-                stat.label,
-                format_bytes(stat.raw_size),
-            );
-        }
-    }
-    if include_gzip {
+        total_gzip += stat.gzip_size;
         println!(
             "{}    {:<12} {:>9} emitted  {:>9} gzip",
             *PAX_BADGE,
-            "total",
-            format_bytes(total_raw),
-            format_bytes(total_gzip),
-        );
-    } else {
-        println!(
-            "{}    {:<12} {:>9} emitted",
-            *PAX_BADGE,
-            "total",
-            format_bytes(total_raw),
+            stat.label,
+            format_bytes(stat.raw_size),
+            format_bytes(stat.gzip_size),
         );
     }
+    println!(
+        "{}    {:<12} {:>9} emitted  {:>9} gzip",
+        *PAX_BADGE,
+        "total",
+        format_bytes(total_raw),
+        format_bytes(total_gzip),
+    );
 }
 
 fn web_cargo_features(ctx: &RunContext) -> String {
@@ -585,9 +556,11 @@ fn materialize_web_build_dir(
         })
     })?;
 
-    timings.record("bundle stats", || {
-        print_web_bundle_stats(&build_dest, build_mode_name)
-    });
+    if let Some(label) = web_bundle_report_label(build_mode_name) {
+        timings.record("bundle stats", || {
+            print_web_bundle_stats(&build_dest, label)
+        });
+    }
     Ok(build_dest)
 }
 
@@ -834,6 +807,24 @@ fn cleanup_web_dev_session(
 mod tests {
     use super::copy_web_reload_artifacts;
     use std::fs;
+
+    #[test]
+    fn web_bundle_stats_only_report_for_shipping_and_profiling() {
+        use super::web_bundle_report_label;
+        assert_eq!(web_bundle_report_label("debug"), None);
+        assert_eq!(web_bundle_report_label("optimized-dev"), None);
+        assert_eq!(web_bundle_report_label("release"), Some("RELEASE MODE"));
+        assert_eq!(web_bundle_report_label("profiling"), Some("PROFILING MODE"));
+
+        let dir = tempfile::tempdir().unwrap();
+        let bytes = &[0; 1024];
+        fs::write(dir.path().join("bundle"), bytes).unwrap();
+        let stat = super::collect_bundle_stat(dir.path(), "bundle", "bundle")
+            .unwrap()
+            .unwrap();
+        assert_eq!(stat.raw_size, bytes.len() as u64);
+        assert!(stat.gzip_size > 0 && stat.gzip_size < stat.raw_size);
+    }
 
     #[cfg(unix)]
     #[test]

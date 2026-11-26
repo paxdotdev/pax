@@ -1,6 +1,6 @@
 use crate::*;
 use pax_language::interpreter::parse_pax_expression_from_pair;
-use pax_language::{from_pax, parse_pax_expression, parse_pax_str, Pair, Pairs, Rule, Span};
+use pax_language::{from_pax, parse_pax_expression, parse_pax_str, Pair, Pairs, Rule};
 use pax_runtime_api::{CoercionRules, PaxValue, Size};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
@@ -36,6 +36,42 @@ pub struct TemplateNodeParseContext {
     pub pascal_identifier_to_type_id_map: HashMap<String, TypeId>,
     pub route_branch_descriptors: HashMap<TypeId, RouteBranchDescriptor>,
     pub content_properties: HashMap<TypeId, String>,
+}
+
+impl TemplateNodeParseContext {
+    #[doc(hidden)]
+    pub fn for_component(
+        types: &TypeTable,
+        tags: HashMap<String, TypeId>,
+        route_branch_descriptors: HashMap<TypeId, RouteBranchDescriptor>,
+        owner: TypeId,
+        path: String,
+    ) -> Self {
+        // Scalar bodies occur only on matched tags. Unrelated declarations in
+        // the larger application (vs. its loader) cannot affect this template.
+        let content_properties = tags
+            .iter()
+            .filter_map(|(tag, binding)| {
+                let id = matched_tag_type(tag, binding);
+                let receiver = types
+                    .get(&id)?
+                    .property_definitions
+                    .iter()
+                    .find(|p| p.flags.is_content)?;
+                Some((id, receiver.name.clone()))
+            })
+            .collect();
+        Self {
+            template: ComponentTemplate::new(owner, Some(path)),
+            pascal_identifier_to_type_id_map: tags,
+            route_branch_descriptors,
+            content_properties,
+        }
+    }
+}
+
+fn matched_tag_type(tag: &str, binding: &TypeId) -> TypeId {
+    TypeId::build_singleton(&binding.to_string(), Some(tag))
 }
 
 /// Identify explicitly declared scalar-body receivers for template parsing and
@@ -120,7 +156,7 @@ fn recurse_visit_tag_pairs_for_template(
             //matched_tag => open_tag > pascal_identifier
             let matched_tag = any_tag_pair;
             let open_tag_pair = matched_tag.clone().into_inner().next().unwrap();
-            let source_location = Some(span_to_location(&open_tag_pair.as_span()));
+            let source_location = Some(pair_location(&open_tag_pair));
             let mut open_tag = open_tag_pair.into_inner();
             let pascal_identifier = open_tag.next().unwrap().as_str();
             let settings = parse_inline_attribute_from_final_pairs_of_tag(open_tag);
@@ -133,12 +169,11 @@ fn recurse_visit_tag_pairs_for_template(
             }
 
             let mut template_node = TemplateNodeDefinition {
-                type_id: TypeId::build_singleton(
-                    &ctx.pascal_identifier_to_type_id_map
+                type_id: matched_tag_type(
+                    pascal_identifier,
+                    ctx.pascal_identifier_to_type_id_map
                         .get(pascal_identifier)
-                        .expect(&format!("Template key not found {}", &pascal_identifier))
-                        .to_string(),
-                    Some(&pascal_identifier.to_string()),
+                        .expect(&format!("Template key not found {}", &pascal_identifier)),
                 ),
                 settings,
                 selector_info,
@@ -184,7 +219,7 @@ fn recurse_visit_tag_pairs_for_template(
             }
         }
         Rule::self_closing_tag => {
-            let source_location = Some(span_to_location(&any_tag_pair.as_span()));
+            let source_location = Some(pair_location(&any_tag_pair));
             let mut tag_pairs = any_tag_pair.into_inner();
             let pascal_identifier = tag_pairs.next().unwrap().as_str();
 
@@ -446,7 +481,7 @@ fn recurse_visit_tag_pairs_for_template(
 }
 
 fn lower_body(ctx: &TemplateNodeParseContext, node: &mut TemplateNodeDefinition, body: Pair<Rule>) {
-    let location = span_to_location(&body.as_span());
+    let location = pair_location(&body);
     let fail = |message: &str| -> ! {
         panic!(
             "{}:{}: {message}",
@@ -638,7 +673,7 @@ fn parse_route_branch_from_matched_tag(
     descriptor: &RouteBranchDescriptor,
 ) -> ControlFlowRouteBranchDefinition {
     let open_tag_pair = matched_tag.clone().into_inner().next().unwrap();
-    let source_location = Some(span_to_location(&open_tag_pair.as_span()));
+    let source_location = Some(pair_location(&open_tag_pair));
     let mut open_tag = open_tag_pair.into_inner();
     let _ = open_tag.next().unwrap();
     let route_settings = parse_inline_attribute_from_final_pairs_of_tag(open_tag);
@@ -679,7 +714,7 @@ fn parse_route_branch_from_self_closing_tag(
     route_tag: &str,
     descriptor: &RouteBranchDescriptor,
 ) -> ControlFlowRouteBranchDefinition {
-    let source_location = Some(span_to_location(&self_closing_tag.as_span()));
+    let source_location = Some(pair_location(&self_closing_tag));
     let mut tag_pairs = self_closing_tag.into_inner();
     let _ = tag_pairs.next().unwrap();
     let route_settings = parse_inline_attribute_from_final_pairs_of_tag(tag_pairs);
@@ -883,7 +918,7 @@ fn parse_route_metadata_bool(value: &ValueDefinition, field: &str) -> bool {
 fn parse_literal_function(literal_function_full: Pair<Rule>) -> Token {
     let literal_function = literal_function_full.clone().into_inner().next().unwrap();
 
-    let location_info = span_to_location(&literal_function.as_span());
+    let location_info = pair_location(&literal_function);
     let literal_function_token = Token::new(literal_function.as_str().to_string(), location_info);
     literal_function_token
 }
@@ -891,13 +926,13 @@ fn parse_literal_function(literal_function_full: Pair<Rule>) -> Token {
 fn parse_event_id(event_id_full: Pair<Rule>) -> Token {
     let event_id = event_id_full.clone().into_inner().next().unwrap();
 
-    let event_id_location = span_to_location(&event_id.as_span());
+    let event_id_location = pair_location(&event_id);
     let event_id_token = Token::new(event_id.as_str().to_string(), event_id_location);
     event_id_token
 }
 
 fn parse_transition_id(transition_id_full: Pair<Rule>) -> Token {
-    let location_info = span_to_location(&transition_id_full.as_span());
+    let location_info = pair_location(&transition_id_full);
     Token::new(
         transition_id_full
             .as_str()
@@ -925,7 +960,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
 
                     let setting: Pair<Rule> = double_binding.next().unwrap();
                     let property = double_binding.next().unwrap();
-                    let setting_location = span_to_location(&setting.as_span());
+                    let setting_location = pair_location(&setting);
                     let setting_token = Token::new(setting.as_str().to_string(), setting_location);
 
                     vec![SettingElement::Setting(
@@ -979,7 +1014,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                 }
                 Rule::class_attribute => {
                     let class_attribute = attribute_key_value_pair.into_inner().next().unwrap();
-                    let key_location = span_to_location(&class_attribute.as_span());
+                    let key_location = pair_location(&class_attribute);
                     let class_value = class_attribute.into_inner().next().unwrap();
                     let value = class_value.into_inner().next().unwrap();
                     let value_definition = match value.as_rule() {
@@ -999,7 +1034,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
 
                     let mut kv = attribute_key_value_pair.into_inner();
                     let key = kv.next().unwrap();
-                    let key_location = span_to_location(&key.as_span());
+                    let key_location = pair_location(&key);
                     let key_token = Token::new(key.as_str().to_string(), key_location);
                     let value_outer =
                         kv.next()
@@ -1329,7 +1364,7 @@ fn derive_timeline_keyframe_definition(timeline_keyframe: Pair<Rule>) -> Timelin
     let marker = parse_timeline_marker(pairs.next().unwrap());
     let value = parse_value_definition(pairs.next().unwrap());
     let easing = pairs.next().map(|easing| {
-        let location = span_to_location(&easing.as_span());
+        let location = pair_location(&easing);
         Token::new(easing.as_str().to_string(), location)
     });
     TimelineKeyframe {
@@ -1412,7 +1447,7 @@ fn derive_inline_transition_timeline_block(
                 Rule::timeline_block_setting => {
                     let mut pairs = pair.into_inner();
                     let setting_key = pairs.next().unwrap().into_inner().next().unwrap();
-                    let setting_key_location = span_to_location(&setting_key.as_span());
+                    let setting_key_location = pair_location(&setting_key);
                     let setting_key_token =
                         Token::new(setting_key.as_str().to_string(), setting_key_location);
                     let value = pairs.next().unwrap();
@@ -1426,7 +1461,7 @@ fn derive_inline_transition_timeline_block(
                     if property_key.as_str() == "class" {
                         panic!("class cannot be assigned by a timeline");
                     }
-                    let property_key_location = span_to_location(&property_key.as_span());
+                    let property_key_location = pair_location(&property_key);
                     let property_key_token =
                         Token::new(property_key.as_str().to_string(), property_key_location);
                     let track = derive_timeline_track_definition(pairs.next().unwrap());
@@ -1456,7 +1491,7 @@ fn derive_timeline_selector_block_definition(
                     if property_key.as_str() == "class" {
                         panic!("class cannot be assigned by a timeline");
                     }
-                    let property_key_location = span_to_location(&property_key.as_span());
+                    let property_key_location = pair_location(&property_key);
                     let property_key_token =
                         Token::new(property_key.as_str().to_string(), property_key_location);
                     let track = derive_timeline_track_definition(pairs.next().unwrap());
@@ -1478,7 +1513,7 @@ pub fn parse_camera_from_component_definition_string(
         .into_inner()
         .filter(|p| p.as_rule() == Rule::camera_block_declaration)
     {
-        let location = block.as_span().start_pos().line_col();
+        let location = block.line_col();
         assert!(
             camera.is_none(),
             "duplicate @camera at {}:{}",
@@ -1500,7 +1535,7 @@ pub fn parse_camera_from_component_definition_string(
             );
             let mut pair = setting.into_inner();
             let key = pair.next().unwrap().into_inner().next().unwrap();
-            let location = key.as_span().start_pos().line_col();
+            let location = key.line_col();
             let name = key.as_str();
             assert!(
                 matches!(
@@ -1529,7 +1564,7 @@ pub fn parse_camera_from_component_definition_string(
                 location.1
             );
             elements.push(SettingElement::Setting(
-                Token::new(name.to_owned(), span_to_location(&key.as_span())),
+                Token::new(name.to_owned(), pair_location(&key)),
                 parse_value_definition(pair.next().unwrap().into_inner().next().unwrap()),
             ));
         }
@@ -1560,7 +1595,7 @@ pub fn parse_timeline_from_component_definition_string(
                 let raw_name = pairs.next().unwrap();
                 timeline.name = Some(Token::new(
                     raw_name.as_str().to_string(),
-                    span_to_location(&raw_name.as_span()),
+                    pair_location(&raw_name),
                 ));
             }
 
@@ -1611,7 +1646,7 @@ pub fn parse_timeline_from_component_definition_string(
                     Rule::timeline_selector_block => {
                         let mut selector_block_pairs = timeline_entity.into_inner();
                         let raw_target = selector_block_pairs.next().unwrap();
-                        let raw_value_location = span_to_location(&raw_target.as_span());
+                        let raw_value_location = pair_location(&raw_target);
                         let target: String = raw_target
                             .as_str()
                             .chars()
@@ -1667,7 +1702,7 @@ fn derive_value_definition_from_literal_object_pair(
     let explicit_type_pascal_identifier = match literal_object_pairs.peek().unwrap().as_rule() {
         Rule::pascal_identifier => {
             let raw_value = literal_object_pairs.next().unwrap();
-            let raw_value_location = span_to_location(&raw_value.as_span());
+            let raw_value_location = pair_location(&raw_value);
             let token = Token::new(raw_value.as_str().to_string(), raw_value_location);
             Some(token)
         }
@@ -1683,7 +1718,7 @@ fn derive_value_definition_from_literal_object_pair(
                         let mut pairs = settings_key_value_pair.into_inner();
 
                         let setting_key = pairs.next().unwrap().into_inner().next().unwrap();
-                        let setting_key_location = span_to_location(&setting_key.as_span());
+                        let setting_key_location = pair_location(&setting_key);
                         let setting_key_token =
                             Token::new(setting_key.as_str().to_string(), setting_key_location);
                         let value = pairs.next().unwrap().into_inner().next().unwrap();
@@ -1724,7 +1759,7 @@ fn parse_settings_event_binding(pair: Pair<Rule>) -> SettingsBlockElement {
 fn parse_selector_block(pair: Pair<Rule>) -> SettingsBlockElement {
     let mut selector_block_pairs = pair.into_inner();
     let raw_selector = selector_block_pairs.next().unwrap();
-    let raw_value_location = span_to_location(&raw_selector.as_span());
+    let raw_value_location = pair_location(&raw_selector);
     let selector: String = raw_selector
         .as_str()
         .chars()
@@ -2142,54 +2177,80 @@ pub fn assemble_component_definition(
     template_source_file_path: &str,
     rust_source_file_path: &str,
 ) -> (ParsingContext, ComponentDefinition) {
-    let mut tpc = TemplateNodeParseContext {
-        content_properties: content_properties(&ctx.type_table),
-        pascal_identifier_to_type_id_map: template_map,
+    let tpc = TemplateNodeParseContext::for_component(
+        &ctx.type_table,
+        template_map,
         route_branch_descriptors,
-        template: ComponentTemplate::new(
-            self_type_id.clone(),
-            Some(template_source_file_path.to_owned()),
-        ),
-    };
-
-    let ast = parse_pax_str(Rule::pax_component_definition, pax).expect("Unsuccessful parse");
-
-    parse_template_from_component_definition_string(&mut tpc, pax, ast.clone());
-    let modified_module_path = if module_path.starts_with("parser") {
-        module_path.replacen("parser", "crate", 1)
-    } else {
-        module_path.to_string()
-    };
-
-    //populate template_node_definitions vec, needed for traversing node tree at codegen-time
-    ctx.template_node_definitions = tpc.template.clone();
-
-    let mut settings = parse_settings_from_component_definition_string(ast.clone());
-    let camera = parse_camera_from_component_definition_string(ast.clone());
-    let timelines = parse_timeline_from_component_definition_string(ast);
-    add_implicit_lifecycle_handlers(
-        &mut settings,
-        &modified_module_path,
-        &self_type_id,
-        rust_source_file_path,
+        self_type_id.clone(),
+        template_source_file_path.to_owned(),
     );
 
-    let new_def = ComponentDefinition {
-        document: None,
-        is_primitive: false,
-        is_struct_only_component: false,
+    let new_def = LoweredTemplate::parse(pax, tpc).link(
+        &mut ctx,
         is_main_component,
-        primitive_instance_import_path: None,
-        type_id: self_type_id,
-        template: Some(tpc.template),
-        settings: Some(settings),
-        timelines,
-        camera,
         route_branch,
-        module_path: modified_module_path,
-    };
-
+        module_path,
+        self_type_id,
+        rust_source_file_path,
+    );
     (ctx, new_def)
+}
+
+/// Authored template data only. Rust handlers and component metadata are linked
+/// from the current build, even when the compiler reuses this intermediate.
+#[doc(hidden)]
+#[derive(Serialize, Deserialize)]
+pub struct LoweredTemplate {
+    template: ComponentTemplate,
+    settings: Vec<SettingsBlockElement>,
+    timelines: Vec<TimelineDefinition>,
+    camera: Option<LiteralBlockDefinition>,
+}
+
+impl LoweredTemplate {
+    pub fn parse(pax: &str, mut context: TemplateNodeParseContext) -> Self {
+        let ast = parse_pax_str(Rule::pax_component_definition, pax).expect("Unsuccessful parse");
+        parse_template_from_component_definition_string(&mut context, pax, ast.clone());
+        Self {
+            template: context.template,
+            settings: parse_settings_from_component_definition_string(ast.clone()),
+            camera: parse_camera_from_component_definition_string(ast.clone()),
+            timelines: parse_timeline_from_component_definition_string(ast),
+        }
+    }
+
+    pub fn link(
+        mut self,
+        ctx: &mut ParsingContext,
+        is_main_component: bool,
+        route_branch: Option<RouteBranchDescriptor>,
+        module_path: &str,
+        self_type_id: TypeId,
+        rust_source_file_path: &str,
+    ) -> ComponentDefinition {
+        let module_path = clean_module_path(module_path);
+        add_implicit_lifecycle_handlers(
+            &mut self.settings,
+            &module_path,
+            &self_type_id,
+            rust_source_file_path,
+        );
+        ctx.template_node_definitions = self.template.clone();
+        ComponentDefinition {
+            document: None,
+            is_primitive: false,
+            is_struct_only_component: false,
+            is_main_component,
+            primitive_instance_import_path: None,
+            type_id: self_type_id,
+            template: Some(self.template),
+            settings: Some(self.settings),
+            timelines: self.timelines,
+            camera: self.camera,
+            route_branch,
+            module_path,
+        }
+    }
 }
 
 /// Convert macro-parser module roots into crate-relative paths.
@@ -2270,16 +2331,19 @@ pub fn assemble_type_definition(
     (ctx, new_def)
 }
 
-/// Given a Pest Span returns starting and ending (line,col)
-fn span_to_location(span: &Span) -> LocationInfo {
-    let start = (
-        span.start_pos().line_col().0 - 1,
-        span.start_pos().line_col().1 - 1,
-    );
-    let end = (
-        span.end_pos().line_col().0 - 1,
-        span.end_pos().line_col().1 - 1,
-    );
+fn pair_location(pair: &Pair<Rule>) -> LocationInfo {
+    // Pair shares the parser's line index. Asking either Span position for its
+    // line/column instead walks the entire template prefix for every token.
+    let (line, col) = pair.line_col();
+    let start = (line - 1, col - 1);
+    let text = pair.as_str();
+    let end = match text.rsplit_once('\n') {
+        None => (start.0, start.1 + text.chars().count()),
+        Some((before, last_line)) => (
+            line + before.bytes().filter(|&b| b == b'\n').count(),
+            last_line.chars().count(),
+        ),
+    };
     LocationInfo {
         start_line_col: start,
         end_line_col: end,
@@ -2306,6 +2370,24 @@ pub fn clean_and_split_symbols(possibly_nested_symbols: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn indexed_token_locations_match_original_source_positions() {
+        // Include non-ASCII columns, nonzero starting columns, CRLF, a bare
+        // CR, a final newline, and the empty end-of-input pair.
+        let source = "<Group>\r\n  <Text>é🚀 first\nsecond\r third</Text>\n</Group>\r\n";
+        let root = parse_pax_str(Rule::pax_component_definition, source).unwrap();
+        for pair in std::iter::once(root.clone()).chain(root.into_inner().flatten()) {
+            let span = pair.as_span();
+            let zero_based = |(line, col)| (line - 1, col - 1);
+            let location = pair_location(&pair);
+            assert_eq!(
+                location.start_line_col,
+                zero_based(span.start_pos().line_col())
+            );
+            assert_eq!(location.end_line_col, zero_based(span.end_pos().line_col()));
+        }
+    }
 
     #[test]
     fn parses_top_level_settings_conditionals() {

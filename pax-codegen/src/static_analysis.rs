@@ -2,8 +2,8 @@ use cargo_metadata::{Metadata, MetadataCommand, Package};
 use color_eyre::eyre::{eyre, Result};
 use pax_language::{parse_pax_str, Pair, Rule};
 use pax_manifest::parsing::{
-    assemble_component_definition, assemble_primitive_definition,
-    assemble_struct_only_component_definition, ParsingContext,
+    assemble_primitive_definition, assemble_struct_only_component_definition,
+    LoweredTemplate, ParsingContext, TemplateNodeParseContext,
 };
 use pax_manifest::{
     PaxManifest, PropertyDefinition, PropertyDefinitionFlags, RouteBranchDescriptor,
@@ -473,15 +473,24 @@ fn build_item_recursive(
             associated_pax_file_path,
             ..
         } => {
-            let mut template_dependencies =
-                parse_pascal_identifiers_from_component_definition_string(raw_pax).map_err(
-                    |err| {
-                        eyre!(
-                            "Failed to statically parse template for `{}`: {err}",
-                            item.import_path
-                        )
-                    },
-                )?;
+            let source_path = associated_pax_file_path
+                .as_ref()
+                .unwrap_or(&item.source_path)
+                .to_string_lossy();
+            let cache = registry.template_cache.as_ref().and_then(|dir| {
+                crate::template_cache::Entry::new(dir, &source_path, &self_type_id, raw_pax)
+            });
+            let parse_tags = || parse_pascal_identifiers_from_component_definition_string(raw_pax);
+            let mut template_dependencies = match &cache {
+                Some(entry) => entry.tags(parse_tags),
+                None => parse_tags(),
+            }
+            .map_err(|err| {
+                eyre!(
+                    "Failed to statically parse template for `{}`: {err}",
+                    item.import_path
+                )
+            })?;
 
             let is_main_component = self_type_id == ctx.main_component_type_id;
             if is_main_component {
@@ -514,27 +523,25 @@ fn build_item_recursive(
                 template_map.insert(dependency_identifier, dependency_type_id);
             }
 
-            let component_source_file_path = associated_pax_file_path
-                .as_ref()
-                .unwrap_or(&item.source_path)
-                .to_string_lossy()
-                .to_string();
-            let rust_source_file_path = item.source_path.to_string_lossy().to_string();
-            let owned_ctx = std::mem::take(ctx);
-            let (new_ctx, component_definition) = assemble_component_definition(
-                owned_ctx,
-                raw_pax,
-                is_main_component,
+            let context = TemplateNodeParseContext::for_component(
+                &ctx.type_table,
                 template_map,
                 route_branch_descriptors,
+                self_type_id.clone(),
+                source_path.into_owned(),
+            );
+            let lowered = match cache {
+                Some(entry) => entry.lower(raw_pax, context),
+                None => LoweredTemplate::parse(raw_pax, context),
+            };
+            lowered.link(
+                ctx,
+                is_main_component,
                 item.route_branch.clone(),
                 &item.module_path,
                 self_type_id.clone(),
-                &component_source_file_path,
-                &rust_source_file_path,
-            );
-            *ctx = new_ctx;
-            component_definition
+                &item.source_path.to_string_lossy(),
+            )
         }
         PaxItemKind::Primitive {
             primitive_instance_import_path,
@@ -1155,6 +1162,7 @@ fn build_source_registry(
         .ok_or_else(|| eyre!("Missing source root"))?;
     let mut registry = StaticRegistry::default();
     registry.configured_sources = Some(sources);
+    registry.template_cache = crate::template_cache::directory();
     registry.root_package_name = root.name.clone();
     let mut names = BTreeMap::new();
     names.insert(root.entry.clone(), "crate".to_string());
@@ -2444,6 +2452,7 @@ struct ScannedRunnable {
 
 #[derive(Default)]
 struct StaticRegistry {
+    template_cache: Option<PathBuf>,
     configured_sources: Option<crate::configured_source::Sources>,
     dependency_aliases: HashMap<(String, String), String>,
     pending_dependencies: HashMap<String, NeedsDependency>,

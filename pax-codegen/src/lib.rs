@@ -11,6 +11,7 @@ pub mod program_catalog;
 pub mod project_layout;
 pub mod static_analysis;
 pub mod svg_import;
+mod template_cache;
 
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, PaxManifest, TemplateNodeDefinition, TypeId,

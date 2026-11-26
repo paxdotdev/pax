@@ -149,7 +149,18 @@ that the running application lacks; follow the reload diagnostic and restart.
 
 Template reload preserves the initialized root and its dependencies. Affected
 nodes can still unmount and remount, revoking their scopes and recreating local
-stores. Focus, scroll position and arbitrary node-local state need not survive.
+stores. When a template remounts a `Scroller`, Pax preserves its horizontal and
+vertical pixel offsets if it can uniquely match the scroller before and after the
+edit. For example, you can scroll down to a heading, edit its copy, and see the
+change there without scrolling back. An explicit `id` on a scroller helps keep
+its identity stable when inserting siblings. Changing an axis's starting offset
+takes precedence on that axis. New, removed, or ambiguous scrollers do not
+inherit another scroller's position.
+
+This preserves a position, not an anchor to a particular paragraph: edits above
+the viewport can move content, and shorter content can clamp the offset. It
+doesn't apply to a page refresh or app restart. Focus and arbitrary node-local
+state need not survive a template edit.
 Connecting to the development server with an unchanged manifest does not reload
 the scene. If the server has newer template content than the built cartridge,
 the initial synchronization applies that content through template reload.
@@ -411,6 +422,14 @@ started directly from the CLI needs relaunching to use the new Rust state.
 The local supervisor can use the generation to remount or relaunch it. Set
 `PAX_DEV_INSTANCE_FILE` to a new local path when launching a standalone Mac
 to receive its inspection ID as a JSON string once its window registers.
+
+When you edit only a Rust handler body, development builds on macOS and Linux
+can reuse the parsed `.pax` templates. Rust still compiles and links the new
+handler, and the Web preview still refreshes. Pax checks the template text and
+its resolved bindings before reusing it; lifecycle hooks are always read from
+current Rust source. The disposable cache lives in `.pax/dev/template-cache/`.
+A missing cache simply means a fresh parse. Compatible `.pax` saves still use
+live template reload, and release builds do not use this cache.
 
 On macOS, run `pax-cli dev targets` to list available iPhone and iPad simulators
 and paired devices with their IDs. Add the desired SDK to the same targets file.
@@ -721,6 +740,10 @@ or newer. Cargo's usual flag precedence applies: if you supply `RUSTFLAGS`,
 `-Ctarget-feature=+simd128` to retain this acceleration. An explicit
 `RUSTFLAGS='-Ctarget-feature=-simd128'` builds the slower scalar renderer for
 browsers without SIMD; renderer selection and `@cpu`/`@gpu` work the same way.
+
+Debug and `--optimized-dev` Web builds skip bundle-size reporting. Use
+`--release` or `--profiling` to see emitted sizes alongside their gzip
+estimates; the report does not change the files served.
 
 To measure target compilation and web packaging, use an already-built CLI and
 a fresh target directory without deleting your development cache:

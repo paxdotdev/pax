@@ -26,6 +26,8 @@ use std::time::Instant;
 #[doc(hidden)]
 pub mod input_capture;
 mod input_query;
+#[cfg(feature = "designtime")]
+pub(crate) mod reload_scroll;
 
 use crate::{ExpandedNode, Globals};
 
@@ -181,11 +183,17 @@ pub struct RuntimeContext {
     gyro_handler_nodes: RefCell<Vec<ExpandedNodeIdentifier>>,
     accel_handler_nodes: RefCell<Vec<ExpandedNodeIdentifier>>,
     screenshot_map: Rc<RefCell<HashMap<u32, ScreenshotData>>>,
-    scroller_surface_states: RefCell<HashMap<u32, ScrollerSurfaceState>>,
+    scroller_surface_states: RefCell<HashMap<u32, MountedScroller>>,
     layer_scroller_owners: RefCell<HashMap<usize, ExpandedNodeIdentifier>>,
     root_scroller_id: Cell<Option<u32>>,
     visual_viewport_state: Cell<Option<VisualViewportState>>,
     safe_area_insets: LocalProperty<SafeAreaInsets>,
+}
+
+struct MountedScroller {
+    state: ScrollerSurfaceState,
+    #[cfg(feature = "designtime")]
+    initial_offset: [f64; 2],
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -965,23 +973,31 @@ impl RuntimeContext {
     ) -> ScrollerSurfaceStateChange {
         let change = {
             let mut states = borrow_mut!(self.scroller_surface_states);
-            let change = match states.get(&id) {
-                Some(previous) if previous.clip_content != state.clip_content => {
+            use std::collections::hash_map::Entry;
+            match states.entry(id) {
+                Entry::Vacant(slot) => {
+                    slot.insert(MountedScroller {
+                        state,
+                        #[cfg(feature = "designtime")]
+                        initial_offset: [state.scroll_x, state.scroll_y],
+                    });
                     ScrollerSurfaceStateChange::Structural
                 }
-                Some(previous) if !previous.geometry_eq(&state) => {
-                    ScrollerSurfaceStateChange::Geometry
+                Entry::Occupied(mut slot) => {
+                    let previous = &mut slot.get_mut().state;
+                    let change = if previous.clip_content != state.clip_content {
+                        ScrollerSurfaceStateChange::Structural
+                    } else if !previous.geometry_eq(&state) {
+                        ScrollerSurfaceStateChange::Geometry
+                    } else if !previous.scroll_eq(&state) {
+                        ScrollerSurfaceStateChange::ScrollOnly
+                    } else {
+                        return ScrollerSurfaceStateChange::Unchanged;
+                    };
+                    *previous = state;
+                    change
                 }
-                Some(previous) if previous.scroll_eq(&state) => {
-                    ScrollerSurfaceStateChange::Unchanged
-                }
-                Some(_) => ScrollerSurfaceStateChange::ScrollOnly,
-                _ => ScrollerSurfaceStateChange::Structural,
-            };
-            if change != ScrollerSurfaceStateChange::Unchanged {
-                states.insert(id, state);
             }
-            change
         };
 
         match change {
@@ -1024,7 +1040,7 @@ impl RuntimeContext {
     ) -> ScrollerSurfaceStateChange {
         let change = {
             let mut states = borrow_mut!(self.scroller_surface_states);
-            let Some(state) = states.get_mut(&id) else {
+            let Some(state) = states.get_mut(&id).map(|mounted| &mut mounted.state) else {
                 return ScrollerSurfaceStateChange::Unchanged;
             };
             let next = ScrollerSurfaceState {
@@ -1067,13 +1083,14 @@ impl RuntimeContext {
 
     /// Fetch cached scroller surface state by node id.
     pub fn get_scroller_surface_state(&self, id: u32) -> Option<ScrollerSurfaceState> {
-        borrow!(self.scroller_surface_states).get(&id).cloned()
+        borrow!(self.scroller_surface_states).get(&id).map(|m| m.state)
     }
 
     /// Fetch the presentation scroll offset for a native scroller surface, falling back to the
     /// authoritative scroll position when presentation scroll is unavailable.
     pub fn get_scroller_surface_scroll(&self, id: u32) -> Option<(f64, f64)> {
-        borrow!(self.scroller_surface_states).get(&id).map(|state| {
+        borrow!(self.scroller_surface_states).get(&id).map(|mounted| {
+            let state = &mounted.state;
             let scroll_x = if state.presentation_scroll_x.is_finite() {
                 state.presentation_scroll_x
             } else {

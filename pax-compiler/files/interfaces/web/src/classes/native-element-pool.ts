@@ -93,6 +93,8 @@ export class NativeElementPool {
     private scrollerMeasurementStates = new Map<number, ScrollerMeasurementState>();
     private presentationRecords = new Map<number, PresentationRecord>();
     private pendingScrollerUpdates = new Map<number, PendingScrollerUpdate>();
+    private batchingScrollCommands = false;
+    private batchScrollCommands = new Map<number, {x?: number; y?: number}>();
     private surfaceHostObservation?: {
         candidates: Map<number, ScrollerWarmCandidate>;
         observations: any[];
@@ -3239,38 +3241,29 @@ export class NativeElementPool {
             state.scrollAcknowledgementPending = true;
         }
 
+        if (patch.scrollX != null || patch.scrollY != null) {
+            if (this.batchingScrollCommands) {
+                // Patches are pooled and axis deltas can arrive independently.
+                const axes = this.batchScrollCommands.get(patch.id!) ?? {};
+                if (patch.scrollX != null) axes.x = patch.scrollX;
+                if (patch.scrollY != null) axes.y = patch.scrollY;
+                this.batchScrollCommands.set(patch.id!, axes);
+            } else {
+                this.writeScrollCommand(patch.id!, patch.scrollX, patch.scrollY);
+            }
+        }
         if (patch.scrollX != null) {
             // Only authored commands carry scrollX/Y. Native observations carry
             // presentationScrollX/Y without writing back into browser momentum.
-            if (delegateToPageScroll) {
-                let current = this.readPageScrollPosition();
-                if (Math.abs(current.scrollX - patch.scrollX) > 0.5) {
-                    this.surfaceTrace?.record('scroll-command', {id: patch.id, axis: 'x', from: current.scrollX, to: patch.scrollX, active: !!state?.active, delegated: true});
-                    this.setPageScrollPosition(patch.scrollX, undefined);
-                }
-                if (this.mount != null) {
-                    this.mount.dataset.approvedScrollX = String(approvedScrollX);
-                }
-            } else if (Math.abs(leaf.scrollLeft - patch.scrollX) > 0.5) {
-                this.surfaceTrace?.record('scroll-command', {id: patch.id, axis: 'x', from: leaf.scrollLeft, to: patch.scrollX, active: !!state?.active, delegated: false});
-                leaf.scrollLeft = patch.scrollX;
+            if (delegateToPageScroll && this.mount != null) {
+                this.mount.dataset.approvedScrollX = String(approvedScrollX);
             }
             canvasHost.dataset.approvedScrollX = String(approvedScrollX);
             this.activateScrollerMeasurement(patch.id!);
         }
         if (patch.scrollY != null) {
-            if (delegateToPageScroll) {
-                let current = this.readPageScrollPosition();
-                if (Math.abs(current.scrollY - patch.scrollY) > 0.5) {
-                    this.surfaceTrace?.record('scroll-command', {id: patch.id, axis: 'y', from: current.scrollY, to: patch.scrollY, active: !!state?.active, delegated: true});
-                    this.setPageScrollPosition(undefined, patch.scrollY);
-                }
-                if (this.mount != null) {
-                    this.mount.dataset.approvedScrollY = String(approvedScrollY);
-                }
-            } else if (Math.abs(leaf.scrollTop - patch.scrollY) > 0.5) {
-                this.surfaceTrace?.record('scroll-command', {id: patch.id, axis: 'y', from: leaf.scrollTop, to: patch.scrollY, active: !!state?.active, delegated: false});
-                leaf.scrollTop = patch.scrollY;
+            if (delegateToPageScroll && this.mount != null) {
+                this.mount.dataset.approvedScrollY = String(approvedScrollY);
             }
             canvasHost.dataset.approvedScrollY = String(approvedScrollY);
             this.activateScrollerMeasurement(patch.id!);
@@ -3311,7 +3304,44 @@ export class NativeElementPool {
         }
     }
 
+    // A remounted autosized pane can be viewport-sized in an early patch and
+    // scrollable by the end of the same native batch. Commit offsets only after
+    // its final sizing/placement, before yielding to browser input or paint.
+    withScrollCommandBatch(apply: () => void) {
+        if (this.batchingScrollCommands) return apply();
+        this.batchingScrollCommands = true;
+        try {
+            apply();
+            for (const [id, {x, y}] of this.batchScrollCommands)
+                this.writeScrollCommand(id, x, y);
+        } finally {
+            this.batchScrollCommands.clear();
+            this.batchingScrollCommands = false;
+        }
+    }
+
+    private writeScrollCommand(id: number, x?: number, y?: number) {
+        const leaf = this.nodesLookup.get(id);
+        if (!leaf) return;
+        const state = this.scrollerMeasurementStates.get(id);
+        const delegated = !!state?.delegatesToPageScroll;
+        const page = delegated ? this.readPageScrollPosition() : undefined;
+        const fromX = x != null ? (page?.scrollX ?? leaf.scrollLeft) : 0;
+        const fromY = y != null ? (page?.scrollY ?? leaf.scrollTop) : 0;
+        const dx = x != null && Math.abs(fromX - x) > 0.5 ? x : undefined;
+        const dy = y != null && Math.abs(fromY - y) > 0.5 ? y : undefined;
+        if (dx == null && dy == null) return;
+        if (dx != null) this.surfaceTrace?.record('scroll-command', {id, axis: 'x', from: fromX, to: dx, active: !!state?.active, delegated});
+        if (dy != null) this.surfaceTrace?.record('scroll-command', {id, axis: 'y', from: fromY, to: dy, active: !!state?.active, delegated});
+        if (delegated) this.setPageScrollPosition(dx, dy);
+        else {
+            if (dx != null) leaf.scrollLeft = dx;
+            if (dy != null) leaf.scrollTop = dy;
+        }
+    }
+
     scrollerDelete(id: number){
+        if (this.batchingScrollCommands) this.batchScrollCommands.delete(id);
         let oldNode = this.nodesLookup.get(id);
         if (oldNode == undefined) {
             throw new Error("tried to delete non-existent scroller");

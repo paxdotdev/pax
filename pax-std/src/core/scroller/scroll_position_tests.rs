@@ -176,6 +176,73 @@ fn updates(context: &RuntimeContext) -> Vec<ScrollerPatch> {
         .collect()
 }
 
+#[cfg(feature = "designtime")]
+#[test]
+fn template_reload_tracks_scrollers_not_mount_order_and_respects_new_start_offsets() {
+    use pax_manifest::{TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
+    let design = crate::test_support::runtime_context().globals().designtime;
+    let mut engine = pax_runtime::PaxEngine::new_empty_with_designtime(
+        (360., 120.),
+        design,
+        Platform::Web,
+        OS::Mac,
+        Box::new(|| 0),
+        Default::default(),
+    );
+    let template = |definitions: &[(usize, f64)]| {
+        let mut owner = args(ScrollerHost::default());
+        owner.component_template = Some(RefCell::new(
+            definitions
+                .iter()
+                .map(|&(site, start)| {
+                    let mut host = args(ScrollerHost {
+                        scroll_pos_x: Property::new(start),
+                        scroll_width: Property::new(Size::Pixels(2000.into())),
+                        scroll_height: Property::new(Size::Pixels(2000.into())),
+                        ..Default::default()
+                    });
+                    host.template_node_identifier = Some(UniqueTemplateNodeIdentifier::build(
+                        TypeId::build_singleton("test::Page", Some("Page")),
+                        TemplateNodeId::build(site),
+                    ));
+                    ScrollerHostInstance::instantiate(host) as Rc<dyn InstanceNode>
+                })
+                .collect(),
+        ));
+        ComponentInstance::instantiate(owner)
+    };
+    let root = engine.mount_root_component(template(&[(1, 40.), (2, 0.)]));
+    let ctx = engine.runtime_context.clone();
+    ctx.set_userland_root_expanded_node(Some(root.clone()));
+    engine.tick();
+    observe(&ctx, &root, 110., 620.);
+    ctx.drain_node_effects();
+    let read = |i: usize| {
+        root.children.get()[i].with_properties_unwrapped(|s: &mut ScrollerHost| {
+            (s.scroll_pos_x.get(), s.scroll_pos_y.get())
+        })
+    };
+    // Reorder two sites and insert a third. Only a matching mount inherits state.
+    engine.full_reload_userland(template(&[(2, 0.), (3, 12.), (1, 40.)]));
+    assert_eq!(read(0), (0., 0.));
+    assert_eq!(read(1), (12., 0.));
+    assert_eq!(read(2), (110., 620.));
+    let last_id = root.children.get()[2].id.to_u32();
+    let patches = updates(&ctx);
+    assert!(patches
+        .iter()
+        .rev()
+        .filter(|p| p.id == last_id)
+        .find_map(|p| p.scroll_y)
+        .is_some_and(|y| y == 620.));
+    engine.full_reload_userland(template(&[(1, 75.)]));
+    assert_eq!(read(0), (75., 620.));
+    // An ambiguous replacement must not give both hosts the same offset.
+    engine.full_reload_userland(template(&[(1, 75.), (1, 75.)]));
+    assert_eq!(read(0), (75., 0.));
+    assert_eq!(read(1), (75., 0.));
+}
+
 #[test]
 fn native_observations_update_presentation_without_emitting_scroll_commands() {
     let (context, root, props) = mount();
