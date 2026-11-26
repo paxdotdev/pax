@@ -22,8 +22,8 @@ mod tests {
     fn glass_spans_the_runtime_and_modularity_uses_the_plain_site_background() {
         let runtime = include_str!("runtime_section.pax");
         let (content, background) = runtime.rsplit_once("</Stacker>").unwrap();
-        assert!(content.contains(">Fluent in UI</Text>"));
-        assert!(content.contains("<PaxflixShowcase"));
+        let (intro, _) = content.split_once("<PaxflixShowcase").unwrap();
+        assert!(intro.contains(">An alternative to HTML, CSS, and JavaScript</Text>"));
         assert_eq!(runtime.matches("<RuntimeGlass ").count(), 1);
         assert!(background.contains("<RuntimeGlass "));
         assert!(!runtime.contains("<ModularityRain"));

@@ -323,7 +323,7 @@ compositor. Native label masking and canvas/native publication are separate;
 this optimization does not fix cross-layer drift when frames drop. See
 [spatial depth composition](../pax-docs/book/src/layout-responsiveness.md#rotating-flat-surfaces-in-3d).
 
-“Fluent in UI” and the Paxflix showcase share one full-width pressed-glass wall
+“An alternative to HTML, CSS, and JavaScript” and the Paxflix showcase share one full-width pressed-glass wall
 in `RuntimeSection`. The text, live tablet, device links, and source drawer sit
 in front of the glass. The dark and light themes use the fixture's dark and
 white backing paints. The wall uses 175% brick size, 0.70 thickness, 0.31
@@ -637,7 +637,7 @@ implemented in this version.
 ## Homepage composition and standalone calculator
 
 The homepage flows from the hero to the declarative-language introduction, cube,
-and **Fluent in UI**, followed directly by Paxflix as its implicit demonstration.
+and **An alternative to HTML, CSS, and JavaScript**, followed directly by its example, Paxflix.
 **Simple meets powerful** and the feature carousel precede **Plug, Extend, and Play**.
 `ModularitySection` owns the modularity copy and the circuit-board visual's integration
 location; it is a standalone section, not part of `AuthoringSection`. Keep the board
@@ -730,7 +730,7 @@ Content and visual design history are archived in
 ## Increment Cube and language section
 
 `AuthoringSection` is the mounted “A declarative language for interactive graphics”
-introduction and cube stage. “Fluent in UI” follows in `RuntimeSection`, with
+introduction and cube stage. “An alternative to HTML, CSS, and JavaScript” follows in `RuntimeSection`, with
 one glass wall continuing behind Paxflix. The dedicated cube
 viewer contains only `increment.pax` and `lib.rs`, selected from the canonical
 example's source list. Compact inline and expanded presentations share the

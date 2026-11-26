@@ -9,7 +9,7 @@ test('a mounted Markdown link changes theme in place in both directions', async 
         const page = await browser.newPage({viewport: {width: 1280, height: 850}});
         await page.goto(new URL('/?pax_renderer=cpu', process.env.PAX_SITE_URL).href);
         await page.waitForSelector('[data-pax-loading="active"]', {timeout: 120000});
-        const link = page.locator('.native-leaf [data-pax-markdown="true"] a[href$="/tree/main/pax-website"]').first();
+        const link = page.locator('.native-leaf [data-pax-markdown="true"] a[href$="/paxflix/"]').first();
         await link.scrollIntoViewIfNeeded();
         const anchor = await link.elementHandle();
         const expectColor = color => page.waitForFunction(([a, value]) =>
