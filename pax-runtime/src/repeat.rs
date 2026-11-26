@@ -82,6 +82,8 @@ impl ToPaxValue for RepeatProperties {
 
 #[cfg(test)]
 mod tests {
+    mod click_outside;
+
     use super::*;
     use crate::api::math::Transform2;
     use crate::api::CommonProperties;

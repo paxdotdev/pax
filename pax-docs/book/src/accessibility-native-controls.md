@@ -217,6 +217,35 @@ adding a click handler to a drawing does not supply a button's keyboard and
 assistive-technology behavior. PhotoPicker's slotted design below is a
 specific API for a custom visible affordance.
 
+### Picking a color
+
+`ColorPicker` combines a saturation/lightness palette with native hue and
+opacity sliders and four RGBA fields. Give the component bounds for its palette
+and controls. Bind its `color` to a `Property<Color>` to update the preview
+when the user picks a color and update the picker when the app changes it.
+
+```pax
+<ColorPicker width=310px height=350px color=bind:paint/>
+<Rectangle x=330px width=80px height=80px fill={self.paint}/>
+```
+
+Drag or touch the palette to change saturation horizontally and lightness
+vertically. For exact values, commit a number from 0 to 255 in a channel field.
+An out-of-range entry shows the accepted range below its field and keeps
+the selected color.
+
+For a compact form, use `ColorPickerSwatch` with the same binding.
+
+```pax
+<ColorPickerSwatch width=34px height=34px color=bind:paint/>
+```
+
+Activating the swatch opens the editor beside it in a viewport overlay.
+Clicking another control on web dismisses the editor and operates that control
+in the same gesture. The swatch owns its open state and outside binding. See
+[outside clicks](event-handling-rust.md#dismiss-a-panel-with-an-outside-click) and the
+[color picker API](api/pax-std/forms/color_picker.md).
+
 ### Filtered selection with ComboBox
 
 [ComboBox](api/pax-std/forms/combo_box.md) combines an editable Textbox with a

@@ -1001,7 +1001,7 @@ impl ExpandedNode {
         root_node
     }
 
-    fn has_event_handlers(&self, handler_key: &str) -> bool {
+    pub(crate) fn has_event_handlers(&self, handler_key: &str) -> bool {
         borrow!(self.instance_node)
             .base()
             .get_handler_registry()
@@ -1011,6 +1011,25 @@ impl ExpandedNode {
                     .get(handler_key)
                     .is_some_and(|handlers| !handlers.is_empty())
             })
+    }
+
+    // A descendant can mount or rebind while an ancestor is kept for @out.
+    pub(crate) fn retained_for_input_exit(&self) -> bool {
+        if self.transition_phase.get() == TRANSITION_PHASE_EXIT {
+            return true;
+        }
+        let mut child = self.id;
+        let mut parent = self.template_parent.upgrade();
+        while let Some(node) = parent {
+            if node.transition_phase.get() == TRANSITION_PHASE_EXIT
+                || node.exiting_child_generations.borrow().contains_key(&child)
+            {
+                return true;
+            }
+            child = node.id;
+            parent = node.template_parent.upgrade();
+        }
+        false
     }
 
     fn handler_owner(self: &Rc<Self>, location: &HandlerLocation) -> Rc<Self> {
@@ -1025,7 +1044,7 @@ impl ExpandedNode {
         }
     }
 
-    fn run_event_handlers_for_key<T: Clone + 'static>(
+    pub(crate) fn run_event_handlers_for_key<T: Clone + 'static>(
         self: &Rc<Self>,
         handler_key: &str,
         event: &Event<T>,
@@ -1504,6 +1523,7 @@ impl ExpandedNode {
         let _scope = self.property_binding_scope.borrow().enter();
         // A replacement may change bindings or clipping dependencies. Revoke the
         // old generation before it can receive more of a frozen event batch.
+        context.outside_clicks.borrow_mut().remove(self.id);
         context.unregister_viewport_proximity(self.id.to_u32());
         let previous = self.stores.has_providers().then(|| {
             borrow!(self.properties_scope)
@@ -1547,6 +1567,7 @@ impl ExpandedNode {
         if self.attached.get() > 0 {
             context.refresh_scene_lighting_node(self);
             context.viewport_structure_changed();
+            context.outside_clicks.borrow_mut().register(self);
             context.register_viewport_proximity(self);
             context.invalidate_scene_geometry(self.id.to_u32());
         }
@@ -2095,6 +2116,7 @@ impl ExpandedNode {
             self.reset_removed_runtime_properties.set(true);
             self.reapply_runtime_settings(context);
         }
+        context.outside_clicks.borrow_mut().register(self);
         let mut started = started_here;
         for child in borrow!(self.mounted_children).iter() {
             started |= child.start_enter_transition_tree(context);
@@ -2118,6 +2140,7 @@ impl ExpandedNode {
         let generation = child.exit_retention_generation.get().wrapping_add(1);
         child.exit_retention_generation.set(generation);
         borrow_mut!(self.exiting_child_generations).insert(child.id, generation);
+        context.outside_clicks.borrow_mut().retire_subtree(&child);
         borrow_mut!(self.exiting_children).push(child);
         self.enable_exit_cleanup_listener(context);
     }
@@ -3693,6 +3716,7 @@ impl ExpandedNode {
         if !changed {
             return;
         }
+        context.outside_clicks.borrow_mut().remove(self.id);
         context.unregister_viewport_proximity(self.id.to_u32());
         self.refresh_properties_scope(&instance);
         self.mark_non_reactive_update_subtree_dirty();
@@ -3705,6 +3729,7 @@ impl ExpandedNode {
             context.mark_occlusion_dirty_for_node(self.id.to_u32());
             context.refresh_scene_lighting_node(self);
             context.viewport_structure_changed();
+            context.outside_clicks.borrow_mut().register(self);
             context.register_viewport_proximity(self);
             context.invalidate_scene_geometry(self.id.to_u32());
         }
@@ -3825,6 +3850,7 @@ impl ExpandedNode {
                 &self.changed_listener,
                 "changed listener",
             );
+            context.outside_clicks.borrow_mut().register(self);
             context.register_viewport_proximity(self);
             if let Some(parent) = self.render_parent_node() {
                 context.logical_children_changed(&parent);
@@ -4933,24 +4959,33 @@ impl ExpandedNode {
         source: PointerActivationSource,
         ctx: &Rc<RuntimeContext>,
     ) -> bool {
+        let touch = matches!(source, PointerActivationSource::Touch);
         if let Some(routing) = ctx.active_captured_input() {
-            return routing.activation(
-                ctx,
-                self,
-                &event,
-                matches!(source, PointerActivationSource::Touch),
-            );
+            return routing.activation(ctx, self, &event, touch);
         }
-        let handler_key =
-            self.pointer_activation_handler(matches!(source, PointerActivationSource::Touch));
+        let outside = ctx.outside_clicks.borrow().snapshot(self);
+        let cancelled = self.bubble_pointer_activation(&event, touch, ctx);
+        if let Some(recipients) = outside {
+            ctx.notify_click_outside(recipients, &event.args);
+        }
+        cancelled
+    }
+
+    fn bubble_pointer_activation(
+        self: &Rc<Self>,
+        event: &Event<Click>,
+        touch: bool,
+        ctx: &Rc<RuntimeContext>,
+    ) -> bool {
+        let handler_key = self.pointer_activation_handler(touch);
 
         if let Some(handler_key) = handler_key {
-            self.run_event_handlers_for_key(handler_key, &event, ctx);
+            self.run_event_handlers_for_key(handler_key, event, ctx);
         }
 
         if !event.propagation_stopped() {
             if let Some(parent) = self.template_parent.upgrade() {
-                return parent.dispatch_pointer_activation(event, source, ctx);
+                return parent.bubble_pointer_activation(event, touch, ctx);
             }
         }
         event.cancelled()

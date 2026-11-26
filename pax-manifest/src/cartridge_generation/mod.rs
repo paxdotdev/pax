@@ -179,6 +179,7 @@ impl PaxManifest {
         add("text_input", "TextInput");
         add("textbox_input", "TextboxInput");
         add("click", "Click");
+        add("click_outside", "Click");
         add("tap", "Click");
         add("mouse_down", "MouseDown");
         add("mouse_up", "MouseUp");

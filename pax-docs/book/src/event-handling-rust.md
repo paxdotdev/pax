@@ -94,6 +94,55 @@ qualifies as a tap. For immediate pressed feedback or dragging, use the
 lower-level mouse and touch events described under
 [Events and coordinates](#events-and-coordinates).
 
+### Dismiss a panel with an outside click
+
+Bind `@click_outside` to the subtree that should stay open. For example, a
+component with an `open: Property<bool>` field can show a panel like this:
+
+```pax
+if self.open {
+    <Group width=240px height=120px @click_outside=self.dismiss>
+        <Textbox width=200px height=32px/>
+        <Rectangle width=100% height=100% fill=WHITE/>
+    </Group>
+}
+```
+
+```rust
+pub fn dismiss(&mut self, _ctx: &NodeContext, _event: Event<Click>) {
+    self.open.set(false);
+}
+```
+
+A qualified mouse click or single-touch tap on another target delivers one
+outside event to this group. Clicking the Textbox or the panel background
+keeps it open. Pax uses the hit target and its template ancestors, so a
+descendant placed in an `Overlay` still counts as inside. Include the trigger
+in that same subtree if it should toggle the panel itself.
+
+The original target receives its ordinary activation. Each outside listener
+receives a separate event, even if the target stops propagation. Calling
+`prevent_default()` or `stop_propagation()` on the outside event affects only
+that notification. Keyboard activation of a native Button has no pointer
+location. For keyboard dismissal, handle Escape separately.
+
+Each mounted instance owns its registration. Removing an `if` branch or
+a `for` row unregisters its listeners. A row retained for an exit animation
+stops observing as soon as it leaves the active list. If its key returns during
+the animation, the rescued row resumes observing. Nodes mounted by an activation begin
+observing with the next activation. The same binding is available on a
+component in `@settings { @click_outside: dismiss }`.
+
+When input is routed through a captured frame, Pax uses that frame's template
+ancestry. A node must appear in the displayed frame and remain mounted to
+receive an outside event.
+
+On web, physical clicks and taps on native form controls take part in this
+routing. Other hosts deliver outside events for gestures they forward to Pax
+as pointer activations. A host control that reports only a semantic action,
+such as an AppKit Button or a UIKit control inside a Scroller, can activate
+without generating an outside event.
+
 ## Use event data
 
 An event's type tells you what data the handler receives. These are common
@@ -104,6 +153,7 @@ starting points:
 | `@button_click` | `Event<ButtonClick>` | Activation of a native Button |
 | `@submit` | `Event<Submit>` | `event.origin` (originating node ID), `event.trigger` |
 | `@click`, `@tap` | `Event<Click>` | `event.mouse.x`, `.y`, `.button`, `.modifiers` |
+| `@click_outside` | `Event<Click>` | Window position of a click or tap outside this subtree |
 | `@mouse_move` | `Event<MouseMove>` | Pointer position through `event.mouse` |
 | `@wheel` | `Event<Wheel>` | Window position, raw `delta_x` / `delta_y`, and modifiers |
 | `@scroll` | `Event<Scroll>` | Scroll deltas; use bound Scroller positions for reading progress |
@@ -953,6 +1003,12 @@ hit node. Releasing a drag over another control does not activate that control.
 The chassis click notification is consumed once; a standalone injected Click
 without a preceding press/release does not activate rendered content. Native
 Button activation continues to use `@button_click`.
+
+On web, a press on painted content covering a native control belongs to the
+painted content for the whole gesture. For example, dragging in a color picker
+and releasing over an exposed part of a button underneath leaves the button
+idle. This also holds if the picker closes during the gesture. A fresh click
+or tap on the exposed button activates it normally.
 
 On macOS, native Textboxes forward the press before AppKit's selection tracking
 loop and the release afterward, retaining native text focus. A completed click

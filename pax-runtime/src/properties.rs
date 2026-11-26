@@ -137,6 +137,7 @@ pub struct RuntimeContext {
     node_cache: RefCell<NodeCache>,
     last_topmost_element: RefCell<Weak<ExpandedNode>>,
     active_touch_targets: RefCell<HashMap<i64, ExpandedNodeIdentifier>>,
+    pub(crate) outside_clicks: RefCell<crate::click_outside::OutsideClicks>,
     pub(crate) mouse_input: RefCell<crate::mouse_input::MouseInput>,
     pub(crate) wheel_regions: RefCell<crate::wheel_input::WheelRegions>,
     queued_custom_events: RefCell<Vec<QueuedEvent>>,
@@ -326,6 +327,7 @@ impl RuntimeContext {
             retained_motion: Default::default(),
             #[cfg(test)]
             input_query_unindexed: Default::default(),
+            outside_clicks: Default::default(),
             viewport_proximity: Default::default(),
             canvas_node_light_masks: Default::default(),
             scene_lighting_nodes: Default::default(),
@@ -402,6 +404,7 @@ impl RuntimeContext {
             retained_motion: Default::default(),
             #[cfg(test)]
             input_query_unindexed: Default::default(),
+            outside_clicks: Default::default(),
             viewport_proximity: Default::default(),
             canvas_node_light_masks: Default::default(),
             scene_lighting_nodes: Default::default(),
@@ -478,6 +481,7 @@ impl RuntimeContext {
             retained_motion: Default::default(),
             #[cfg(test)]
             input_query_unindexed: Default::default(),
+            outside_clicks: Default::default(),
             viewport_proximity: Default::default(),
             canvas_node_light_masks: Default::default(),
             scene_lighting_nodes: Default::default(),
@@ -586,6 +590,7 @@ impl RuntimeContext {
             // Ancestor lights can affect canvases other than their own layer.
             self.mark_scene_lighting_dirty();
         }
+        self.outside_clicks.borrow_mut().remove(node.id);
         self.unregister_viewport_proximity(node.id.to_u32());
         borrow_mut!(self.scene_geometry).remove(node.id.to_u32());
         self.occlusion_state.borrow_mut().remove(node);

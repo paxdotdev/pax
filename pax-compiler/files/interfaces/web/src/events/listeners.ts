@@ -59,6 +59,9 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
     const wheelPassive = options.passive ?? true;
     let disposed = false;
     const pressedButtons = new Set<string>();
+    // The DOM can target a button beneath a canvas overlay for the entire
+    // gesture. A press denied to that button cannot become its release or click.
+    const coveredMousePresses = new Set<string>();
     let currentButton = "Left";
     let lastMouse = {x: 0, y: 0};
     let disposers: Array<() => void> = [];
@@ -85,6 +88,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
 
     let lastPositions = new Map<number, {x: number, y: number}>();
     let lastTouchTap: {x: number, y: number, timestamp: number} | undefined;
+    let touchStartedCovered = false;
     let activeTapTouchIdentifier: number | undefined;
     let activeTapStart: {x: number, y: number} | undefined;
     let coveredTouch: {target: Element; id: number; x: number; y: number; scrollX: boolean; scrollY: boolean} | undefined;
@@ -114,7 +118,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
 
     // SVG/CSS masks affect pixels but leave the covered native hit box intact.
     // Ask the runtime before allowing the browser to focus/activate that leaf.
-    // Move/up are intentionally not gated: an established native drag owns them.
+    // A native drag admitted on press keeps its normal movement and release.
     function nativePointerOccluded(target: EventTarget | null, x: number, y: number) {
         const leaf = target instanceof Element ? target.closest('.native-leaf[pax_id]') : null;
         if (!leaf) return false;
@@ -127,11 +131,11 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         event.stopPropagation();
     }
 
-    function isTouchGeneratedClick(evt: MouseEvent) {
-        let sourceCapabilities = (evt as any).sourceCapabilities;
-        if (sourceCapabilities?.firesTouchEvents) {
-            return true;
-        }
+    function isTouchGeneratedMouseEvent(evt: MouseEvent) {
+        const pointerType = (evt as PointerEvent).pointerType;
+        if (pointerType) return pointerType === 'touch';
+        const capabilities = (evt as MouseEvent & {sourceCapabilities?: {firesTouchEvents: boolean}}).sourceCapabilities;
+        if (capabilities) return capabilities.firesTouchEvents;
         if (lastTouchTap == undefined) {
             return false;
         }
@@ -143,10 +147,15 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
 
     addWindowListener('click', (evt) => {
         // detail=0 is keyboard/programmatic activation, which has no pointer ray.
-        const occluded = evt.detail !== 0 && nativePointerOccluded(evt.target, evt.clientX, evt.clientY);
-        if (occluded) blockNativePointer(evt);
-        if (isTouchGeneratedClick(evt)) {
+        if (evt.detail === 0) return;
+        const button = getMouseButton(evt);
+        const touchClick = isTouchGeneratedMouseEvent(evt);
+        const coveredAtPress = touchClick ? touchStartedCovered : coveredMousePresses.has(button);
+        coveredMousePresses.delete(button);
+        if (coveredAtPress || nativePointerOccluded(evt.target, evt.clientX, evt.clientY)) blockNativePointer(evt);
+        if (touchClick) {
             lastTouchTap = undefined;
+            touchStartedCovered = false;
             return;
         }
 
@@ -200,6 +209,8 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         // A release outside the browser may arrive only as a later move with no button held.
         if (evt.buttons === 0 && pressedButtons.size > 0) cancelMouse();
         let button = currentButton;
+        if (pressedButtons.has(button) && coveredMousePresses.has(button) &&
+            evt.target instanceof Element && mount.contains(evt.target)) blockNativePointer(evt);
         lastMouse = scenePoint(evt.clientX, evt.clientY);
         let event = {
             "MouseMove": {
@@ -254,30 +265,40 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         }
     }, {"passive": wheelPassive, "capture": true});
     addWindowListener('mousedown', (evt) => {
-        if (!(evt.target as Element)?.closest('input, textarea, select, button, [contenteditable]')) mount.focus({preventScroll: true});
-        let button = getMouseButton(evt);
+        const button = getMouseButton(evt);
+        // Check before dispatch: a Pax mouse-down handler can remove the overlay.
+        const touchMouse = isTouchGeneratedMouseEvent(evt);
+        const covered = (touchMouse && touchStartedCovered) || nativePointerOccluded(evt.target, evt.clientX, evt.clientY);
+        if (touchMouse && covered) touchStartedCovered = true;
+        if (covered) coveredMousePresses.add(button);
+        else coveredMousePresses.delete(button);
+        if (covered || !(evt.target as Element)?.closest('input, textarea, select, button, [contenteditable]')) {
+            mount.focus({preventScroll: true});
+        }
         currentButton = button;
         pressedButtons.add(button);
         lastMouse = scenePoint(evt.clientX, evt.clientY);
         let event = {
             "MouseDown": {
                 ...lastMouse,
-                "button": getMouseButton(evt),
+                "button": button,
                 "modifiers": convertModifiers(evt)
             }
         };
         let res = chassis.interrupt(event, []);
-        if (nativePointerOccluded(evt.target, evt.clientX, evt.clientY)) blockNativePointer(evt);
+        if (covered) blockNativePointer(evt);
         if (res.prevent_default) {
             evt.preventDefault();
         }
     }, true);
     addWindowListener('mouseup', (evt) => {
-        pressedButtons.delete(getMouseButton(evt));
+        const button = getMouseButton(evt);
+        pressedButtons.delete(button);
+        if (coveredMousePresses.has(button) && evt.target instanceof Element && mount.contains(evt.target)) blockNativePointer(evt);
         let event = {
             "MouseUp": {
                 ...scenePoint(evt.clientX, evt.clientY),
-                "button": getMouseButton(evt),
+                "button": button,
                 "modifiers": convertModifiers(evt)
             }
         };
@@ -321,13 +342,19 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         Array.from(evt.changedTouches).forEach(touch => {
             lastPositions.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
         });
-        let r1 = chassis.interrupt(event, []);
         const touch = evt.changedTouches[0];
         coveredTouch = undefined;
         const target = evt.target instanceof Element ? evt.target : null;
         const page = options.pageScrollDelegated?.();
         const barePage = page && target?.matches('.scroller-container[data-page-scroll-delegated]');
-        if (touch && target && !barePage && nativePointerOccluded(target, touch.clientX, touch.clientY)) {
+        const covered = !!touch && !!target && !barePage && nativePointerOccluded(target, touch.clientX, touch.clientY);
+        if (evt.touches.length === evt.changedTouches.length) {
+            touchStartedCovered = false;
+            lastTouchTap = undefined;
+        }
+        touchStartedCovered ||= covered;
+        let r1 = chassis.interrupt(event, []);
+        if (covered) {
             if (!page || target.closest('input, textarea, select, [contenteditable]:not([contenteditable=false]), video, audio')) {
                 // These controls can begin native editing or dragging on contact.
                 blockNativePointer(evt);

@@ -252,6 +252,9 @@ opt-level = 0
 [profile.dev.package.glass-bricks]
 opt-level = 0
 
+[profile.dev.package.pool-floor]
+opt-level = 0
+
 [profile.dev.package.rain-pane]
 opt-level = 0
 
@@ -268,6 +271,7 @@ curtain-panel = { path = "examples/fixtures/curtain-panel", default-features = f
 rim-refraction = { path = "examples/fixtures/rim-refraction", default-features = false }
 glass-bricks = { path = "examples/fixtures/glass-bricks", default-features = false }
 increment-cube = { path = "examples/increment-cube", default-features = false }
+pool-floor = { path = "examples/fixtures/pool-floor", default-features = false, features = ["demo"] }
 rain-pane = { path = "examples/fixtures/rain-pane", default-features = false }
 flashy = { path = "examples/fixtures/flashy", default-features = false }
 cuboid-router = { path = "examples/fixtures/cuboid-router", default-features = false }
@@ -564,3 +568,7 @@ path = "examples/fixtures/rim-refraction.rs"
 [[example]]
 name = "glass-bricks"
 path = "examples/fixtures/glass-bricks.rs"
+
+[[example]]
+name = "pool-floor"
+path = "examples/fixtures/pool-floor.rs"

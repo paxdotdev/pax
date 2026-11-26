@@ -1,0 +1,26 @@
+[package]
+name = "pool-floor"
+version = "0.39.1"
+edition = "2021"
+publish = false
+default-run = "pool-floor"
+
+[package.metadata.pax]
+title = "Pax / Pool floor"
+
+[dependencies]
+pax-kit = { path = "../../../pax-kit", version = "0.39.1", features = ["shaders"] }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["demo", "pax-kit/host"]
+demo = []
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "pool-floor"
+path = "src/main.rs"
+required-features = ["standalone"]

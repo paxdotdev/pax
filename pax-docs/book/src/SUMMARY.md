@@ -86,6 +86,7 @@
     - [forms](api/pax-std/forms.md)
       - [forms::button](api/pax-std/forms/button.md)
       - [forms::checkbox](api/pax-std/forms/checkbox.md)
+      - [forms::color_picker](api/pax-std/forms/color_picker.md)
       - [forms::combo_box](api/pax-std/forms/combo_box.md)
       - [forms::dialogs](api/pax-std/forms/dialogs.md)
       - [forms::dropdown](api/pax-std/forms/dropdown.md)

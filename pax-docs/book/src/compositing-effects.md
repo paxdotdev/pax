@@ -1165,6 +1165,28 @@ output alpha, and blurred edges do not change the native cutout. This deliberate
 approximation means native overlap need not match the filtered silhouette.
 Native pixels are not sampled by the shader.
 
+### Sunlit pool floors
+
+The [pool-floor fixture](https://github.com/paxdotdev/pax/tree/main/examples/fixtures/pool-floor)
+exports `PoolFloor`, a straight-down view of rippling light on a colored floor.
+Depend on the fixture package with `default-features = false` and import
+`pool_floor::PoolFloor` in the Rust module that owns the template.
+
+```pax
+<PoolFloor width=100% height=320px density=1.0 amplitude=0.65 speed=1.0
+    floor_color=rgb(0,197,211)/>
+```
+
+Density scales the pattern in logical pixels. A wider panel reveals more water.
+Amplitude controls refraction and focusing. Zero amplitude shows the base paint.
+Zero speed holds the current wave shapes, so a moving scoped light can still
+catch a reflection. The moving bands on the floor assume steady overhead sun.
+The wave troughs follow `floor_color`. White paint produces gray troughs and white crests.
+A scoped point, strip, or directional light adds a separate surface reflection.
+The effect uses the panel's own paint. Place native foreground text and controls
+above it as siblings. On CPU the panel displays the same floor color and the
+water clock stays idle.
+
 ### Built-in effects
 
 `GaussianBlur.radius` is Gaussian standard deviation in local logical pixels,

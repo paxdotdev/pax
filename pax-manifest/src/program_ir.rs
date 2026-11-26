@@ -794,6 +794,7 @@ mod tests {
         let mut manifest = build_manifest();
         let events = [
             ("submit", "Submit"),
+            ("click_outside", "Click"),
             ("mouse_cancel", "MouseCancel"),
             ("viewport_proximity_enter", "ViewportProximityEnter"),
             ("viewport_proximity_change", "ViewportProximityChange"),

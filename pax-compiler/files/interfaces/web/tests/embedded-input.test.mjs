@@ -170,12 +170,85 @@ test('covered native starts are blocked while engine events and keyboard activat
     const event={...h.event(h.outside),detail:1,preventDefault(){prevented++;},stopPropagation(){stopped++;}};
     h.mount.send('mousedown',event);
     h.mount.send('click',event);
-    assert.deepEqual(queries,[[42,20,30],[42,20,30]]);
+    assert.deepEqual(queries,[[42,20,30]]);
     assert.equal(prevented,2);assert.equal(stopped,2);
     assert.ok(h.interrupts[0].MouseDown);assert.ok(h.interrupts[1].Click);
     h.mount.send('click',{...event,detail:0});
+    assert.equal(h.interrupts.length,2,'keyboard activation has no pointer target');
     assert.equal(prevented,2,'keyboard activation is independent of visual occlusion');
     h.window.send('mousemove',{...event,buttons:1});
-    assert.equal(queries.length,2,'an established drag is not re-targeted as content moves');
+    assert.equal(queries.length,1,'an established drag is not re-targeted as content moves');
+    h.dispose();
+});
+
+test('a covered native press cannot activate on release after the control becomes exposed', () => {
+    let exposed = false;
+    const h = harness(undefined, () => exposed);
+    const control = h.outside;
+    h.mount.contains = target => target === h.mount || target === control;
+    control.closest = s => s === '.native-leaf[pax_id]' ? {getAttribute: () => '42'} :
+        s.includes('button') ? control : null;
+    const dispatch = (type, detail = 1) => {
+        let prevented = false, stopped = false;
+        const event = {...h.event(control), detail, buttons: type === 'mousemove' ? 1 : 0,
+            preventDefault() { prevented = true; }, stopPropagation() { stopped = true; }};
+        (type === 'mouseup' || type === 'mousemove' ? h.window : h.mount).send(type, event);
+        return {prevented, stopped};
+    };
+    const blocked = {prevented: true, stopped: true};
+    const allowed = {prevented: false, stopped: false};
+    assert.deepEqual(dispatch('mousedown'), blocked);
+    assert.equal(h.document.activeElement, h.mount, 'painted content gets the normal mount focus');
+    exposed = true;
+    assert.deepEqual(dispatch('mousemove'), blocked);
+    assert.deepEqual(dispatch('mouseup'), blocked);
+    assert.deepEqual(dispatch('click', 0), allowed, 'keyboard action between pointer events');
+    assert.deepEqual(dispatch('click'), blocked);
+    assert.deepEqual(h.interrupts.map(m => Object.keys(m)[0]), ['MouseDown', 'MouseMove', 'MouseUp', 'Click']);
+    assert.deepEqual(dispatch('mousedown'), allowed);
+    exposed = false;
+    assert.deepEqual(dispatch('mousemove'), allowed, 'an admitted native drag keeps tracking');
+    assert.deepEqual(dispatch('mouseup'), allowed);
+    exposed = true;
+    assert.deepEqual(dispatch('click'), allowed, 'a fresh outside click still operates the control');
+    h.dispose();
+});
+
+test('a covered touch cannot activate a newly exposed native control through compatibility mouse events', () => {
+    let exposed = false;
+    const h = harness(undefined, () => exposed);
+    h.mount.closest = s => s === '.native-leaf[pax_id]' ? {getAttribute: () => '42'} : null;
+    const finger = {identifier: 1, clientX: 120, clientY: 80};
+    const base = h.event(h.mount);
+    h.mount.send('touchstart', {...base, touches: [finger], changedTouches: [finger]});
+    exposed = true;
+    h.mount.send('touchend', {...base, touches: [], changedTouches: [finger]});
+    const stopped = [];
+    const mouse = (type, fromTouch) => {
+        const event = {...base, detail: 1, sourceCapabilities: {firesTouchEvents: fromTouch},
+            stopPropagation() { stopped.push(type); }};
+        (type === 'mouseup' ? h.window : h.mount).send(type, event);
+    };
+    // A physical mouse can click the same pixel immediately after a touch.
+    for (const type of ['mousedown', 'mouseup', 'click']) mouse(type, false);
+    assert.deepEqual(stopped, []);
+    for (const type of ['mousedown', 'mouseup', 'click']) mouse(type, true);
+    assert.deepEqual(stopped, ['mousedown', 'mouseup', 'click']);
+    assert.equal(h.interrupts.filter(m => m.Tap).length, 1);
+    assert.equal(h.interrupts.filter(m => m.Click).length, 1);
+    h.dispose();
+});
+
+test('a native control tap delivers one pointer activation and retains its browser action', () => {
+    const h = harness();
+    const control = h.outside;
+    control.closest = s => s === '.native-leaf[pax_id]' ? {getAttribute: () => '42'} : null;
+    const touch = {identifier: 5, clientX: 120, clientY: 80};
+    const event = {...h.event(control), changedTouches: [touch],
+        preventDefault() { assert.fail('native action was cancelled'); }};
+    h.mount.send('touchstart', {...event, touches: [touch]});
+    h.mount.send('touchend', {...event, touches: []});
+    h.mount.send('click', {...event, detail: 1, sourceCapabilities: {firesTouchEvents: true}});
+    assert.deepEqual(h.interrupts.map(m => Object.keys(m)[0]), ['TouchStart', 'TouchEnd', 'Tap']);
     h.dispose();
 });

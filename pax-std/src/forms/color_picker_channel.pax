@@ -1,0 +1,12 @@
+<Group y=3px width=100% height=28px>
+    <Text width=14px height=100% text={self._caption}
+        style={font_size: 12px, fill: WHITE, align_vertical: TextAlignVertical::Center}/>
+    <Textbox x=15px width={100% - 15px} height=100% corner_radius=4
+        background=rgb(45,52,57) stroke={paint: rgb(89,98,104), width: 1px}
+        style={font_size: 14px, fill: WHITE} text=bind:_draft @textbox_change=self.commit/>
+</Group>
+if !self._valid {
+    <Text x=15px y=31px width={100% - 15px} height=12px
+        text="0–255" style={font_size: 11px, fill: rgb(255,195,159)}/>
+}
+@settings { @mount: mount @pre_unmount: on_pre_unmount }

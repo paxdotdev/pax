@@ -1,5 +1,6 @@
 pub mod api;
 pub mod cartridge;
+mod click_outside;
 pub mod component;
 pub mod conditional;
 pub mod constants;

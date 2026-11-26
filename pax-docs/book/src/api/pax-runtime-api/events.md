@@ -24,7 +24,8 @@ The new checked state.
 ### `Click`
 User activates an element with a mouse click or single-touch tap.
 
-`@click` and `@tap` handlers both receive `Event<Click>`. A touch tap is
+`@click`, `@tap`, and `@click_outside` handlers receive `Event<Click>`.
+Outside handlers observe activations targeting another template subtree. A touch tap is
 emitted after touch end and normalized with `button` set to
 `MouseButton::Left` and no modifiers.
 Mouse activation requires a matching press and release on the same live hit node.

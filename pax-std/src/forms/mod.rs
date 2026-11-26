@@ -1,5 +1,6 @@
 pub mod button;
 pub mod checkbox;
+pub mod color_picker;
 pub mod combo_box;
 pub mod dialogs;
 pub mod dropdown;
@@ -14,6 +15,7 @@ pub mod tooltip;
 
 pub use button::*;
 pub use checkbox::*;
+pub use color_picker::{ColorPicker, ColorPickerSwatch};
 pub use combo_box::*;
 pub use dialogs::*;
 pub use dropdown::*;

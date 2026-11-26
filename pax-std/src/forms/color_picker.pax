@@ -1,0 +1,64 @@
+<Group width=100% height=100%>
+    <Group x=6px y=6px width={100% - 12px} height={100% - 116px}>
+        <Rectangle width=100% height=100% fill=TRANSPARENT
+            @mouse_down=self.mouse_down @mouse_move=self.mouse_move @mouse_up=self.mouse_up
+            @mouse_cancel=self.mouse_cancel
+            @touch_start=self.touch_start @touch_move=self.touch_move @touch_end=self.touch_end/>
+        <Ellipse x={(self._values.saturation * 100)%} y={((1.0 - self._values.lightness) * 100)%}
+            anchor=50% width=10px height=10px fill=TRANSPARENT stroke={paint: WHITE, width: 2px}/>
+        <Rectangle width=100% height=100% fill=@gradient {
+            linear: {start: [50%, 0%] end: [50%, 100%]}
+            0%: WHITE
+            50%: rgba(128, 128, 128, 0)
+            100%: BLACK
+        }/>
+        <Rectangle width=100% height=100% fill=@gradient {
+            linear: {start: [0%, 50%] end: [100%, 50%]}
+            0%: rgb(128, 128, 128)
+            100%: {self._values.pure_hue}
+        }/>
+    </Group>
+    <Group x=8px y={100% - 104px} anchor_y=0% width={100% - 16px} height=26px>
+        <Text class="label" width=58px height=100%>Hue</Text>
+        <Group x=60px width={100% - 60px} height=100%>
+            <Slider class="track" value={self._values.hue} @slider_change=self.hue_change/>
+            <Rectangle class="rail" fill=@gradient {
+                linear: {start: [0%, 50%] end: [100%, 50%]}
+                0%: rgb(255,0,0)
+                16.67%: rgb(255,255,0)
+                33.33%: rgb(0,255,0)
+                50%: rgb(0,255,255)
+                66.67%: rgb(0,0,255)
+                83.33%: rgb(255,0,255)
+                100%: rgb(255,0,0)
+            }/>
+        </Group>
+    </Group>
+    <Group x=8px y={100% - 76px} anchor_y=0% width={100% - 16px} height=26px>
+        <Text class="label" width=58px height=100%>Opacity</Text>
+        <Group x=60px width={100% - 60px} height=100%>
+            <Slider class="track" value={self._values.alpha} @slider_change=self.alpha_change/>
+            <Rectangle class="rail" fill=@gradient {
+                linear: {start: [0%, 50%] end: [100%, 50%]}
+                0%: {self._values.transparent}
+                100%: {self._values.opaque}
+            }/>
+            <Image class="rail" source={ImageSource::Data(48, 2, self._checker)} fit=ImageFit::Paint/>
+        </Group>
+    </Group>
+    <Group x=8px y={100% - 48px} anchor_y=0% width={100% - 16px} height=42px>
+        <ColorPickerChannel class="channel" index=0 color=bind:color/>
+        <ColorPickerChannel class="channel" x=25% index=1 color=bind:color/>
+        <ColorPickerChannel class="channel" x=50% index=2 color=bind:color/>
+        <ColorPickerChannel class="channel" x=75% index=3 color=bind:color/>
+    </Group>
+    <Rectangle width=100% height=100% fill=rgb(23,29,33) corner_radius=6/>
+</Group>
+
+@settings {
+    @mount: mount
+    .track { width: 100% height: 100% min: 0.0 max: 1.0 step: 0.001 accent: WHITE background: TRANSPARENT }
+    .rail { y: 50% width: 100% height: 10px }
+    .label { style: {font_size: 13px, fill: WHITE, align_vertical: TextAlignVertical::Center} }
+    .channel { anchor_x: 0% width: {25% - 4px} height: 100% }
+}

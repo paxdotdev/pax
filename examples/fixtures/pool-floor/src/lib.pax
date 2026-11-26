@@ -1,0 +1,75 @@
+<Scroller width=100% height=100% autosize=true>
+    <Stacker x=50% width={@viewport.width < 680 ? 100% - 24px : 100% - 64px} autosize=true gutter=16px>
+        <Group width=100% height={@viewport.width < 680 ? 70px : 90px}>
+            <Text x=0px y=100% width=68% height=60px
+                style={font: "Georgia", font_size: {@viewport.width < 680 ? 38px : 48px}, fill: rgb(14,51,56), align_vertical: TextAlignVertical::Center}>Pool floor</Text>
+        </Group>
+        <Frame id=stage width=100% height={@viewport.width < 680 ? 640px : 480px} corner_radius=12
+            @mouse_move=self.pointer @touch_start=self.touch>
+            if @gpu {
+                <Button id=pause x={100% - 16px} y=16px anchor_x=100% width=116px height=36px
+                    label={self.playing ? "Pause waves" : "Play waves"} @button_click=self.pause
+                    color=rgb(14,51,56) hover_color=rgb(28,70,72) corner_radius=18
+                    style={font: "Arial", font_size: 13px, fill: WHITE, align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center}/>
+            }
+            <LightFrame width=100% height=100%>
+                if self.mode == 1 {
+                    <Rectangle width=100% height=100% fill={self.floor_color}/>
+                } else {
+                    <PoolFloor id=pool width=100% height=100% floor_color={self.floor_color} density={self.density}
+                        amplitude={self.amplitude} speed={self.playing ? self.speed : 0.0}
+                        full_resolution={self.full_resolution} identity={self.mode == 2}/>
+                }
+                <LightSource x={(self.lamp_x)%} y={(self.lamp_y)%} width=1px height=1px
+                    z=94px radius=420px color=rgb(255,226,175) intensity=2.1 enabled={self.point_light}/>
+            </LightFrame>
+        </Frame>
+        <Stacker width=100% autosize=true gutter=14px>
+            if @gpu {
+                <Group width=100% height=55px>
+                    <Text class="label" width=48% text={"Wave density  ·  " + self.density + "×"}/>
+                    <Slider class="slider" id=density value=bind:density min=0.25 max=3.0 step=0.05/>
+                    <Text class="right_label" text={"Amplitude  ·  " + self.amplitude}/>
+                    <Slider class="slider" id=amplitude x=52% value=bind:amplitude min=0.0 max=1.0 step=0.01/>
+                </Group>
+            }
+            <Group width=100% height=67px>
+                if @gpu {
+                    <Text class="label" width=48% text={"Wave speed  ·  " + self.speed + "×"}/>
+                    <Slider class="slider" id=speed value=bind:speed min=0.0 max=3.0 step=0.05/>
+                } else {
+                    <Text class="label" width=48% height=62px>CPU preview · Solid floor paint</Text>
+                }
+                <Text class="right_label" text={self.valid_color ? "Floor color" : "Use RRGGBB or RRGGBBAA"}/>
+                <ColorPickerSwatch id=floor_swatch x=100% y=25px width=34px height=34px color=bind:floor_color/>
+                <Textbox id=floor_color x=52% y=25px anchor_x=0% width={48% - 42px} height=33px
+                    text=bind:hex @textbox_input=self.color background=rgb(253,253,248) corner_radius=5
+                    style={font: "Courier New", font_size: 14px, fill: rgb(14,51,56)}/>
+            </Group>
+            if @gpu {
+                <Group width=100% height={@viewport.width < 680 ? 96px : 48px}>
+                    <Button class="tool" id=light width={@viewport.width < 680 ? 48% : 31%}
+                        label={self.point_light ? "Pointer light on" : "Pointer light off"} @button_click=self.light/>
+                    <Button class="tool" id=quality x={@viewport.width < 680 ? 52% : 34.5%} width={@viewport.width < 680 ? 48% : 31%}
+                        label={self.full_resolution ? "Full resolution" : "Half resolution"} @button_click=self.quality/>
+                    <Button class="tool" id=comparison x={@viewport.width < 680 ? 0% : 69%} y={@viewport.width < 680 ? 48px : 0px}
+                        width={@viewport.width < 680 ? 48% : 31%}
+                        label={self.mode == 0 ? "View · Water" : (self.mode == 1 ? "View · Paint" : "View · Identity")} @button_click=self.compare/>
+                </Group>
+            }
+        </Stacker>
+        <Group width=100% height=20px/>
+    </Stacker>
+</Scroller>
+<Rectangle width=100% height=100% fill=rgb(244,245,239)/>
+
+@settings {
+    @mount: mount
+    .label { height: 22px style: {font: "Arial", font_size: 15px, fill: rgb(14,51,56)} }
+    .right_label { x: 52% anchor_x: 0% width: 48% height: 22px style: {font: "Arial", font_size: 15px, fill: rgb(14,51,56)} }
+    .slider { width: 48% y: 27px height: 23px anchor_x: 0% accent: rgb(7,112,119) background: rgb(211,223,217) corner_radius: 12 }
+    .tool {
+        height: 38px anchor_x: 0% anchor_y: 0% color: rgb(224,233,226) hover_color: rgb(204,222,215) corner_radius: 8
+        style: {font: "Arial", font_size: 13px, fill: rgb(14,51,56), align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center}
+    }
+}

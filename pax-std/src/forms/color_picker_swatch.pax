@@ -1,0 +1,31 @@
+<Group width=100% height=100% @viewport_proximity_change=self.position>
+    if self._open {
+        <Group width=100% height=100% @click_outside=self.dismiss>
+            <Overlay>
+                <ColorPicker anchor=0%
+                    x={(Math::max(8, Math::min(self._right, @viewport.width - 8) - 310))px}
+                    y={(self._bottom + 314 <= @viewport.height ? self._bottom + 6 : Math::max(8, Math::min(self._top - 306, @viewport.height - 308)))px}
+                    width={(Math::min(310, Math::max(0, @viewport.width - 16)))px}
+                    height={(Math::min(300, Math::max(0, @viewport.height - 16)))px}
+                    color=bind:color/>
+            </Overlay>
+            <Button class="trigger" label="Choose color" @button_click=self.toggle/>
+        </Group>
+    } else {
+        <Button class="trigger" label="Choose color" @button_click=self.toggle/>
+    }
+    <Ellipse width={100% - 2px} height={100% - 2px} x=50% y=50% fill={self.color}
+        stroke={paint: rgb(136,150,148), width: 1px}/>
+</Group>
+
+@settings {
+    @key_down: key_down
+    .trigger {
+        width: 100%
+        height: 100%
+        color: TRANSPARENT
+        hover_color: TRANSPARENT
+        corner_radius: 100
+        style: {fill: TRANSPARENT, font_size: 12px}
+    }
+}

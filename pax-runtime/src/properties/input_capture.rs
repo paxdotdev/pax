@@ -378,15 +378,7 @@ impl CapturedInputView {
         scroll_offsets: &HashMap<InputIdentity, (f64, f64)>,
         event: &Event<pax_runtime_api::Click>,
     ) -> Result<bool, InputCaptureError> {
-        self.dispatch_selected_handlers(
-            context,
-            target,
-            scroll_offsets,
-            event,
-            true,
-            false,
-            |node| node.pointer_activation_handler(false),
-        )
+        self.dispatch_activation(context, target, scroll_offsets, event, false)
     }
 
     /// Touch counterpart of `dispatch_click`, preserving source-specific aliases.
@@ -398,15 +390,67 @@ impl CapturedInputView {
         scroll_offsets: &HashMap<InputIdentity, (f64, f64)>,
         event: &Event<pax_runtime_api::Click>,
     ) -> Result<bool, InputCaptureError> {
-        self.dispatch_selected_handlers(
+        self.dispatch_activation(context, target, scroll_offsets, event, true)
+    }
+
+    fn dispatch_activation(
+        &self,
+        context: &Rc<RuntimeContext>,
+        target: CapturedInputTarget,
+        scroll_offsets: &HashMap<InputIdentity, (f64, f64)>,
+        event: &Event<pax_runtime_api::Click>,
+        touch: bool,
+    ) -> Result<bool, InputCaptureError> {
+        if self.resolve_target(context, target).is_none() {
+            return Ok(event.cancelled());
+        }
+        let observers = context.outside_clicks.borrow().snapshot_excluding(|| {
+            self.template_route(target)
+                .into_iter()
+                .map(|t| ExpandedNodeIdentifier(t.identity.id))
+        });
+        // Validate displayed observer geometry before any handler can change the scene.
+        let mut outside = Vec::new();
+        if let Some(observers) = observers {
+            for (id, generation) in observers {
+                let index = id.to_u32() as usize;
+                if self.nodes.get(index).is_some() {
+                    let recipient = self.target_at(index);
+                    if let Some(geometry) =
+                        self.event_context(context, recipient, scroll_offsets)?
+                    {
+                        outside.push((recipient, generation, geometry));
+                    }
+                }
+            }
+        }
+        let cancelled = self.dispatch_selected_handlers(
             context,
             target,
             scroll_offsets,
             event,
             true,
             false,
-            |node| node.pointer_activation_handler(true),
-        )
+            |node| node.pointer_activation_handler(touch),
+        )?;
+        for (recipient, generation, observer_context) in outside {
+            if let Some(node) = self.resolve_target(context, recipient) {
+                node.run_event_handlers_with_context(
+                    crate::constants::CLICK_OUTSIDE_HANDLERS,
+                    &Event::new(event.args.clone()),
+                    context,
+                    || observer_context,
+                    || {
+                        context
+                            .outside_clicks
+                            .borrow()
+                            .is_current(node.id, generation)
+                            && self.resolve_target(context, recipient).is_some()
+                    },
+                );
+            }
+        }
+        Ok(cancelled)
     }
 
     fn dispatch_selected_handlers<'a, T: Clone + 'static>(

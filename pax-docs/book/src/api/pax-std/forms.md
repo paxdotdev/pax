@@ -5,6 +5,7 @@
 ## Submodules
 - [forms::button](forms/button.md)
 - [forms::checkbox](forms/checkbox.md)
+- [forms::color_picker](forms/color_picker.md)
 - [forms::combo_box](forms/combo_box.md)
 - [forms::dialogs](forms/dialogs.md)
 - [forms::dropdown](forms/dropdown.md)

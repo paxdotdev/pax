@@ -344,6 +344,7 @@ lazy_static! {
             ("key_up", "Set Key Up event handler"),
             ("key_press", "Set Key Press event handler"),
             ("click", "Set Click event handler"),
+            ("click_outside", "Handle a click or tap outside this subtree"),
             ("tap", "Set Tap event handler"),
             ("mouse_down", "Set Mouse Down event handler"),
             ("mouse_up", "Set Mouse Up event handler"),
