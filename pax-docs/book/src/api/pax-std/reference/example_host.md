@@ -69,6 +69,11 @@ Type: `Property`<`Option`<`f64`>>
 
 Optional cloud density for a rim-enabled source tab. None preserves the painted face.
 
+##### `source_tab_pool_density`
+Type: `Property`<`Option`<`f64`>>
+
+Optional pool-wave density for a rim-enabled tab. The tab fill supplies the floor color.
+
 ##### `source_tab_fill`
 Type: `Property`<`Option`<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>>
 
@@ -179,6 +184,11 @@ Type: `Property`<`Option`<`f64`>>
 
 Optional cloud density for a rim-enabled source tab. None preserves the painted face.
 
+##### `source_tab_pool_density`
+Type: `Property`<`Option`<`f64`>>
+
+Optional pool-wave density for a rim-enabled tab. The tab fill supplies the floor color.
+
 ##### `source_tab_fill`
 Type: `Property`<`Option`<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>>
 
@@ -244,6 +254,11 @@ Light the source tab contour with scoped direct lights (GPU, shaders feature). D
 Type: `Property`<`Option`<`f64`>>
 
 Optional cloud density for a rim-enabled source tab. None preserves the painted face.
+
+##### `source_tab_pool_density`
+Type: `Property`<`Option`<`f64`>>
+
+Optional pool-wave density for a rim-enabled tab. The tab fill supplies the floor color.
 
 ##### `source_tab_fill`
 Type: `Property`<`Option`<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>>

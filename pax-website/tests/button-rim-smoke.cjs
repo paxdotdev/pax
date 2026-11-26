@@ -41,7 +41,7 @@ for (const width of [1280, 390]) {
     test(`one CMY cycle rolls through the moving pointer glint at ${width}px`, async () => {
         const browser = await chromium.launch({channel: 'chrome'});
         try {
-            // Hold the gas under the rim still so its changing coverage cannot
+            // Hold the water under the rim still so its moving highlights cannot
             // cross the detector's color threshold while sampling a parked light.
             const page = await browser.newPage({
                 viewport: {width, height: 950},

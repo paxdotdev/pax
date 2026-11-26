@@ -113,14 +113,6 @@ fn effect(p: vec2<f32>) -> vec4<f32> {
     let body = vec4<f32>(shell + (1.0 - shell_alpha) * gas * gas_alpha,
                          shell_alpha + (1.0 - shell_alpha) * gas_alpha);
 
-    let edge = min(length(bevel), 1.0);
-    if parameters.gas.w != 0.0 && edge >= 0.001 && scene_light_mask() != 0u {
-        let n = normalize(bevel);
-        let rim = scene_glint(p, n, vec2<f32>(-n.y, n.x), edge, vec4<f32>(0.95, 2.0, 0.98, 0.94),
-                              vec4<f32>(1, 1, 1, 0.75), 0.22, 0.32, 1.0, 2.0);
-        let rgb = rim.rgb * rim.a;
-        let glint_alpha = max(rgb.r, max(rgb.g, rgb.b));
-        return coverage * (vec4<f32>(rgb, glint_alpha) + (1.0 - glint_alpha) * body);
-    }
+    if parameters.gas.w != 0.0 { return coverage * button_glint(p, bevel, body); }
     return coverage * body;
 }

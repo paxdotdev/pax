@@ -1,6 +1,6 @@
 <Group width=100% height=100%>
     if self.show_close_tab {
-        <ExampleSourceToggle source_tab_fill={self.source_tab_fill} source_tab_rim={self.source_tab_rim} source_tab_cloud_density={self.source_tab_cloud_density} chrome_light_mode={self.chrome_light_mode} x=100% y=0px width={self.open ? 28px : 112px} height=24px open=bind:self.open/>
+        <ExampleSourceToggle source_tab_fill={self.source_tab_fill} source_tab_rim={self.source_tab_rim} source_tab_cloud_density={self.source_tab_cloud_density} source_tab_pool_density={self.source_tab_pool_density} chrome_light_mode={self.chrome_light_mode} x=100% y=0px width={self.open ? 28px : 112px} height=24px open=bind:self.open/>
     }
     // Center the 22.667px visual in the heading's 29px first line box. Keep
     // the larger native hit target, and align the sun with the 24px gutter.

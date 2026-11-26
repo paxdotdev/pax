@@ -1,7 +1,6 @@
 // A fixed overhead sun supplies the floor light. The camera looks straight down:
 // both axes use the same logical-pixel scale, independent of viewport and DPR.
-fn effect(p: vec2<f32>) -> vec4<f32> {
-    let source = sample_input0(p);
+fn pool_color(p: vec2<f32>, base: vec3<f32>) -> vec3<f32> {
     let time = parameters.wave.x;
     let frequency = 0.0582 * parameters.wave.y;
     let amplitude = parameters.wave.z;
@@ -57,7 +56,6 @@ fn effect(p: vec2<f32>) -> vec4<f32> {
     let sky = 0.18*smoothstep(-0.08,0.78,sky_angle) + 0.07*smoothstep(0.49,0.86,sky_angle);
     let shade = dot(slope,vec2<f32>(0.38,0.51)) + 0.59*chop*dot(ripple_slope,vec2<f32>(1.0,-0.52))
         + 0.28*sin(0.43*swell.x - 0.25*swell.y + 0.21*time);
-    let base = source.rgb / max(source.a, 0.0001);
     let lee = (det - 0.41)/0.28;
     let paint = base * (0.86 + 0.20*smoothstep(-1.2,0.85,shade)
         - 0.045*exp(-lee*lee)*smoothstep(-0.64,0.4,slope.y)*facing);
@@ -74,5 +72,5 @@ fn effect(p: vec2<f32>) -> vec4<f32> {
     let normal = normalize(vec3<f32>(-normal_xy * (0.56*amplitude), 1.0));
     let lamp = scene_specular(p, normal, 96.0);
     let lit = sunlit + (vec3<f32>(1.0)-sunlit)*(1.0-exp(-0.85*lamp));
-    return vec4<f32>(mix(base, lit, smoothstep(0.0,0.55,amplitude)) * source.a, source.a);
+    return mix(base, lit, smoothstep(0.0,0.55,amplitude));
 }

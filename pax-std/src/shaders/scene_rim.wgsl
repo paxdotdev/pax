@@ -115,3 +115,16 @@ fn scene_glint(p: vec2<f32>, normal: vec2<f32>, tangent: vec2<f32>, edge: f32,
     let exposure = smoothstep(threshold, threshold + 0.08, peak);
     return rim_tint(lobes, peak, chroma, rim, light_color, exposure, light_color.a, edge);
 }
+
+fn button_glint(p: vec2<f32>, bevel: vec2<f32>, body: vec4<f32>) -> vec4<f32> {
+    let edge = min(length(bevel), 1.0);
+    if edge >= 0.001 && scene_light_mask() != 0u {
+        let n = normalize(bevel);
+        let rim = scene_glint(p, n, vec2<f32>(-n.y, n.x), edge, vec4<f32>(0.95, 2.0, 0.98, 0.94),
+                              vec4<f32>(1, 1, 1, 0.75), 0.22, 0.32, 1.0, 2.0);
+        let rgb = rim.rgb * rim.a;
+        let glint_alpha = max(rgb.r, max(rgb.g, rgb.b));
+        return vec4<f32>(rgb, glint_alpha) + (1.0 - glint_alpha) * body;
+    }
+    return body;
+}

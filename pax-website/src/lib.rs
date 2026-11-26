@@ -159,7 +159,7 @@ pub struct Example {
 impl Example {
     pub fn mount(&mut self, ctx: &NodeContext) {
         site_theme::connect_preference(ctx, &self.light_mode);
-        site_theme::connect_cloud_clock(ctx);
+        site_theme::connect_button_clock(ctx);
     }
 
     pub fn move_pointer_light(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {

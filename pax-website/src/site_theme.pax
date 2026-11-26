@@ -215,7 +215,7 @@
     }
     .site_source_tab {
         source_tab_rim: true
-        source_tab_cloud_density: {self.light_mode ? None : Some(3.4)}
+        source_tab_pool_density: {self.light_mode ? None : Some(1.7)}
         source_tab_fill: {SiteTheme::action_surface(self.light_mode, @gpu)}
     }
     .site_button_outline_label {

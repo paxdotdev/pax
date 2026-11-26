@@ -53,6 +53,7 @@ pub mod corona;
 pub mod flashy;
 pub mod gaussian_blur;
 pub mod impressionist;
+pub mod pool_floor_surface;
 pub mod radiance;
 pub mod rim_refraction;
 
@@ -61,5 +62,6 @@ pub use corona::*;
 pub use flashy::*;
 pub use gaussian_blur::*;
 pub use impressionist::*;
+pub use pool_floor_surface::*;
 pub use radiance::*;
 pub use rim_refraction::*;

@@ -3,16 +3,6 @@
 <!-- tags: api, pax-std -->
 
 ## Structs
-### `ButtonCloudPhase`
-Shared drift phase in seconds for cloud buttons. Provide this store on an
-ancestor to animate visible faces from one clock. Without it, the gas is still.
-
-#### Properties
-##### `0`
-Type: `LocalProperty`<`f64`>
-
----
-
 ### `ButtonRim`
 Draw a thin scene-lit CMY contour on the alpha silhouette of a button face.
 Project vector artwork here and keep native controls and labels as siblings.
@@ -27,5 +17,22 @@ Enable the contour. Defaults to false, which draws the face directly.
 ##### `cloud_density`
 Type: `Property`<`Option`<`f64`>>
 
-Some(density) draws cloud glass with a 2 px rim. None draws the 1 px contour.
+Some(density) draws cloud glass with a 2 px rim when no pool density is set.
+With both densities unset the face uses the 1 px contour.
 For cloud glass, project an opaque silhouette and supply the CPU fallback as its paint.
+
+##### `pool_density`
+Type: `Property`<`Option`<`f64`>>
+
+Some(density) applies full-amplitude pool waves to the projected paint with a 2 px rim.
+Takes precedence over cloud glass. The shared surface phase controls wave time.
+
+---
+
+### `ButtonSurfacePhase`
+Shared phase in seconds for animated button faces. Visible buttons follow the
+host's clock. Holding the phase freezes the pattern while scene lights respond.
+
+#### Properties
+##### `0`
+Type: `LocalProperty`<`f64`>

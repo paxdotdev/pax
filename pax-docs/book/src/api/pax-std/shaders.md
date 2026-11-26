@@ -14,5 +14,6 @@ Enable the opt-in `shaders` Cargo feature on `pax-kit` or `pax-std`.
 - [shaders::flashy](shaders/flashy.md)
 - [shaders::gaussian_blur](shaders/gaussian_blur.md)
 - [shaders::impressionist](shaders/impressionist.md)
+- [shaders::pool_floor_surface](shaders/pool_floor_surface.md)
 - [shaders::radiance](shaders/radiance.md)
 - [shaders::rim_refraction](shaders/rim_refraction.md)

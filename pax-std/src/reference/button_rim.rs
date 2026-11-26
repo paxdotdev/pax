@@ -1,13 +1,16 @@
 #[cfg(feature = "shaders")]
 #[allow(unused_imports)]
-use crate::{CloudGlass, Group, RimRefraction};
+use crate::{CloudGlass, Group, PoolFloorSurface, RimRefraction};
 use pax_engine::api::{Event, NodeContext, Store, ViewportProximityChange};
 use pax_engine::*;
 
-/// Shared drift phase in seconds for cloud buttons. Provide this store on an
-/// ancestor to animate visible faces from one clock. Without it, the gas is still.
-pub struct ButtonCloudPhase(pub LocalProperty<f64>);
-impl Store for ButtonCloudPhase {}
+/// Shared phase in seconds for animated button faces. Visible buttons follow the
+/// host's clock. Holding the phase freezes the pattern while scene lights respond.
+pub struct ButtonSurfacePhase(pub LocalProperty<f64>);
+impl Store for ButtonSurfacePhase {}
+
+/// Original name for the shared cloud-button clock.
+pub use ButtonSurfacePhase as ButtonCloudPhase;
 
 /// Draw a thin scene-lit CMY contour on the alpha silhouette of a button face.
 /// Project vector artwork here and keep native controls and labels as siblings.
@@ -20,9 +23,13 @@ impl Store for ButtonCloudPhase {}
 pub struct ButtonRim {
     /// Enable the contour. Defaults to false, which draws the face directly.
     pub enabled: Property<bool>,
-    /// Some(density) draws cloud glass with a 2 px rim. None draws the 1 px contour.
+    /// Some(density) draws cloud glass with a 2 px rim when no pool density is set.
+    /// With both densities unset the face uses the 1 px contour.
     /// For cloud glass, project an opaque silhouette and supply the CPU fallback as its paint.
     pub cloud_density: Property<Option<f64>>,
+    /// Some(density) applies full-amplitude pool waves to the projected paint with a 2 px rim.
+    /// Takes precedence over cloud glass. The shared surface phase controls wave time.
+    pub pool_density: Property<Option<f64>>,
     pub _phase: Property<f64>,
 }
 
@@ -33,7 +40,7 @@ impl ButtonRim {
             return;
         }
         if visible {
-            if let Ok(phase) = ctx.with_store(|s: &mut ButtonCloudPhase| s.0.clone()) {
+            if let Ok(phase) = ctx.with_store(|s: &mut ButtonSurfacePhase| s.0.clone()) {
                 let deps = [phase.untyped()];
                 self._phase
                     .replace_with(LocalProperty::computed_with_cutoff(

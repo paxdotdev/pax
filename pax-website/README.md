@@ -353,19 +353,20 @@ center tablet on desktop and linked screenshots on compact layouts. The
 calculator retains its single-phone layout at every width; only compact layouts
 use the screenshot link. The oscilloscope occupies its own centered study.
 
-White button faces use cloud glass. The hero pairs it with obsidian and swaps
-their roles in light mode. White faces share the Cloud white tint, 95% gas
-opacity, 23 px billows and 4× drift. Density is 2.9 on hero and footer actions,
-3.9 on the fixed-nav Get Started button, and 3.4 on View Source tabs,
-including the close tab as its tip folds inward. The CMY contour extends
-2 logical pixels into white faces and 1 pixel into dark faces.
+White hero, footer and navigation buttons use the pool-floor shader over
+`#EEEEEE` paint, with wave density 1.50, amplitude 1.00 and speed 1.25.
+The hero swaps the white and obsidian faces in light mode. White View Source
+tabs use density 1.70, including when the tip folds into the close tab.
+The lit CMY contour extends 2 logical pixels into white faces and 1 pixel
+into dark faces.
 
-The website root supplies the pointer light and a shared 30 Hz gas phase.
-Visible cloud buttons sample the phase. Offscreen buttons disconnect, and the
-web reduced-motion preference freezes the gas. Each white face shades gas,
-shell and rim in one bounded GPU pass. Labels, links and icons stay outside
-its alpha capture. CPU rendering and the standalone blog header use their
-painted fallback. The GitHub icon's official source is
+The website supplies the pointer light and one shared 30 Hz wave clock.
+Visible water faces follow that clock. Reduced motion freezes the waves
+while the pointer light can still move. Each white face shades the water and
+its contour in one half-resolution GPU pass. The projected rectangle or path
+supplies the shape, with labels and hit targets above it. CPU rendering uses
+the painted face. The standalone blog header keeps its painted fallback.
+The GitHub icon's official source is
 recorded alongside the asset in `assets/branding/`.
 The island has a thin themed outline and no gradient overlay. Foreground surface ordering
 for a future soft edge is tracked in

@@ -87,6 +87,8 @@ pub struct ExampleHost {
     pub source_tab_rim: Property<bool>,
     /// Optional cloud density for a rim-enabled source tab. None preserves the painted face.
     pub source_tab_cloud_density: Property<Option<f64>>,
+    /// Optional pool-wave density for a rim-enabled tab. The tab fill supplies the floor color.
+    pub source_tab_pool_density: Property<Option<f64>>,
     /// Optional painted face for the source tab. None keeps the contrasting chrome color.
     pub source_tab_fill: Property<Option<Fill>>,
     /// Present the source viewer beside the preview (default true).
@@ -124,6 +126,7 @@ impl Default for ExampleHost {
             chrome_light_mode: Property::new(false),
             source_tab_rim: Property::new(false),
             source_tab_cloud_density: Property::new(None),
+            source_tab_pool_density: Property::new(None),
             source_tab_fill: Property::new(None),
             inline_source_viewer: Property::new(true),
             _drawer_width_px: Property::new(DESKTOP_DRAWER_WIDTH_PX),
@@ -391,6 +394,8 @@ pub struct ExampleSourceViewer {
     pub source_tab_rim: Property<bool>,
     /// Optional cloud density for a rim-enabled source tab. None preserves the painted face.
     pub source_tab_cloud_density: Property<Option<f64>>,
+    /// Optional pool-wave density for a rim-enabled tab. The tab fill supplies the floor color.
+    pub source_tab_pool_density: Property<Option<f64>>,
     /// Optional painted face for the source tab. None keeps the contrasting chrome color.
     pub source_tab_fill: Property<Option<Fill>>,
     /// Show the page-edge close tab (default true). Set false when the caller
@@ -415,6 +420,7 @@ impl Default for ExampleSourceViewer {
             chrome_light_mode: Property::new(false),
             source_tab_rim: Property::new(false),
             source_tab_cloud_density: Property::new(None),
+            source_tab_pool_density: Property::new(None),
             source_tab_fill: Property::new(None),
             show_close_tab: Property::new(true),
             _title_height: Property::default(),
@@ -505,6 +511,8 @@ pub struct ExampleSourceToggle {
     pub source_tab_rim: Property<bool>,
     /// Optional cloud density for a rim-enabled source tab. None preserves the painted face.
     pub source_tab_cloud_density: Property<Option<f64>>,
+    /// Optional pool-wave density for a rim-enabled tab. The tab fill supplies the floor color.
+    pub source_tab_pool_density: Property<Option<f64>>,
     /// Optional painted face for the source tab. None keeps the contrasting chrome color.
     pub source_tab_fill: Property<Option<Fill>>,
     /// Two-way bind to the owning source viewer's open state.

@@ -1187,6 +1187,12 @@ The effect uses the panel's own paint. Place native foreground text and controls
 above it as siblings. On CPU the panel displays the same floor color and the
 water clock stays idle.
 
+The fixture uses the standard [`PoolFloorSurface` shader](api/pax-std/shaders/pool_floor_surface.md). To fit water to a
+custom outline, project its painted shape into the shader and supply a wave
+`phase` in seconds. The shape supplies both floor color and alpha coverage.
+See [source tabs and button faces](components-composition.md#inputs-and-state-ownership) for
+the `ButtonRim` preset.
+
 ### Built-in effects
 
 `GaussianBlur.radius` is Gaussian standard deviation in local logical pixels,

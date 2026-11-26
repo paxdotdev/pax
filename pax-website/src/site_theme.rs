@@ -73,9 +73,13 @@ impl SiteTheme {
         }
     }
 
+    pub fn pool_paint() -> Color {
+        Color::from_hex("EEEEEE")
+    }
+
     pub fn action_surface(light: bool, gpu: bool) -> Fill {
         if !light && gpu && cfg!(feature = "app") {
-            Color::WHITE.into()
+            Self::pool_paint().into()
         } else {
             Self::action_face(light)
         }
@@ -246,10 +250,10 @@ mod tests {
     }
 }
 
-/// Share one 30 Hz phase across visible cloud faces. An OS preference change
+/// Share one 30 Hz phase across visible pool-floor buttons. An OS preference change
 /// disconnects the runtime clock so a frozen face can reuse its retained output.
 #[cfg(feature = "app")]
-pub(crate) fn connect_cloud_clock(ctx: &NodeContext) {
+pub(crate) fn connect_button_clock(ctx: &NodeContext) {
     let phase = LocalProperty::new(0.);
     let millis = ctx.elapsed_millis.clone();
     let set_motion = {
@@ -265,14 +269,14 @@ pub(crate) fn connect_cloud_clock(ctx: &NodeContext) {
                 // A plain computed phase is lazy while there are no visible consumers.
                 phase.replace_with(LocalProperty::computed(
                     move || {
-                        held + (millis.get().saturating_sub(start) * 30 / 1000) as f64 * (4. / 30.)
+                        held + (millis.get().saturating_sub(start) * 30 / 1000) as f64 * (1.25 / 30.)
                     },
                     &deps,
                 ));
             }
         }
     };
-    ctx.provide_store(ButtonCloudPhase(phase))
+    ctx.provide_store(ButtonSurfacePhase(phase))
         .expect("website owns its button clock");
     #[cfg(target_arch = "wasm32")]
     if let Some(query) = web_sys::window()

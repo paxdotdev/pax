@@ -118,6 +118,7 @@
       - [shaders::flashy](api/pax-std/shaders/flashy.md)
       - [shaders::gaussian_blur](api/pax-std/shaders/gaussian_blur.md)
       - [shaders::impressionist](api/pax-std/shaders/impressionist.md)
+      - [shaders::pool_floor_surface](api/pax-std/shaders/pool_floor_surface.md)
       - [shaders::radiance](api/pax-std/shaders/radiance.md)
       - [shaders::rim_refraction](api/pax-std/shaders/rim_refraction.md)
   - [pax-kit](api/pax-kit/index.md)

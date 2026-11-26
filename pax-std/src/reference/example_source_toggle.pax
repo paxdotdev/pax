@@ -16,7 +16,7 @@
         }>{self.open ? "×" : "VIEW SOURCE"}</Button>
     // Fold the convex tip into a concave notch through a flat edge. Move the
     // shoulders too, keeping the leftmost point at x=0 throughout the morph.
-    <ButtonRim width=100% height=100% enabled={self.source_tab_rim} cloud_density={self.source_tab_cloud_density}>
+    <ButtonRim width=100% height=100% enabled={self.source_tab_rim} cloud_density={self.source_tab_cloud_density} pool_density={self.source_tab_pool_density}>
         <Path width=100% height=100% fill={self.source_tab_fill ?? (self.chrome_light_mode ? BLACK : WHITE)} elements={[
             PathElement::Point((Math::max(0, 8 - 16 * self._open_progress))px, 0%),
             PathElement::Line,

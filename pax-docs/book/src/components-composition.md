@@ -377,6 +377,21 @@ the native label and input control alongside it.
 </ButtonRim>
 ```
 
+For a water-filled tab, set `source_tab_rim=true`,
+`source_tab_pool_density={Some(1.7)}` and `source_tab_fill=rgb(238,238,238)`.
+You can also project a painted shape into `ButtonRim`.
+
+```pax
+<ButtonRim width=120px height=40px enabled=true pool_density={Some(1.5)}>
+    <Rectangle width=100% height=100% corner_radius=6 fill=rgb(238,238,238)/>
+</ButtonRim>
+```
+
+The pool uses the projected paint as the floor, full-amplitude waves, and a
+two-pixel scene-lit rim. Provide a `ButtonSurfacePhase` store on an ancestor
+to animate visible faces from a shared phase in seconds. Holding the phase
+freezes the waves. `pool_density` takes precedence if cloud glass is also enabled.
+
 For a cloud-filled tab, combine `source_tab_rim=true` with
 `source_tab_cloud_density=Some(3.4)` and an opaque face. On another button,
 set `cloud_density=Some(2.9)` on `ButtonRim`. Both use the 2 px cloud bevel.

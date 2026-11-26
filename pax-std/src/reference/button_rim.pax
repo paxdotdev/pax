@@ -1,9 +1,15 @@
 if self.enabled && @gpu {
-    if self.cloud_density != None {
+    if self.pool_density != None || self.cloud_density != None {
         <Group width=100% height=100% @viewport_proximity_change=self.cloud_visibility @unmount=self.pause_cloud>
-            <CloudGlass width=100% height=100% density={self.cloud_density ?? 2.9} phase={self._phase} button_rim=true>
-                slot()
-            </CloudGlass>
+            if self.pool_density != None {
+                <PoolFloorSurface width=100% height=100% density={self.pool_density ?? 1.0} amplitude=1.0 phase={self._phase} button_rim=true>
+                    slot()
+                </PoolFloorSurface>
+            } else {
+                <CloudGlass width=100% height=100% density={self.cloud_density ?? 2.9} phase={self._phase} button_rim=true>
+                    slot()
+                </CloudGlass>
+            }
         </Group>
     } else {
         <RimRefraction width=100% height=100% scene_lighting=true rim_width=1 light_span=0.22 light_threshold=0.32 hue_cycles=1 hue_travel=2
