@@ -44,8 +44,9 @@ public enum PaxWheelInput {
 
     /// Returns true when a Pax handler prevented the native default.
     public static func forward(_ event: NSEvent, from view: NSView) -> Bool {
-        guard let send = NativeInterruptDispatcher.shared.wheelInterrupt,
-              let point = NativeInterruptDispatcher.shared.convertWindowPoint(
+        let dispatcher = view.paxDispatcher
+        guard let send = dispatcher.wheelInterrupt,
+              let point = dispatcher.convertWindowPoint(
                 event.locationInWindow, in: event.window ?? view.window
               ) else { return false }
         // An unhandled wheel can traverse nested NSScrollViews and then the canvas.

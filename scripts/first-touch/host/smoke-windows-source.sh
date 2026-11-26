@@ -117,7 +117,10 @@ if ($legacyMatches) {
     $legacyMatches | Out-String | Write-Error
 }
 
-"source-linked Windows smoke build passed at $SmokePath"
+$lifetimeCheck = Join-Path $env:TEMP "pax-check-foreground.exe"
+Invoke-NativeCommand -FilePath "rustc.exe" -ArgumentList @("--edition=2021", (Join-Path $SourcePath "scripts/first-touch/guest/check-foreground.rs"), "-o", $lifetimeCheck)
+Invoke-NativeCommand -FilePath $lifetimeCheck -ArgumentList @($SmokePath)
+"source-linked Windows build and foreground lifetime checks passed at $SmokePath"
 POWERSHELL
 
 cleanup() {

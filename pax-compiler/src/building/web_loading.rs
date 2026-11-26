@@ -81,6 +81,7 @@ pub(super) fn compile(
             "PAX_MANIFEST_OUTPUT",
             pax_dir.join("manifest-wasm32-unknown-unknown.json"),
         );
+    crate::configure_dev_optimization(&mut cmd, ctx.optimized_dev);
     layout.configure_cartridge(&mut cmd);
     if ctx.is_release || ctx.profile_wasm_size {
         cmd.arg("--release");

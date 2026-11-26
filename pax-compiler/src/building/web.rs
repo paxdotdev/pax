@@ -415,6 +415,8 @@ fn expose_selected_web_entrypoint(interface_path: &Path, entrypoint: &str) -> ey
 fn web_build_mode(ctx: &RunContext) -> &'static str {
     if ctx.profile_wasm_size {
         "profiling"
+    } else if ctx.optimized_dev {
+        "optimized-dev"
     } else if ctx.is_release {
         "release"
     } else {
@@ -478,6 +480,7 @@ pub(crate) fn compile_web_cartridge(
         )
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
+    crate::configure_dev_optimization(&mut cmd, ctx.optimized_dev);
     layout.configure_cartridge(&mut cmd);
 
     if is_profiling {
@@ -570,21 +573,17 @@ fn materialize_web_build_dir(
         .join(build_mode_name)
         .join(target_str_lower);
 
-    timings.record("copy build output", || {
-        // Clean build dir
-        let _ = fs::remove_dir_all(&build_dest);
-
-        // Copy files to build dir
-        let res = copy_dir_recursively(&build_src, &build_dest, &DIR_IGNORE_LIST_WEB);
-        if let Err(e) = res {
-            eprintln!(
-                "Failed to copy built files from {} to {}.  {:?}",
-                &build_src.to_str().unwrap(),
-                &build_dest.to_str().unwrap(),
-                e
-            );
+    timings.record("copy build output", || -> eyre::Result<()> {
+        if build_dest.exists() {
+            fs::remove_dir_all(&build_dest)?;
         }
-    });
+        copy_dir_recursively(&build_src, &build_dest, &DIR_IGNORE_LIST_WEB).map_err(|e| {
+            eyre!(
+                "Could not package Web build at {}: {e}",
+                build_dest.display()
+            )
+        })
+    })?;
 
     timings.record("bundle stats", || {
         print_web_bundle_stats(&build_dest, build_mode_name)
@@ -661,6 +660,8 @@ pub fn rebuild_staged_web_cartridge(
 ) -> Result<WebLogicReloadBuild, eyre::Report> {
     let process_child_ids = Arc::new(Mutex::new(vec![]));
     let ctx = RunContext {
+        host_app: None,
+        host_session: None,
         port: None,
         target: RunTarget::Web,
         project_path: project_root.clone(),
@@ -670,6 +671,7 @@ pub fn rebuild_staged_web_cartridge(
         process_child_ids: process_child_ids.clone(),
         should_run_designtime: true,
         hot_reload: None,
+        optimized_dev: false,
         is_release: false,
         profile_wasm_size: false,
         ios_device: None,
@@ -791,7 +793,7 @@ pub(crate) fn finish_web_project_with_cartridge(
     Ok(build_dest)
 }
 
-fn prepare_web_dev_session(
+pub(crate) fn prepare_web_dev_session(
     project_root: &Path,
     pax_dir: &PathBuf,
 ) -> Result<DevSession, eyre::Report> {

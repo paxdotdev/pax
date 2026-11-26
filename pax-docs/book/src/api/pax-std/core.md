@@ -14,3 +14,4 @@
 - [core::router](core/router.md)
 - [core::scroller](core/scroller.md)
 - [core::text](core/text.md)
+- [core::inline_frame](core/inline_frame.md)

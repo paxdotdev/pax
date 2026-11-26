@@ -440,6 +440,30 @@ pub extern "C" fn pax_dealloc_engine(container: *mut PaxEngineContainer) {
     }
 }
 
+/// Connect one independently mounted designtime engine to its guest session.
+#[cfg(feature = "designtime")]
+#[no_mangle]
+pub unsafe extern "C" fn pax_designtime_connect_local_server(
+    container: *mut PaxEngineContainer,
+    address: *const u8,
+    length: usize,
+) -> bool {
+    let Some(container) = container.as_ref() else {
+        return false;
+    };
+    if address.is_null() || length == 0 || length > 65536 {
+        return false;
+    }
+    let Ok(address) = std::str::from_utf8(std::slice::from_raw_parts(address, length)) else {
+        return false;
+    };
+    container
+        .designtime_manager
+        .borrow_mut()
+        .connect_local_server(address)
+        .is_ok()
+}
+
 /// Install the cartridge's independent shutdown scheduler before pax_init.
 /// This token must outlive the engine and must enqueue onto the UI thread.
 #[no_mangle]

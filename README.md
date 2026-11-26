@@ -37,7 +37,9 @@ pax-cli run --target web
 
 The CLI scaffolds the project, builds the selected target, and serves the web
 app with template hot reload. Open the printed URL. Pax macros compile the UI
-without an application `build.rs`.
+without an application `build.rs`. On Mac, the packaged CLI uses Pax Portal Agent.
+Use `pax-cli run --bg` to leave a preview running or `pax-cli run --fg` to run it
+directly. Windows and Linux run in the foreground. [Run modes](pax-docs/book/src/getting-started.md#run-it-on-the-web).
 
 ```sh
 pax-cli run --target web --port 8080

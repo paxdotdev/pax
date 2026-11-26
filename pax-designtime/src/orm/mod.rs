@@ -694,6 +694,15 @@ fn manifests_match(left: &PaxManifest, right: &PaxManifest) -> bool {
     }
 }
 
+/// Digest shared by runtimes and project servers for template compatibility.
+pub fn runtime_abi_digest(manifest: &PaxManifest) -> Result<String> {
+    use sha2::{Digest, Sha256};
+    Ok(format!(
+        "{:x}",
+        Sha256::digest(runtime_abi_identity(manifest)?)
+    ))
+}
+
 /// Identity of the static runtime descriptors generated for a cartridge.
 /// Handler identity models the runtime's first-match lookup: order between
 /// distinct names and same-signature duplicates after the first match are

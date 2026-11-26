@@ -26,7 +26,7 @@ Open the local URL printed by the last command. The CLI builds, packages, and
 serves the application. Installing the CLI compiles the development tools once;
 the first project build also compiles its dependencies. Your application needs
 no `build.rs` or Cargo runner configuration. `.pax` edits reload in the running
-session; Rust changes require rebuilding and restarting.
+session. On a Mac, Pax Portal Agent rebuilds active managed previews after Rust edits. For a direct run, rebuild and restart after changing Rust.
 
 Choose a web port or see the available development options:
 
@@ -239,6 +239,17 @@ ready, the terminal prints a local URL beginning with `http://127.0.0.1:`. Open
 that URL in your browser. Use the address from your current run, since the port
 can change between sessions.
 
+On macOS, the packaged CLI starts **Pax Portal Agent** on demand for Web and Apple development. A plain run stays attached and streams compiler output. Two terminals in the same project share one server. Closing the last attached terminal stops the project, including a build still in progress. Separate worktrees have separate servers. The desktop app is optional.
+
+| Command | What happens |
+| --- | --- |
+| `pax-cli run` | On Mac, attach to the managed preview. On Windows and Linux, serve directly in the terminal. |
+| `pax-cli run --bg` | On Mac, keep the run alive and print its URL or native runtime ID when ready. Running it in a second terminal promotes the existing run. |
+| `pax-cli run --fg` | Serve directly in the terminal on any workstation. Ctrl-C ends the run. |
+| `pax-cli stop` | On Mac, stop the managed project in the current directory for all clients. Use `--path` to select another directory. |
+
+The long flag names are `--background` and `--foreground`. Windows and Linux reject an explicit background request before building. On Mac, Portal’s **Sessions → Keep running** also preserves the current run. Source-built Mac CLIs can use an installed matching Agent, or run directly with `--fg`. [Managed previews and target selection](developer-workflow.md#optimized-development-previews).
+
 Use a browser with WebAssembly SIMD support, such as Safari 16.4 or newer.
 See [web build profiles](developer-workflow.md#web-build-profiles) for the
 scalar build option and custom compiler flags.
@@ -349,7 +360,7 @@ rebuilding and restarting on either path. See
 | `wasm-pack` is not found | Run `cargo install wasm-pack --version 0.15.0`, then check `wasm-pack --version`. |
 | A compiler, linker, or system library is missing | Revisit your [workstation setup](#prepare-your-workstation). On Windows, use the PowerShell session where you loaded the MSVC environment. |
 | The project destination already exists | Choose a new directory name. Keep any existing project files. |
-| The browser cannot connect | Check that `pax-cli run` is still running and use the local URL from that session. |
+| The browser cannot connect | Use the URL printed by the run. Check the terminal for an attached run or Portal’s Sessions view for a background run. |
 
 For more build detail, run `pax-cli run --target=web --verbose`. If compilation
 fails, start with the first reported error. When asking for help, include that
@@ -382,8 +393,7 @@ file selection, inline templates, and CI usage.
 ### Hot reloading
 
 Debug `pax-cli run` sessions reload `.pax` templates by default. Bare Cargo runs
-require rebuilding and restarting after source edits. For Rust changes, stop and rerun
-the app on every target; refresh the browser after rebuilding. See
+require rebuilding and restarting after source edits. Managed Mac runs rebuild active targets after Rust changes. For a direct run, stop and rerun the app and refresh the browser. See
 [Hot reloading](developer-workflow.md#hot-reloading) for the mode matrix,
 target boundaries, and project configuration.
 

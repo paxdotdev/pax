@@ -30,3 +30,10 @@ void pax_host_request(void *session, const uint8_t *data, size_t len, void *cont
 // macOS only. Configure a fresh session before run; sizes are logical points.
 int32_t pax_host_window_options(void *session, const uint8_t *title, size_t len,
     double width, double height, double min_width, double min_height, bool resizable);
+
+// macOS only. Associate a trusted Pax .app with an InlineFrame name before mounting.
+int32_t pax_host_register_inline_app(void *session, const uint8_t *name, size_t name_len,
+    const uint8_t *bundle_path, size_t path_len);
+
+// macOS only. Authorize this trusted directory of CLI guest descriptors before mounting.
+int32_t pax_host_allow_inline_session_directory(void *session, const uint8_t *path, size_t len);

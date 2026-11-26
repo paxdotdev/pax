@@ -34,6 +34,17 @@ pub enum AgentMessage {
     LLMRequest(LLMRequest),
     LLMPartialResponse(LLMPartialResponse),
     LLMFinalResponse(LLMFinalResponse),
+    RuntimeHello {
+        runtime: String,
+        cartridge_abi: String,
+        #[serde(default)]
+        capabilities: Vec<String>,
+    },
+    TemplateResult {
+        revision: RevisionStamp,
+        error: Option<String>,
+    },
+    ReloadPage,
 }
 
 /// Identifies the executable logic generation and the mutable template snapshot

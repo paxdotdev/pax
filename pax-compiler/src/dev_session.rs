@@ -174,6 +174,138 @@ pub struct DevSession {
     pub last_seen_ms: u128,
 }
 
+/// A connected runtime and its last acknowledged template revision.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RuntimeInstance {
+    pub id: String,
+    pub target: String,
+    pub cartridge_abi: String,
+    pub capabilities: Vec<String>,
+    pub applied: Option<pax_designtime::messages::RevisionStamp>,
+    pub rejection: Option<String>,
+}
+
+/// Latest build attempt and the last successfully published artifact for a target.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TargetBuild {
+    pub generation: u64,
+    pub artifact: Option<PathBuf>,
+    pub building: bool,
+    pub error: Option<String>,
+}
+
+/// A web development server that can host additional native preview clients.
+/// Its registration lives independently of the browser's inspection session.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ProjectServer {
+    pub id: String,
+    pub project_root: PathBuf,
+    pub port: u16,
+    pub cartridge_abi: String,
+    pub template_reload: bool,
+    #[serde(default)]
+    pub provides_instances: bool,
+    /// Supports project-scoped Apple mobile preview connections.
+    #[serde(default)] pub mobile_previews:bool,
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub builds: std::collections::BTreeMap<String, TargetBuild>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub instances: Vec<RuntimeInstance>,
+    /// Optional identity supplied by the process supervisor that launched this server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub launch_id: Option<String>,
+}
+
+pub(crate) fn cartridge_abi(manifest: &pax_manifest::PaxManifest) -> Result<String, Report> {
+    pax_designtime::orm::runtime_abi_digest(manifest).map_err(|error| eyre!("{error}"))
+}
+
+pub(crate) struct ProjectServerRegistration(PathBuf);
+
+impl ProjectServerRegistration {
+    pub fn publish(server: &ProjectServer) -> Result<Self, Report> {
+        Ok(Self(Self::update(server)?))
+    }
+
+    pub(super) fn update(server: &ProjectServer) -> Result<PathBuf, Report> {
+        let path = global_dev_dir()?
+            .join("servers")
+            .join(format!("{}.json", server.id));
+        atomic_write_json(&path, server)?;
+        Ok(path)
+    }
+}
+
+impl Drop for ProjectServerRegistration {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
+}
+
+/// List Web servers whose registry identity matches their live loopback endpoint.
+/// An optional project path restricts discovery to that canonical project root.
+pub fn live_project_servers(root: Option<&Path>) -> Result<Vec<ProjectServer>, Report> {
+    let root = root.map(Path::canonicalize).transpose()?;
+    if let Some(root) = &root {
+        if !root.is_dir() {
+            return Err(eyre!("Project path {} is not a directory", root.display()));
+        }
+    }
+    let dir = global_dev_dir()?.join("servers");
+    if !dir.is_dir() {
+        return Ok(Vec::new());
+    }
+    let client = reqwest::blocking::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(2))
+        .build()?;
+    let mut found = Vec::new();
+    for entry in fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+            continue;
+        }
+        let Some(mut server) = read_json_if_exists::<ProjectServer>(&path).ok().flatten() else {
+            continue;
+        };
+        if root
+            .as_ref()
+            .is_some_and(|root| root != &server.project_root)
+        {
+            continue;
+        }
+        // A stale record's port can already belong to a different process.
+        let identity = client
+            .get(format!("http://127.0.0.1:{}/_pax/server-id", server.port))
+            .send()
+            .and_then(|response| response.error_for_status()?.text());
+        if identity.ok().as_deref() != Some(&server.id) {
+            continue;
+        }
+        if server.provides_instances || !server.builds.is_empty() {
+            server.instances = client
+                .get(format!("http://127.0.0.1:{}/_pax/instances", server.port))
+                .send()
+                .and_then(|r| r.error_for_status()?.bytes())
+                .ok()
+                .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+                .unwrap_or_default();
+        }
+        found.push(server);
+    }
+    found.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok(found)
+}
+
+pub(crate) fn live_project_server(root: &Path) -> Result<Option<ProjectServer>, Report> {
+    let mut servers = live_project_servers(Some(root))?;
+    if servers.len() > 1 {
+        return Err(eyre!("Multiple web development servers are serving {}. Stop the duplicate before attaching a native preview.", root.display()));
+    }
+    Ok(servers.pop())
+}
+
 impl DevSession {
     pub fn is_stale(&self, now_ms: u128) -> bool {
         now_ms.saturating_sub(self.last_seen_ms) > DEV_SESSION_STALE_AFTER_MS

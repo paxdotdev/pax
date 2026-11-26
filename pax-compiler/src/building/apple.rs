@@ -35,10 +35,10 @@ use std::os::unix::process::CommandExt;
 
 const PORTABLE_DYLIB_INSTALL_NAME: &str = "@rpath/PaxCartridge.framework/PaxCartridge";
 
-const XCODE_MACOS_TARGET_DEBUG: &str = "Pax macOS (Development)";
+pub(crate) const XCODE_MACOS_TARGET_DEBUG: &str = "Pax macOS (Development)";
 const XCODE_MACOS_TARGET_RELEASE: &str = "Pax macOS (Release)";
 // The mobile template has one shared scheme with Debug and Release configurations.
-const XCODE_IOS_TARGET: &str = "Pax iOS (Development)";
+pub(crate) const XCODE_IOS_TARGET: &str = "Pax iOS (Development)";
 
 // These package IDs represent the directory / package names inside the xcframework,
 const MACOS_MULTIARCH_PACKAGE_ID: &str = "macos-arm64_x86_64";
@@ -194,17 +194,31 @@ fn select_apple_target_mappings(
     }
 }
 
+fn ios_build_selection(
+    ctx: &RunContext,
+    family: AppleMobileTarget,
+) -> Result<Option<ResolvedIosDevice>, eyre::Report> {
+    if !ctx.should_also_run {
+        let kind = match ctx.ios_device.as_deref() {
+            Some("device") => Some(IosDeviceKind::Physical),
+            Some("simulator") => Some(IosDeviceKind::Simulator),
+            None => return Ok(None),
+            _ => None,
+        };
+        if let Some(kind) = kind {
+            return Ok(Some(ResolvedIosDevice {
+                kind,
+                identifier: String::new(),
+                name: String::new(),
+            }));
+        }
+    }
+    resolve_ios_device(ctx.ios_device.as_deref(), family, &ctx.process_child_ids).map(Some)
+}
+
 pub(crate) fn manifest_target(ctx: &RunContext) -> eyre::Result<&'static str> {
     let device = if let Some(target) = apple_mobile_target(&ctx.target) {
-        if ctx.should_also_run || ctx.ios_device.is_some() {
-            Some(resolve_ios_device(
-                ctx.ios_device.as_deref(),
-                target,
-                &ctx.process_child_ids,
-            )?)
-        } else {
-            None
-        }
+        ios_build_selection(ctx, target)?
     } else {
         None
     };
@@ -407,19 +421,23 @@ enum AppleMobileTarget {
 }
 
 #[derive(Clone)]
-struct ResolvedIosDevice {
+pub(crate) struct ResolvedIosDevice {
     kind: IosDeviceKind,
     name: String,
     identifier: String,
 }
 
 struct SimulatorDevice {
+    model: String,
+    os: String,
     name: String,
     udid: String,
     state: String,
 }
 
 struct PhysicalDevice {
+    model: String,
+    os: String,
     name: String,
     identifier: String,
 }
@@ -453,7 +471,15 @@ fn build_native_launcher(
     let package = metadata
         .packages
         .iter()
-        .find(|package| package.manifest_path.as_std_path() == host_manifest)
+        .find(|package| {
+            package
+                .manifest_path
+                .as_std_path()
+                .canonicalize()
+                .ok()
+                .as_ref()
+                == Some(&host_manifest)
+        })
         .ok_or_else(|| eyre!("Select a Pax application package"))?;
     let selected = crate::helpers::select_native_launcher(package)?;
     let mode = if ctx.is_release { "release" } else { "debug" };
@@ -511,6 +537,7 @@ fn build_native_launcher(
             },
             ctx.should_run_designtime,
         );
+        crate::configure_dev_optimization(&mut cmd, ctx.optimized_dev);
         if ctx.is_release {
             cmd.arg("--release");
         }
@@ -566,6 +593,7 @@ fn build_native_launcher(
 
 fn write_native_program_exports(
     framework: &Path,
+    versioned: bool,
     exports: &pax_codegen::project_layout::NativeExports,
 ) -> Result<(), eyre::Report> {
     let headers = framework.join("Headers");
@@ -575,8 +603,19 @@ fn write_native_program_exports(
         ));
     }
     fs::write(headers.join("PaxProgramExports.h"), exports.apple_header())?;
-    let resources = framework.join("Resources");
-    fs::create_dir_all(&resources)?;
+    let subdir = framework.join("Resources");
+    let resources = if versioned {
+        fs::create_dir_all(&subdir)?;
+        subdir
+    } else {
+        // A Resources directory changes how MobileInstallation interprets a
+        // framework bundle. Flat iOS frameworks keep resources at the root.
+        remove_path_if_exists(&subdir.join("PaxProgramExports.json"))?;
+        if subdir.is_dir() && fs::read_dir(&subdir)?.next().is_none() {
+            fs::remove_dir(&subdir)?;
+        }
+        framework.to_owned()
+    };
     fs::write(
         resources.join("PaxProgramExports.json"),
         serde_json::to_vec(exports)?,
@@ -604,6 +643,7 @@ pub fn build_apple_project_with_cartridge(
     cartridge_ctx.project_path = layout.cartridge_dir.clone();
 
     let is_release: bool = ctx.is_release;
+    let optimized_dev = ctx.optimized_dev;
     let apple_mobile_target = apple_mobile_target(target);
     let ios_app_identity = if apple_mobile_target.is_some() {
         Some(resolve_ios_app_identity(
@@ -616,20 +656,17 @@ pub fn build_apple_project_with_cartridge(
     };
 
     let resolved_ios_device = if let Some(apple_mobile_target) = apple_mobile_target {
-        if ctx.should_also_run || ctx.ios_device.is_some() {
-            Some(resolve_ios_device(
-                ctx.ios_device.as_deref(),
-                apple_mobile_target,
-                &process_child_ids,
-            )?)
-        } else {
-            None
-        }
+        ios_build_selection(ctx, apple_mobile_target)?
     } else {
         None
     };
 
     let build_mode_name: &str = if is_release { "release" } else { "debug" };
+    let product_mode = if optimized_dev {
+        "optimized-dev"
+    } else {
+        build_mode_name
+    };
     let should_run_designtime = ctx.should_run_designtime;
 
     let target_mappings = select_apple_target_mappings(
@@ -662,7 +699,7 @@ pub fn build_apple_project_with_cartridge(
         "{} 🧶 Compiling targets {{{}}} in {} mode using {} threads...\n",
         *PAX_BADGE,
         &targets_single_string,
-        &build_mode_name.to_string().bold(),
+        &product_mode.to_string().bold(),
         target_mappings.len()
     );
 
@@ -709,6 +746,7 @@ pub fn build_apple_project_with_cartridge(
                 )
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped());
+            crate::configure_dev_optimization(&mut cmd, optimized_dev);
             layout.configure_cartridge(&mut cmd);
             configure_pax_build_env(&mut cmd, pax_build_target, should_run_designtime);
 
@@ -949,6 +987,7 @@ pub fn build_apple_project_with_cartridge(
     ] {
         write_native_program_exports(
             &frameworks.join(package).join("PaxCartridge.framework"),
+            package == MACOS_MULTIARCH_PACKAGE_ID,
             &layout.native_exports,
         )?;
     }
@@ -985,10 +1024,9 @@ pub fn build_apple_project_with_cartridge(
 
     normalize_apple_package_paths(&xcodeproj_path)?;
 
-    let build_dest_base = pax_dir
-        .join(BUILD_DIR_NAME)
-        .join(build_mode_name)
-        .join(target_str_lower);
+    let sdk = apple_mobile_target
+        .map(|_| ios_build_destination(is_release, resolved_ios_device.as_ref()).sdk());
+    let build_dest_base = product_directory(&pax_dir, product_mode, target_str_lower, sdk);
     let executable_output_dir_path = build_dest_base.join("app");
     let executable_dot_app_path = executable_output_dir_path.join(&format!("{}.app", &scheme));
     let executable_resources_bundle_path =
@@ -1072,8 +1110,14 @@ pub fn build_apple_project_with_cartridge(
     }
 
     if let Some(device) = resolved_ios_device.as_ref() {
-        cmd.arg("-destination")
-            .arg(format!("id={}", device.identifier));
+        let destination = if !device.identifier.is_empty() {
+            format!("id={}", device.identifier)
+        } else if device.kind == IosDeviceKind::Physical {
+            "generic/platform=iOS".into()
+        } else {
+            "generic/platform=iOS Simulator".into()
+        };
+        cmd.arg("-destination").arg(destination);
     }
 
     if apple_mobile_target.is_some() {
@@ -1107,6 +1151,9 @@ pub fn build_apple_project_with_cartridge(
 
     // Build the Swift host as a library before compiling the real Cargo main.
     // The app target installs that executable before Xcode's normal signing.
+    if optimized_dev {
+        cmd.args(["SWIFT_OPTIMIZATION_LEVEL=-O", "GCC_OPTIMIZATION_LEVEL=2"]);
+    }
     let mut host_cmd = Command::new("xcodebuild");
     let mut scheme_value = false;
     for arg in cmd.get_args() {
@@ -1142,6 +1189,11 @@ pub fn build_apple_project_with_cartridge(
         &process_child_ids,
     )?;
     cmd.arg(format!("PAX_NATIVE_EXECUTABLE={}", launcher.display()));
+    // Xcode reports provisioning errors on stdout. Carry its first diagnostic
+    // into the selected device's status as well as the full operation log.
+    if build_for_physical_device {
+        cmd.stdout(std::process::Stdio::piped());
+    }
 
     #[cfg(unix)]
     unsafe {
@@ -1149,6 +1201,10 @@ pub fn build_apple_project_with_cartridge(
     }
     let child = cmd.spawn().expect(ERR_SPAWN);
     let output = wait_with_output(&process_child_ids, child);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if build_for_physical_device {
+        print!("{stdout}");
+    }
 
     // Crudely prune out noisy xcodebuild warnings due to an apparent xcode-internal bug at time of authoring, spitting out:
     //   Details:  createItemModels creation requirements should not create capability item model for a capability item model that already exists.
@@ -1188,6 +1244,13 @@ pub fn build_apple_project_with_cartridge(
                 "Xcode can see `{}`, but Developer Mode is disabled. Enable Developer Mode on the phone, restart it if prompted, reconnect/trust it, and run again.",
                 device_name
             ));
+        }
+        if let Some((_, message)) = stdout
+            .lines()
+            .chain(stderr.lines())
+            .find_map(|line| line.split_once("error: "))
+        {
+            return Err(eyre!("Xcode: {message}"));
         }
         return Err(eyre!("Failed to build project with xcodebuild. Aborting."));
     }
@@ -1260,120 +1323,14 @@ pub fn build_apple_project_with_cartridge(
             // Handle macOS `run`
             //
 
-            let mut dev_session = if ctx.should_run_designtime {
-                Some(prepare_dev_session(&project_path, &pax_dir)?)
-            } else {
-                None
-            };
-            let mut designtime_server = if let Some(session) = dev_session.as_mut() {
-                let ready_file = session
-                    .session_dir
-                    .as_ref()
-                    .unwrap()
-                    .join("design-server-url.txt");
-                let server = Some(spawn_designtime_server_process(
-                    &pax_dir,
-                    &project_path,
-                    &manifest,
-                    Some(session.session_dir.as_ref().unwrap()),
-                    ctx.hot_reload.unwrap_or_default(),
-                    &ready_file,
-                    process_child_ids.clone(),
-                )?);
-                session.design_server_addr = Some(wait_for_designtime_ready(
-                    &ready_file,
-                    Duration::from_secs(5),
-                )?);
-                server
-            } else {
-                None
-            };
-
-            if let Some(session) = dev_session.as_mut() {
-                session.location = Some("local-window".to_string());
-                session.last_seen_ms = now_ms();
-                write_project_active_session(&pax_dir, session)?;
-                write_registered_session(session)?;
-            }
-
-            // Launch the app bundle through LaunchServices so it participates in
-            // normal macOS activation/focus behavior instead of appearing as a
-            // background direct-exec process.
-            let mut cmd = Command::new("open");
-            cmd.arg("-W").arg("-n");
-            if let Some(session) = &dev_session {
-                add_launchservices_environment(
-                    &mut cmd,
-                    "PAX_DEV_SESSION_DIR",
-                    session.session_dir.as_ref().unwrap().to_str().unwrap(),
-                );
-                add_launchservices_environment(
-                    &mut cmd,
-                    "PAX_DEV_REGISTRY_FILE",
-                    dev_session::global_session_registry_file(&session.session_id)?
-                        .to_str()
-                        .unwrap(),
-                );
-                add_launchservices_environment(
-                    &mut cmd,
-                    "PAX_DEV_PROJECT_ROOT",
-                    session.project_root.as_ref().unwrap().to_str().unwrap(),
-                );
-                add_launchservices_environment(
-                    &mut cmd,
-                    "PAX_DESIGN_SERVER_ADDR",
-                    session.design_server_addr.as_ref().unwrap(),
-                );
-            }
-            cmd.arg(&executable_dot_app_path);
-
-            #[cfg(unix)]
-            unsafe {
-                cmd.pre_exec(crate::pre_exec_hook);
-            }
-
-            let mut child = cmd.spawn().expect("failed to launch the app bundle");
-            let open_pid = child.id() as u64;
-            process_child_ids.lock().unwrap().push(open_pid);
-
-            let launched_app_pid = if let Some(session) = dev_session.as_mut() {
-                let launched_app_pid = wait_for_registered_session_app_pid(
-                    &session.session_id,
-                    Duration::from_secs(5),
-                )?;
-                if let Some(app_pid) = launched_app_pid {
-                    session.app_pid = Some(app_pid);
-                    session.location = Some(format!("local-window pid:{app_pid}"));
-                    session.last_seen_ms = now_ms();
-                    write_project_active_session(&pax_dir, session)?;
-                    process_child_ids.lock().unwrap().push(app_pid as u64);
-                }
-                launched_app_pid
-            } else {
-                None
-            };
-
-            if launched_app_pid.is_some() {
-                lifecycle_notifier.notify();
-            }
-
-            let status = child.wait().expect("failed to wait for the app");
-            process_child_ids
-                .lock()
-                .unwrap()
-                .retain(|&id| id != open_pid);
-            process_child_ids
-                .lock()
-                .unwrap()
-                .retain(|&id| launched_app_pid.map(|pid| pid as u64) != Some(id));
-            if let Some(session) = &dev_session {
-                cleanup_dev_session(&pax_dir, session)?;
-            }
-            if let Some(server) = designtime_server.as_mut() {
-                stop_designtime_server_process(server, &process_child_ids);
-            }
-
-            println!("App exited with: {:?}", status);
+            run_macos_preview(
+                ctx,
+                &project_path,
+                &pax_dir,
+                &executable_dot_app_path,
+                &manifest,
+                &lifecycle_notifier,
+            )?;
         } else {
             //
             // Handle iOS `run`
@@ -1469,10 +1426,68 @@ pub fn build_apple_project_with_cartridge(
         let build_path = executable_output_dir_path.to_str().unwrap().bold();
         println!(
             "{} 🗂️  Done: {} {} build available at {}",
-            *PAX_BADGE, target_str, build_mode_name, build_path
+            *PAX_BADGE, target_str, product_mode, build_path
         );
     }
     Ok(())
+}
+
+/// An installed simulator or connected Apple mobile device selectable by its stable identifier.
+#[derive(Debug, serde::Serialize)]
+pub struct AppleTarget {
+    pub id: String,
+    pub name: String,
+    pub target: &'static str,
+    pub os: String,
+    pub simulator: bool,
+}
+
+fn device_family(model: &str) -> Option<&'static str> {
+    if model.starts_with("iPhone") {
+        Some("ios")
+    } else if model.starts_with("iPad") {
+        Some("ipados")
+    } else {
+        None
+    }
+}
+
+/// Enumerate iPhone and iPad selections using the same identifiers as `--ios-device`.
+pub fn apple_targets() -> Result<Vec<AppleTarget>, eyre::Report> {
+    let children = Arc::new(Mutex::new(Vec::new()));
+    let mut targets = Vec::new();
+    for device in list_available_ios_simulators(&children)? {
+        if let Some(target) = device_family(&device.model) {
+            targets.push(AppleTarget {
+                id: device.udid,
+                name: device.name,
+                target,
+                os: device.os,
+                simulator: true,
+            });
+        }
+    }
+    for device in list_connected_physical_devices(&children)? {
+        if let Some(target) = device_family(&device.model) {
+            targets.push(AppleTarget {
+                id: device.identifier,
+                name: device.name,
+                target,
+                os: device.os,
+                simulator: false,
+            });
+        }
+    }
+    targets.sort_by(|a, b| {
+        (a.simulator, a.target, &a.name, &a.os, &a.id).cmp(&(
+            b.simulator,
+            b.target,
+            &b.name,
+            &b.os,
+            &b.id,
+        ))
+    });
+    Ok(targets)
 }
 
 fn resolve_ios_device(
@@ -1673,7 +1688,7 @@ fn list_available_ios_simulators(
         .ok_or_else(|| eyre!("Invalid JSON format for simulator devices."))?;
 
     let mut simulators = Vec::new();
-    for device_list in devices.values() {
+    for (runtime, device_list) in devices {
         let Some(device_array) = device_list.as_array() else {
             continue;
         };
@@ -1688,6 +1703,18 @@ fn list_available_ios_simulators(
                 continue;
             };
             simulators.push(SimulatorDevice {
+                model: device["deviceTypeIdentifier"]
+                    .as_str()
+                    .unwrap_or(name)
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or(name)
+                    .to_owned(),
+                os: runtime
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or(runtime)
+                    .replace('-', "."),
                 name: name.to_string(),
                 udid: udid.to_string(),
                 state: state.to_string(),
@@ -1754,6 +1781,16 @@ fn list_connected_physical_devices_via_xcdevice(
             let name = device.get("name").and_then(Value::as_str)?;
             let identifier = device.get("identifier").and_then(Value::as_str)?;
             Some(PhysicalDevice {
+                model: device
+                    .get("modelCode")
+                    .and_then(Value::as_str)
+                    .unwrap_or(name)
+                    .to_owned(),
+                os: device
+                    .get("operatingSystemVersion")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
                 name: name.to_string(),
                 identifier: identifier.to_string(),
             })
@@ -1806,7 +1843,12 @@ fn list_connected_physical_devices_via_xctrace(
         let Some((name, identifier)) = parse_named_identifier_line(line) else {
             continue;
         };
-        devices.push(PhysicalDevice { name, identifier });
+        devices.push(PhysicalDevice {
+            model: name.clone(),
+            os: String::new(),
+            name,
+            identifier,
+        });
     }
 
     Ok(devices)
@@ -1965,6 +2007,118 @@ fn add_launchservices_environment(command: &mut Command, key: &str, value: &str)
     command.arg("--env").arg(format!("{key}={value}"));
 }
 
+pub(crate) fn run_mobile_preview(
+    ctx: &RunContext,
+    server: &dev_session::ProjectServer,
+    bundle: &Path,
+    device: &ResolvedIosDevice,
+) -> Result<(), eyre::Report> {
+    let target: &str = (&ctx.target).into();
+    let target = target.to_lowercase();
+    let key = project_dev_dir(&ctx.project_path.join(".pax"))
+        .join("sessions")
+        .join(&server.id)
+        .join("mobile-preview.key");
+    let token = fs::read_to_string(key).map_err(|_| eyre!("This server does not advertise a device preview endpoint. Start a current managed project server."))?;
+    let base =
+        mobile_design_server_address(device.kind, &format!("ws://127.0.0.1:{}", server.port))?;
+    let nonce = format!("{:032x}", rand::random::<u128>());
+    let instance = format!("{target}-{nonce}");
+    let addr = format!(
+        "{base}?preview={}&target={target}&instance={instance}&key={token}",
+        server.id
+    );
+    let info = plist::Value::from_file(bundle.join("Info.plist"))?;
+    let identifier = info
+        .as_dictionary()
+        .and_then(|d| d.get("CFBundleIdentifier"))
+        .and_then(|v| v.as_string())
+        .ok_or_else(|| eyre!("Mobile artifact has no bundle identifier"))?;
+    if let Some(path) = std::env::var_os("PAX_DEV_INSTANCE_FILE") {
+        let path = PathBuf::from(path);
+        let mut file = tempfile::NamedTempFile::new_in(
+            path.parent()
+                .ok_or_else(|| eyre!("Invalid instance receipt path"))?,
+        )?;
+        serde_json::to_writer(file.as_file_mut(), &instance)?;
+        file.persist(path)?;
+    }
+    let app = bundle.to_path_buf();
+    let directory = app
+        .parent()
+        .ok_or_else(|| eyre!("Missing bundle directory"))?
+        .to_path_buf();
+    let run = match device.kind {
+        IosDeviceKind::Simulator => run_on_simulator,
+        IosDeviceKind::Physical => run_on_physical_device,
+    };
+    run(
+        &device.identifier,
+        &device.name,
+        &directory,
+        &app,
+        identifier,
+        Some(&addr),
+        None,
+        &RunLifecycleNotifier::new(ctx),
+        &ctx.process_child_ids,
+    )
+}
+
+pub(crate) fn mobile_selection(
+    ctx: &RunContext,
+) -> Result<(String, ResolvedIosDevice), eyre::Report> {
+    let family =
+        apple_mobile_target(&ctx.target).ok_or_else(|| eyre!("Expected an Apple mobile target"))?;
+    let device = resolve_ios_device(ctx.ios_device.as_deref(), family, &ctx.process_child_ids)?;
+    let target: &str = (&ctx.target).into();
+    let sdk = device.kind.sdk();
+    Ok((format!("{}-{sdk}", target.to_lowercase()), device))
+}
+
+/// Resolve the same Apple destination for an Agent launch as for a direct run.
+pub fn managed_mobile_selection(ctx: &RunContext) -> eyre::Result<(String, String)> {
+    let (variant, device) = mobile_selection(ctx)?;
+    Ok((variant, device.identifier))
+}
+
+pub(crate) fn project_mobile_sdk(ctx: &RunContext) -> eyre::Result<&'static str> {
+    let (kind, query) = parse_ios_device_selector(ctx.ios_device.as_deref().map(str::trim));
+    // A server can build for an SDK without a connected device. Resolve an
+    // unqualified name or UDID only when it is needed to distinguish the SDK.
+    let kind = match (kind, query) {
+        (Some(kind), _) => kind,
+        (None, Some(query)) => resolve_named_ios_device(None, &query, &ctx.process_child_ids)?.kind,
+        (None, None) => IosDeviceKind::Simulator,
+    };
+    Ok(kind.sdk())
+}
+
+impl IosDeviceKind {
+    fn sdk(self) -> &'static str {
+        match self {
+            Self::Simulator => "simulator",
+            Self::Physical => "device",
+        }
+    }
+}
+
+pub(crate) fn product_directory(
+    pax_dir: &Path,
+    mode: &str,
+    platform: &str,
+    sdk: Option<&str>,
+) -> PathBuf {
+    let base = pax_dir.join(BUILD_DIR_NAME).join(mode).join(platform);
+    // A managed phone or tablet project may publish both SDKs at once. Xcode
+    // must keep their products distinct so a device build cannot replace the
+    // simulator bundle validated by the next server.
+    match (mode, sdk) {
+        ("optimized-dev", Some(sdk)) => base.join(sdk),
+        _ => base,
+    }
+}
+
 fn simulator_launch_command(
     device_udid: &str,
     bundle_identifier: &str,
@@ -2012,6 +2166,19 @@ fn physical_device_launch_command(
     cmd
 }
 
+fn mobile_phase(phase: &str) -> Result<(), eyre::Report> {
+    if let Some(path) = std::env::var_os("PAX_MOBILE_PHASE_FILE") {
+        let file = PathBuf::from(path);
+        let mut stage = tempfile::NamedTempFile::new_in(
+            file.parent()
+                .ok_or_else(|| eyre!("Invalid mobile phase path"))?,
+        )?;
+        std::io::Write::write_all(&mut stage, phase.as_bytes())?;
+        stage.persist(file)?;
+    }
+    Ok(())
+}
+
 fn run_on_simulator(
     device_udid: &str,
     device_name: &str,
@@ -2023,22 +2190,7 @@ fn run_on_simulator(
     lifecycle_notifier: &RunLifecycleNotifier,
     process_child_ids: &Arc<Mutex<Vec<u64>>>,
 ) -> Result<(), eyre::Report> {
-    let mut cmd = Command::new("open");
-    cmd.arg("-a")
-        .arg("Simulator")
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped());
-
-    #[cfg(unix)]
-    unsafe {
-        cmd.pre_exec(crate::pre_exec_hook);
-    }
-    let child = cmd.spawn().expect(ERR_SPAWN);
-    let output = wait_with_output(process_child_ids, child);
-    if !output.status.success() {
-        return Err(eyre!("Error opening iOS simulator. Aborting."));
-    }
-
+    mobile_phase("installing")?;
     let mut cmd = Command::new("xcrun");
     cmd.arg("simctl")
         .arg("boot")
@@ -2089,6 +2241,23 @@ fn run_on_simulator(
         ));
     }
 
+    let mut cmd = Command::new("open");
+    cmd.arg("-a")
+        .arg("Simulator")
+        .args(["--args", "-CurrentDeviceUDID", device_udid])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(crate::pre_exec_hook);
+    }
+    let child = cmd.spawn().expect(ERR_SPAWN);
+    let output = wait_with_output(process_child_ids, child);
+    if !output.status.success() {
+        return Err(eyre!("Error opening iOS simulator. Aborting."));
+    }
+
     println!(
         "{} 📤 Installing and running app from {} on simulator {}...",
         *PAX_BADGE,
@@ -2111,9 +2280,13 @@ fn run_on_simulator(
     let child = cmd.spawn().expect(ERR_SPAWN);
     let output = wait_with_output(process_child_ids, child);
     if !output.status.success() {
-        return Err(eyre!("Error installing app on iOS simulator. Aborting."));
+        return Err(eyre!(
+            "Could not install on simulator {device_name}: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
     }
 
+    mobile_phase("launching")?;
     let mut cmd = simulator_launch_command(device_udid, bundle_identifier, design_server_addr);
 
     #[cfg(unix)]
@@ -2121,6 +2294,7 @@ fn run_on_simulator(
         cmd.pre_exec(crate::pre_exec_hook);
     }
     let child = cmd.spawn().expect(ERR_SPAWN);
+    mobile_phase("waiting")?;
     let _app_ready_watcher = app_ready_marker.and_then(|marker| {
         let lifecycle_notifier = lifecycle_notifier.clone();
         watch_app_ready_marker(marker, MOBILE_APP_READY_TIMEOUT, move || {
@@ -2157,6 +2331,7 @@ fn run_on_physical_device(
         device_name
     );
 
+    mobile_phase("installing")?;
     let mut cmd = Command::new("xcrun");
     cmd.arg("devicectl")
         .arg("device")
@@ -2180,6 +2355,7 @@ fn run_on_physical_device(
         ));
     }
 
+    mobile_phase("launching")?;
     let mut cmd =
         physical_device_launch_command(device_identifier, bundle_identifier, design_server_addr);
 
@@ -2188,6 +2364,7 @@ fn run_on_physical_device(
         cmd.pre_exec(crate::pre_exec_hook);
     }
     let child = cmd.spawn().expect(ERR_SPAWN);
+    mobile_phase("waiting")?;
     let _app_ready_watcher = app_ready_marker.and_then(|marker| {
         let lifecycle_notifier = lifecycle_notifier.clone();
         watch_app_ready_marker(marker, MOBILE_APP_READY_TIMEOUT, move || {
@@ -2456,6 +2633,8 @@ pub fn rebuild_staged_macos_logic_dylib(
 ) -> Result<MacosLogicReloadBuild, eyre::Report> {
     let process_child_ids = Arc::new(Mutex::new(vec![]));
     let ctx = RunContext {
+        host_app: None,
+        host_session: None,
         port: None,
         target: RunTarget::macOS,
         project_path: project_root.clone(),
@@ -2465,6 +2644,7 @@ pub fn rebuild_staged_macos_logic_dylib(
         process_child_ids: process_child_ids.clone(),
         should_run_designtime: true,
         hot_reload: None,
+        optimized_dev: false,
         is_release: false,
         profile_wasm_size: false,
         ios_device: None,
@@ -2718,6 +2898,272 @@ fn create_symlink(target: &PathBuf, link: &PathBuf) -> Result<(), eyre::Report> 
     Ok(())
 }
 
+pub(crate) fn run_macos_preview(
+    ctx: &RunContext,
+    project_path: &PathBuf,
+    pax_dir: &PathBuf,
+    executable_dot_app_path: &PathBuf,
+    manifest: &PaxManifest,
+    lifecycle_notifier: &RunLifecycleNotifier,
+) -> Result<(), eyre::Report> {
+    let process_child_ids = ctx.process_child_ids.clone();
+    let mut dev_session = if ctx.should_run_designtime {
+        Some(prepare_dev_session(&project_path, &pax_dir)?)
+    } else {
+        None
+    };
+    // A subsequent build replaces the Xcode product, while a mounted
+    // guest can still load resources and execute code from its bundle.
+    let hosted = ctx.host_app.is_some() || ctx.host_session.is_some();
+    let guest_copy = if hosted || ctx.optimized_dev {
+        let directory = tempfile::Builder::new()
+            .prefix("pax-guest-")
+            .tempdir_in(&pax_dir)?;
+        let bundle = directory
+            .path()
+            .join(executable_dot_app_path.file_name().unwrap());
+        let status = Command::new("/usr/bin/ditto")
+            .arg(&executable_dot_app_path)
+            .arg(&bundle)
+            .status()?;
+        if !status.success() {
+            return Err(eyre!("Could not stage the hosted macOS guest ({status})"));
+        }
+        Some((directory, bundle))
+    } else {
+        None
+    };
+    let local_bundle = guest_copy
+        .as_ref()
+        .map(|(_, path)| path)
+        .unwrap_or(executable_dot_app_path);
+    let hosted_bundle = hosted
+        .then(|| {
+            local_bundle
+                .to_str()
+                .ok_or_else(|| eyre!("Invalid guest bundle path"))
+        })
+        .transpose()?;
+    let shared_server = if hosted_bundle.is_some() || ctx.optimized_dev {
+        dev_session::live_project_server(&project_path)?
+    } else {
+        None
+    };
+    let mut designtime_server = if let (Some(server), Some(session)) =
+        (&shared_server, dev_session.as_mut())
+    {
+        if server.cartridge_abi != dev_session::cartridge_abi(&manifest)? {
+            return Err(eyre!("The macOS cartridge and web server {} have different compiled component or handler descriptors", server.id));
+        }
+        if server.template_reload != ctx.hot_reload.unwrap_or_default().reloads_pax() {
+            return Err(eyre!(
+                "The native preview and web server {} request different template reload modes",
+                server.id
+            ));
+        }
+        session.design_server_addr = Some(format!(
+            "ws://127.0.0.1:{}?preview={}&instance={}",
+            server.port, server.id, session.session_id
+        ));
+        println!(
+            "{} Attaching native preview {} to project server {}",
+            *PAX_BADGE, session.session_id, server.id
+        );
+        None
+    } else if let Some(session) = dev_session.as_mut() {
+        let ready_file = session
+            .session_dir
+            .as_ref()
+            .unwrap()
+            .join("design-server-url.txt");
+        let server = Some(spawn_designtime_server_process(
+            &pax_dir,
+            &project_path,
+            &manifest,
+            Some(session.session_dir.as_ref().unwrap()),
+            ctx.hot_reload.unwrap_or_default(),
+            &ready_file,
+            process_child_ids.clone(),
+        )?);
+        session.design_server_addr = Some(wait_for_designtime_ready(
+            &ready_file,
+            Duration::from_secs(5),
+        )?);
+        server
+    } else {
+        None
+    };
+
+    if let Some(session) = dev_session.as_mut() {
+        session.location = Some("local-window".to_string());
+        session.last_seen_ms = now_ms();
+        if shared_server.is_none() {
+            write_project_active_session(&pax_dir, session)?;
+        }
+        write_registered_session(session)?;
+    }
+
+    if let Some(destination) = &ctx.host_session {
+        let session = dev_session
+            .as_ref()
+            .ok_or_else(|| eyre!("Expected a development session"))?;
+        let result = (|| -> Result<(), eyre::Report> {
+            let parent = destination
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or(Path::new("."));
+            let descriptor = serde_json::json!({
+                "sessionId": session.session_id,
+                "bundle": hosted_bundle,
+                "devSessionDirectory": session.session_dir,
+                "devRegistryFile": dev_session::global_session_registry_file(&session.session_id)?,
+                "designServerAddress": session.design_server_addr
+            });
+            let file = tempfile::NamedTempFile::new_in(parent)?;
+            serde_json::to_writer(file.as_file(), &descriptor)?;
+            file.persist_noclobber(destination)?;
+            // The caller owns this pipe. EOF also releases the guest when the
+            // host exits unexpectedly, without making its PID a CLI child.
+            let wait = std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink());
+            let _ = fs::remove_file(destination);
+            wait?;
+            Ok(())
+        })();
+        let cleanup = cleanup_dev_session(&pax_dir, session);
+        if let Some(server) = designtime_server.as_mut() {
+            stop_designtime_server_process(server, &process_child_ids);
+        }
+        result?;
+        cleanup?;
+        return Ok(());
+    }
+
+    // Launch the app bundle through LaunchServices so it participates in
+    // normal macOS activation/focus behavior instead of appearing as a
+    // background direct-exec process.
+    let mut cmd = Command::new("open");
+    cmd.arg("-W").arg("-n");
+    let mut host_stderr = None;
+    if let Some(path) = hosted_bundle {
+        add_launchservices_environment(&mut cmd, "PAX_HOSTED_GUEST_APP", path);
+    }
+    if let Some(session) = &dev_session {
+        if hosted_bundle.is_some() {
+            let path = session
+                .session_dir
+                .as_ref()
+                .unwrap()
+                .join("host-stderr.log");
+            cmd.arg("--stderr").arg(&path);
+            host_stderr = Some(path);
+        }
+        let prefix = if hosted_bundle.is_some() {
+            "PAX_HOSTED"
+        } else {
+            "PAX"
+        };
+        add_launchservices_environment(
+            &mut cmd,
+            &format!("{prefix}_DEV_SESSION_DIR"),
+            session.session_dir.as_ref().unwrap().to_str().unwrap(),
+        );
+        add_launchservices_environment(
+            &mut cmd,
+            &format!("{prefix}_DEV_REGISTRY_FILE"),
+            dev_session::global_session_registry_file(&session.session_id)?
+                .to_str()
+                .unwrap(),
+        );
+        add_launchservices_environment(
+            &mut cmd,
+            "PAX_DEV_PROJECT_ROOT",
+            session.project_root.as_ref().unwrap().to_str().unwrap(),
+        );
+        add_launchservices_environment(
+            &mut cmd,
+            &format!("{prefix}_DESIGN_SERVER_ADDR"),
+            session.design_server_addr.as_ref().unwrap(),
+        );
+    }
+    cmd.arg(ctx.host_app.as_ref().unwrap_or(local_bundle));
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(crate::pre_exec_hook);
+    }
+
+    let mut child = cmd.spawn().expect("failed to launch the app bundle");
+    let open_pid = child.id() as u64;
+    process_child_ids.lock().unwrap().push(open_pid);
+
+    let launched_app_pid = if let Some(session) = dev_session.as_mut() {
+        let launched_app_pid = wait_for_registered_session_app_pid(
+            &session.session_id,
+            &mut child,
+            hosted_bundle.is_none().then_some(Duration::from_secs(5)),
+        )?;
+        if let Some(app_pid) = launched_app_pid {
+            session.app_pid = Some(app_pid);
+            if hosted_bundle.is_none() {
+                if let Some(receipt) = std::env::var_os("PAX_DEV_INSTANCE_FILE").map(PathBuf::from)
+                {
+                    let file = tempfile::NamedTempFile::new_in(
+                        receipt.parent().unwrap_or(Path::new(".")),
+                    )?;
+                    serde_json::to_writer(file.as_file(), &session.session_id)?;
+                    file.persist(receipt)?;
+                }
+            }
+            session.location = Some(format!("local-window pid:{app_pid}"));
+            session.last_seen_ms = now_ms();
+            if shared_server.is_none() {
+                write_project_active_session(&pax_dir, session)?;
+            }
+            process_child_ids.lock().unwrap().push(app_pid as u64);
+        }
+        launched_app_pid
+    } else {
+        None
+    };
+
+    if launched_app_pid.is_some() {
+        lifecycle_notifier.notify();
+    }
+
+    let status = child.wait().expect("failed to wait for the app");
+    process_child_ids
+        .lock()
+        .unwrap()
+        .retain(|&id| id != open_pid);
+    process_child_ids
+        .lock()
+        .unwrap()
+        .retain(|&id| launched_app_pid.map(|pid| pid as u64) != Some(id));
+    if let Some(session) = &dev_session {
+        cleanup_dev_session(&pax_dir, session)?;
+    }
+    if let Some(server) = designtime_server.as_mut() {
+        stop_designtime_server_process(server, &process_child_ids);
+    }
+
+    if let Some(stderr) = host_stderr {
+        if !status.success() {
+            return Err(eyre!(
+                "LaunchServices could not run the selected host ({status})"
+            ));
+        }
+        // open -W reports its own exit status, even if the host failed in main.
+        if launched_app_pid.is_none() {
+            return Err(eyre!(
+                "The macOS host exited before registering the guest. Host stderr: {}",
+                stderr.display()
+            ));
+        }
+    }
+    println!("App exited with: {:?}", status);
+    Ok(())
+}
+
 fn prepare_dev_session(
     project_root: &PathBuf,
     pax_dir: &PathBuf,
@@ -2752,11 +3198,13 @@ fn cleanup_dev_session(pax_dir: &PathBuf, session: &DevSession) -> Result<(), ey
 
 fn wait_for_registered_session_app_pid(
     session_id: &str,
-    timeout: Duration,
+    launcher: &mut Child,
+    timeout: Option<Duration>,
 ) -> Result<Option<u32>, eyre::Report> {
     let registry_file = dev_session::global_session_registry_file(session_id)?;
     let start = std::time::Instant::now();
-    while start.elapsed() < timeout {
+    loop {
+        let finished = launcher.try_wait()?.is_some();
         if let Ok(registry_data) = fs::read(&registry_file) {
             if let Ok(session) = serde_json::from_slice::<DevSession>(&registry_data) {
                 if session.app_pid.is_some() {
@@ -2764,9 +3212,11 @@ fn wait_for_registered_session_app_pid(
                 }
             }
         }
+        if finished || timeout.is_some_and(|limit| start.elapsed() >= limit) {
+            return Ok(None);
+        }
         thread::sleep(Duration::from_millis(50));
     }
-    Ok(None)
 }
 
 pub(super) fn spawn_designtime_server_process(
@@ -2904,8 +3354,15 @@ mod tests {
         fs::write(
             framework.join("Headers/PaxCartridge.h"),
             "void *pax_init(void) PAX_PROGRAM_EXPORT(pax_init);",
-        ).unwrap();
-        for (index, package) in ["path+file:///first#ui@1.0.0", "path+file:///second#ui@1.0.0"].into_iter().enumerate() {
+        )
+        .unwrap();
+        for (index, package) in [
+            "path+file:///first#ui@1.0.0",
+            "path+file:///second#ui@1.0.0",
+        ]
+        .into_iter()
+        .enumerate()
+        {
             // Exercise the flat iOS and versioned macOS framework layouts.
             #[cfg(unix)]
             if index == 1 {
@@ -2914,20 +3371,33 @@ mod tests {
             #[cfg(not(unix))]
             let _ = index;
             let exports = pax_codegen::project_layout::NativeExports::new(package, "ui");
-            write_native_program_exports(framework, &exports).unwrap();
+            write_native_program_exports(framework, index != 0, &exports).unwrap();
             assert_eq!(
                 fs::read_to_string(framework.join("Headers/PaxProgramExports.h")).unwrap(),
                 exports.apple_header(),
             );
-            let copied: pax_codegen::project_layout::NativeExports =
-                serde_json::from_slice(&fs::read(framework.join("Resources/PaxProgramExports.json")).unwrap()).unwrap();
+            let copied: pax_codegen::project_layout::NativeExports = serde_json::from_slice(
+                &fs::read(framework.join(if index == 0 {
+                    "PaxProgramExports.json"
+                } else {
+                    "Resources/PaxProgramExports.json"
+                }))
+                .unwrap(),
+            )
+            .unwrap();
             assert_eq!(copied, exports);
         }
-        fs::write(framework.join("Headers/PaxCartridge.h"), "void *pax_init(void);").unwrap();
+        fs::write(
+            framework.join("Headers/PaxCartridge.h"),
+            "void *pax_init(void);",
+        )
+        .unwrap();
         assert!(write_native_program_exports(
             framework,
+            true,
             &pax_codegen::project_layout::NativeExports::new("ui@1", "ui"),
-        ).is_err());
+        )
+        .is_err());
     }
 
     const MACOS_HOST_SWIFT: &str = include_str!(
@@ -2951,6 +3421,8 @@ mod tests {
 
     fn simulator(name: &str, state: &str) -> SimulatorDevice {
         SimulatorDevice {
+            model: name.into(),
+            os: String::new(),
             name: name.to_string(),
             udid: name.to_string(),
             state: state.to_string(),

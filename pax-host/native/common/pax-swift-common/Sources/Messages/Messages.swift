@@ -69,7 +69,8 @@ public final class NativeInterruptDispatcher {
     public var convertWindowPointToPax: ((NSPoint, NSWindow?) -> CGPoint?)?
 #endif
 
-    private init() {}
+    public init() {}
+    fileprivate let routes = PaxVirtualRouteCoordinator()
 
     public func send(_ data: Data) {
         sendData?(data)
@@ -163,12 +164,12 @@ final class PaxVirtualRouteCoordinator {
     }
 
     @discardableResult
-    func navigate(to destination: String) -> Bool {
+    func navigate(to destination: String, dispatcher: NativeInterruptDispatcher = .shared) -> Bool {
         guard let location = resolve(destination: destination) else {
             return false
         }
         currentLocation = location
-        dispatchRouteChange(location)
+        dispatchRouteChange(location, dispatcher: dispatcher)
         return true
     }
 
@@ -375,13 +376,13 @@ private final class PaxWebFontLoader {
     }
 }
 
-private func dispatchNativeInterrupt(_ build: (FlexBufferMapBuilder) throws -> Void) {
+private func dispatchNativeInterrupt(_ dispatcher: NativeInterruptDispatcher, _ build: (FlexBufferMapBuilder) throws -> Void) {
     let buffer = try! FlexBufferBuilder.encodeMap(build)
-    NativeInterruptDispatcher.shared.send(buffer.data)
+    dispatcher.send(buffer.data)
 }
 
 private func dispatchTouchInterrupt(type: String, touches: [TouchInterruptMessage]) {
-    dispatchNativeInterrupt { builder in
+    dispatchNativeInterrupt(.shared) { builder in
         builder.addMapWithStringKey(type) { messageBuilder in
             messageBuilder.addVectorWithStringKey("touches") { vectorBuilder in
                 for touch in touches {
@@ -399,7 +400,7 @@ private func dispatchTouchInterrupt(type: String, touches: [TouchInterruptMessag
 }
 
 public func dispatchTap(x: Double, y: Double) {
-    dispatchNativeInterrupt { builder in
+    dispatchNativeInterrupt(.shared) { builder in
         builder.addMapWithStringKey("Tap") { messageBuilder in
             messageBuilder.addWithStringKey("x", x)
             messageBuilder.addWithStringKey("y", y)
@@ -409,9 +410,9 @@ public func dispatchTap(x: Double, y: Double) {
 
 /// Forwards mouse input, requesting canvas focus on press unless a native control owns focus.
 public func dispatchPointerMouseInterrupt(type: String, x: Double, y: Double, button: String = "Left",
-                                          focusCanvas: Bool = true) {
-    if type == "MouseDown" && focusCanvas { NativeInterruptDispatcher.shared.requestKeyboardFocus?() }
-    dispatchNativeInterrupt { builder in
+                                          focusCanvas: Bool = true, dispatcher: NativeInterruptDispatcher = .shared) {
+    if type == "MouseDown" && focusCanvas { dispatcher.requestKeyboardFocus?() }
+    dispatchNativeInterrupt(dispatcher) { builder in
         builder.addMapWithStringKey(type) { messageBuilder in
             messageBuilder.addWithStringKey("x", x)
             messageBuilder.addWithStringKey("y", y)
@@ -421,8 +422,8 @@ public func dispatchPointerMouseInterrupt(type: String, x: Double, y: Double, bu
     }
 }
 
-func dispatchRouteChange(_ location: RouteLocationMessage) {
-    dispatchNativeInterrupt { builder in
+func dispatchRouteChange(_ location: RouteLocationMessage, dispatcher: NativeInterruptDispatcher = .shared) {
+    dispatchNativeInterrupt(dispatcher) { builder in
         builder.addMapWithStringKey("RouteChange") { messageBuilder in
             messageBuilder.addVectorWithStringKey("path_segments") { segmentsBuilder in
                 for segment in location.pathSegments {
@@ -448,12 +449,12 @@ func dispatchRouteChange(_ location: RouteLocationMessage) {
 }
 
 @discardableResult
-public func dispatchVirtualRouteNavigation(to destination: String) -> Bool {
-    PaxVirtualRouteCoordinator.shared.navigate(to: destination)
+public func dispatchVirtualRouteNavigation(to destination: String, dispatcher: NativeInterruptDispatcher = .shared) -> Bool {
+    dispatcher.routes.navigate(to: destination, dispatcher: dispatcher)
 }
 
 public func dispatchGyro(x: Double, y: Double, z: Double) {
-    dispatchNativeInterrupt { builder in
+    dispatchNativeInterrupt(.shared) { builder in
         builder.addMapWithStringKey("Gyro") { messageBuilder in
             messageBuilder.addWithStringKey("x", x)
             messageBuilder.addWithStringKey("y", y)
@@ -463,7 +464,7 @@ public func dispatchGyro(x: Double, y: Double, z: Double) {
 }
 
 public func dispatchAccel(x: Double, y: Double, z: Double) {
-    dispatchNativeInterrupt { builder in
+    dispatchNativeInterrupt(.shared) { builder in
         builder.addMapWithStringKey("Accel") { messageBuilder in
             messageBuilder.addWithStringKey("x", x)
             messageBuilder.addWithStringKey("y", y)
@@ -472,8 +473,8 @@ public func dispatchAccel(x: Double, y: Double, z: Double) {
     }
 }
 
-public func dispatchChassisResizeRequest(id: PaxNodeId, width: Double, height: Double) {
-    dispatchNativeInterrupt { builder in
+public func dispatchChassisResizeRequest(id: PaxNodeId, width: Double, height: Double, dispatcher: NativeInterruptDispatcher = .shared) {
+    dispatchNativeInterrupt(dispatcher) { builder in
         builder.addVectorWithStringKey("ChassisResizeRequestCollection") { vectorBuilder in
             vectorBuilder.addMap { requestBuilder in
                 requestBuilder.addWithStringKey("id", UInt(id))
@@ -484,8 +485,8 @@ public func dispatchChassisResizeRequest(id: PaxNodeId, width: Double, height: D
     }
 }
 
-public func dispatchTextMeasurementResponse(id: PaxNodeId, generation: UInt64, width: Double, height: Double) {
-    dispatchNativeInterrupt { builder in
+public func dispatchTextMeasurementResponse(id: PaxNodeId, generation: UInt64, width: Double, height: Double, dispatcher: NativeInterruptDispatcher = .shared) {
+    dispatchNativeInterrupt(dispatcher) { builder in
         builder.addMapWithStringKey("TextMeasurementResponse") { messageBuilder in
             messageBuilder.addWithStringKey("id", UInt(id))
             messageBuilder.addWithStringKey("generation", generation)
@@ -512,8 +513,8 @@ public func dispatchTouchCancel(touches: [TouchInterruptMessage]) {
     dispatchTouchInterrupt(type: "TouchCancel", touches: touches)
 }
 
-public func dispatchFormButtonClick(id: PaxNodeId) {
-    dispatchNativeInterrupt { builder in
+public func dispatchFormButtonClick(id: PaxNodeId, dispatcher: NativeInterruptDispatcher = .shared) {
+    dispatchNativeInterrupt(dispatcher) { builder in
         builder.addMapWithStringKey("FormButtonClick") { messageBuilder in
             messageBuilder.addWithStringKey("id", UInt(id))
         }
@@ -525,9 +526,8 @@ public func dispatchPhotoPicker(
     requestId: UInt64,
     status: String,
     message: String?,
-    photos: [PhotoPickerSelectedAsset]
-) {
-    dispatchNativeInterrupt { builder in
+    photos: [PhotoPickerSelectedAsset], dispatcher: NativeInterruptDispatcher = .shared) {
+    dispatchNativeInterrupt(dispatcher) { builder in
         builder.addMapWithStringKey("PhotoPicker") { messageBuilder in
             messageBuilder.addWithStringKey("id", UInt(id))
             messageBuilder.addWithStringKey("request_id", UInt(requestId))
@@ -561,8 +561,8 @@ public func dispatchPhotoPicker(
     }
 }
 
-public func dispatchFormCheckboxToggle(id: PaxNodeId, state: Bool) {
-    dispatchNativeInterrupt { builder in
+public func dispatchFormCheckboxToggle(id: PaxNodeId, state: Bool, dispatcher: NativeInterruptDispatcher = .shared) {
+    dispatchNativeInterrupt(dispatcher) { builder in
         builder.addMapWithStringKey("FormCheckboxToggle") { messageBuilder in
             messageBuilder.addWithStringKey("id", UInt(id))
             messageBuilder.addWithStringKey("state", state)
@@ -570,8 +570,8 @@ public func dispatchFormCheckboxToggle(id: PaxNodeId, state: Bool) {
     }
 }
 
-public func dispatchFormDropdownChange(id: PaxNodeId, selectedId: UInt32) {
-    dispatchNativeInterrupt { builder in
+public func dispatchFormDropdownChange(id: PaxNodeId, selectedId: UInt32, dispatcher: NativeInterruptDispatcher = .shared) {
+    dispatchNativeInterrupt(dispatcher) { builder in
         builder.addMapWithStringKey("FormDropdownChange") { messageBuilder in
             messageBuilder.addWithStringKey("id", UInt(id))
             messageBuilder.addWithStringKey("selected_id", UInt(selectedId))
@@ -579,8 +579,8 @@ public func dispatchFormDropdownChange(id: PaxNodeId, selectedId: UInt32) {
     }
 }
 
-public func dispatchFormRadioListChange(id: PaxNodeId, selectedId: UInt32) {
-    dispatchNativeInterrupt { builder in
+public func dispatchFormRadioListChange(id: PaxNodeId, selectedId: UInt32, dispatcher: NativeInterruptDispatcher = .shared) {
+    dispatchNativeInterrupt(dispatcher) { builder in
         builder.addMapWithStringKey("FormRadioListChange") { messageBuilder in
             messageBuilder.addWithStringKey("id", UInt(id))
             messageBuilder.addWithStringKey("selected_id", UInt(selectedId))
@@ -588,8 +588,8 @@ public func dispatchFormRadioListChange(id: PaxNodeId, selectedId: UInt32) {
     }
 }
 
-public func dispatchFormSliderChange(id: PaxNodeId, value: Double) {
-    dispatchNativeInterrupt { builder in
+public func dispatchFormSliderChange(id: PaxNodeId, value: Double, dispatcher: NativeInterruptDispatcher = .shared) {
+    dispatchNativeInterrupt(dispatcher) { builder in
         builder.addMapWithStringKey("FormSliderChange") { messageBuilder in
             messageBuilder.addWithStringKey("id", UInt(id))
             messageBuilder.addWithStringKey("value", value)
@@ -597,8 +597,8 @@ public func dispatchFormSliderChange(id: PaxNodeId, value: Double) {
     }
 }
 
-public func dispatchFormTextboxInput(id: PaxNodeId, text: String) {
-    dispatchNativeInterrupt { builder in
+public func dispatchFormTextboxInput(id: PaxNodeId, text: String, dispatcher: NativeInterruptDispatcher = .shared) {
+    dispatchNativeInterrupt(dispatcher) { builder in
         builder.addMapWithStringKey("FormTextboxInput") { messageBuilder in
             messageBuilder.addWithStringKey("id", UInt(id))
             messageBuilder.addStringWithStringKey("text", text)
@@ -606,8 +606,8 @@ public func dispatchFormTextboxInput(id: PaxNodeId, text: String) {
     }
 }
 
-public func dispatchFormTextboxSubmit(id: PaxNodeId, text: String) {
-    dispatchNativeInterrupt { builder in
+public func dispatchFormTextboxSubmit(id: PaxNodeId, text: String, dispatcher: NativeInterruptDispatcher = .shared) {
+    dispatchNativeInterrupt(dispatcher) { builder in
         builder.addMapWithStringKey("FormTextboxSubmit") { messageBuilder in
             messageBuilder.addWithStringKey("id", UInt(id))
             messageBuilder.addStringWithStringKey("text", text)
@@ -615,8 +615,8 @@ public func dispatchFormTextboxSubmit(id: PaxNodeId, text: String) {
     }
 }
 
-public func dispatchFormTextboxChange(id: PaxNodeId, text: String) {
-    dispatchNativeInterrupt { builder in
+public func dispatchFormTextboxChange(id: PaxNodeId, text: String, dispatcher: NativeInterruptDispatcher = .shared) {
+    dispatchNativeInterrupt(dispatcher) { builder in
         builder.addMapWithStringKey("FormTextboxChange") { messageBuilder in
             messageBuilder.addWithStringKey("id", UInt(id))
             messageBuilder.addStringWithStringKey("text", text)
@@ -624,8 +624,8 @@ public func dispatchFormTextboxChange(id: PaxNodeId, text: String) {
     }
 }
 
-public func dispatchTextInput(id: PaxNodeId, text: String) {
-    dispatchNativeInterrupt { builder in
+public func dispatchTextInput(id: PaxNodeId, text: String, dispatcher: NativeInterruptDispatcher = .shared) {
+    dispatchNativeInterrupt(dispatcher) { builder in
         builder.addMapWithStringKey("TextInput") { messageBuilder in
             messageBuilder.addWithStringKey("id", UInt(id))
             messageBuilder.addStringWithStringKey("text", text)
@@ -635,7 +635,7 @@ public func dispatchTextInput(id: PaxNodeId, text: String) {
 
 /// Publish live UIKit window geometry; applications opt in through layout components.
 public func dispatchSafeAreaInsets(top: Double, right: Double, bottom: Double, left: Double) {
-    dispatchNativeInterrupt { builder in
+    dispatchNativeInterrupt(.shared) { builder in
         builder.addMapWithStringKey("SafeAreaInsets") { message in
             message.addWithStringKey("top", top)
             message.addWithStringKey("right", right)
@@ -650,9 +650,8 @@ public func dispatchScrollbarChange(
     scrollX: Double,
     scrollY: Double,
     presentationScrollX: Double? = nil,
-    presentationScrollY: Double? = nil
-) {
-    dispatchNativeInterrupt { builder in
+    presentationScrollY: Double? = nil, dispatcher: NativeInterruptDispatcher = .shared) {
+    dispatchNativeInterrupt(dispatcher) { builder in
         builder.addMapWithStringKey("Scrollbar") { messageBuilder in
             messageBuilder.addWithStringKey("id", UInt(id))
             messageBuilder.addWithStringKey("scroll_x", scrollX)
@@ -1996,6 +1995,7 @@ public class PaxFont {
 
 
 public class FrameElement: ResolvedPlacementTarget {
+    public var inlineSession = ""
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
     public var clipContent: Bool
@@ -2026,6 +2026,7 @@ public class FrameElement: ResolvedPlacementTarget {
     }
     
     public func applyPatch(patch: FrameUpdatePatch) {
+        if let session = patch.inlineSession { inlineSession = session }
         //no-op to ID, as it is primary key
         if patch.transformScrollerUpdated {
             self.transformScroller = patch.transformScroller
@@ -2196,6 +2197,7 @@ public class ScrollerElement: NativePositionElement {
 
 /// A patch containing optional fields, representing an update action for the NativeElement of the given id_chain
 public class FrameUpdatePatch: ResolvedPlacementPatch {
+    public let inlineSession: String?
     public var id: PaxNodeId
     public var id_chain: [UInt64]
     public var parentFrameUpdated: Bool
@@ -2213,6 +2215,7 @@ public class FrameUpdatePatch: ResolvedPlacementPatch {
     public var opacity: Double?
     
     public init(fb: FlxbReference) {
+        inlineSession = fb["inline_session"]?.asString
         self.id = readNodeId(fb["id"]) ?? decodeId(fb) ?? 0
         self.id_chain = decodeIdChain(fb)
         self.parentFrameUpdated = fieldExists(fb, "parent_frame")

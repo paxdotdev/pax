@@ -15,6 +15,10 @@ then builds on the same boundary to explain conditional views, lists, slots,
 and shared state. If you are new to Pax source, start with
 [Templates](template-language.md#reading-a-template).
 
+To display an independently built macOS application inside a component, use
+`<InlineFrame session="project" />` with a session registered by the launcher.
+See [Host a macOS development session](targets-build-deploy.md#host-a-macos-development-session).
+
 ## Make a reusable component
 
 Create `src/note_card.rs` and `src/note_card.pax` beside your application's

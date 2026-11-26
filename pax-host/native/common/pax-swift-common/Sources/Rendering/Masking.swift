@@ -23,10 +23,6 @@ private enum SVGPathCache {
     }
 }
 
-private enum ResolvedNativeMaskCache {
-    static var masks: [PaxNodeId: ResolvedNativeMask] = [:]
-}
-
 private struct ParsedMaskEntry {
     let path: Path?
     let clips: [Path]
@@ -414,22 +410,22 @@ private func resolvedMaskSize(patch: NativeMaskPatch?, fallbackSize: CGSize) -> 
     return CGSize(width: max(0, width), height: max(0, height))
 }
 
-public func setResolvedNativeMask(id: PaxNodeId, mask: ResolvedNativeMask?) {
+public func setResolvedNativeMask(id: PaxNodeId, mask: ResolvedNativeMask?, state: PaxNativeHostState = .shared) {
     if let mask {
-        if ResolvedNativeMaskCache.masks[id]?.signature != mask.signature {
-            ResolvedNativeMaskCache.masks[id] = mask
+        if state.masks[id]?.signature != mask.signature {
+            state.masks[id] = mask
         }
     } else {
-        ResolvedNativeMaskCache.masks.removeValue(forKey: id)
+        state.masks.removeValue(forKey: id)
     }
 }
 
 public func resolvedNativeMask(for id: PaxNodeId) -> ResolvedNativeMask? {
-    ResolvedNativeMaskCache.masks[id]
+    PaxNativeHostState.shared.masks[id]
 }
 
-public func removeResolvedNativeMask(id: PaxNodeId) {
-    ResolvedNativeMaskCache.masks.removeValue(forKey: id)
+public func removeResolvedNativeMask(id: PaxNodeId, state: PaxNativeHostState = .shared) {
+    state.masks.removeValue(forKey: id)
 }
 
 public func resolveNativeMask(

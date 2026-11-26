@@ -44,6 +44,7 @@ public struct DirtyResolvedMasks {
 }
 
 public protocol NativeMessageHandling: AnyObject {
+    var nativeState: PaxNativeHostState { get }
     var textElements: TextElements { get }
     var frameElements: FrameElements { get }
     var buttonElements: ButtonElements { get }
@@ -65,6 +66,22 @@ public protocol NativeMessageHandling: AnyObject {
 }
 
 public extension NativeMessageHandling {
+    var nativeState: PaxNativeHostState { .shared }
+    var textElements: TextElements { nativeState.textElements }
+    var frameElements: FrameElements { nativeState.frameElements }
+    var scrollerElements: ScrollerElements { nativeState.scrollerElements }
+    var buttonElements: ButtonElements { nativeState.buttonElements }
+    var photoPickerElements: PhotoPickerElements { nativeState.photoPickerElements }
+    var checkboxElements: CheckboxElements { nativeState.checkboxElements }
+    var nativeImageElements: NativeImageElements { nativeState.nativeImageElements }
+    var youtubeVideoElements: YoutubeVideoElements { nativeState.youtubeVideoElements }
+    var dropdownElements: DropdownElements { nativeState.dropdownElements }
+    var radioListElements: RadioListElements { nativeState.radioListElements }
+    var sliderElements: SliderElements { nativeState.sliderElements }
+    var textboxElements: TextboxElements { nativeState.textboxElements }
+    var eventBlockerElements: EventBlockerElements { nativeState.eventBlockerElements }
+    var glassSurfaceElements: GlassSurfaceElements { nativeState.glassSurfaceElements }
+
     func handleSetCursor(patch: SetCursorPatchMessage) {
         #if os(macOS)
         let cursor: NSCursor
@@ -108,7 +125,7 @@ public extension NativeMessageHandling {
         let scrollY = scroller.presentationScrollY.isFinite
             ? scroller.presentationScrollY
             : scroller.scrollY
-        return NativeScrollerHostRegistry.shared.updateScrollPosition(
+        return nativeState.scrollers.updateScrollPosition(
             id: scroller.id,
             position: CGPoint(x: scrollX, y: scrollY)
         )
@@ -212,7 +229,7 @@ public extension NativeMessageHandling {
             patch: textElement.nativeMaskPatch,
             fallbackSize: resolvedTextMaskSize(textElement)
         )
-        setResolvedNativeMask(id: textElement.id, mask: mask)
+        setResolvedNativeMask(id: textElement.id, mask: mask, state: nativeState)
     }
 
     func recomputeResolvedMask<T: NativePositionElement>(for element: T) {
@@ -220,7 +237,7 @@ public extension NativeMessageHandling {
             patch: element.nativeMaskPatch,
             fallbackSize: CGSize(width: max(0, CGFloat(element.size_x)), height: max(0, CGFloat(element.size_y)))
         )
-        setResolvedNativeMask(id: element.id, mask: mask)
+        setResolvedNativeMask(id: element.id, mask: mask, state: nativeState)
     }
 
     func recomputeResolvedMask(for scrollerElement: ScrollerElement) {
@@ -228,8 +245,8 @@ public extension NativeMessageHandling {
             patch: scrollerElement.nativeMaskPatch,
             fallbackSize: CGSize(width: max(0, CGFloat(scrollerElement.size_x)), height: max(0, CGFloat(scrollerElement.size_y)))
         )
-        setResolvedNativeMask(id: scrollerElement.id, mask: mask)
-        NativeScrollerHostRegistry.shared.setCanvasOpacityMultiplier(
+        setResolvedNativeMask(id: scrollerElement.id, mask: mask, state: nativeState)
+        nativeState.scrollers.setCanvasOpacityMultiplier(
             id: scrollerElement.id,
             multiplier: splitNativeMaskFullCoverageAttenuation(mask).opacityMultiplier
         )
@@ -265,7 +282,7 @@ public extension NativeMessageHandling {
         guard dirty.hasAny else {
             return
         }
-        NativeSceneInvalidation.singleton.invalidate(ids: dirty.elementIds, rebuild: dirty.requiresRebuild || dirty.elementIds.isEmpty)
+        nativeState.invalidation.invalidate(ids: dirty.elementIds, rebuild: dirty.requiresRebuild || dirty.elementIds.isEmpty)
     }
 
     func handleTextCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
@@ -302,7 +319,7 @@ public extension NativeMessageHandling {
         dirty.elementIds.insert(patch.id)
         dirty.requiresRebuild = true
         textElements.remove(id: patch.id)
-        removeResolvedNativeMask(id: patch.id)
+        removeResolvedNativeMask(id: patch.id, state: nativeState)
         dirty.text = true
     }
 
@@ -404,8 +421,8 @@ public extension NativeMessageHandling {
         dirty.elementIds.insert(patch.id)
         dirty.requiresRebuild = true
         scrollerElements.remove(id: patch.id)
-        removeResolvedNativeMask(id: patch.id)
-        NativeScrollerHostRegistry.shared.setCanvasOpacityMultiplier(id: patch.id, multiplier: 1.0)
+        removeResolvedNativeMask(id: patch.id, state: nativeState)
+        nativeState.scrollers.setCanvasOpacityMultiplier(id: patch.id, multiplier: 1.0)
         dirty.scroller = true
     }
 
@@ -448,7 +465,7 @@ public extension NativeMessageHandling {
         dirty.elementIds.insert(patch.id)
         dirty.requiresRebuild = true
         buttonElements.remove(id: patch.id)
-        removeResolvedNativeMask(id: patch.id)
+        removeResolvedNativeMask(id: patch.id, state: nativeState)
         dirty.button = true
     }
 
@@ -484,7 +501,7 @@ public extension NativeMessageHandling {
         dirty.elementIds.insert(patch.id)
         dirty.requiresRebuild = true
         photoPickerElements.remove(id: patch.id)
-        removeResolvedNativeMask(id: patch.id)
+        removeResolvedNativeMask(id: patch.id, state: nativeState)
         dirty.photoPicker = true
     }
 
@@ -520,7 +537,7 @@ public extension NativeMessageHandling {
         dirty.elementIds.insert(patch.id)
         dirty.requiresRebuild = true
         checkboxElements.remove(id: patch.id)
-        removeResolvedNativeMask(id: patch.id)
+        removeResolvedNativeMask(id: patch.id, state: nativeState)
         dirty.checkbox = true
     }
 
@@ -556,7 +573,7 @@ public extension NativeMessageHandling {
         dirty.elementIds.insert(patch.id)
         dirty.requiresRebuild = true
         nativeImageElements.remove(id: patch.id)
-        removeResolvedNativeMask(id: patch.id)
+        removeResolvedNativeMask(id: patch.id, state: nativeState)
         dirty.nativeImage = true
     }
 
@@ -592,7 +609,7 @@ public extension NativeMessageHandling {
         dirty.elementIds.insert(patch.id)
         dirty.requiresRebuild = true
         youtubeVideoElements.remove(id: patch.id)
-        removeResolvedNativeMask(id: patch.id)
+        removeResolvedNativeMask(id: patch.id, state: nativeState)
         dirty.youtubeVideo = true
     }
 
@@ -628,7 +645,7 @@ public extension NativeMessageHandling {
         dirty.elementIds.insert(patch.id)
         dirty.requiresRebuild = true
         dropdownElements.remove(id: patch.id)
-        removeResolvedNativeMask(id: patch.id)
+        removeResolvedNativeMask(id: patch.id, state: nativeState)
         dirty.dropdown = true
     }
 
@@ -664,7 +681,7 @@ public extension NativeMessageHandling {
         dirty.elementIds.insert(patch.id)
         dirty.requiresRebuild = true
         radioListElements.remove(id: patch.id)
-        removeResolvedNativeMask(id: patch.id)
+        removeResolvedNativeMask(id: patch.id, state: nativeState)
         dirty.radioList = true
     }
 
@@ -700,7 +717,7 @@ public extension NativeMessageHandling {
         dirty.elementIds.insert(patch.id)
         dirty.requiresRebuild = true
         sliderElements.remove(id: patch.id)
-        removeResolvedNativeMask(id: patch.id)
+        removeResolvedNativeMask(id: patch.id, state: nativeState)
         dirty.slider = true
     }
 
@@ -736,7 +753,7 @@ public extension NativeMessageHandling {
         dirty.elementIds.insert(patch.id)
         dirty.requiresRebuild = true
         textboxElements.remove(id: patch.id)
-        removeResolvedNativeMask(id: patch.id)
+        removeResolvedNativeMask(id: patch.id, state: nativeState)
         dirty.textbox = true
     }
 
@@ -772,7 +789,7 @@ public extension NativeMessageHandling {
         dirty.elementIds.insert(patch.id)
         dirty.requiresRebuild = true
         eventBlockerElements.remove(id: patch.id)
-        removeResolvedNativeMask(id: patch.id)
+        removeResolvedNativeMask(id: patch.id, state: nativeState)
         dirty.eventBlocker = true
     }
 
@@ -812,7 +829,7 @@ public extension NativeMessageHandling {
         dirty.elementIds.insert(patch.id)
         dirty.requiresRebuild = true
         glassSurfaceElements.remove(id: patch.id)
-        removeResolvedNativeMask(id: patch.id)
+        removeResolvedNativeMask(id: patch.id, state: nativeState)
         dirty.glassSurface = true
     }
 
@@ -1052,7 +1069,7 @@ public extension NativeMessageHandling {
             if let patch = message["NativeCullUpdate"] {
                 let cull = patch["cull"]?.asVector?.makeIterator().compactMap { $0.asUInt64.map { PaxNodeId($0) } } ?? []
                 let restore = patch["restore"]?.asVector?.makeIterator().compactMap { $0.asUInt64.map { PaxNodeId($0) } } ?? []
-                NativeCullingState.shared.apply(cull: cull, restore: restore)
+                nativeState.culling.apply(cull: cull, restore: restore)
                 dirty.elementIds.formUnion(cull)
                 dirty.elementIds.formUnion(restore)
                 dirty.culling = true
@@ -1067,9 +1084,9 @@ public extension NativeMessageHandling {
 
             if let shrinkLayersMessage = message["ShrinkLayersTo"] {
                 if let count = shrinkLayersMessage.asUInt64 {
-                    NativeLayerCountTracker.shared.update(Int(count))
+                    nativeState.layerCount.update(Int(count))
                 } else if let count = shrinkLayersMessage.asInt {
-                    NativeLayerCountTracker.shared.update(Int(count))
+                    nativeState.layerCount.update(Int(count))
                 }
             }
 

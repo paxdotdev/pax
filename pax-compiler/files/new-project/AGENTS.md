@@ -49,7 +49,10 @@ Run from the project root on macOS, Linux, or Windows:
 pax-cli run --target web
 ```
 
-The CLI owns development serving, template reload, and platform packaging.
+On macOS, Web and Apple development runs attach to Pax Portal Agent. Use
+`pax-cli run --bg` to leave a managed preview available after this terminal exits,
+and `pax-cli stop` to stop it. Windows and Linux keep the foreground runner.
+Use `--fg` for a direct run on any workstation. The CLI handles platform packaging.
 `cargo build` compiles without launching. On macOS, `cargo run` runs the native
 app directly without a development server. With Xcode, use the CLI for native
 development sessions:
@@ -69,8 +72,7 @@ logic and bundled assets require a rebuild/relaunch. `pax-cli dev` supports tree
 selector, ray-cast and window capture checks; use `adb logcat -s Pax` for logs.
 The debug default is `--hot-reload=pax`: `.pax` edits update the mounted app,
 while Rust edits require rebuilding and restarting. `--hot-reload=all` now enables only template reload
-with a migration notice; `--hot-reload=logic` is rejected. Rebuild and restart
-after Rust changes on every target (refresh the browser after rebuilding).
+with a migration notice; `--hot-reload=logic` is rejected. Managed Mac runs rebuild the requested targets after Rust saves. Rebuild and restart direct runs after Rust changes (refresh the browser after rebuilding).
 
 The dev Cargo profile optimizes runtime dependencies at level 1 and keeps this
 application at level 0 for quick Rust rebuilds. Preserve the app-specific

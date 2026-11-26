@@ -462,6 +462,11 @@ Create/update patch for a native frame host.
 ##### `id`
 Type: `u32`
 
+##### `inline_session`
+Type: `Option`<`String`>
+
+Host-registered guest session for an InlineFrame. An empty name detaches it.
+
 ##### `parent_frame`
 Type: `Option`<`Option`<`u32`>>
 

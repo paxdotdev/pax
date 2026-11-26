@@ -238,9 +238,8 @@ export names remain stable across code edits and target architectures. The conte
 still detects stale direct-Cargo cartridges. Packaged hosts carry their selected
 names with the application, including generated C/Swift bindings on Apple.
 
-All linked programs still need one compatible Pax runtime. Distinct entrypoints
-do not make incompatible runtime versions interoperable or remove the current
-single-active-native-mount limit. Multiple runnable libraries can also retain
+All linked programs need a compatible Pax runtime. On macOS an independently built
+cartridge can occupy a named [guest viewport](#host-a-macos-development-session). Multiple runnable libraries can also retain
 additional code and program data; measure the resulting application size and
 startup cost for substantial embedded examples.
 
@@ -449,8 +448,9 @@ prevent native wheel scrolling; this overrides generated `wheel_events` metadata
 Cancellation can delay scrolling because the browser waits for JavaScript.
 See [wheel input policy](scrolling-viewports.md#wheel-input-policy).
 
-Native hosts support one live mount per runtime. A second prepare/mount is an
-error, including while cleanup is pending. Await `closed` before replacing it.
+A native launcher can prepare one outer mount at a time. On macOS each named
+guest in that mount uses its own cartridge image. The image stays reserved until
+cleanup finishes. Await `closed` before replacing the outer mount.
 On web, separate `init_web` calls own independent mounted regions and can share
 the same cartridge's bootstrap download and initialized Wasm runtime.
 Hidden/zero-size regions retain application state and cleanup scheduling.
@@ -459,6 +459,105 @@ its host skips drawable acquisition until the region has nonzero bounds. Closing
 is distinct from suspension. Native controls retain their existing chassis
 capabilities and restrictions; see [Accessibility and Native Controls](accessibility-native-controls.md).
 No raw-surface-only or shared-wgpu-device adapter is provided.
+
+#### Host a macOS development session
+
+A Pax application can display another project's interactive UI inside its own window.
+In the host template, give the guest a named viewport with explicit bounds.
+
+```pax
+<InlineFrame session="project" y=52px width=100% height={100% - 52px} />
+```
+
+Register the same name in the host's macOS launcher before entering the event loop.
+
+```rust
+let host = pax_kit::init!()?;
+if let Some(bundle) = std::env::var_os("PAX_HOSTED_GUEST_APP") {
+    host.register_inline_app("project", std::path::Path::new(&bundle))?;
+}
+host.run()
+```
+
+For a local development host that opens CLI-selected projects, the host needs
+access to the guest bundle, the CLI session files, and the local development server.
+Passing a path through the CLI does not grant access through App Sandbox. A local
+tool for trusted projects can opt out in the host's `Cargo.toml`.
+
+```toml
+[package.metadata.pax.macos.entitlements]
+"com.apple.security.app-sandbox" = false
+```
+
+Build the host as a macOS release bundle. From the guest's project directory, run
+`pax-cli run --target macos --host-app "/path/to/Host.app"`. The CLI builds the
+designtime cartridge, starts the guest's development server and opens the host.
+Template reload and `pax-cli dev inspect tree` target the guest. Its text fields,
+buttons and scrolling use the normal macOS controls.
+If the host exits before the guest registers, the CLI reports a launch failure
+and prints the path to the host's standard error log.
+
+To preview the same project in a browser and a macOS host, start a debug web
+run first. In a second terminal, run the hosted macOS command against the same
+project directory. Both commands must use a CLI with shared preview support.
+
+```sh
+pax-cli run --target web --path ./my-app
+# In a second terminal
+pax-cli run --target macos --path ./my-app --host-app "/path/to/Host.app"
+```
+
+A running macOS host can also open guests after startup. Create a private
+directory that only the current user can write, then pass its path to
+`host.allow_inline_session_directory(&directory)?` before `run_with` or
+`mount`. For each preview, have the host start the CLI with a writable stdin
+pipe and a new descriptor path in that directory. For example, if the host
+uses a directory named by `GUEST_DIR`, the command for its first frame is
+
+```sh
+pax-cli run --target macos --path ./my-app --host-session "$GUEST_DIR/preview-1.json"
+```
+
+Use `--optimized-dev` with a managed project server to mount its published Mac
+build. Each mounted guest has an inspection ID and receives template updates
+alongside browser tabs. See [Optimized Web and Mac development](developer-workflow.md#optimized-web-and-mac-development).
+
+Once the file appears, the host can show `<InlineFrame session="preview-1" />`.
+The CLI publishes the complete JSON file atomically and refuses to overwrite
+an existing descriptor. The file identifies the native bundle, inspection
+session, and design server. Use a unique frame name of 1–128 ASCII letters,
+digits, hyphens or underscores per instance. The host trusts code referenced
+by descriptors in this directory. Keep the CLI pipe open for the lifetime of
+the guest. When its native teardown finishes, the host writes `host-closed`
+in the descriptor's `devSessionDirectory`. Closing the pipe releases the
+staged bundle and any development server that CLI invocation started. A shared
+web server continues serving other clients. This workflow supports independently
+mounted, stateful guests in a single macOS host. To implement tabs, keep each
+frame mounted with a stable key. On macOS, setting a named frame's opacity to
+zero hides its native controls and releases keyboard focus inside it. Restoring
+its opacity reveals the same running instance. Removing the frame ends that
+instance.
+
+The web server advertises itself as soon as it starts, even before a browser
+connects. The macOS CLI builds the native cartridge and attaches it to the
+live server for the same canonical project directory. Both instances receive
+compatible template edits. Each has its own input, application state and
+inspection ID. Use `pax-cli dev list` and pass `--session <id>` to inspect
+one instance. Closing the native preview leaves the web server running.
+
+This shared preview requires matching compiled component and handler descriptors
+and matching template reload settings. Multiple live web servers for the same
+directory make selection ambiguous. Separate worktrees have distinct identities.
+The browser keeps the existing authoring connection and native previews subscribe
+to template updates. Rust changes require rebuilding and restarting the affected
+target. With no advertised web server, the hosted command starts its own native
+development server.
+
+Removing the frame closes the guest. Reinserting it starts a fresh guest after
+cleanup. The host and guest share a process, so only load trusted bundles. This
+experimental integration supports a bounded macOS viewport and one development
+session per CLI invocation. An application-level crash ends the process. Browser
+applications can use the existing `Pax.init_web` embedding API.
 
 ### Data across the cartridge boundary
 
@@ -1274,7 +1373,7 @@ configuration is needed. The application's native `main` executes in the iOS
 process, independently of the workstation CLI.
 
 The default selector chooses an appropriate phone or tablet simulator. List
-available simulators with `xcrun simctl list devices available`, then select
+available simulators and paired devices with `pax-cli dev targets`, then select
 one by name or UDID when needed:
 
 ```sh
@@ -1298,6 +1397,9 @@ Use your real Team ID. This path may ask Xcode to update provisioning or
 register the selected device. The flag overrides the target's
 `development_team` metadata. Signing errors need to be resolved through your
 Xcode account, app identity, and provisioning configuration.
+
+For optimized mobile previews that share live template changes with Web, Mac
+and other devices, use a [project server with optimized development previews](developer-workflow.md#optimized-development-previews).
 
 To build a debug simulator app without launching it, use
 `pax-cli build --target ios` or `pax-cli build --target ipados`. Device `run`

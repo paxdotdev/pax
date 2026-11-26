@@ -19,8 +19,7 @@ use crate::building::apple::rebuild_staged_macos_logic_dylib;
 use crate::building::web::rebuild_staged_web_cartridge;
 use crate::building::web_public::{existing_project_public_dir, is_servable_public_path};
 use crate::dev_session::{
-    self, write_session_request_json, DevLookRequest, DevReloadLogicRequest,
-    DevReloadLogicResponse, DevSession,
+    self, write_session_request_json, DevReloadLogicRequest, DevReloadLogicResponse, DevSession,
 };
 use crate::helpers::PAX_BADGE;
 use crate::HotReloadMode;
@@ -31,7 +30,7 @@ use pax_designtime::messages::{
 };
 use pax_manifest::PaxManifest;
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Mutex;
@@ -41,7 +40,10 @@ use websocket::PrivilegedAgentWebSocket;
 
 #[allow(unused)]
 mod llm;
+mod build_cache;
+mod project;
 mod revision;
+pub use project::serve_project;
 pub mod static_server;
 pub mod websocket;
 
@@ -215,16 +217,17 @@ struct WatcherState {
 }
 
 pub struct AppState {
+    managed: Option<project::Managed>,
     serve_dir: Mutex<PathBuf>,
     userland_project_root: Mutex<PathBuf>,
     active_websocket_client: Mutex<Option<ActiveWebsocketClient>>,
+    template_previews: Mutex<HashMap<usize, Addr<PrivilegedAgentWebSocket>>>,
     websocket_client_counter: Mutex<usize>,
     request_id_counter: Mutex<usize>,
-    in_flight_dev_requests: Mutex<HashSet<String>>,
+    peers: Mutex<HashMap<usize, dev_session::RuntimeInstance>>,
     revisions: Mutex<DebugRevisionCoordinator>,
     watcher_state: Mutex<WatcherState>,
     dev_session: Mutex<Option<DevSession>>,
-    pending_dev_look_requests: Mutex<HashMap<String, DevLookRequest>>,
     hot_reload: HotReloadMode,
     logic_reload: Mutex<Option<LogicReloadState>>,
     pax_restart_notice_emitted: Mutex<bool>,
@@ -238,16 +241,17 @@ pub struct AppState {
 impl AppState {
     pub fn new_empty() -> Self {
         Self {
+            managed: None,
             serve_dir: Mutex::new(PathBuf::new()),
             userland_project_root: Mutex::new(PathBuf::new()),
             active_websocket_client: Mutex::new(None),
+            template_previews: Mutex::new(HashMap::new()),
             websocket_client_counter: Mutex::new(0),
             request_id_counter: Mutex::new(0),
-            in_flight_dev_requests: Mutex::new(HashSet::new()),
+            peers: Mutex::new(HashMap::new()),
             revisions: Mutex::new(DebugRevisionCoordinator::empty()),
             watcher_state: Mutex::new(WatcherState::default()),
             dev_session: Mutex::new(None),
-            pending_dev_look_requests: Mutex::new(HashMap::new()),
             hot_reload: HotReloadMode::All,
             logic_reload: Mutex::new(None),
             pax_restart_notice_emitted: Mutex::new(false),
@@ -293,16 +297,17 @@ impl AppState {
         let startup_recovery_rebuild =
             restored_snapshot && hot_reload.reloads_logic() && logic_reload.is_some();
         let state = AppState {
+            managed: None,
             serve_dir: Mutex::new(serve_dir),
             userland_project_root: Mutex::new(project_root),
             active_websocket_client: Mutex::new(None),
+            template_previews: Mutex::new(HashMap::new()),
             websocket_client_counter: Mutex::new(0),
             request_id_counter: Mutex::new(0),
-            in_flight_dev_requests: Mutex::new(HashSet::new()),
+            peers: Mutex::new(HashMap::new()),
             revisions: Mutex::new(revisions),
             watcher_state: Mutex::new(WatcherState::default()),
             dev_session: Mutex::new(dev_session),
-            pending_dev_look_requests: Mutex::new(HashMap::new()),
             hot_reload,
             logic_reload: Mutex::new(logic_reload.map(|config| LogicReloadState {
                 config,
@@ -447,6 +452,15 @@ impl AppState {
     }
 
     fn websocket_client_is_active(&self, connection_id: usize) -> bool {
+        if self
+            .peers
+            .lock()
+            .unwrap()
+            .get(&connection_id)
+            .is_some_and(|p| p.target == "web")
+        {
+            return true;
+        }
         self.active_websocket_client
             .lock()
             .unwrap()
@@ -475,6 +489,15 @@ impl AppState {
         after_initial_check();
         let source_update = self.source_update_lock.lock().unwrap();
         if !self.websocket_client_is_active(connection_id) {
+            return None;
+        }
+        if self.peers.lock().unwrap().contains_key(&connection_id)
+            && !self
+                .template_previews
+                .lock()
+                .unwrap()
+                .contains_key(&connection_id)
+        {
             return None;
         }
         Some(source_update)
@@ -553,6 +576,21 @@ impl AppState {
         &self,
     ) -> Result<Option<pax_designtime::messages::LoadManifestResponse>, String> {
         self.revisions.lock().unwrap().active_snapshot()
+    }
+
+    fn subscribe_preview(
+        &self,
+        id: usize,
+        addr: Addr<PrivilegedAgentWebSocket>,
+    ) -> Result<Option<pax_designtime::messages::LoadManifestResponse>, String> {
+        // Install the subscriber under the same lock as template commits. A
+        // late joiner gets a snapshot followed by every subsequent update.
+        let revisions = self.revisions.lock().unwrap();
+        let snapshot = revisions.active_snapshot()?;
+        if snapshot.is_some() {
+            self.template_previews.lock().unwrap().insert(id, addr);
+        }
+        Ok(snapshot)
     }
 
     /// Persist the proposed coordinator state while the caller owns the live
@@ -701,8 +739,21 @@ impl AppState {
         let mut revisions = self.revisions.lock().unwrap();
         let mut next_revisions = revisions.clone();
         mutation(&mut next_revisions)?;
+        let previews = self.template_previews.lock().unwrap();
+        let snapshot = if previews.is_empty() {
+            None
+        } else {
+            next_revisions.active_snapshot()?
+        };
         let persistence = self.persist_active_restart_snapshot_locked(&next_revisions, action);
         *revisions = next_revisions;
+        if let Some(response) = snapshot {
+            for addr in previews.values() {
+                addr.do_send(websocket::SendAgentMessage {
+                    message: AgentMessage::LoadManifestResponse(response.clone()),
+                });
+            }
+        }
         if let Err(err) = persistence {
             self.invalidate_restart_snapshot_after_live_install(action, &err);
         }
@@ -741,6 +792,11 @@ impl AppState {
         *revisions = next_revisions;
         if let Err(err) = persistence {
             self.invalidate_restart_snapshot_after_live_install("Pax template update", &err);
+        }
+        for preview in self.template_previews.lock().unwrap().values() {
+            preview.do_send(websocket::SendAgentMessage {
+                message: AgentMessage::UpdateTemplateRequest(Box::new(committed.clone())),
+            });
         }
         let active_addr = self
             .active_websocket_client
@@ -1288,13 +1344,54 @@ fn wait_for_native_logic_reload(
     }
 }
 
+#[get("/_pax/instances")]
+async fn project_instances(state: Data<AppState>) -> HttpResponse {
+    let peers = state.peers.lock().unwrap();
+    HttpResponse::Ok().json(peers.values().collect::<Vec<_>>())
+}
+
+#[get("/_pax/server-id")]
+async fn project_server_id(state: web::Data<AppState>) -> HttpResponse {
+    match state.dev_session.lock().unwrap().as_ref() {
+        Some(session) => HttpResponse::Ok().body(session.session_id.clone()),
+        None => HttpResponse::NotFound().finish(),
+    }
+}
+
 #[get("/ws")]
 pub async fn web_socket(
     req: HttpRequest,
     stream: web::Payload,
     state: web::Data<AppState>,
 ) -> impl Responder {
-    ws::WsResponseBuilder::new(PrivilegedAgentWebSocket::new(state), &req, stream)
+    let mut socket = PrivilegedAgentWebSocket::new(state.clone());
+    let params = web::Query::<HashMap<String, String>>::from_query(req.query_string())
+        .unwrap_or_else(|_| web::Query(HashMap::new()));
+    let managed_remote = state.managed.is_some()
+        && !req.peer_addr().is_some_and(|addr| addr.ip().is_loopback());
+    let mobile = params.get("target").map(String::as_str)
+        .filter(|target| matches!(*target, "ios" | "ipados"));
+    let instance = params.get("instance").filter(|id| {
+        !id.is_empty() && id.len() <= 100
+            && id.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-')
+    });
+    if managed_remote || mobile.is_some() {
+        let authorized = state.managed.as_ref()
+            .is_some_and(|server| server.accepts_mobile_key(params.get("key")));
+        if mobile.is_none() || instance.is_none() || !authorized || !params.contains_key("preview") {
+            return Ok(HttpResponse::Forbidden().finish());
+        }
+    }
+    if let Some(id) = params.get("preview") {
+        let current = state.dev_session.lock().unwrap();
+        if !current.as_ref().is_some_and(|session| &session.session_id == id) {
+            return Ok(HttpResponse::Conflict().body("The requested project server has ended"));
+        }
+        socket.subscribe_only();
+        socket.native_session = instance.cloned();
+        socket.mobile_target = mobile.map(str::to_owned);
+    }
+    ws::WsResponseBuilder::new(socket, &req, stream)
         .frame_size(2_000_000)
         .start()
 }
@@ -1348,15 +1445,46 @@ pub(crate) fn start_server_with_ready_callback(
     restart_manifest_path: Option<PathBuf>,
     ready_callback: Option<Box<dyn FnOnce() + Send>>,
 ) -> std::io::Result<()> {
+    serve(
+        static_file_path,
+        src_folder_to_watch,
+        manifest,
+        requested_port,
+        ready_file,
+        show_address_log,
+        dev_session,
+        logic_reload,
+        hot_reload,
+        restart_snapshot,
+        restart_manifest_path,
+        ready_callback,
+        None,
+    )
+}
+
+fn serve(
+    static_file_path: &str,
+    src_folder_to_watch: &str,
+    manifest: PaxManifest,
+    requested_port: Option<u16>,
+    ready_file: Option<PathBuf>,
+    show_address_log: bool,
+    dev_session: Option<DevSession>,
+    logic_reload: Option<LogicReloadConfig>,
+    hot_reload: HotReloadMode,
+    restart_snapshot: Option<DebugRestartSnapshot>,
+    restart_manifest_path: Option<PathBuf>,
+    ready_callback: Option<Box<dyn FnOnce() + Send>>,
+    managed: Option<project::Managed>,
+) -> std::io::Result<()> {
     // Initialize logging
-    std::env::set_var("RUST_LOG", "actix_web=info");
-    env_logger::Builder::from_env(env_logger::Env::default())
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("actix_web=info"))
         .format(|buf, record| writeln!(buf, "{} 🍱 Served {}", *PAX_BADGE, record.args()))
         .try_init()
         .ok();
 
     let app_ready_marker = ready_file.as_deref().and_then(prepare_app_ready_marker);
-    let initial_state = AppState::new(
+    let mut initial_state = AppState::new(
         PathBuf::from(static_file_path),
         PathBuf::from_str(src_folder_to_watch).unwrap(),
         manifest,
@@ -1367,6 +1495,7 @@ pub(crate) fn start_server_with_ready_callback(
         restart_manifest_path,
     )
     .map_err(std::io::Error::other)?;
+    initial_state.managed = managed;
     initial_state.set_app_ready_marker(app_ready_marker);
     let fs_path = initial_state.serve_dir.lock().unwrap().clone();
     let public_dir = existing_project_public_dir(Path::new(src_folder_to_watch));
@@ -1386,10 +1515,40 @@ pub(crate) fn start_server_with_ready_callback(
     let runtime = actix_web::rt::System::new().block_on(async {
         let listener = TcpListener::bind((DEFAULT_BIND_HOST, requested_port.unwrap_or(0)))?;
         let port = listener.local_addr()?.port();
+        let mut project_registration = None;
         if let Some(session) = state.dev_session.lock().unwrap().as_mut() {
             session.design_server_addr = Some(format!("ws://{LOOPBACK_DISPLAY_HOST}:{port}"));
             session.location = Some(format!("http://{LOOPBACK_DISPLAY_HOST}:{port}"));
             session.last_seen_ms = dev_session::now_ms();
+            if let (Some(root), Some(manifest)) = (
+                &session.project_root,
+                state.revisions.lock().unwrap().active_manifest_clone(),
+            ) {
+                let descriptor = dev_session::ProjectServer {
+                    id: session.session_id.clone(),
+                    project_root: root.canonicalize()?,
+                    port,
+                    cartridge_abi: dev_session::cartridge_abi(&manifest)
+                        .map_err(std::io::Error::other)?,
+                    template_reload: hot_reload.reloads_pax(),
+                    provides_instances: true,
+                    mobile_previews: state.managed.is_some(),
+                    builds: state
+                        .managed
+                        .as_ref()
+                        .map(|m| m.builds())
+                        .unwrap_or_default(),
+                    instances: Vec::new(),
+                    launch_id: std::env::var("PAX_DEV_SERVER_LAUNCH_ID").ok(),
+                };
+                project_registration = Some(
+                    dev_session::ProjectServerRegistration::publish(&descriptor)
+                        .map_err(std::io::Error::other)?,
+                );
+                if let Some(managed) = &state.managed {
+                    managed.start(state.clone(), descriptor);
+                }
+            }
         }
 
         println!(
@@ -1411,15 +1570,39 @@ pub(crate) fn start_server_with_ready_callback(
         }
 
         let server = HttpServer::new(move || {
+            let managed = state.managed.is_some();
             App::new()
-                .wrap(Logger::new("| %s | %U"))
+                .wrap_fn(move |req, service| {
+                    use actix_web::dev::Service;
+                    use futures_util::future::Either;
+                    let local = req.peer_addr().is_some_and(|addr| addr.ip().is_loopback());
+                    if managed && !local && req.path() != "/ws" {
+                        let response = req.into_response(HttpResponse::Forbidden().finish());
+                        Either::Left(std::future::ready(Ok(response)))
+                    } else {
+                        Either::Right(service.call(req))
+                    }
+                })
+                .wrap(
+                    Logger::new("| %s | %U")
+                        .exclude("/_pax/server-id")
+                        .exclude("/_pax/instances"),
+                )
                 .app_data(state.clone())
+                .service(project_instances)
+                .service(project_server_id)
                 .service(web_socket)
-                .service(static_files_service(
-                    fs_path.clone(),
-                    public_dir.clone(),
-                    server_owned_prefixes.clone(),
-                ))
+                .configure(|cfg| {
+                    if let Some(managed) = state.managed.clone() {
+                        project::files(cfg, managed, public_dir.clone());
+                    } else {
+                        cfg.service(static_files_service(
+                            fs_path.clone(),
+                            public_dir.clone(),
+                            server_owned_prefixes.clone(),
+                        ));
+                    }
+                })
         })
         .listen(listener)?
         .workers(2);
@@ -1428,7 +1611,9 @@ pub(crate) fn start_server_with_ready_callback(
         if let Some(ready_callback) = ready_callback.take() {
             ready_callback();
         }
-        server.await
+        let result = server.await;
+        drop(project_registration);
+        result
     });
 
     runtime
@@ -1565,14 +1750,25 @@ fn handle_watcher_file_changed(state: Data<AppState>, change: WatcherFileChanged
             match websocket::apply_pax_source_update(&state, &path, &content) {
                 Ok(()) => {}
                 Err(err) => {
-                    if websocket::update_requires_logic_reload(&err) {
+                    if let Some(managed) = &state.managed {
+                        managed.reject_template(&state, &err);
+                        if websocket::update_requires_logic_reload(&err) {
+                            managed.invalidate();
+                        }
+                    } else if websocket::update_requires_logic_reload(&err) {
                         schedule_logic_reload(state.clone());
                     }
                     eprintln!("ignoring invalid Pax watcher update for {path}: {err}");
                 }
             }
         }
-        FileContent::Rust(_) => schedule_logic_reload(state.clone()),
+        FileContent::Rust(_) => {
+            if let Some(managed) = &state.managed {
+                managed.invalidate();
+            } else {
+                schedule_logic_reload(state.clone());
+            }
+        }
     }
 
     send_project_file_changed_notification(&state);

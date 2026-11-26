@@ -71,7 +71,7 @@ if grep -RIn "occlusionLayer\\|occlusion_layer" .pax/interface/web .pax/build/de
 fi
 
 run_log="$(mktemp)"
-pax-cli run --target web >"$run_log" 2>&1 &
+pax-cli run --fg --target web >"$run_log" 2>&1 &
 run_pid=$!
 trap 'kill "$run_pid" >/dev/null 2>&1 || true' EXIT
 

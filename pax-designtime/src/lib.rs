@@ -47,6 +47,8 @@ pub struct DesigntimeManager {
     pending_prepare_app_revisions: Rc<RefCell<Vec<PrepareAppRevision>>>,
     pending_userland_source_update_responses: Rc<RefCell<Vec<UserlandSourceUpdateResponse>>>,
     revision_gate: RevisionGate,
+    runtime_id: String,
+    cartridge_abi: String,
     last_rendered_manifest_version: Property<usize>,
     pub publish_state: Property<Option<PublishResponse>>,
     enqueued_llm_request: Option<LLMRequest>,
@@ -102,6 +104,10 @@ impl DesigntimeManager {
     }
 
     fn new_with_connection(manifest: PaxManifest, privileged_agent: WebSocketConnection) -> Self {
+        let cartridge_abi = orm::runtime_abi_digest(&manifest).expect("cartridge ABI");
+        let mut random = [0u8; 16];
+        getrandom::getrandom(&mut random).expect("runtime instance ID");
+        let runtime_id = format!("{:032x}", u128::from_be_bytes(random));
         let orm = PaxManifestORM::new(manifest);
         let factories = HashMap::new();
         DesigntimeManager {
@@ -115,6 +121,8 @@ impl DesigntimeManager {
             pending_prepare_app_revisions: Rc::new(RefCell::new(Vec::new())),
             pending_userland_source_update_responses: Rc::new(RefCell::new(Vec::new())),
             revision_gate: RevisionGate::default(),
+            runtime_id,
+            cartridge_abi,
             last_rendered_manifest_version: Property::new(0),
             publish_state: Default::default(),
             enqueued_llm_request: None,
@@ -134,6 +142,15 @@ impl DesigntimeManager {
     /// Useful for embedded tooling and tests that must not depend on local dev sessions.
     pub fn new_offline(manifest: PaxManifest) -> Self {
         Self::new_with_connection(manifest, WebSocketConnection::offline("privileged-agent"))
+    }
+
+    /// Connect this mounted guest to the development server selected by its native host.
+    pub fn connect_local_server(&mut self, address: &str) -> anyhow::Result<()> {
+        let connection = WebSocketConnection::new(address, None, "privileged-agent")?;
+        let mut previous = self.privileged_agent_connection.borrow_mut();
+        previous.shutdown_permanently();
+        *previous = connection;
+        Ok(())
     }
 
     pub fn set_project(&mut self, project_query: String) {
@@ -383,6 +400,15 @@ impl DesigntimeManager {
         for event in privileged_agent_events {
             match event {
                 ConnectionEvent::Opened => {
+                    revision_messages.push(AgentMessage::RuntimeHello {
+                        runtime: self.runtime_id.clone(),
+                        cartridge_abi: self.cartridge_abi.clone(),
+                        capabilities: vec![
+                            "inspect".into(),
+                            "capture".into(),
+                            "template_reload".into(),
+                        ],
+                    });
                     revision_messages.extend(self.revision_gate.connection_messages());
                 }
                 ConnectionEvent::Disconnected => {
@@ -489,9 +515,19 @@ impl DesigntimeManager {
                     }
                 };
                 match self.orm.set_initial_server_manifest(manifest) {
-                    Ok(()) => self.revision_gate.commit_manifest(response.revision),
+                    Ok(()) => {
+                        revision_messages.push(AgentMessage::TemplateResult {
+                            revision: response.revision.clone(),
+                            error: None,
+                        });
+                        self.revision_gate.commit_manifest(response.revision);
+                    }
                     Err(err) => {
                         self.revision_gate.reject_manifest();
+                        revision_messages.push(AgentMessage::TemplateResult {
+                            revision: response.revision,
+                            error: Some(err.to_string()),
+                        });
                         log::warn!("rejected design-server manifest: {err}");
                     }
                 }
@@ -509,8 +545,16 @@ impl DesigntimeManager {
                             update.camera,
                         ) {
                             self.revision_gate.reject_manifest();
+                            revision_messages.push(AgentMessage::TemplateResult {
+                                revision,
+                                error: Some(err.to_string()),
+                            });
                             log::warn!("failed to apply template update from design-server: {err}");
                         } else {
+                            revision_messages.push(AgentMessage::TemplateResult {
+                                revision: revision.clone(),
+                                error: None,
+                            });
                             self.revision_gate.commit_template(revision);
                         }
                     }
@@ -542,6 +586,12 @@ impl DesigntimeManager {
                     let mut pending = self.pending_prepare_app_revisions.borrow_mut();
                     pending.clear();
                     pending.push(prepared);
+                }
+            }
+            #[cfg(target_arch = "wasm32")]
+            AgentMessage::ReloadPage => {
+                if let Some(window) = web_sys::window() {
+                    let _ = window.location().reload();
                 }
             }
             AgentMessage::DevClientRequest(request) => {

@@ -22,6 +22,7 @@ designtime = []
 [lib]
 
 [dependencies]
+futures-util = "0.3.30"
 pax-host = { version = "0.39.1", path = "../pax-host" }
 pax-codegen = { version = "0.39.1", path = "../pax-codegen" }
 actix = "0.13.1"
@@ -71,5 +72,4 @@ wasm-bindgen = { version = "0.2.92", features=["serde-serialize"] }
 [dev-dependencies]
 actix-test = "0.1.2"
 awc = "3.3.0"
-futures-util = "0.3.30"
 serde_json = { version = "1.0.95"}

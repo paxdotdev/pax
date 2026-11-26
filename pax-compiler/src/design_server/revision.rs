@@ -178,12 +178,10 @@ impl DebugRevisionCoordinator {
         self.survivor_adoption_allowed
     }
 
-    #[cfg(test)]
     pub fn active_stamp(&self) -> Option<RevisionStamp> {
         self.active.as_ref().map(|active| active.stamp.clone())
     }
 
-    #[cfg(test)]
     pub fn active_manifest(&self) -> Option<&PaxManifest> {
         self.active.as_ref().map(|active| &active.manifest)
     }

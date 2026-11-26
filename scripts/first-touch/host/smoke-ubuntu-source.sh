@@ -339,5 +339,8 @@ subprocess.run(
 PYTHON
 pax-cli telemetry off >/dev/null
 
+rustc --edition=2021 "$GUEST_SRC/scripts/first-touch/guest/check-foreground.rs" -o "$VALIDATION_DIR/check-foreground"
+"$VALIDATION_DIR/check-foreground" "$SMOKE_DIR"
+
 printf 'source-linked Ubuntu telemetry/create/build/run smoke passed at %s\n' "$SMOKE_DIR"
 REMOTE

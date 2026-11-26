@@ -104,6 +104,14 @@ private func readDouble(_ fb: FlxbReference?) -> Double? {
 }
 
 final class SurfaceManager {
+    private let runtime: PaxCartridgeRuntime
+    private let state: PaxNativeHostState
+
+    init(runtime: PaxCartridgeRuntime, state: PaxNativeHostState) {
+        self.runtime = runtime
+        self.state = state
+    }
+
     private struct LayerState {
         var surfaceViews: [String: PaxMetalSurfaceView] = [:]
         var lastSignature: String? = nil
@@ -123,8 +131,8 @@ final class SurfaceManager {
     }
 
     func sync(engineContainer: OpaquePointer, rootView: NSView, scale: CGFloat) {
-        let layerCount = NativeLayerCountTracker.shared.layerCount
-        PaxCartridgeRuntime.shared.surfaceRegistryBeginFrame(
+        let layerCount = state.layerCount.layerCount
+        runtime.surfaceRegistryBeginFrame(
             engineContainer,
             layerCount: UInt32(layerCount)
         )
@@ -166,7 +174,7 @@ final class SurfaceManager {
         lastLayerCount = layerCount
 
         if needsRefresh {
-            PaxCartridgeRuntime.shared.refreshRenderSurfaces(engineContainer)
+            runtime.refreshRenderSurfaces(engineContainer)
         }
     }
 
@@ -175,14 +183,14 @@ final class SurfaceManager {
         layerId: UInt32,
         scale: CGFloat
     ) -> LayerCanvasPlan? {
-        guard let planQueue = PaxCartridgeRuntime.shared.getLayerCanvasPlan(
+        guard let planQueue = runtime.getLayerCanvasPlan(
             engineContainer,
             layerId: layerId,
             scale: Float(scale)
         ) else {
             return nil
         }
-        defer { PaxCartridgeRuntime.shared.deallocMessageQueue(planQueue) }
+        defer { runtime.deallocMessageQueue(planQueue) }
         let queue = planQueue.pointee
         guard let dataPtr = queue.data_ptr else {
             return nil
@@ -248,7 +256,7 @@ final class SurfaceManager {
 
                 descriptor.key.withCString { keyPtr in
                     (descriptor.hostSignature + "|surface:" + surfaceView.generation).withCString { hostPtr in
-                        PaxCartridgeRuntime.shared.surfaceRegistryRegisterSurface(
+                        runtime.surfaceRegistryRegisterSurface(
                             engineContainer,
                             layerId: layerId,
                             key: keyPtr,
@@ -283,7 +291,7 @@ final class SurfaceManager {
             active = false
         }
 
-        PaxCartridgeRuntime.shared.surfaceRegistrySetLayerActive(
+        runtime.surfaceRegistrySetLayerActive(
             engineContainer,
             layerId: layerId,
             active: active
@@ -293,7 +301,7 @@ final class SurfaceManager {
 
     private func hostView(for hostSignature: String, rootView: NSView) -> NSView? {
         if let scrollerId = scrollerId(for: hostSignature) {
-            return NativeScrollerHostRegistry.shared.canvasHost(for: scrollerId)
+            return state.scrollers.canvasHost(for: scrollerId)
         }
         return rootView
     }
@@ -313,7 +321,7 @@ final class SurfaceManager {
         guard let scrollerId = scrollerId(for: hostSignature) else {
             return 1.0
         }
-        return CGFloat(NativeScrollerHostRegistry.shared.canvasOpacityMultiplier(for: scrollerId))
+        return CGFloat(state.scrollers.canvasOpacityMultiplier(for: scrollerId))
     }
 
     private func planSignature(

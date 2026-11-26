@@ -23,6 +23,12 @@ pub fn command() -> App<'static, 'static> {
         .about("Developer tooling for running designtime Pax sessions")
         .after_help("Without --path or --session, commands try the current project's active session, then the sole live session on the machine. Use --path . to require the current project.")
         .subcommand(list_command())
+        .subcommand(SubCommand::with_name("targets").about("List installed iPhone and iPad simulators and connected devices as JSON"))
+        .subcommand(
+            SubCommand::with_name("servers")
+                .about("Print live Web development servers as JSON, including servers without a browser")
+                .arg(arg_path().help("Only include servers for this project directory")),
+        )
         .subcommand(status_command())
         .subcommand(look_command())
         .subcommand(logs_command())
@@ -294,6 +300,11 @@ pub fn handle(
 ) -> Result<(), Report> {
     match args.subcommand() {
         ("list", Some(sub_args)) => handle_list(sub_args),
+        ("targets", _) => print_json(&pax_compiler::apple_targets()?),
+        ("servers", Some(sub_args)) => {
+            let root = sub_args.value_of("path").map(Path::new);
+            print_json(&dev_session::live_project_servers(root)?)
+        }
         ("status", Some(sub_args)) => handle_status(sub_args),
         ("look", Some(sub_args)) => handle_look(sub_args),
         ("logs", Some(sub_args)) => handle_logs(sub_args),
@@ -781,6 +792,30 @@ fn resolve_session(args: &ArgMatches<'_>) -> Result<DevSession, Report> {
     };
     if let Some(project_session) = resolve_project_session(&project_root, &live_sessions)? {
         return Ok(project_session);
+    }
+    let matching: Vec<_> = live_sessions
+        .iter()
+        .filter(|s| {
+            s.project_root
+                .as_ref()
+                .and_then(|p| p.canonicalize().ok())
+                .as_ref()
+                == Some(&project_root)
+        })
+        .collect();
+    if let [only] = matching.as_slice() {
+        return Ok((*only).clone());
+    }
+    if matching.len() > 1 {
+        return Err(eyre!(
+            "multiple live dev sessions for {}; select an instance with --session: {}",
+            project_root.display(),
+            matching
+                .iter()
+                .map(|s| s.session_id.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
     }
 
     if explicit_project.is_some() {

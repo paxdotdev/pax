@@ -120,7 +120,7 @@ mod tests {
     }
 
     #[test]
-    fn camera_only_source_update_keeps_a_view_only_reload() {
+    fn camera_only_update_respects_the_runtime_capability() {
         let mut manifest = create_basic_manifest();
         let id = manifest.main_component_type_id.clone();
         let template = ComponentTemplate::new(id.clone(), None);
@@ -131,14 +131,20 @@ mod tests {
             ValueDefinition::LiteralValue(PaxValue::Numeric(2.into())),
         )]);
         let mut orm = PaxManifestORM::new(manifest);
-        orm.replace_template(
+        let update = orm.replace_template(
             id.clone(),
             template.clone(),
             settings.clone(),
             vec![],
             Some(camera),
-        )
-        .unwrap();
+        );
+        if !pax_manifest::pax_runtime_api::SUPPORTS_3D {
+            assert_eq!(update.unwrap_err(), pax_manifest::capabilities::REQUIRES_3D);
+            assert!(orm.take_reload_queue().is_empty());
+            assert!(orm.get_manifest().components[&id].camera.is_none());
+            return;
+        }
+        update.unwrap();
         assert_eq!(orm.take_reload_queue(), [ReloadType::Camera].into());
         assert!(orm.get_manifest().components[&id].camera.is_some());
         orm.replace_template(id.clone(), template, settings, vec![], None)

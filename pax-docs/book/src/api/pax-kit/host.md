@@ -28,10 +28,22 @@ Consume this value to run a standalone application. On Apple targets it can
 also mount in a caller-owned host view; the Windows/Linux facade is standalone-only.
 
 #### Implementations
+##### `allow_inline_session_directory`
+<pre><code class="api-signature language-rust ignore">pub fn allow_inline_session_directory(&amp;self, directory: &amp;<a href="../../api/pax-std/drawing/path.md#path">Path</a>) -&gt; Result&lt;(), <a href="../../api/pax-host/index.md#error">Error</a>&gt;</code></pre>
+
+Authorize a private directory of CLI guest descriptors before running the host.
+Each `InlineFrame` can then select a prepared macOS guest by its descriptor name.
+
 ##### `mount`
 <pre><code class="api-signature language-rust ignore">pub fn mount(self, host: <a href="../../api/pax-host/native.md#viewhost">ViewHost</a>&lt;&#39;_&gt;) -&gt; Result&lt;<a href="../../api/pax-host/native.md#mountedapp">MountedApp</a>&lt;&#39;_&gt;, <a href="../../api/pax-host/index.md#error">Error</a>&gt;</code></pre>
 
 Mount an explicitly initialized native application in a caller-owned view.
+
+##### `register_inline_app`
+<pre><code class="api-signature language-rust ignore">pub fn register_inline_app(&amp;self, name: &amp;str, bundle: &amp;<a href="../../api/pax-std/drawing/path.md#path">Path</a>) -&gt; Result&lt;(), <a href="../../api/pax-host/index.md#error">Error</a>&gt;</code></pre>
+
+Register a trusted, independently built Pax macOS bundle before running or mounting.
+An `<InlineFrame session="project" />` uses the matching name and owns the guest's lifetime.
 
 ##### `run`
 <pre><code class="api-signature language-rust ignore">pub fn run(self) -&gt; Result&lt;(), <a href="../../api/pax-host/index.md#error">Error</a>&gt;</code></pre>
