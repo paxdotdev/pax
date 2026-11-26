@@ -42,12 +42,16 @@ struct PaxHostConfiguration: Decodable {
     var programId: String?
     var nativeExports: PaxNativeExports?
     var assets: [String]?
+    var guestBundle: Bool?
     var title: String?
     var entry: String?
+    var devSessionDirectory: String?
+    var devRegistryFile: String?
+    var designServerAddress: String?
     static var current = PaxHostConfiguration()
 
-    static var resourceDirectories: [URL] {
-        if let assets = current.assets, !assets.isEmpty {
+    var resourceDirectories: [URL] {
+        if let assets, guestBundle == true || !assets.isEmpty {
             return assets.map { URL(fileURLWithPath: $0, isDirectory: true) }
         }
         guard let bundle = Bundle.main.url(forResource: "PaxSwiftCartridge_PaxCartridgeAssets", withExtension: "bundle"),
@@ -55,7 +59,7 @@ struct PaxHostConfiguration: Decodable {
         return [resources]
     }
 
-    static func imageURL(_ path: String) -> URL? {
+    func imageURL(_ path: String) -> URL? {
         let relative = path.hasPrefix("assets/") ? String(path.dropFirst(7)) : path
         for directory in resourceDirectories {
             let candidate = directory.appendingPathComponent(relative)
@@ -80,9 +84,6 @@ struct PaxHostConfiguration: Decodable {
     do {
         let data = count == 0 ? Data() : Data(bytes: bytes!, count: count)
         let configuration = try JSONDecoder().decode(PaxHostConfiguration.self, from: data)
-        #if os(macOS)
-        PaxCartridgeRuntime.shared.configure(configuration)
-        #endif
         PaxHostConfiguration.current = configuration
         return 0
     } catch { return PaxHostSession.fail("Invalid Pax launch metadata: \(error)") }
@@ -91,7 +92,7 @@ struct PaxHostConfiguration: Decodable {
 // This module is the host side of a versioned C boundary. It never receives a
 // Rust root, Property, runtime handle or closure from the application cartridge.
 final class PaxHostSession {
-    // Reserve the single native-control namespace until cleanup acknowledges.
+    // The legacy configure/prepare pair reserves one outer application.
     static var active: PaxHostSession?
     static var lastError = "Pax host operation failed"
     var status: UInt32 = 0 {
@@ -108,8 +109,124 @@ final class PaxHostSession {
     private var controller: PaxPlatformController?
     var stopCanvas: (() -> Void)?
     var isStandalone = false
-    private var engine: OpaquePointer?
+    var engine: OpaquePointer?
     #if os(macOS)
+    let nativeState = PaxNativeHostState()
+    let runtime: PaxCartridgeRuntime
+    let configuration: PaxHostConfiguration
+
+    private init(configuration: PaxHostConfiguration) {
+        self.configuration = configuration
+        runtime = PaxCartridgeRuntime(configuration: configuration)
+        windowTitle = configuration.title
+    }
+
+    private var guests: [String: PaxHostConfiguration] = [:]
+    private var sessionDirectory: URL?
+
+    func allowSessionDirectory(_ url: URL) -> Int32 {
+        guard status == 0, sessionDirectory == nil,
+              (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
+            return Self.fail("Configure one existing guest descriptor directory before mounting")
+        }
+        sessionDirectory = url.standardizedFileURL
+        enableGuestMounting()
+        return 0
+    }
+
+    private struct GuestDescriptor: Decodable {
+        let bundle: String
+        let devSessionDirectory: String
+        let designServerAddress: String
+        let devRegistryFile: String
+    }
+
+    private func configuration(for name: String) -> PaxHostConfiguration? {
+        if let existing = guests[name] { return existing }
+        guard let sessionDirectory, (1...128).contains(name.utf8.count),
+              name.utf8.allSatisfy({ (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0) || $0 == 45 || $0 == 95 })
+        else { return nil }
+        do {
+            let url = sessionDirectory.appendingPathComponent(name + ".json")
+            let descriptor = try JSONDecoder().decode(GuestDescriptor.self, from: Data(contentsOf: url))
+            guard var config = guestConfiguration(URL(fileURLWithPath: descriptor.bundle)) else { return nil }
+            config.devSessionDirectory = descriptor.devSessionDirectory
+            config.designServerAddress = descriptor.designServerAddress
+            config.devRegistryFile = descriptor.devRegistryFile
+            return config
+        } catch {
+            NSLog("Pax guest %@: %@", name, error.localizedDescription)
+            return nil
+        }
+    }
+
+    private func enableGuestMounting() {
+        nativeState.mountInlineSession = { [weak self] name, view in self?.mountGuest(name, in: view) }
+    }
+
+    private var onClosed: (() -> Void)?
+    private var mountedGuests: [ObjectIdentifier: PaxHostSession] = [:]
+
+    func registerGuest(name: String, bundleURL: URL) -> Int32 {
+        guard status == 0, !name.isEmpty, guests[name] == nil else {
+            return Self.fail("Register a unique, nonempty guest name before mounting the host")
+        }
+        guard var config = guestConfiguration(bundleURL) else { return -1 }
+        if ProcessInfo.processInfo.environment["PAX_HOSTED_GUEST_APP"].map({ URL(fileURLWithPath: $0).standardizedFileURL }) == bundleURL.standardizedFileURL {
+            config.devSessionDirectory = ProcessInfo.processInfo.environment["PAX_HOSTED_DEV_SESSION_DIR"]
+            config.designServerAddress = ProcessInfo.processInfo.environment["PAX_HOSTED_DESIGN_SERVER_ADDR"]
+            config.devRegistryFile = ProcessInfo.processInfo.environment["PAX_HOSTED_DEV_REGISTRY_FILE"]
+        }
+        guests[name] = config
+        enableGuestMounting()
+        return 0
+    }
+
+    private func guestConfiguration(_ bundleURL: URL) -> PaxHostConfiguration? {
+        guard let bundle = Bundle(url: bundleURL), let frameworks = bundle.privateFrameworksURL else {
+            _ = Self.fail("Expected a Pax macOS application bundle"); return nil
+        }
+        let cartridge = frameworks.appendingPathComponent("PaxCartridge.framework/PaxCartridge")
+        guard FileManager.default.isReadableFile(atPath: cartridge.path) else {
+            _ = Self.fail("Missing PaxCartridge.framework in " + bundleURL.path); return nil
+        }
+        var config = PaxHostConfiguration()
+        config.guestBundle = true
+        config.cartridge = cartridge.path
+        if let resources = bundle.url(forResource: "PaxSwiftCartridge_PaxCartridgeAssets", withExtension: "bundle"),
+           let directory = Bundle(url: resources)?.resourceURL {
+            config.assets = [directory.path]
+        } else { config.assets = [] }
+        return config
+    }
+
+    private func mountGuest(_ name: String, in view: NSView) -> (() -> Void)? {
+        guard status < 3, let configuration = configuration(for: name) else { return nil }
+        // A removed frame can be reinserted before its cartridge finishes stopping.
+        // Reconciliation runs again when that exact image acknowledges cleanup.
+        let image = configuration.cartridge
+        guard !mountedGuests.values.contains(where: { $0.configuration.cartridge == image }),
+              !Self.closing.values.contains(where: { $0.configuration.cartridge == image }) else { return nil }
+        guard let guest = Self.prepareMac(configuration: configuration, data: []) else {
+            NSLog("Pax guest %@: %@", name, Self.lastError)
+            return nil
+        }
+        guard guest.mount(view, owner: nil) == 0 else { guest.close(); return nil }
+        guest.onClosed = { [weak self] in
+            if self?.sessionDirectory != nil, let directory = configuration.devSessionDirectory {
+                let marker = URL(fileURLWithPath: directory).appendingPathComponent("host-closed")
+                try? Data().write(to: marker, options: .atomic)
+            }
+            DispatchQueue.main.async {
+                guard let self, self.status < 3 else { return }
+                self.nativeState.invalidation.invalidate()
+            }
+        }
+        let id = ObjectIdentifier(guest)
+        mountedGuests[id] = guest
+        return { [weak self] in self?.mountedGuests.removeValue(forKey: id)?.close() }
+    }
+
     var windowTitle: String?
     var windowSize = NSSize(width: 900, height: 450)
     var windowMinimum = NSSize.zero
@@ -127,13 +244,14 @@ final class PaxHostSession {
     static func prepare(data: [UInt8] = []) -> PaxHostSession? {
         guard Thread.isMainThread else { _ = fail("Pax initialization requires the process main thread"); return nil }
         guard active == nil else { _ = fail("Pax supports one live native mount; await closed before preparing another"); return nil }
+        #if os(macOS)
+        var configuration = PaxHostConfiguration.current
+        configuration.devSessionDirectory = ProcessInfo.processInfo.environment["PAX_DEV_SESSION_DIR"]
+        configuration.devRegistryFile = ProcessInfo.processInfo.environment["PAX_DEV_REGISTRY_FILE"]
+        return prepareMac(configuration: configuration, data: data, standaloneCandidate: true)
+        #else
         let session = PaxHostSession()
         active = session
-        #if os(macOS)
-        session.windowTitle = PaxHostConfiguration.current.title
-        session.engine = PaxCartridgeRuntime.shared.initEngine(width: 0, height: 0, data: data)
-        PaxViewMacos.PaxEngineContainer.paxEngineContainer = session.engine
-        #else
         guard pax_cartridge_abi_version() == 3 else {
             active = nil
             _ = fail("Incompatible Pax cartridge ABI")
@@ -149,14 +267,31 @@ final class PaxHostSession {
             }
         }
         PaxViewIos.PaxEngineContainer.paxEngineContainer = session.engine
-        #endif
         guard session.engine != nil else {
             _ = fail("Cartridge initialization failed; see the initializer diagnostic")
             session.close()
             return nil
         }
         return session
+        #endif
     }
+
+    #if os(macOS)
+    static func prepareMac(configuration: PaxHostConfiguration, data: [UInt8], standaloneCandidate: Bool = false) -> PaxHostSession? {
+        precondition(Thread.isMainThread)
+        let session = PaxHostSession(configuration: configuration)
+        if standaloneCandidate { active = session }
+        session.runtime.didPumpShutdowns = { [weak session] pending in session?.finishCleanup(pending: pending) }
+        do {
+            session.engine = try session.runtime.prepareEngine(data: data)
+            return session
+        } catch {
+            _ = fail(error.localizedDescription)
+            session.close()
+            return nil
+        }
+    }
+    #endif
 
     func observe(_ context: UnsafeMutableRawPointer?, _ notify: @escaping @convention(c) (UnsafeMutableRawPointer?, UInt32) -> Void,
                  _ release: @escaping @convention(c) (UnsafeMutableRawPointer?) -> Void) {
@@ -168,11 +303,11 @@ final class PaxHostSession {
     }
 
     func mount(_ parent: PaxPlatformView, owner: AnyObject?) -> Int32 {
-        guard Thread.isMainThread, Self.active === self, status == 0 else {
+        guard Thread.isMainThread, status == 0 else {
             return Self.fail("Prepared Pax application must be mounted once on the main thread")
         }
         #if os(macOS)
-        let child = NSHostingController(rootView: PaxViewMacos())
+        let child = NSHostingController(rootView: PaxViewMacos(session: self))
         #else
         guard let owner = owner as? UIViewController, parent === owner.view || parent.isDescendant(of: owner.view) else {
             return Self.fail("iOS mounting requires the container's owning UIViewController")
@@ -206,8 +341,13 @@ final class PaxHostSession {
 
     static func canvasReady(_ stop: @escaping () -> Void) {
         guard let session = active, session.status == 1 else { return }
-        session.stopCanvas = stop
-        session.status = 2
+        session.markReady(stop)
+    }
+
+    func markReady(_ stop: @escaping () -> Void) {
+        guard status == 1 else { return }
+        stopCanvas = stop
+        status = 2
     }
 
     func request(_ data: [UInt8], context: UnsafeMutableRawPointer?, reply: @escaping @convention(c) (UnsafeMutableRawPointer?, UInt32, UnsafePointer<UInt8>?, Int) -> Void) {
@@ -217,7 +357,7 @@ final class PaxHostSession {
             return
         }
         #if os(macOS)
-        PaxCartridgeRuntime.shared.request(engine, data: data, context: ticket, reply: finishHostReply)
+        runtime.request(engine, data: data, context: ticket, reply: finishHostReply)
         #else
         data.withUnsafeBufferPointer { pax_cartridge_request(engine, $0.baseAddress, Int($0.count), ticket, finishHostReply) }
         #endif
@@ -227,6 +367,12 @@ final class PaxHostSession {
         precondition(Thread.isMainThread)
         guard status < 3 else { return }
         status = 3
+        #if os(macOS)
+        nativeState.mountInlineSession = nil
+        let children = mountedGuests
+        mountedGuests.removeAll()
+        for child in children.values { child.close() }
+        #endif
         let stop = stopCanvas
         stopCanvas = nil
         stop?()
@@ -238,26 +384,48 @@ final class PaxHostSession {
         controller?.removeFromParent()
         #endif
         controller = nil
+        #if os(macOS)
+        nativeState.dispatcher.sendData = nil
+        nativeState.dispatcher.requestKeyboardFocus = nil
+        nativeState.dispatcher.wheelInterrupt = nil
+        nativeState.dispatcher.convertWindowPointToPax = nil
+        nativeState.clear()
+        #else
         // Revoke interrupt routing before resetting the shared native controls.
         NativeInterruptDispatcher.shared.sendData = { _ in }
         NativeInterruptDispatcher.shared.requestKeyboardFocus = nil
         PaxNativeHostState.reset()
+        #endif
         if let engine {
             self.engine = nil
             #if os(macOS)
-            PaxViewMacos.PaxEngineContainer.paxEngineContainer = nil
-            PaxCartridgeRuntime.shared.deallocEngine(engine)
+            runtime.deallocEngine(engine)
             #else
             PaxViewIos.PaxEngineContainer.paxEngineContainer = nil
             pax_dealloc_engine(engine)
             #endif
         }
         #if os(macOS)
-        Self.cleanupWake(pending: PaxCartridgeRuntime.shared.pumpShutdowns())
+        Self.closing[ObjectIdentifier(self)] = self
+        finishCleanup(pending: runtime.pumpShutdowns())
         #else
         Self.cleanupWake(pending: pax_pump_shutdowns())
         #endif
     }
+
+    #if os(macOS)
+    private static var closing: [ObjectIdentifier: PaxHostSession] = [:]
+
+    private func finishCleanup(pending: UInt64) {
+        guard status == 3, pending == 0 else { return }
+        runtime.releaseReservation()
+        if Self.active === self { Self.active = nil }
+        Self.closing.removeValue(forKey: ObjectIdentifier(self))
+        status = 4
+        onClosed?()
+        onClosed = nil
+    }
+    #endif
 
     static func cleanupWake(pending: UInt64) {
         guard let session = active, session.status == 3, pending == 0 else { return }
@@ -343,6 +511,27 @@ private func session(_ pointer: UnsafeMutableRawPointer) -> PaxHostSession {
 }
 
 #if os(macOS)
+@_cdecl("pax_host_allow_inline_session_directory") public func paxHostAllowInlineSessionDirectory(
+    _ pointer: UnsafeMutableRawPointer, _ path: UnsafePointer<UInt8>?, _ length: Int
+) -> Int32 {
+    guard Thread.isMainThread, (1...65536).contains(length), let path,
+          let directory = String(bytes: UnsafeBufferPointer(start: path, count: length), encoding: .utf8)
+    else { return PaxHostSession.fail("Invalid guest descriptor directory") }
+    return session(pointer).allowSessionDirectory(URL(fileURLWithPath: directory, isDirectory: true))
+}
+
+@_cdecl("pax_host_register_inline_app") public func paxHostRegisterInlineApp(
+    _ pointer: UnsafeMutableRawPointer, _ name: UnsafePointer<UInt8>?, _ nameLength: Int,
+    _ path: UnsafePointer<UInt8>?, _ pathLength: Int
+) -> Int32 {
+    guard Thread.isMainThread, (1...1024).contains(nameLength), (1...65536).contains(pathLength),
+          let name, let path,
+          let key = String(bytes: UnsafeBufferPointer(start: name, count: nameLength), encoding: .utf8),
+          let bundle = String(bytes: UnsafeBufferPointer(start: path, count: pathLength), encoding: .utf8)
+    else { return PaxHostSession.fail("Invalid guest name or bundle path") }
+    return session(pointer).registerGuest(name: key, bundleURL: URL(fileURLWithPath: bundle))
+}
+
 @_cdecl("pax_host_window_options") public func paxHostWindowOptions(_ pointer: UnsafeMutableRawPointer, _ title: UnsafePointer<UInt8>?, _ count: Int, _ width: Double, _ height: Double, _ minWidth: Double, _ minHeight: Double, _ resizable: Bool) -> Int32 {
     guard Thread.isMainThread, session(pointer).status == 0 else { return PaxHostSession.fail("Configure a fresh application on the main thread") }
     guard count >= 0, count <= 65536, count == 0 || title != nil, [width, height, minWidth, minHeight].allSatisfy({ $0.isFinite && $0 >= 0 }), width > 0, height > 0, width >= minWidth, height >= minHeight else { return PaxHostSession.fail("Invalid window dimensions or title") }

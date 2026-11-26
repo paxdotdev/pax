@@ -107,7 +107,7 @@ CLI session can update the mounted interface. Rust application changes require r
 and restarting on native targets, or rebuilding and reloading the browser page.
 The initializer runs once per application instance, including after a restart.
 
-| Mode | Saved `.pax` changes | Saved Rust changes |
+| Mode | Saved `.pax` changes | Saved Rust changes in a direct run |
 | --- | --- | --- |
 | `pax` — default | Reload | Rebuild and restart manually |
 | `off` | Wait for restart | Rebuild and restart manually |
@@ -143,8 +143,7 @@ timings help find regressions but do not establish physical-device performance.
 
 On all supported targets, including experimental Windows, Linux, and Android,
 the debug default is `pax`. `all` is accepted as a migration
-alias for `pax`; it no longer replaces Rust code in the running process. No
-automatic restart is implied. Inline templates in `.rs` files also require a
+alias for `pax`. Direct runs require a restart to pick up Rust changes. Managed Mac runs watch Rust saves and rebuild the selected targets. Inline templates in `.rs` files also require a
 rebuild. A new component type or event handler may need compiled information
 that the running application lacks; follow the reload diagnostic and restart.
 
@@ -342,6 +341,108 @@ Status reports the session ID, target platform, project location, and connection
 details. Check these before using tools, particularly when several projects,
 worktrees, or browser tabs are open.
 
+To find a running Web development server before a browser connects, use
+
+```sh
+pax-cli dev servers --path examples/fixtures/increment
+```
+
+This prints a JSON array. Each record includes the canonical project root,
+server ID, loopback port, cartridge ABI and whether template reload is enabled.
+A supervisor can supply `PAX_DEV_SERVER_LAUNCH_ID` when it starts the server.
+Its value appears as the optional `launch_id` in the record. Discovery checks
+the identity at the live endpoint, so an old registration for a reused port
+does not match. Omit `--path` to list servers across worktrees. Use
+`pax-cli dev list` to find the runtime ID for a specific browser or native app.
+
+Each browser tab has its own runtime ID, inspection mailbox and app state. The
+server's `instances` array reports connected runtimes, their capabilities,
+the last applied template revision and any rejection. To capture one of two
+open previews, use `pax-cli dev look --session <runtime-id>`.
+
+<a id="optimized-web-and-mac-development"></a>
+
+### Optimized development previews
+
+On a Mac, start one managed server per project directory and select previews from separate terminals. For example, keep Web serving after your terminal exits and attach a standalone Mac window to the same project:
+
+```sh
+pax-cli run --bg --target web
+pax-cli run --target macos
+```
+
+The Web command prints its URL. The Mac command prints its runtime ID and keeps its own terminal attached. Closing that terminal closes its standalone preview when no other caller owns that preview. The background Web run keeps serving. To stop the whole project, run `pax-cli stop` in its directory or choose **Stop** in Portal. Opening Sessions and inspecting a runtime leave ownership with its callers. For iPhone and iPad, use the usual `--target` and `--ios-device` selections.
+
+The Agent accepts a background request before starting its build, so losing the terminal during a cold build still leaves the project running. The command reports a startup failure with a nonzero exit and the operation log. Attached terminals reconnect across an Agent restart. `--port` applies to Web and must agree with an existing run. A separately started foreground server keeps its original owner. Stop it before requesting managed ownership of that directory.
+
+Managed Web and Apple runs use the optimized development profile. They honor the selected template reload policy and keep designtime inspection available. Release runs and workstation targets outside the Agent’s Web and Apple support use the direct runner. Windows and Linux always use the direct runner.
+
+Use `--optimized-dev` on a Web, macOS, iOS or iPadOS build or run to compile
+runtime dependencies at Cargo optimization level 2. The Apple Swift host uses `-O`.
+Cargo development checks, package-specific overrides, designtime manifests and
+inspection stay enabled. Packaged output goes under `.pax/build/optimized-dev/`.
+Shipping builds continue to use `--release` and their baked program.
+
+To control the project worker directly, select builds with a targets file. From
+your project directory on a Mac, start with Web. In a second terminal, add
+Mac to the requested targets, then launch the published Mac build.
+
+```sh
+printf '["web"]\n' > /tmp/pax-preview-targets.json
+pax-cli run --target web --project-server --targets-file /tmp/pax-preview-targets.json
+```
+
+```sh
+printf '["web","macos"]\n' > /tmp/pax-preview-targets.next
+mv /tmp/pax-preview-targets.next /tmp/pax-preview-targets.json
+pax-cli dev servers --path .
+# Once builds.macos.generation is positive:
+pax-cli run --fg --target macos --optimized-dev
+```
+
+Choose a separate targets file per project. Starting with `--target macos`
+builds Mac before any Web bundle. Open the printed HTTP address in multiple
+browser tabs. A compatible template save reaches all subscribed runtimes and
+preserves their individual state. The server batches Rust saves, stages complete
+builds, and refreshes connected browser pages after a successful rebuild. The
+`builds` map reports build progress, the last good generation and failures.
+A failed compilation leaves existing previews interactive. A standalone Mac
+started directly from the CLI needs relaunching to use the new Rust state.
+The local supervisor can use the generation to remount or relaunch it. Set
+`PAX_DEV_INSTANCE_FILE` to a new local path when launching a standalone Mac
+to receive its inspection ID as a JSON string once its window registers.
+
+On macOS, run `pax-cli dev targets` to list available iPhone and iPad simulators
+and paired devices with their IDs. Add the desired SDK to the same targets file.
+The four mobile values are `ios-simulator`, `ipados-simulator`, `ios-device`
+and `ipados-device`. For example, keep Web running and add an iPad simulator:
+
+```sh
+printf '["web","ipados-simulator"]\n' > /tmp/pax-preview-targets.next
+mv /tmp/pax-preview-targets.next /tmp/pax-preview-targets.json
+# Once builds.ipados-simulator.generation is positive, use the ID from dev targets.
+pax-cli run --fg --target ipados --optimized-dev --ios-device "simulator:YOUR_SIMULATOR_UDID"
+```
+
+Each selected device runs its own app instance. Mobile instances report the
+template revision they applied. Multiple devices of one family and SDK share
+the published build. A physical device needs a development signing team,
+network access to the workstation and permission to use the local network.
+Its template connection is read-only and authenticated. See
+[iOS and iPadOS development](targets-build-deploy.md#ios-and-ipados-development).
+
+The simulator and device products have separate paths, such as
+`.pax/build/optimized-dev/ios/simulator/app/` and
+`.pax/build/optimized-dev/ios/device/app/`.
+
+When a managed server restarts, it checks its Web, Mac and simulator products
+against the recorded source, assets, toolchain, manifest and artifact contents.
+An unchanged verified product can open without invoking Cargo or Xcode. A cache
+miss triggers the normal build. Physical-device builds go through Xcode again
+on a new server to revalidate signing. Projects with external build-script inputs
+that Pax cannot validate also take the normal build path. A compatible template
+save goes directly to connected instances and keeps their local state.
+
 Most `dev` commands accept `--path` to locate a project's active session and
 `--session` to select an exact session ID. An explicit `--path` (or `-p`)
 restricts selection to that project, including when the path is `.`. For
@@ -352,12 +453,11 @@ pax-cli dev status --path examples/fixtures/increment
 pax-cli dev look --path examples/fixtures/increment
 ```
 
-Project selection uses the active session recorded under that project's
-`.pax` directory and checks that its live registration belongs to the same
-project. Relative paths are resolved from the current directory; symlink
-aliases and `..` are resolved before comparing project roots. A missing or
-stale active session, invalid path, or mismatched registration produces an
-error. An explicit path never falls back to another project's session. Start
+Project selection first checks the active session recorded under the project’s
+`.pax` directory. When no active runtime is designated, a single live instance
+for that root can be selected by path. For multiple instances, pass a runtime ID. Relative paths are resolved from the current directory; symlink
+aliases and `..` are resolved before comparing project roots. An invalid path, a mismatched registration or a project without a live
+runtime produces an error. An explicit path never falls back to another project's session. Start
 the intended project's debug app, or use `pax-cli dev list` to find a live ID.
 
 `--session <id>` alone selects that exact live session regardless of the

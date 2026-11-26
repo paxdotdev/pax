@@ -163,13 +163,15 @@ private func photoPickerAsset(
 }
 
 private struct NativePhotoPickerRequest {
+    let dispatcher: NativeInterruptDispatcher
     let id: PaxNodeId
     let requestId: UInt64
     let source: String
     let allowMultiple: Bool
     let maxBytesPerPhoto: UInt64
 
-    init(element: PhotoPickerElement) {
+    init(element: PhotoPickerElement, dispatcher: NativeInterruptDispatcher = .shared) {
+        self.dispatcher = dispatcher
         self.id = element.id
         self.requestId = element.trigger
         self.source = element.source
@@ -714,10 +716,10 @@ private func platformLayerTextAlignment(_ alignment: Alignment) -> CATextLayerAl
 #endif
 
 public final class NativeLayerCountTracker {
-    public static let shared = NativeLayerCountTracker()
+    public static var shared: NativeLayerCountTracker { PaxNativeHostState.shared.layerCount }
     public private(set) var layerCount: Int = 1
 
-    private init() {}
+    fileprivate init() {}
 
     public func update(_ count: Int) {
         layerCount = max(count, 1)
@@ -741,11 +743,11 @@ public final class NativeScrollerHostRegistry {
         fileprivate let scrollUpdater: ((CGPoint) -> Void)?
     }
 
-    public static let shared = NativeScrollerHostRegistry()
+    public static var shared: NativeScrollerHostRegistry { PaxNativeHostState.shared.scrollers }
     private var hosts: [PaxNodeId: Hosts] = [:]
     private var canvasOpacityMultipliers: [PaxNodeId: Double] = [:]
 
-    private init() {}
+    fileprivate init() {}
 
     public func register(
         id: PaxNodeId,
@@ -796,28 +798,63 @@ public final class NativeScrollerHostRegistry {
     }
 }
 
-public enum PaxNativeHostState {
-    public static func reset() {
-        TextElements.singleton.reset()
-        FrameElements.singleton.reset()
-        ButtonElements.singleton.reset()
-        PhotoPickerElements.singleton.reset()
-        CheckboxElements.singleton.reset()
-        NativeImageElements.singleton.reset()
-        YoutubeVideoElements.singleton.reset()
-        DropdownElements.singleton.reset()
-        RadioListElements.singleton.reset()
-        SliderElements.singleton.reset()
-        TextboxElements.singleton.reset()
-        EventBlockerElements.singleton.reset()
-        GlassSurfaceElements.singleton.reset()
-        ScrollerElements.singleton.reset()
-        NativeScrollerHostRegistry.shared.reset()
-        NativeLayerCountTracker.shared.reset()
+/// Native models, surface registries and input routes owned by one mounted cartridge.
+public final class PaxNativeHostState {
+    public static let shared = PaxNativeHostState(dispatcher: .shared)
+    public let dispatcher: NativeInterruptDispatcher
+    public let textElements = TextElements()
+    public let frameElements = FrameElements()
+    public let scrollerElements = ScrollerElements()
+    public let buttonElements = ButtonElements()
+    public let photoPickerElements = PhotoPickerElements()
+    public let checkboxElements = CheckboxElements()
+    public let nativeImageElements = NativeImageElements()
+    public let youtubeVideoElements = YoutubeVideoElements()
+    public let dropdownElements = DropdownElements()
+    public let radioListElements = RadioListElements()
+    public let sliderElements = SliderElements()
+    public let textboxElements = TextboxElements()
+    public let eventBlockerElements = EventBlockerElements()
+    public let glassSurfaceElements = GlassSurfaceElements()
+    public let layerCount = NativeLayerCountTracker()
+    public let scrollers = NativeScrollerHostRegistry()
+    public let invalidation = NativeSceneInvalidation()
+    var masks: [PaxNodeId: ResolvedNativeMask] = [:]
 #if os(macOS)
-        NativeCullingState.shared.reset()
+    // The host installs a named child and returns its idempotent teardown.
+    public var mountInlineSession: ((String, NSView) -> (() -> Void)?)?
+    lazy var culling = NativeCullingState(invalidation: invalidation)
 #endif
-        NativeSceneInvalidation.singleton.invalidate()
+
+    public init(dispatcher: NativeInterruptDispatcher = NativeInterruptDispatcher()) {
+        self.dispatcher = dispatcher
+        FontRegistrationObserver.shared.scenes.add(invalidation)
+    }
+
+    public static func reset() { shared.clear() }
+
+    public func clear() {
+        textElements.reset()
+        frameElements.reset()
+        scrollerElements.reset()
+        buttonElements.reset()
+        photoPickerElements.reset()
+        checkboxElements.reset()
+        nativeImageElements.reset()
+        youtubeVideoElements.reset()
+        dropdownElements.reset()
+        radioListElements.reset()
+        sliderElements.reset()
+        textboxElements.reset()
+        eventBlockerElements.reset()
+        glassSurfaceElements.reset()
+        layerCount.reset()
+        scrollers.reset()
+        masks.removeAll()
+#if os(macOS)
+        culling.reset()
+#endif
+        invalidation.invalidate()
     }
 }
 
@@ -825,12 +862,14 @@ public enum PaxNativeHostState {
 // Residency is independent of models and lifecycle: a detached leaf continues
 // receiving patches and keeps its native instance for the next warm window.
 internal final class NativeCullingState {
-    static let shared = NativeCullingState()
+    static var shared: NativeCullingState { PaxNativeHostState.shared.culling }
+    private let invalidation: NativeSceneInvalidation
     private(set) var cold: Set<PaxNodeId> = []
     private(set) var accessibilityActive = false
     private var observations: [NSKeyValueObservation] = []
 
-    private init() {
+    init(invalidation: NativeSceneInvalidation) {
+        self.invalidation = invalidation
         accessibilityActive = NSWorkspace.shared.isVoiceOverEnabled || NSWorkspace.shared.isSwitchControlEnabled
         observations = [
             NSWorkspace.shared.observe(\.isVoiceOverEnabled) { [weak self] _, _ in self?.refreshAccessibility() },
@@ -847,7 +886,7 @@ internal final class NativeCullingState {
     func setAccessibilityActive(_ value: Bool) {
         guard accessibilityActive != value else { return }
         accessibilityActive = value
-        NativeSceneInvalidation.singleton.invalidate()
+        invalidation.invalidate()
     }
 
     func apply(cull: [PaxNodeId], restore: [PaxNodeId]) {
@@ -862,25 +901,47 @@ internal final class NativeCullingState {
 }
 #endif
 
-public struct NativeRenderingLayer: View {
-    public init() {}
+#if os(macOS)
+/// Implemented by a mount's canvas and native scene containers.
+public protocol PaxNativeInputOwner: AnyObject {
+    var nativeState: PaxNativeHostState { get }
+}
 
-    private let fontObserver = FontRegistrationObserver.shared
-    @ObservedObject var nativeSceneInvalidation = NativeSceneInvalidation.singleton
-    let textElements = TextElements.singleton
-    let frameElements = FrameElements.singleton
-    let scrollerElements = ScrollerElements.singleton
-    let buttonElements = ButtonElements.singleton
-    let photoPickerElements = PhotoPickerElements.singleton
-    let checkboxElements = CheckboxElements.singleton
-    let nativeImageElements = NativeImageElements.singleton
-    let youtubeVideoElements = YoutubeVideoElements.singleton
-    let dropdownElements = DropdownElements.singleton
-    let radioListElements = RadioListElements.singleton
-    let sliderElements = SliderElements.singleton
-    let textboxElements = TextboxElements.singleton
-    let eventBlockerElements = EventBlockerElements.singleton
-    let glassSurfaceElements = GlassSurfaceElements.singleton
+extension NSView {
+    var paxDispatcher: NativeInterruptDispatcher {
+        var ancestor: NSView? = self
+        while let view = ancestor {
+            if let owner = view as? PaxNativeInputOwner { return owner.nativeState.dispatcher }
+            ancestor = view.superview
+        }
+        return .shared
+    }
+}
+#endif
+
+public struct NativeRenderingLayer: View {
+    let nativeState: PaxNativeHostState
+    @ObservedObject var nativeSceneInvalidation: NativeSceneInvalidation
+
+    public init(state: PaxNativeHostState = .shared) {
+        nativeState = state
+        nativeSceneInvalidation = state.invalidation
+    }
+
+    var textElements: TextElements { nativeState.textElements }
+    var frameElements: FrameElements { nativeState.frameElements }
+    var scrollerElements: ScrollerElements { nativeState.scrollerElements }
+    var buttonElements: ButtonElements { nativeState.buttonElements }
+    var photoPickerElements: PhotoPickerElements { nativeState.photoPickerElements }
+    var checkboxElements: CheckboxElements { nativeState.checkboxElements }
+    var nativeImageElements: NativeImageElements { nativeState.nativeImageElements }
+    var youtubeVideoElements: YoutubeVideoElements { nativeState.youtubeVideoElements }
+    var dropdownElements: DropdownElements { nativeState.dropdownElements }
+    var radioListElements: RadioListElements { nativeState.radioListElements }
+    var sliderElements: SliderElements { nativeState.sliderElements }
+    var textboxElements: TextboxElements { nativeState.textboxElements }
+    var eventBlockerElements: EventBlockerElements { nativeState.eventBlockerElements }
+    var glassSurfaceElements: GlassSurfaceElements { nativeState.glassSurfaceElements }
 
     enum NativeLeafKind {
         case text(TextElement)
@@ -1103,6 +1164,7 @@ public struct NativeRenderingLayer: View {
     }
 
     private struct FrameRenderNode: Identifiable {
+        let inlineSession: String
         let id: PaxNodeId
         let zIndex: Int
         let parentFrame: PaxNodeId?
@@ -1189,6 +1251,7 @@ public struct NativeRenderingLayer: View {
 #endif
 
     class PlatformContainerView: PlatformBaseView {
+        var nativeState: PaxNativeHostState = .shared
         private let clipMaskLayer = CAShapeLayer()
 #if os(iOS)
         private var glassContainerView: UIVisualEffectView?
@@ -1582,13 +1645,13 @@ public struct NativeRenderingLayer: View {
                 if frame.origin != rect.origin {
                     setFrameOrigin(rect.origin)
 #if DEBUG
-                    NativeSceneInvalidation.singleton.geometryWrites.origin += 1
+                    nativeState.invalidation.geometryWrites.origin += 1
 #endif
                 }
                 if frame.size != rectSize {
                     setFrameSize(rectSize)
 #if DEBUG
-                    NativeSceneInvalidation.singleton.geometryWrites.size += 1
+                    nativeState.invalidation.geometryWrites.size += 1
 #endif
                 }
                 // AppKit can resize bounds with the frame. Restore logical content
@@ -1597,21 +1660,21 @@ public struct NativeRenderingLayer: View {
                 if boundsChanged {
                     bounds = boundsRect
 #if DEBUG
-                    NativeSceneInvalidation.singleton.geometryWrites.bounds += 1
+                    nativeState.invalidation.geometryWrites.bounds += 1
 #endif
                 }
                 if let layerTransform = viewBackedTransform.layerTransform {
                     if frameRotation != viewBackedTransform.frameRotationDegrees {
                         frameRotation = viewBackedTransform.frameRotationDegrees
 #if DEBUG
-                        NativeSceneInvalidation.singleton.geometryWrites.rotation += 1
+                        nativeState.invalidation.geometryWrites.rotation += 1
 #endif
                     }
                     // AppKit geometry setters may replace its backing transform.
                     if layer.affineTransform() != layerTransform {
                         layer.setAffineTransform(layerTransform)
 #if DEBUG
-                        NativeSceneInvalidation.singleton.geometryWrites.transform += 1
+                        nativeState.invalidation.geometryWrites.transform += 1
 #endif
                     }
                 } else {
@@ -1621,13 +1684,13 @@ public struct NativeRenderingLayer: View {
                         // rotation. Clearing afterwards erases the visible rotation.
                         layer.setAffineTransform(.identity)
 #if DEBUG
-                        NativeSceneInvalidation.singleton.geometryWrites.transform += 1
+                        nativeState.invalidation.geometryWrites.transform += 1
 #endif
                     }
                     if leavingLayerTransform || frameRotation != viewBackedTransform.frameRotationDegrees {
                         frameRotation = viewBackedTransform.frameRotationDegrees
 #if DEBUG
-                        NativeSceneInvalidation.singleton.geometryWrites.rotation += 1
+                        nativeState.invalidation.geometryWrites.rotation += 1
 #endif
                     }
                 }
@@ -1636,14 +1699,14 @@ public struct NativeRenderingLayer: View {
             if layer.zPosition != CGFloat(zIndex) {
                 layer.zPosition = CGFloat(zIndex)
 #if DEBUG
-                NativeSceneInvalidation.singleton.geometryWrites.stacking += 1
+                nativeState.invalidation.geometryWrites.stacking += 1
 #endif
             }
             let effectiveOpacity = Float(Self.clampedOpacity(opacity * nativeMaskOpacityMultiplier))
             if layer.opacity != effectiveOpacity {
                 layer.opacity = effectiveOpacity
 #if DEBUG
-                NativeSceneInvalidation.singleton.geometryWrites.opacity += 1
+                nativeState.invalidation.geometryWrites.opacity += 1
 #endif
             }
             CATransaction.commit()
@@ -2459,15 +2522,18 @@ public struct NativeRenderingLayer: View {
         private func applyScrollerMaskOpacityMultiplier(_ multiplier: Double) {
             canvasHostViewInternal.applyNativeMaskOpacityMultiplier(1.0)
             contentHostViewInternal.applyNativeMaskOpacityMultiplier(multiplier)
-            NativeScrollerHostRegistry.shared.setCanvasOpacityMultiplier(
+            nativeState.scrollers.setCanvasOpacityMultiplier(
                 id: scrollerId,
                 multiplier: multiplier
             )
         }
 
-        init(id: PaxNodeId) {
+        init(id: PaxNodeId, state: PaxNativeHostState) {
             self.scrollerId = id
             super.init(frame: .zero)
+            nativeState = state
+            canvasHostViewInternal.nativeState = state
+            contentHostViewInternal.nativeState = state
 #if os(iOS) || os(tvOS) || os(watchOS)
             scrollView.delegate = self
             scrollView.showsVerticalScrollIndicator = false
@@ -2553,7 +2619,7 @@ public struct NativeRenderingLayer: View {
             innerContentView.addSubview(contentHostViewInternal)
             addSubview(scrollView)
 
-            NativeScrollerHostRegistry.shared.register(
+            nativeState.scrollers.register(
                 id: scrollerId,
                 canvasHost: canvasHostViewInternal,
                 contentHost: contentHostViewInternal,
@@ -2579,7 +2645,7 @@ public struct NativeRenderingLayer: View {
                 NotificationCenter.default.removeObserver(liveScrollEndObserver)
             }
 #endif
-            NativeScrollerHostRegistry.shared.unregister(id: scrollerId)
+            nativeState.scrollers.unregister(id: scrollerId)
 #if os(macOS)
             cancelMacSnap()
 #endif
@@ -2886,12 +2952,12 @@ public struct NativeRenderingLayer: View {
 
 #if os(macOS)
         private func dispatchMacPointerInterrupt(_ type: String, event: NSEvent) {
-            let point = NativeInterruptDispatcher.shared.convertWindowPoint(
+            let point = nativeState.dispatcher.convertWindowPoint(
                 event.locationInWindow,
                 in: event.window ?? window
             )
                 ?? convert(event.locationInWindow, from: nil)
-            dispatchPointerMouseInterrupt(type: type, x: Double(point.x), y: Double(point.y))
+            dispatchPointerMouseInterrupt(type: type, x: Double(point.x), y: Double(point.y), dispatcher: nativeState.dispatcher)
         }
 
         private func setMacClipOrigin(_ origin: CGPoint) {
@@ -3034,7 +3100,8 @@ public struct NativeRenderingLayer: View {
                 scrollX: Double(target.x),
                 scrollY: Double(target.y),
                 presentationScrollX: Double(target.x),
-                presentationScrollY: Double(target.y)
+                presentationScrollY: Double(target.y),
+                dispatcher: nativeState.dispatcher
             )
         }
 
@@ -3174,7 +3241,8 @@ public struct NativeRenderingLayer: View {
                 scrollX: Double(target.x),
                 scrollY: Double(target.y),
                 presentationScrollX: Double(target.x),
-                presentationScrollY: Double(target.y)
+                presentationScrollY: Double(target.y),
+                dispatcher: nativeState.dispatcher
             )
         }
 
@@ -3227,7 +3295,8 @@ public struct NativeRenderingLayer: View {
                 scrollX: Double(offset.x),
                 scrollY: Double(offset.y),
                 presentationScrollX: Double(offset.x),
-                presentationScrollY: Double(offset.y)
+                presentationScrollY: Double(offset.y),
+                dispatcher: nativeState.dispatcher
             )
         }
 #elseif os(macOS)
@@ -3255,7 +3324,8 @@ public struct NativeRenderingLayer: View {
                 scrollX: Double(origin.x),
                 scrollY: Double(origin.y),
                 presentationScrollX: Double(origin.x),
-                presentationScrollY: Double(origin.y)
+                presentationScrollY: Double(origin.y),
+                dispatcher: nativeState.dispatcher
             )
             if hasNativeSnapPoints && !isMacSnapActive && !isLiveScrolling {
                 scheduleMacSnap(delay: macSnapQuietDelay)
@@ -3265,6 +3335,17 @@ public struct NativeRenderingLayer: View {
     }
 
     private final class NativeSceneHostView: PlatformContainerView {
+#if os(macOS)
+        private var inlineSessions: [PaxNodeId: (name: String, close: () -> Void)] = [:]
+
+        private func updateInlineSession(_ name: String, id: PaxNodeId, view: NSView) {
+            guard inlineSessions[id]?.name != name else { return }
+            inlineSessions.removeValue(forKey: id)?.close()
+            guard !name.isEmpty,
+                  let close = nativeState.mountInlineSession?(name, view) else { return }
+            inlineSessions[id] = (name, close)
+        }
+#endif
         private var frameViews: [PaxNodeId: PlatformContainerView] = [:]
         private var leafViews: [PaxNodeId: PlatformMaskedLeafView] = [:]
         private var scrollerViews: [PaxNodeId: PlatformScrollerView] = [:]
@@ -3275,8 +3356,8 @@ public struct NativeRenderingLayer: View {
         private var pinnedColdLeaves: Set<PaxNodeId> = []
 
         private func updateResidency(_ view: PlatformMaskedLeafView, item: NativeRenderItem) {
-            let cold = NativeCullingState.shared.cold.contains(item.id)
-                && !NativeCullingState.shared.accessibilityActive
+            let cold = nativeState.culling.cold.contains(item.id)
+                && !nativeState.culling.accessibilityActive
             if cold && view.canDetach(item: item) {
                 view.removeFromSuperview()
                 pinnedColdLeaves.remove(item.id)
@@ -3296,18 +3377,20 @@ public struct NativeRenderingLayer: View {
 #if os(macOS)
         private var sceneObserver: NSObjectProtocol?
 
-        override init(frame: CGRect) {
+        init(frame: CGRect, state: PaxNativeHostState) {
             super.init(frame: frame)
+            nativeState = state
             // Publish native patches in the same frame as the GPU scene.
             sceneObserver = NotificationCenter.default.addObserver(
                 forName: NativeSceneInvalidation.didInvalidate, object: nil, queue: nil
-            ) { [weak self] _ in
-                self?.update(scene: NativeRenderingLayer(),
-                             generation: NativeSceneInvalidation.singleton.generation)
+            ) { [weak self] notification in
+                guard let self, notification.object as? NativeSceneInvalidation === self.nativeState.invalidation else { return }
+                self.update(scene: NativeRenderingLayer(state: self.nativeState), generation: self.nativeState.invalidation.generation)
             }
         }
 
         deinit {
+            for session in inlineSessions.values { session.close() }
             if let sceneObserver { NotificationCenter.default.removeObserver(sceneObserver) }
         }
 
@@ -3493,6 +3576,7 @@ public struct NativeRenderingLayer: View {
                     activeFrames.insert(frame.id)
                     let frameView = frameViews[frame.id] ?? {
                         let view = PlatformContainerView(frame: .zero)
+                        view.nativeState = nativeState
                         frameViews[frame.id] = view
                         return view
                     }()
@@ -3505,6 +3589,17 @@ public struct NativeRenderingLayer: View {
                         zIndex: frame.zIndex,
                         opacity: frame.opacity
                     )
+#if os(macOS)
+                    if !frame.inlineSession.isEmpty {
+                        let hidden = frame.opacity <= 0
+                        if hidden, !frameView.isHidden, let responder = frameView.window?.firstResponder as? NSView,
+                           responder.isDescendant(of: frameView) {
+                            frameView.window?.makeFirstResponder(nil)
+                        }
+                        frameView.isHidden = hidden
+                    }
+                    updateInlineSession(frame.inlineSession, id: frame.id, view: frameView)
+#endif
                     let clipPathForContainer = containsScroller(frame.children) ? nil : frame.clipPath
                     frameView.applyClip(
                         path: clipPathForContainer,
@@ -3531,7 +3626,7 @@ public struct NativeRenderingLayer: View {
                     )
                     activeScrollers.insert(scroller.id)
                     let scrollerView = scrollerViews[scroller.id] ?? {
-                        let view = PlatformScrollerView(id: scroller.id)
+                        let view = PlatformScrollerView(id: scroller.id, state: nativeState)
                         scrollerViews[scroller.id] = view
                         return view
                     }()
@@ -3568,6 +3663,7 @@ public struct NativeRenderingLayer: View {
                     leafPlacements[item.id] = (item.parentFrame, item.zIndex)
                     let leafView = leafViews[item.id] ?? {
                         let view = PlatformMaskedLeafView(frame: .zero)
+                        view.nativeState = nativeState
                         leafViews[item.id] = view
                         return view
                     }()
@@ -3600,6 +3696,9 @@ public struct NativeRenderingLayer: View {
             for (id, view) in frameViews where !activeFrames.contains(id) {
                 view.removeFromSuperview()
                 frameViews.removeValue(forKey: id)
+#if os(macOS)
+                inlineSessions.removeValue(forKey: id)?.close()
+#endif
             }
             for (id, leafView) in leafViews where !activeLeaves.contains(id) {
                 leafView.removeFromSuperview()
@@ -3608,7 +3707,7 @@ public struct NativeRenderingLayer: View {
             for (id, scrollerView) in scrollerViews where !activeScrollers.contains(id) {
                 scrollerView.removeFromSuperview()
                 scrollerViews.removeValue(forKey: id)
-                NativeScrollerHostRegistry.shared.unregister(id: id)
+                nativeState.scrollers.unregister(id: id)
             }
         }
     }
@@ -3630,7 +3729,7 @@ public struct NativeRenderingLayer: View {
         let generation: UInt64
 
         func makeNSView(context: Context) -> NativeSceneHostView {
-            NativeSceneHostView(frame: .zero)
+            NativeSceneHostView(frame: .zero, state: scene.nativeState)
         }
 
         func updateNSView(_ view: NativeSceneHostView, context: Context) {
@@ -3731,7 +3830,7 @@ public struct NativeRenderingLayer: View {
             size: size,
             opacity: clampOpacity(element.opacity),
             kind: kind,
-            mask: resolvedNativeMask(for: element.id)
+            mask: nativeState.masks[element.id]
         )
     }
 
@@ -3756,7 +3855,7 @@ public struct NativeRenderingLayer: View {
             size: CGSize(width: width, height: height),
             opacity: clampOpacity(element.opacity),
             kind: .text(element),
-            mask: resolvedNativeMask(for: element.id)
+            mask: nativeState.masks[element.id]
         )
     }
 
@@ -3892,7 +3991,7 @@ public struct NativeRenderingLayer: View {
             let hasDescendants = (framesByParent[frameId] ?? []).contains { frame in
                 frameHasNativeDescendants(frame.id)
             }
-            let isActive = hasItems || hasScrollers || hasDescendants
+            let isActive = hasItems || hasScrollers || hasDescendants || frameElements.elements[frameId]?.inlineSession.isEmpty == false
             activeFrames[frameId] = isActive
             return isActive
         }
@@ -3900,6 +3999,7 @@ public struct NativeRenderingLayer: View {
         func buildFrameNode(_ frame: FrameElement) -> FrameRenderNode {
             let children = buildChildren(parent: frame.id)
             return FrameRenderNode(
+                inlineSession: frame.inlineSession,
                 id: frame.id,
                 zIndex: frame.zIndex,
                 parentFrame: frame.parentFrame,
@@ -3940,7 +4040,7 @@ public struct NativeRenderingLayer: View {
                 scrollEnabledY: scroller.scrollEnabledY,
                 snapPointsX: snapPointsX,
                 snapPointsY: snapPointsY,
-                mask: resolvedNativeMask(for: scroller.id),
+                mask: nativeState.masks[scroller.id],
                 children: children
             )
         }
@@ -4026,6 +4126,7 @@ public struct NativeRenderingLayer: View {
     }
 
     private func hasInteractiveNativeContent() -> Bool {
+        if frameElements.elements.values.contains(where: { !$0.inlineSession.isEmpty }) { return true }
         if textElements.elements.values.contains(where: { $0.editable || ($0.selectable && $0.clip) }) {
             return true
         }
@@ -4065,6 +4166,7 @@ public struct NativeRenderingLayer: View {
 
 private final class FontRegistrationObserver {
     static let shared = FontRegistrationObserver()
+    let scenes = NSHashTable<NativeSceneInvalidation>.weakObjects()
     private var observerInstalled = false
     private var invalidationPending = false
 #if os(macOS)
@@ -4099,7 +4201,7 @@ private final class FontRegistrationObserver {
 #endif
         DispatchQueue.main.async {
             self.invalidationPending = false
-            NativeSceneInvalidation.singleton.invalidate()
+            for scene in self.scenes.allObjects { scene.invalidate() }
         }
     }
 }
@@ -4118,7 +4220,7 @@ internal struct NativeGeometryWrites: Equatable {
 #endif
 
 public class NativeSceneInvalidation: ObservableObject {
-    public static let singleton = NativeSceneInvalidation()
+    public static var singleton: NativeSceneInvalidation { PaxNativeHostState.shared.invalidation }
     @Published public var generation: UInt64 = 0
     static let didInvalidate = Notification.Name("PaxNativeSceneDidInvalidate")
     private var journal = NativeSceneChangeJournal()
@@ -4340,7 +4442,7 @@ private func noWrapOverflowFrame(_ frame: CGRect, measured: CGSize, element: Tex
     return frame
 }
 
-private func reportMeasuredTextSizeIfNeeded(_ measuredSize: CGSize, for element: TextElement) {
+private func reportMeasuredTextSizeIfNeeded(_ measuredSize: CGSize, for element: TextElement, dispatcher: NativeInterruptDispatcher = .shared) {
     guard element.size_x < 0 || element.size_y < 0 else {
         return
     }
@@ -4360,7 +4462,8 @@ private func reportMeasuredTextSizeIfNeeded(_ measuredSize: CGSize, for element:
     dispatchChassisResizeRequest(
         id: element.id,
         width: Double(resolvedSize.width),
-        height: Double(resolvedSize.height)
+        height: Double(resolvedSize.height),
+        dispatcher: dispatcher
     )
 }
 
@@ -5943,12 +6046,12 @@ final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
             setAccessibilityValue(attributedText.string)
         }
         lastContentSignature = signature
-        reportMeasuredTextSizeIfNeeded(measuredSize, for: element)
+        reportMeasuredTextSizeIfNeeded(measuredSize, for: element, dispatcher: paxDispatcher)
     }
 
     func textDidChange(_ notification: Notification) {
         guard !suppressChange, let text = notification.object as? NSTextView else { return }
-        dispatchTextInput(id: editableNodeId, text: text.string)
+        dispatchTextInput(id: editableNodeId, text: text.string, dispatcher: paxDispatcher)
     }
 }
 
@@ -5980,7 +6083,7 @@ private final class PaxNativeButtonView: PaxProjectedButton {
     }
 
     @objc private func handleTap() {
-        dispatchFormButtonClick(id: nodeId)
+        dispatchFormButtonClick(id: nodeId, dispatcher: paxDispatcher)
     }
 }
 
@@ -6019,7 +6122,7 @@ private final class PaxNativePhotoPickerView: PaxProjectedButton {
         guard let element else {
             return
         }
-        NativePhotoPickerCoordinator.shared.open(request: NativePhotoPickerRequest(element: element))
+        NativePhotoPickerCoordinator.shared.open(request: NativePhotoPickerRequest(element: element, dispatcher: paxDispatcher))
     }
 }
 
@@ -6033,7 +6136,8 @@ private final class NativePhotoPickerCoordinator {
                 requestId: request.requestId,
                 status: "unavailable",
                 message: "Camera capture is not available for macOS PhotoPicker.",
-                photos: []
+                photos: [],
+                dispatcher: request.dispatcher
             )
             return
         }
@@ -6045,7 +6149,7 @@ private final class NativePhotoPickerCoordinator {
         panel.allowedContentTypes = [.image]
         panel.begin { response in
             guard response == .OK else {
-                dispatchPhotoPicker(id: request.id, requestId: request.requestId, status: "cancelled", message: nil, photos: [])
+                dispatchPhotoPicker(id: request.id, requestId: request.requestId, status: "cancelled", message: nil, photos: [], dispatcher: request.dispatcher)
                 return
             }
 
@@ -6082,7 +6186,7 @@ private final class NativePhotoPickerCoordinator {
             let message = rejected > 0
                 ? "Skipped \(rejected) photo(s) over the configured byte limit."
                 : failure
-            dispatchPhotoPicker(id: request.id, requestId: request.requestId, status: status, message: message, photos: photos)
+            dispatchPhotoPicker(id: request.id, requestId: request.requestId, status: status, message: message, photos: photos, dispatcher: request.dispatcher)
         }
     }
 }
@@ -6117,7 +6221,7 @@ private final class PaxNativeCheckboxView: PaxProjectedButton {
     }
 
     @objc private func handleTap() {
-        dispatchFormCheckboxToggle(id: nodeId, state: title.isEmpty)
+        dispatchFormCheckboxToggle(id: nodeId, state: title.isEmpty, dispatcher: paxDispatcher)
     }
 }
 
@@ -6144,7 +6248,7 @@ private final class PaxNativeSliderView: PaxProjectedSlider {
     }
 
     @objc private func handleChange() {
-        dispatchFormSliderChange(id: nodeId, value: doubleValue)
+        dispatchFormSliderChange(id: nodeId, value: doubleValue, dispatcher: paxDispatcher)
     }
 }
 
@@ -6199,7 +6303,7 @@ private final class PaxNativeDropdownView: PaxProjectedPopUpButton {
     }
 
     @objc private func handleChange() {
-        dispatchFormDropdownChange(id: nodeId, selectedId: UInt32(max(indexOfSelectedItem, 0)))
+        dispatchFormDropdownChange(id: nodeId, selectedId: UInt32(max(indexOfSelectedItem, 0)), dispatcher: paxDispatcher)
     }
 }
 
@@ -6315,7 +6419,7 @@ private final class PaxNativeRadioListView: NSStackView {
     }
 
     @objc private func selectOption(_ sender: NSButton) {
-        dispatchFormRadioListChange(id: nodeId, selectedId: UInt32(sender.tag))
+        dispatchFormRadioListChange(id: nodeId, selectedId: UInt32(sender.tag), dispatcher: paxDispatcher)
     }
 }
 
@@ -6429,11 +6533,11 @@ private final class PaxNativeTextboxFieldView: PaxProjectedTextField, NSTextFiel
 
     override func textDidChange(_ notification: Notification) {
         guard !isProgrammaticChange else { return }
-        dispatchFormTextboxInput(id: nodeId, text: stringValue)
+        dispatchFormTextboxInput(id: nodeId, text: stringValue, dispatcher: paxDispatcher)
     }
 
     func controlTextDidEndEditing(_ obj: Notification) {
-        dispatchFormTextboxChange(id: nodeId, text: stringValue)
+        dispatchFormTextboxChange(id: nodeId, text: stringValue, dispatcher: paxDispatcher)
     }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
@@ -6441,7 +6545,7 @@ private final class PaxNativeTextboxFieldView: PaxProjectedTextField, NSTextFiel
             return false
         }
         if NSApp.currentEvent?.isARepeat != true {
-            dispatchFormTextboxSubmit(id: nodeId, text: textView.string)
+            dispatchFormTextboxSubmit(id: nodeId, text: textView.string, dispatcher: paxDispatcher)
         }
         return true
     }
@@ -6515,11 +6619,11 @@ private final class PaxNativeTextboxAreaView: NSScrollView, NSTextViewDelegate {
 
     func textDidChange(_ notification: Notification) {
         guard !isProgrammaticChange else { return }
-        dispatchFormTextboxInput(id: nodeId, text: textView.string)
+        dispatchFormTextboxInput(id: nodeId, text: textView.string, dispatcher: paxDispatcher)
     }
 
     func textDidEndEditing(_ notification: Notification) {
-        dispatchFormTextboxChange(id: nodeId, text: textView.string)
+        dispatchFormTextboxChange(id: nodeId, text: textView.string, dispatcher: paxDispatcher)
     }
 }
 
@@ -6830,7 +6934,7 @@ private struct EditableTextView: View {
 #endif
 
 public class TextElements: ObservableObject {
-    public static let singleton = TextElements()
+    public static var singleton: TextElements { PaxNativeHostState.shared.textElements }
     @Published public var elements: [PaxNodeId: TextElement] = [:]
 
     public func add(element: TextElement) {
@@ -6847,7 +6951,7 @@ public class TextElements: ObservableObject {
 }
 
 public class FrameElements: ObservableObject {
-    public static let singleton = FrameElements()
+    public static var singleton: FrameElements { PaxNativeHostState.shared.frameElements }
     @Published public var elements: [PaxNodeId: FrameElement] = [:]
 
     public func add(element: FrameElement) {
@@ -6868,7 +6972,7 @@ public class FrameElements: ObservableObject {
 }
 
 public class ButtonElements: ObservableObject {
-    public static let singleton = ButtonElements()
+    public static var singleton: ButtonElements { PaxNativeHostState.shared.buttonElements }
     @Published public var elements: [PaxNodeId: ButtonElement] = [:]
 
     public func add(element: ButtonElement) {
@@ -6885,7 +6989,7 @@ public class ButtonElements: ObservableObject {
 }
 
 public class PhotoPickerElements: ObservableObject {
-    public static let singleton = PhotoPickerElements()
+    public static var singleton: PhotoPickerElements { PaxNativeHostState.shared.photoPickerElements }
     @Published public var elements: [PaxNodeId: PhotoPickerElement] = [:]
 
     public func add(element: PhotoPickerElement) {
@@ -6902,7 +7006,7 @@ public class PhotoPickerElements: ObservableObject {
 }
 
 public class CheckboxElements: ObservableObject {
-    public static let singleton = CheckboxElements()
+    public static var singleton: CheckboxElements { PaxNativeHostState.shared.checkboxElements }
     @Published public var elements: [PaxNodeId: CheckboxElement] = [:]
 
     public func add(element: CheckboxElement) {
@@ -6919,7 +7023,7 @@ public class CheckboxElements: ObservableObject {
 }
 
 public class NativeImageElements: ObservableObject {
-    public static let singleton = NativeImageElements()
+    public static var singleton: NativeImageElements { PaxNativeHostState.shared.nativeImageElements }
     @Published public var elements: [PaxNodeId: NativeImageElement] = [:]
 
     public func add(element: NativeImageElement) {
@@ -6936,7 +7040,7 @@ public class NativeImageElements: ObservableObject {
 }
 
 public class YoutubeVideoElements: ObservableObject {
-    public static let singleton = YoutubeVideoElements()
+    public static var singleton: YoutubeVideoElements { PaxNativeHostState.shared.youtubeVideoElements }
     @Published public var elements: [PaxNodeId: YoutubeVideoElement] = [:]
 
     public func add(element: YoutubeVideoElement) {
@@ -6953,7 +7057,7 @@ public class YoutubeVideoElements: ObservableObject {
 }
 
 public class DropdownElements: ObservableObject {
-    public static let singleton = DropdownElements()
+    public static var singleton: DropdownElements { PaxNativeHostState.shared.dropdownElements }
     @Published public var elements: [PaxNodeId: DropdownElement] = [:]
 
     public func add(element: DropdownElement) {
@@ -6970,7 +7074,7 @@ public class DropdownElements: ObservableObject {
 }
 
 public class RadioListElements: ObservableObject {
-    public static let singleton = RadioListElements()
+    public static var singleton: RadioListElements { PaxNativeHostState.shared.radioListElements }
     @Published public var elements: [PaxNodeId: RadioListElement] = [:]
 
     public func add(element: RadioListElement) {
@@ -6987,7 +7091,7 @@ public class RadioListElements: ObservableObject {
 }
 
 public class SliderElements: ObservableObject {
-    public static let singleton = SliderElements()
+    public static var singleton: SliderElements { PaxNativeHostState.shared.sliderElements }
     @Published public var elements: [PaxNodeId: SliderElement] = [:]
 
     public func add(element: SliderElement) {
@@ -7004,7 +7108,7 @@ public class SliderElements: ObservableObject {
 }
 
 public class TextboxElements: ObservableObject {
-    public static let singleton = TextboxElements()
+    public static var singleton: TextboxElements { PaxNativeHostState.shared.textboxElements }
     @Published public var elements: [PaxNodeId: TextboxElement] = [:]
 
     public func add(element: TextboxElement) {
@@ -7021,7 +7125,7 @@ public class TextboxElements: ObservableObject {
 }
 
 public class EventBlockerElements: ObservableObject {
-    public static let singleton = EventBlockerElements()
+    public static var singleton: EventBlockerElements { PaxNativeHostState.shared.eventBlockerElements }
     @Published public var elements: [PaxNodeId: EventBlockerElement] = [:]
 
     public func add(element: EventBlockerElement) {
@@ -7038,7 +7142,7 @@ public class EventBlockerElements: ObservableObject {
 }
 
 public class GlassSurfaceElements: ObservableObject {
-    public static let singleton = GlassSurfaceElements()
+    public static var singleton: GlassSurfaceElements { PaxNativeHostState.shared.glassSurfaceElements }
     @Published public var elements: [PaxNodeId: GlassSurfaceElement] = [:]
 
     public func add(element: GlassSurfaceElement) {
@@ -7055,7 +7159,7 @@ public class GlassSurfaceElements: ObservableObject {
 }
 
 public class ScrollerElements: ObservableObject {
-    public static let singleton = ScrollerElements()
+    public static var singleton: ScrollerElements { PaxNativeHostState.shared.scrollerElements }
     @Published public var elements: [PaxNodeId: ScrollerElement] = [:]
 
     public func add(element: ScrollerElement) {
@@ -7077,4 +7181,8 @@ public class ScrollerElements: ObservableObject {
 
 #if os(macOS)
 extension NativeRenderingLayer.PlatformContainerView: PaxProjectedNativeHost {}
+#endif
+
+#if os(macOS)
+extension NativeRenderingLayer.PlatformContainerView: PaxNativeInputOwner {}
 #endif

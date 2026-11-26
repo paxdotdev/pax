@@ -45,6 +45,24 @@ impl Application {
         }
     }
 
+    /// Authorize a private directory of CLI guest descriptors before running the host.
+    /// Each `InlineFrame` can then select a prepared macOS guest by its descriptor name.
+    #[cfg(target_os = "macos")]
+    pub fn allow_inline_session_directory(&self, directory: &std::path::Path) -> Result<(), Error> {
+        match &self.0 {
+            Entry::Native(app) => app.allow_inline_session_directory(directory),
+        }
+    }
+
+    /// Register a trusted, independently built Pax macOS bundle before running or mounting.
+    /// An `<InlineFrame session="project" />` uses the matching name and owns the guest's lifetime.
+    #[cfg(target_os = "macos")]
+    pub fn register_inline_app(&self, name: &str, bundle: &std::path::Path) -> Result<(), Error> {
+        match &self.0 {
+            Entry::Native(app) => app.register_inline_app(name, bundle),
+        }
+    }
+
     /// Run a native desktop application with explicit window options.
     #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
     pub fn run_with(self, options: WindowOptions) -> Result<(), Error> {

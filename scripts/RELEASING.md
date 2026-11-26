@@ -15,6 +15,12 @@ Use Python 3.11+ with `tomlkit`, Cargo 1.93+, the workstation prerequisites in
 `.nvmrc`. On this workstation Python 3.12 has `tomlkit` installed. In another
 environment, install it in a virtual environment and use that Python executable.
 
+Before preparing a CLI release, stage the matching headless Pax Portal Agent executables at
+`pax-cli/agent/aarch64-apple-darwin/pax-portal-agent` and
+`pax-cli/agent/x86_64-apple-darwin/pax-portal-agent`. The Portal release checkout
+provides `./package-cli --stage-agents` for this step. Cargo includes both payloads in the
+CLI crate. A Mac build embeds the matching one. Windows and Linux builds use the direct runner.
+
 ```sh
 source ~/.zshrc
 nvm use

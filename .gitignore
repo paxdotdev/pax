@@ -29,3 +29,5 @@ pax-chassis-web/interface/
 pax-chassis-web/interface/
 .idea
 .codex-artifacts
+
+/pax-cli/agent/

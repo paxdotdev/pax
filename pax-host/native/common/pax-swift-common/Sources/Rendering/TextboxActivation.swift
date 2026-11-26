@@ -14,31 +14,32 @@ final class PaxTextboxTextView: PaxProjectedTextView {
     }
 
     func forwardMouseSequence(from start: NSEvent, trackSelection: () -> NSEvent?) {
+        let dispatcher = (activationView ?? self).paxDispatcher
         guard start.type == .leftMouseDown,
-              let startPoint = NativeInterruptDispatcher.shared.convertWindowPoint(
+              let startPoint = dispatcher.convertWindowPoint(
                   start.locationInWindow, in: window
               ) else {
             _ = trackSelection()
             return
         }
         dispatchPointerMouseInterrupt(type: "MouseDown", x: Double(startPoint.x),
-                                      y: Double(startPoint.y), focusCanvas: false)
+                                      y: Double(startPoint.y), focusCanvas: false, dispatcher: dispatcher)
         guard let completed = trackSelection(), Self.isRelease(from: start, to: completed),
-              let point = NativeInterruptDispatcher.shared.convertWindowPoint(
+              let point = dispatcher.convertWindowPoint(
                   completed.locationInWindow, in: window
               ) else {
             dispatchPointerMouseInterrupt(type: "MouseCancel", x: Double(startPoint.x),
-                                          y: Double(startPoint.y), focusCanvas: false)
+                                          y: Double(startPoint.y), focusCanvas: false, dispatcher: dispatcher)
             return
         }
         dispatchPointerMouseInterrupt(type: "MouseUp", x: Double(point.x), y: Double(point.y),
-                                      focusCanvas: false)
+                                      focusCanvas: false, dispatcher: dispatcher)
         let hitView = activationView ?? self
         let releasePoint = hitView.convert(convert(completed.locationInWindow, from: nil), from: self)
         guard Self.isActivation(from: start, to: completed),
               hitView.bounds.contains(releasePoint)
         else { return }
-        dispatchPointerMouseInterrupt(type: "Click", x: Double(point.x), y: Double(point.y))
+        dispatchPointerMouseInterrupt(type: "Click", x: Double(point.x), y: Double(point.y), dispatcher: dispatcher)
     }
 
     private static func isRelease(from start: NSEvent, to end: NSEvent) -> Bool {

@@ -23,6 +23,9 @@ typedef struct PaxEngineContainer PaxEngineContainer;
 
 struct PaxEngineContainer *pax_init(float initial_width, float initial_height) PAX_PROGRAM_EXPORT(pax_init);
 
+// Optional designtime export. Connect only this guest to its development server.
+bool pax_designtime_connect_local_server(struct PaxEngineContainer *container, const uint8_t *address, size_t length);
+
 void pax_activate_application(struct PaxEngineContainer *container);
 
 void pax_dealloc_engine(struct PaxEngineContainer * container);

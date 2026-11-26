@@ -32,6 +32,7 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 DEPENDENCIES = ("dependencies", "build-dependencies", "dev-dependencies")
 REQUIRED_FILES = {
+    "pax-cli": {f"agent/{arch}-apple-darwin/pax-portal-agent" for arch in ("aarch64", "x86_64")},
     "pax-codegen": {
         "templates/cartridge_generation/cartridge.tera",
         "templates/cartridge_generation/macros.tera",

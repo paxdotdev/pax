@@ -10,6 +10,8 @@ extern crate pax_language_server;
 
 mod dev;
 mod docs;
+#[cfg(target_os = "macos")]
+mod managed;
 mod network;
 mod svg_import;
 mod telemetry;
@@ -40,7 +42,12 @@ fn main() -> Result<(), Report> {
     if let ("telemetry", Some(args)) = matches.subcommand() {
         return telemetry::handle(args);
     }
-    let public_command = telemetry::public_command(&matches);
+    // launchd workers serve an already-counted user invocation.
+    let public_command = if std::env::var_os("PAX_PORTAL_WORKER").is_some() {
+        None
+    } else {
+        telemetry::public_command(&matches)
+    };
     let telemetry = if public_command.is_some() {
         telemetry::TelemetrySession::for_public_command()
     } else {
@@ -54,16 +61,19 @@ fn main() -> Result<(), Report> {
     }
     let is_libdev_mode = resolve_matches_libdev_mode(&matches)?;
 
+    let background = matches
+        .subcommand_matches("run")
+        .is_some_and(|args| args.is_present("background"));
     let cloned_version_info = Arc::clone(&new_version_info);
     let cloned_process_child_ids = Arc::clone(&process_child_ids);
     ctrlc::set_handler(move || {
-        println!("\nInterrupt received. Cleaning up child processes...");
+        eprintln!("\nInterrupt received.");
         perform_cleanup(
             Arc::clone(&cloned_version_info),
             Arc::clone(&cloned_process_child_ids),
             is_libdev_mode,
-            true,
         );
+        process::exit(if background { 130 } else { 0 });
     })
     .expect("ctrl-c hook should have been set up successfully");
 
@@ -75,7 +85,7 @@ fn main() -> Result<(), Report> {
     if let Some(command) = public_command {
         telemetry.command_finished(command, res.is_ok());
     }
-    perform_cleanup(new_version_info, process_child_ids, is_libdev_mode, false);
+    perform_cleanup(new_version_info, process_child_ids, is_libdev_mode);
     res
 }
 
@@ -110,6 +120,9 @@ fn cli() -> App<'static, 'static> {
         .takes_value(false)
         .help("Build in Release mode, with appropriate platform-specific optimizations.");
 
+    let optimized_dev = Arg::with_name("optimized-dev").long("optimized-dev")
+        .conflicts_with("release")
+        .help("Optimize Web and Apple runtime code while retaining development checks and template reload.");
     #[allow(non_snake_case)]
     let ARG_PROFILING = Arg::with_name("profiling")
         .long("profiling")
@@ -161,6 +174,20 @@ fn cli() -> App<'static, 'static> {
         .subcommand(
             App::new("run")
                 .about("Build and run the Pax application for the selected platform")
+                .arg(Arg::with_name("foreground").long("foreground").visible_alias("fg").conflicts_with("background")
+                    .help("Run directly in this terminal. This is the default on Windows and Linux."))
+                .arg(Arg::with_name("background").long("background").visible_alias("bg")
+                    .conflicts_with_all(&["project-server", "host-app", "host-session", "release"])
+                    .help("macOS: keep the Agent-owned project running after exit and print the ready preview URL or runtime ID. Plain Web and Apple development runs stay attached."))
+                .arg(Arg::with_name("project-server").long("project-server")
+                    .conflicts_with_all(&["release","host-session","host-app"])
+                    .help("Serve managed Web, Mac and Apple mobile development previews, rebuilding active targets after Rust edits."))
+                .arg(Arg::with_name("targets-file").long("targets-file").takes_value(true).requires("project-server")
+                    .help("Local JSON array of build variants: web, macos, ios-simulator, ipados-simulator, ios-device, ipados-device."))
+                .arg(Arg::with_name("host-session").long("host-session").takes_value(true).conflicts_with("host-app")
+                    .help("Prepare a macOS guest for a running host, publish its descriptor at this new path, and retain it until stdin closes"))
+                .arg(Arg::with_name("host-app").long("host-app").takes_value(true)
+                    .help("Open this macOS development session inside a compatible Pax host application bundle"))
                 .arg( ARG_PATH.clone() )
                 .arg( ARG_TARGET.clone() )
                 .arg(Arg::with_name("port").long("port").takes_value(true)
@@ -171,8 +198,12 @@ fn cli() -> App<'static, 'static> {
                 .arg( ARG_LIBDEV.clone() )
                 .arg( ARG_LIBDEV_MODE.clone() )
                 .arg( ARG_HOT_RELOAD.clone() )
+                .arg(optimized_dev.clone())
                 .arg( ARG_RELEASE.clone().help("Run an optimized local iOS/iPadOS, Windows, Linux, or Android build. Disables designtime and hot reload; does not publish the app.") )
         )
+        .subcommand(App::new("stop")
+            .about("Stop the Agent-owned run for this project on macOS")
+            .arg(ARG_PATH.clone()))
         .subcommand(
             App::new("build")
                 .about("Builds the Pax project from the current working directory into a platform-specific executable, for the specific `target` platform.")
@@ -184,6 +215,7 @@ fn cli() -> App<'static, 'static> {
                 .arg( ARG_LIBDEV.clone() )
                 .arg( ARG_LIBDEV_MODE.clone() )
                 .arg( ARG_RELEASE.clone() )
+                .arg(optimized_dev.clone().conflicts_with("profiling"))
                 .arg( ARG_PROFILING.clone() )
         )
         .subcommand(
@@ -320,10 +352,37 @@ fn run_context(
         .map(str::parse::<u16>)
         .transpose()
         .map_err(|_| eyre!("--port must be between 0 and 65535"))?;
-    if port.is_some() && target != RunTarget::Web {
+    if port.is_some() && target != RunTarget::Web && !args.is_present("project-server") {
         return Err(eyre!("--port configures the web target only"));
     }
+    let host_app = args.value_of("host-app").map(PathBuf::from);
+    let host_session = args.value_of("host-session").map(PathBuf::from);
+    if (host_app.is_some() || host_session.is_some()) && (target != RunTarget::macOS || is_release)
+    {
+        return Err(eyre!("Hosted previews require a macOS development session"));
+    }
+    if let Some(destination) = &host_session {
+        if destination.try_exists()? {
+            return Err(eyre!(
+                "Guest descriptor already exists at {}",
+                destination.display()
+            ));
+        }
+    }
+    let host_app = host_app
+        .map(|path| -> Result<PathBuf> {
+            if !path.join("Contents/Info.plist").is_file() {
+                return Err(eyre!(
+                    "Expected a macOS host .app bundle at {}",
+                    path.display()
+                ));
+            }
+            Ok(path.canonicalize()?)
+        })
+        .transpose()?;
     Ok(RunContext {
+        host_app,
+        host_session,
         port,
         target,
         is_libdev_mode: resolve_libdev_mode(args, &path)?,
@@ -339,6 +398,7 @@ fn run_context(
         } else {
             parse_hot_reload_mode(args)?
         },
+        optimized_dev: args.is_present("optimized-dev"),
         is_release,
         profile_wasm_size: false,
         ios_device: args.value_of("ios-device").map(str::to_string),
@@ -354,11 +414,58 @@ fn perform_nominal_action(
 ) -> Result<(), Report> {
     match matches.subcommand() {
         ("run", Some(args)) => {
+            #[cfg(not(target_os = "macos"))]
+            if args.is_present("background") {
+                return Err(eyre!("--background/--bg requires macOS. Use pax-cli run or pax-cli run --fg on this workstation."));
+            }
             let mut context = run_context(args, process_child_ids)?;
             context.lifecycle_observer = lifecycle_observer;
+            if args.is_present("project-server") {
+                return pax_compiler::design_server::serve_project(
+                    context,
+                    args.value_of("targets-file").map(PathBuf::from),
+                );
+            }
+            #[cfg(target_os = "macos")]
+            {
+                let supported = !context.is_release
+                    && matches!(
+                        context.target,
+                        RunTarget::Web | RunTarget::macOS | RunTarget::iOS | RunTarget::iPadOS
+                    );
+                if args.is_present("background") && !supported {
+                    return Err(eyre!("This target requires pax-cli run --fg. Background development supports Web, Mac, iPhone, and iPad on macOS."));
+                }
+                if supported
+                    && !args.is_present("foreground")
+                    && context.host_session.is_none()
+                    && context.host_app.is_none()
+                    && std::env::var_os("PAX_PORTAL_WORKER").is_none()
+                {
+                    let libdev = match parse_libdev_mode(args)? {
+                        LibdevMode::Auto => None,
+                        LibdevMode::Enabled => Some(true),
+                        LibdevMode::Disabled => Some(false),
+                    };
+                    return managed::run(&context, args.is_present("background"), libdev);
+                }
+            }
             let _ = pax_compiler::perform_build(&context)?;
 
             Ok(())
+        }
+        ("stop", Some(args)) => {
+            #[cfg(target_os = "macos")]
+            {
+                managed::stop(Path::new(args.value_of("path").unwrap()))
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = args;
+                Err(eyre!(
+                    "Use Ctrl-C in the foreground terminal to stop this workstation's run."
+                ))
+            }
         }
         ("build", Some(args)) => {
             let target = args.value_of("target").unwrap().to_lowercase();
@@ -377,6 +484,8 @@ fn perform_nominal_action(
             }
 
             let _ = pax_compiler::perform_build(&RunContext {
+                host_app: None,
+                host_session: None,
                 port: None,
                 target: parse_run_target(&target)?,
                 project_path: PathBuf::from(path),
@@ -386,6 +495,7 @@ fn perform_nominal_action(
                 verbose,
                 is_libdev_mode,
                 process_child_ids,
+                optimized_dev: args.is_present("optimized-dev"),
                 is_release,
                 profile_wasm_size,
                 ios_device,
@@ -424,6 +534,8 @@ fn perform_nominal_action(
             let is_libdev_mode = resolve_libdev_mode(args, Path::new("."))?;
 
             let _ = pax_compiler::perform_eject(&RunContext {
+                host_app: None,
+                host_session: None,
                 port: None,
                 target: parse_run_target(&target)?,
                 project_path: PathBuf::from("."),
@@ -433,6 +545,7 @@ fn perform_nominal_action(
                 verbose: false,
                 is_libdev_mode,
                 process_child_ids,
+                optimized_dev: false,
                 is_release: false,
                 profile_wasm_size: false,
                 ios_device: None,
@@ -696,7 +809,6 @@ fn perform_cleanup(
     new_version_info: Arc<Mutex<Option<String>>>,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
     is_libdev_mode: bool,
-    force_end_process: bool,
 ) {
     //1. kill any running child processes
     if let Ok(process_child_ids_lock) = process_child_ids.lock() {
@@ -759,21 +871,18 @@ fn perform_cleanup(
                             .on_bright_white()
                             .bold();
 
-                    println!();
-                    println!("{}", &stars_line);
-                    println!("{}", new_version_line);
-                    println!("{}", current_version_line);
-                    println!("{}", &empty_line);
-                    println!("{}", update_instructions_line);
-                    println!("{}", update_line_2);
-                    println!("{}", &stars_line);
-                    println!();
+                    eprintln!();
+                    eprintln!("{}", &stars_line);
+                    eprintln!("{}", new_version_line);
+                    eprintln!("{}", current_version_line);
+                    eprintln!("{}", &empty_line);
+                    eprintln!("{}", update_instructions_line);
+                    eprintln!("{}", update_line_2);
+                    eprintln!("{}", &stars_line);
+                    eprintln!();
                 }
             }
         }
-    }
-    if force_end_process {
-        process::exit(0);
     }
 }
 
@@ -843,6 +952,26 @@ mod tests {
     }
 
     #[cfg(unix)]
+    #[test]
+    fn foreground_and_background_aliases_are_mutually_exclusive() {
+        for (flag, name) in [
+            ("--fg", "foreground"),
+            ("--foreground", "foreground"),
+            ("--bg", "background"),
+            ("--background", "background"),
+        ] {
+            let matches = cli()
+                .get_matches_from_safe(vec!["pax-cli", "run", flag])
+                .unwrap();
+            assert!(matches.subcommand_matches("run").unwrap().is_present(name));
+        }
+        for conflict in ["--fg", "--foreground", "--project-server", "--release"] {
+            assert!(cli()
+                .get_matches_from_safe(vec!["pax-cli", "run", "--bg", conflict])
+                .is_err());
+        }
+    }
+
     #[test]
     fn cleanup_limits_signals_to_the_owned_group() {
         use std::os::unix::process::{CommandExt, ExitStatusExt};

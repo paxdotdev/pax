@@ -16,6 +16,7 @@ extern crate core;
 mod building;
 mod bundled_examples;
 pub mod dev_session;
+pub use building::apple::{apple_targets, managed_mobile_selection, AppleTarget};
 pub mod helpers;
 mod hot_reload;
 use pax_codegen::project_layout;
@@ -78,6 +79,10 @@ pub trait RunLifecycleObserver: Send + Sync {
 /// in hot-reload selection should leave [`RunContext::hot_reload`] as `None`.
 #[derive(Clone)]
 pub struct RunContext {
+    /// Optional macOS host bundle for a local interactive guest session.
+    pub host_app: Option<PathBuf>,
+    /// New descriptor path for an existing macOS host. The caller leases the guest through stdin.
+    pub host_session: Option<PathBuf>,
     /// Requested web server port. `None` lets the server select an available port.
     pub port: Option<u16>,
     pub target: RunTarget,
@@ -93,6 +98,8 @@ pub struct RunContext {
     /// `[package.metadata.pax.dev].hot_reload`, then the debug default (`pax`)
     /// select the policy. Release builds always force hot reload off.
     pub hot_reload: Option<HotReloadMode>,
+    /// Optimize guest execution while retaining designtime and development checks.
+    pub optimized_dev: bool,
     pub is_release: bool,
     pub profile_wasm_size: bool,
     pub ios_device: Option<String>,
@@ -237,6 +244,62 @@ pub(crate) struct PreparedCartridgeSources {
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
 pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<PathBuf>), Report> {
+    if ctx.optimized_dev
+        && (ctx.is_release
+            || !matches!(
+                ctx.target,
+                RunTarget::Web | RunTarget::macOS | RunTarget::iOS | RunTarget::iPadOS
+            ))
+    {
+        return Err(eyre!(
+            "Optimized development requires a Web or Apple development build"
+        ));
+    }
+    if ctx.optimized_dev
+        && ctx.should_also_run
+        && matches!(ctx.target, RunTarget::iOS | RunTarget::iPadOS)
+    {
+        if let Some(server) = dev_session::live_project_server(&ctx.project_path)? {
+            let (variant, device) = building::apple::mobile_selection(ctx)?;
+            let bundle = server
+                .builds
+                .get(&variant)
+                .and_then(|b| b.artifact.as_ref())
+                .ok_or_else(|| eyre!("Request a {variant} build from the project server first"))?;
+            let manifest = serde_json::from_slice(&fs::read(
+                bundle
+                    .parent()
+                    .ok_or_else(|| eyre!("Missing artifact directory"))?
+                    .join("manifest.json"),
+            )?)?;
+            building::apple::run_mobile_preview(ctx, &server, bundle, &device)?;
+            return Ok((manifest, Some(bundle.clone())));
+        }
+    }
+    if ctx.optimized_dev && ctx.should_also_run && ctx.target == RunTarget::macOS {
+        if let Some(server) = dev_session::live_project_server(&ctx.project_path)? {
+            if let Some(bundle) = server
+                .builds
+                .get("macos")
+                .and_then(|build| build.artifact.as_ref())
+            {
+                let manifest = serde_json::from_slice(&std::fs::read(
+                    bundle.parent().unwrap().join("manifest.json"),
+                )?)?;
+                let mut run = ctx.clone();
+                run.hot_reload = Some(development_reload_mode(ctx)?);
+                building::apple::run_macos_preview(
+                    &run,
+                    &ctx.project_path,
+                    &ctx.project_path.join(".pax"),
+                    bundle,
+                    &manifest,
+                    &RunLifecycleNotifier::new(ctx),
+                )?;
+                return Ok((manifest, Some(bundle.clone())));
+            }
+        }
+    }
     building::desktop::validate_host_target(&ctx.target)?;
     let mut timings = BuildTimings::start();
     let prepared = prepare_cartridge_sources_with_timings(ctx, &mut timings)?;
@@ -283,6 +346,20 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     };
 
     Ok((prepared.userland_manifest, build_dir))
+}
+
+/// Resolve the project's development reload policy before selecting its supervisor.
+pub fn development_reload_mode(ctx: &RunContext) -> Result<HotReloadMode, Report> {
+    let metadata = project_metadata::load_project_metadata(&ctx.project_path)?;
+    let environment = std::env::var("PAX_HOT_RELOAD").ok();
+    let mode = resolve_hot_reload_mode(
+        ctx.is_release,
+        ctx.hot_reload,
+        environment.as_deref(),
+        metadata.configured_hot_reload(),
+    )?;
+    validate_hot_reload_target(&ctx.target, mode)?;
+    Ok(mode)
 }
 
 fn resolve_hot_reload_mode(
@@ -495,6 +572,7 @@ fn compile_selected_manifest(
         building::android::configure_cargo(&mut command)?;
         validate_release_cargo_features(ctx, &layout.cartridge_dir, &cargo_features, &[target])?;
     }
+    configure_dev_optimization(&mut command, ctx.optimized_dev);
     layout.configure_cartridge(&mut command);
     helpers::configure_pax_build_env(&mut command, platform, ctx.should_run_designtime);
     #[cfg(unix)]
@@ -514,6 +592,14 @@ fn compile_selected_manifest(
     timings.record("compiler-selected manifest", || {
         read_compiled_manifest(pax_dir, target)
     })
+}
+
+fn configure_dev_optimization(command: &mut Command, enabled: bool) {
+    if enabled {
+        // Keep Cargo's dev feature graph, debug assertions and compiler sidecars.
+        // Workspaces can still tune individual application crates for rebuild latency.
+        command.env("CARGO_PROFILE_DEV_OPT_LEVEL", "2");
+    }
 }
 
 fn read_compiled_manifest(pax_dir: &Path, target: &str) -> eyre::Result<PaxManifest> {
@@ -2314,6 +2400,8 @@ ui = { package = "pax-kit", version = "9.8.7", path = "../pax-kit", features = [
 
     fn release_context(should_run_designtime: bool) -> RunContext {
         RunContext {
+            host_app: None,
+            host_session: None,
             port: None,
             target: RunTarget::Web,
             project_path: PathBuf::from("."),
@@ -2323,6 +2411,7 @@ ui = { package = "pax-kit", version = "9.8.7", path = "../pax-kit", features = [
             process_child_ids: Arc::new(Mutex::new(vec![])),
             should_run_designtime,
             hot_reload: None,
+            optimized_dev: false,
             is_release: true,
             profile_wasm_size: false,
             ios_device: None,

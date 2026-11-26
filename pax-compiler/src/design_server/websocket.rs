@@ -28,7 +28,7 @@ use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
 use std::{
     any::Any,
     borrow::Cow,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     io::BufWriter,
     panic::{catch_unwind, AssertUnwindSafe},
@@ -46,14 +46,28 @@ const SUPERSEDED_CLIENT_CLOSE_DELAY: Duration = Duration::from_millis(50);
 
 pub struct PrivilegedAgentWebSocket {
     state: Data<AppState>,
+    mailbox: Mailbox,
+    runtime: Option<(String, String)>,
+    capabilities: Vec<String>,
+    session: Option<dev_session::DevSession>,
+    pub(super) native_session: Option<String>,
     socket_msg_accum: SocketMessageAccumulator,
     connection_id: Option<usize>,
     last_heartbeat: Instant,
     superseded: bool,
+    preview_only: bool,
+    pub(super) mobile_target: Option<String>,
     /// Reservation established by this standby socket's successful preflight.
     /// If the socket disappears before final commit, release it so a failed
     /// Cancel frame cannot strand every newer build behind the reservation.
     reserved_activation: Option<String>,
+}
+
+// A response is meaningful only on the socket that received the request.
+#[derive(Default)]
+struct Mailbox {
+    in_flight_dev_requests: std::sync::Mutex<HashSet<String>>,
+    pending_dev_look_requests: std::sync::Mutex<HashMap<String, DevLookRequest>>,
 }
 
 struct DisconnectSuperseded;
@@ -74,12 +88,23 @@ impl PrivilegedAgentWebSocket {
     pub fn new(state: Data<AppState>) -> Self {
         Self {
             state,
+            mailbox: Mailbox::default(),
+            runtime: None,
+            capabilities: vec!["inspect".into(), "capture".into(), "template_reload".into()],
+            session: None,
+            native_session: None,
             socket_msg_accum: SocketMessageAccumulator::new(),
             connection_id: None,
             last_heartbeat: Instant::now(),
             superseded: false,
+            preview_only: false,
+            mobile_target: None,
             reserved_activation: None,
         }
+    }
+
+    pub(super) fn subscribe_only(&mut self) {
+        self.preview_only = true;
     }
 
     fn is_active_client(&self) -> bool {
@@ -89,28 +114,113 @@ impl PrivilegedAgentWebSocket {
         self.state.websocket_client_is_active(connection_id)
     }
 
+    fn inspection_session(&self) -> Option<dev_session::DevSession> {
+        self.session
+            .clone()
+            .or_else(|| self.state.dev_session.lock().unwrap().clone())
+    }
+
     fn refresh_dev_session_registration(&self) {
-        if !self.is_active_client() {
+        if self.preview_only || !self.is_active_client() {
             return;
         }
-        let mut dev_session = self.state.dev_session.lock().unwrap();
-        let Some(dev_session) = dev_session.as_mut() else {
-            return;
+        if let Some(mut session) = self.inspection_session() {
+            session.last_seen_ms = dev_session::now_ms();
+            if let Err(err) = write_registered_session(&session) {
+                log::warn!("refresh inspection session {}: {err}", session.session_id);
+            }
+        }
+    }
+
+    fn join_project(
+        &mut self,
+        ctx: &mut ws::WebsocketContext<Self>,
+        server: dev_session::DevSession,
+    ) -> Result<(), String> {
+        let connection = self.connection_id.unwrap();
+        let (runtime, abi) = self
+            .runtime
+            .clone()
+            .unwrap_or_else(|| (connection.to_string(), String::new()));
+        let mut instance = dev_session::RuntimeInstance {
+            id: self
+                .native_session
+                .clone()
+                .unwrap_or_else(|| format!("{}-{runtime}", server.session_id)),
+            target: self.mobile_target.clone().unwrap_or_else(|| if self.preview_only { "macos" } else { "web" }.into()),
+            cartridge_abi: abi,
+            capabilities: self
+                .capabilities
+                .iter()
+                .filter(|c| self.mobile_target.is_none() || c.as_str()=="template_reload")
+                .filter(|c| c.as_str() != "template_reload" || self.state.pax_hot_reload_enabled())
+                .cloned()
+                .collect(),
+            applied: None,
+            rejection: None,
         };
-        dev_session.last_seen_ms = dev_session::now_ms();
-        if let Err(err) = write_registered_session(dev_session) {
-            eprintln!(
-                "failed to refresh web dev session {}: {err}",
-                dev_session.session_id
-            );
+        if !self.preview_only && self.session.is_none() {
+            let mut session = server;
+            session.session_id = instance.id.clone();
+            let dir = session
+                .session_dir
+                .as_ref()
+                .ok_or("missing server session directory")?
+                .join(&runtime);
+            for child in ["requests", "responses", "captures"] {
+                fs::create_dir_all(dir.join(child)).map_err(|e| e.to_string())?;
+            }
+            session.session_dir = Some(dir);
+            session.started_at_ms = dev_session::now_ms();
+            self.session = Some(session);
         }
+        // A hello and its snapshot share the template commit lock. Future
+        // updates queue behind this response even when a file is saved mid-join.
+        let revisions = self.state.revisions.lock().unwrap();
+        if let Some(manifest) = revisions.active_manifest() {
+            if !instance.cartridge_abi.is_empty()
+                && dev_session::cartridge_abi(manifest).map_err(|e| e.to_string())?
+                    != instance.cartridge_abi
+            {
+                instance.rejection =
+                    Some("Compiled component or handler set changed. Rebuild this preview.".into());
+            }
+        }
+        let mut peers = self.state.peers.lock().unwrap();
+        let mut subscribers = self.state.template_previews.lock().unwrap();
+        // A reconnect retains the runtime identity. An old socket can no longer
+        // consume its mailbox or remove the replacement's registration on close.
+        peers.retain(|id, p| {
+            if p.id == instance.id && *id != connection {
+                subscribers.remove(id);
+                false
+            } else {
+                true
+            }
+        });
+        if let Some(old) = peers.get(&connection) {
+            instance.applied = old.applied.clone();
+        }
+        if instance.rejection.is_none() {
+            if let Some(snapshot) = revisions.active_snapshot()? {
+                send_agent_message_in_context(ctx, AgentMessage::LoadManifestResponse(snapshot));
+                subscribers.insert(connection, ctx.address());
+            }
+        }
+        peers.insert(connection, instance);
+        drop(subscribers);
+        drop(peers);
+        drop(revisions);
+        self.state.mark_app_ready();
+        self.refresh_dev_session_registration();
+        Ok(())
     }
 
     fn poll_dev_requests(&self, ctx: &mut ws::WebsocketContext<Self>) {
         if !self.is_active_client() {
             return;
         }
-        let Some(dev_session) = self.state.dev_session.lock().unwrap().clone() else {
+        let Some(dev_session) = self.inspection_session() else {
             return;
         };
         let request_dir = match session_request_dir(&dev_session) {
@@ -141,7 +251,7 @@ impl PrivilegedAgentWebSocket {
                 .unwrap_or("unknown-request")
                 .to_string();
             if self
-                .state
+                .mailbox
                 .in_flight_dev_requests
                 .lock()
                 .unwrap()
@@ -190,7 +300,7 @@ impl PrivilegedAgentWebSocket {
                             continue;
                         }
                     };
-                    self.state
+                    self.mailbox
                         .pending_dev_look_requests
                         .lock()
                         .unwrap()
@@ -348,7 +458,7 @@ impl PrivilegedAgentWebSocket {
             match rmp_serde::to_vec(&forwarded_message) {
                 Ok(serialized_message) => {
                     ctx.binary(serialized_message);
-                    self.state
+                    self.mailbox
                         .in_flight_dev_requests
                         .lock()
                         .unwrap()
@@ -403,7 +513,7 @@ impl Handler<SendAgentMessage> for PrivilegedAgentWebSocket {
     type Result = ();
 
     fn handle(&mut self, msg: SendAgentMessage, ctx: &mut Self::Context) -> Self::Result {
-        if !self.is_active_client() {
+        if !self.preview_only && !self.is_active_client() {
             return;
         }
         match rmp_serde::to_vec(&msg.message) {
@@ -446,6 +556,9 @@ impl Actor for PrivilegedAgentWebSocket {
 
             ctx.ping(b"pax-dev-heartbeat");
         });
+        if self.preview_only {
+            return;
+        }
         ctx.run_interval(Duration::from_millis(50), |actor, ctx| {
             actor.poll_dev_requests(ctx);
         });
@@ -455,6 +568,18 @@ impl Actor for PrivilegedAgentWebSocket {
     }
 
     fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
+        if self.session.is_some() || self.preview_only {
+            if let Some(id) = self.connection_id {
+                let removed = self.state.peers.lock().unwrap().remove(&id);
+                if removed.is_some() {
+                    if let Some(session) = &self.session {
+                        let _ = dev_session::remove_registered_session(&session.session_id);
+                    }
+                }
+                self.state.template_previews.lock().unwrap().remove(&id);
+            }
+            return Running::Stop;
+        }
         if let Some((logic_revision_id, connection_id)) =
             self.reserved_activation.take().zip(self.connection_id)
         {
@@ -479,7 +604,7 @@ impl Actor for PrivilegedAgentWebSocket {
         drop(active_client);
 
         if was_active_client {
-            self.state.in_flight_dev_requests.lock().unwrap().clear();
+            self.mailbox.in_flight_dev_requests.lock().unwrap().clear();
             if let Some(dev_session) = self.state.dev_session.lock().unwrap().as_ref() {
                 let _ = dev_session::remove_registered_session(&dev_session.session_id);
             }
@@ -516,7 +641,88 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
 
         let processed_message = self.socket_msg_accum.process(msg);
         if let Ok(Some(bin_data)) = processed_message {
-            match rmp_serde::from_slice::<AgentMessage>(&bin_data) {
+            let message = rmp_serde::from_slice::<AgentMessage>(&bin_data);
+            match &message {
+                Ok(AgentMessage::RuntimeHello {
+                    runtime,
+                    cartridge_abi,
+                    capabilities,
+                }) => {
+                    if runtime.len() == 32 && runtime.bytes().all(|b| b.is_ascii_hexdigit()) {
+                        self.runtime = Some((runtime.clone(), cartridge_abi.clone()));
+                        if !capabilities.is_empty() {
+                            self.capabilities = capabilities.clone();
+                        }
+                    }
+                    return;
+                }
+                Ok(AgentMessage::TemplateResult { revision, error }) => {
+                    if let Some(p) = self
+                        .state
+                        .peers
+                        .lock()
+                        .unwrap()
+                        .get_mut(&self.connection_id.unwrap())
+                    {
+                        if error.is_none() {
+                            p.applied = Some(revision.clone());
+                        }
+                        p.rejection = error.clone();
+                    }
+                    return;
+                }
+                Ok(AgentMessage::LoadManifestRequest(request))
+                    if !self.state.hot_reload.reloads_logic() =>
+                {
+                    if !self.preview_only && self.state.managed.is_some() {
+                        let current = self.state.revisions.lock().unwrap().active_stamp();
+                        if request
+                            .active_revision
+                            .as_ref()
+                            .zip(current.as_ref())
+                            .is_some_and(|(client, server)| {
+                                client.logic_revision_id != server.logic_revision_id
+                            })
+                        {
+                            send_agent_message_in_context(ctx, AgentMessage::ReloadPage);
+                            return;
+                        }
+                    }
+                    let server = self.state.dev_session.lock().unwrap().clone();
+                    if let Some(server) = server.filter(|s| s.platform == "web") {
+                        if let Err(err) = self.join_project(ctx, server) {
+                            log::warn!("join project: {err}");
+                            ctx.stop();
+                        }
+                        return;
+                    }
+                }
+                _ => {}
+            }
+            if self.preview_only {
+                if let Ok(AgentMessage::UserlandSourceUpdateRequest(request)) = &message {
+                    send_userland_source_update_response_in_context(ctx, UserlandSourceUpdateResponse {
+                        request_id: request.request_id.clone(),
+                        path: request.path.clone(),
+                        status: "error".into(),
+                        error: Some("This preview subscribes to templates. Apply source changes through the project's authoring session.".into()),
+                    });
+                    return;
+                }
+                if let (Ok(AgentMessage::LoadManifestRequest(_)), Some(id)) =
+                    (message, self.connection_id)
+                {
+                    match self.state.subscribe_preview(id, ctx.address()) {
+                        Ok(Some(snapshot)) => send_agent_message_in_context(
+                            ctx,
+                            AgentMessage::LoadManifestResponse(snapshot),
+                        ),
+                        _ => ctx.stop(),
+                    }
+                }
+                return;
+            }
+            match message {
                 Ok(AgentMessage::LoadManifestRequest(request)) => {
                     // A decoded manifest request is the first application-level
                     // proof that the launched chassis reached its design server.
@@ -671,7 +877,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                 }
                 Ok(AgentMessage::DevClientResponse(response)) => {
                     if self.is_active_client() {
-                        if let Err(err) = handle_dev_client_response(&self.state, response) {
+                        if let Some(Err(err)) = self.inspection_session().map(|session| {
+                            handle_dev_client_response(&self.mailbox, session, response)
+                        }) {
                             eprintln!("failed to handle web dev response: {err}");
                         }
                     }
@@ -1566,6 +1774,122 @@ mod tests {
     use tempfile::tempdir;
 
     #[actix_web::test]
+    async fn preview_joins_current_template_without_replacing_browser() {
+        let manifest = basic_manifest("Example");
+        let component = manifest.main_component_type_id.clone();
+        let dir = tempdir().unwrap();
+        let session = crate::dev_session::DevSession {
+            session_id: "preview-test".into(),
+            platform: "web".into(),
+            designtime: true,
+            project_root: None,
+            session_dir: Some(dir.path().into()),
+            app_pid: None,
+            design_server_addr: None,
+            control_kind: "filesystem".into(),
+            location: None,
+            started_at_ms: 0,
+            last_seen_ms: 0,
+        };
+        let state = Data::new(
+            AppState::new(
+                PathBuf::new(),
+                PathBuf::new(),
+                manifest,
+                Some(session),
+                None,
+                HotReloadMode::Pax,
+                None,
+                None,
+            )
+            .unwrap(),
+        );
+        let copy = state.clone();
+        let srv = actix_test::start(move || App::new().app_data(copy.clone()).service(web_socket));
+        let client = awc::Client::new();
+        assert!(client
+            .ws(srv.url("/ws?preview=ended-session"))
+            .connect()
+            .await
+            .is_err());
+        let (_, mut browser) = client.ws(srv.url("/ws")).connect().await.unwrap();
+        let hello = || {
+            awc::ws::Message::Binary(
+                rmp_serde::to_vec(&AgentMessage::LoadManifestRequest(LoadManifestRequest {
+                    active_revision: None,
+                }))
+                .unwrap()
+                .into(),
+            )
+        };
+        browser.send(hello()).await.unwrap();
+        let next = |frame| match frame {
+            Some(Ok(awc::ws::Frame::Binary(data))) => from_slice::<AgentMessage>(&data).unwrap(),
+            _ => panic!("expected a binary Pax message"),
+        };
+        let AgentMessage::LoadManifestResponse(initial) = next(browser.next().await) else {
+            panic!("missing browser snapshot")
+        };
+        let commit = |stamp: &pax_designtime::messages::RevisionStamp| {
+            state
+                .commit_template_update_and_route(
+                    stamp,
+                    None,
+                    pax_designtime::messages::UpdateTemplateRequest {
+                        revision: stamp.clone(),
+                        type_id: component.clone(),
+                        new_template: ComponentTemplate::new(component.clone(), None),
+                        settings_block: vec![],
+                        timelines: vec![],
+                        camera: None,
+                    },
+                )
+                .unwrap()
+                .revision
+        };
+        let first = commit(&initial.revision);
+        assert!(
+            matches!(next(browser.next().await), AgentMessage::UpdateTemplateRequest(update) if update.revision == first)
+        );
+        let (_, mut native) = client
+            .ws(srv.url("/ws?preview=preview-test"))
+            .connect()
+            .await
+            .unwrap();
+        native.send(hello()).await.unwrap();
+        assert!(
+            matches!(next(native.next().await), AgentMessage::LoadManifestResponse(snapshot) if snapshot.revision == first)
+        );
+        let (_, mut second_tab) = client.ws(srv.url("/ws")).connect().await.unwrap();
+        second_tab.send(hello()).await.unwrap();
+        assert!(
+            matches!(next(second_tab.next().await), AgentMessage::LoadManifestResponse(s) if s.revision == first)
+        );
+        let second = commit(&first);
+        for frame in [
+            browser.next().await,
+            second_tab.next().await,
+            native.next().await,
+        ] {
+            assert!(
+                matches!(next(frame), AgentMessage::UpdateTemplateRequest(update) if update.revision == second)
+            );
+        }
+        browser.close().await.unwrap();
+        let third = commit(&second);
+        for frame in [second_tab.next().await, native.next().await] {
+            assert!(
+                matches!(next(frame), AgentMessage::UpdateTemplateRequest(update) if update.revision == third)
+            );
+        }
+        let (_, mut late) = client.ws(srv.url("/ws")).connect().await.unwrap();
+        late.send(hello()).await.unwrap();
+        assert!(
+            matches!(next(late.next().await), AgentMessage::LoadManifestResponse(s) if s.revision == third)
+        );
+    }
+
+    #[actix_web::test]
     async fn sends_pending_web_revision_after_client_hello() {
         let manifest = basic_manifest("Example");
         let marker_dir = tempdir().unwrap();
@@ -2425,13 +2749,21 @@ fn spawn_userland_rust_source_update(
 }
 
 fn handle_dev_client_response(
-    state: &Data<AppState>,
+    state: &Mailbox,
+    dev_session: dev_session::DevSession,
     response: DevClientResponse,
 ) -> std::io::Result<()> {
-    let dev_session = state.dev_session.lock().unwrap().clone().ok_or_else(|| {
-        std::io::Error::new(std::io::ErrorKind::NotFound, "missing web dev session")
-    })?;
-
+    let id = match &response {
+        DevClientResponse::Look(r) => &r.request_id,
+        DevClientResponse::InspectTree(r) => &r.request_id,
+        DevClientResponse::SelectorQuery(r) => &r.request_id,
+        DevClientResponse::RayCast(r) => &r.request_id,
+        DevClientResponse::ReplaceNode(r) => &r.request_id,
+        DevClientResponse::Logs(r) => &r.request_id,
+    };
+    if !state.in_flight_dev_requests.lock().unwrap().contains(id) {
+        return Err(std::io::Error::other("unexpected inspection response"));
+    }
     match response {
         DevClientResponse::Look(response) => {
             let request_id = response.request_id.clone();
@@ -2556,7 +2888,7 @@ fn handle_dev_client_response(
 }
 
 fn finalize_in_flight_dev_request(
-    state: &Data<AppState>,
+    state: &Mailbox,
     dev_session: &crate::dev_session::DevSession,
     request_id: &str,
 ) -> std::io::Result<()> {
@@ -2573,7 +2905,7 @@ fn finalize_in_flight_dev_request(
 }
 
 fn write_and_finalize_dev_response<T: serde::Serialize>(
-    state: &Data<AppState>,
+    state: &Mailbox,
     dev_session: &crate::dev_session::DevSession,
     request_id: &str,
     response: &T,

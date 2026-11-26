@@ -127,27 +127,33 @@ fileprivate struct LoadedPaxCartridgeAPI {
 }
 
 final class PaxCartridgeRuntime {
-    static let shared = PaxCartridgeRuntime()
+    var didPumpShutdowns: ((UInt64) -> Void)?
+    private static var reservations: [UnsafeMutableRawPointer: UInt64] = [:]
+    // A cartridge may have scheduled Rust destructors beyond its last frame. Pin
+    // one loader reference per image, including across close/reopen cycles.
+    private static var pinnedHandles = Set<UnsafeMutableRawPointer>()
+    private var reservedHandles: [UnsafeMutableRawPointer] = []
+
+    func releaseReservation() {
+        for handle in reservedHandles {
+            if let token = Self.reservations.removeValue(forKey: handle) { Self.shutdownRoutes.removeValue(forKey: token) }
+        }
+        reservedHandles.removeAll()
+    }
 
     private var api: LoadedPaxCartridgeAPI?
-    private var configuration = PaxHostConfiguration()
+    private let configuration: PaxHostConfiguration
 
-    func configure(_ value: PaxHostConfiguration) {
-        if value.cartridge != configuration.cartridge || value.programId != configuration.programId || value.nativeExports != configuration.nativeExports {
-            // Shutdown routes retain old code until asynchronous cleanup ends.
-            // Never dlclose a library whose destructors may still be scheduled.
-            api = nil
-        }
-        configuration = value
+    init(configuration: PaxHostConfiguration) {
+        self.configuration = configuration
     }
+
     // These routes intentionally outlive views and retain loaded cartridge code.
     private static var shutdownRoutes: [UInt64: () -> Void] = [:]
     private static var nextShutdownToken: UInt64 = 1
     #if DEBUG
     private var retiredAPIs: [LoadedPaxCartridgeAPI] = []
     #endif
-
-    private init() {}
 
     private func defaultCartridgePath() throws -> String {
         if let path = configuration.cartridge { return path }
@@ -311,12 +317,19 @@ final class PaxCartridgeRuntime {
                 paxDesigntimeActivateAppRevision: activateAppRevision,
                 paxDeallocMessageQueue: try resolveSymbol(handle: handle, name: "pax_dealloc_message_queue", as: LoadedPaxCartridgeAPI.PaxDeallocMessageQueue.self)
             )
+            guard Self.reservations[handle] == nil else {
+                throw NSError(domain: "PaxCartridgeRuntime", code: 9,
+                    userInfo: [NSLocalizedDescriptionKey: "This cartridge already owns a live mount"])
+            }
             let token = Self.nextShutdownToken
             Self.nextShutdownToken += 1
-            Self.shutdownRoutes[token] = { PaxHostSession.cleanupWake(pending: loaded.paxPumpShutdowns()) }
+            Self.reservations[handle] = token
+            reservedHandles.append(handle)
+            Self.shutdownRoutes[token] = { [weak self] in self?.didPumpShutdowns?(loaded.paxPumpShutdowns()) }
             loaded.paxSetShutdownWaker(token) { token in
                 DispatchQueue.main.async { PaxCartridgeRuntime.shutdownRoutes[token]?() }
             }
+            if !Self.pinnedHandles.insert(handle).inserted { dlclose(handle) }
             return loaded
         } catch {
             dlclose(handle)
@@ -353,7 +366,6 @@ final class PaxCartridgeRuntime {
             missingHooks.append("pax_designtime_activate_app_revision")
         }
         guard missingHooks.isEmpty else {
-            dlclose(prepared.handle)
             throw NSError(
                 domain: "PaxCartridgeRuntime",
                 code: 4,
@@ -445,19 +457,32 @@ final class PaxCartridgeRuntime {
     }
     #endif
 
-    func initEngine(width: Float, height: Float, data: [UInt8] = []) -> OpaquePointer? {
-        do {
-            let api = try currentAPI()
-            let entry = Array((configuration.entry ?? "").utf8)
-            return entry.withUnsafeBufferPointer { entry in
-                data.withUnsafeBufferPointer { data in
-                    api.paxInitEntry(width, height, entry.baseAddress, entry.count, data.baseAddress, data.count)
-                }
+    func prepareEngine(data: [UInt8]) throws -> OpaquePointer {
+        let api = try currentAPI()
+        let entry = Array((configuration.entry ?? "").utf8)
+        let engine = entry.withUnsafeBufferPointer { entry in
+            data.withUnsafeBufferPointer { data in
+                api.paxInitEntry(0, 0, entry.baseAddress, entry.count, data.baseAddress, data.count)
             }
-        } catch {
-            print("Failed to initialize Pax cartridge: \(error)")
-            return nil
         }
+        guard let engine else {
+            throw NSError(domain: "PaxCartridgeRuntime", code: 10,
+                userInfo: [NSLocalizedDescriptionKey: "Cartridge initializer failed"])
+        }
+        if let address = configuration.designServerAddress {
+            do {
+                typealias Connect = @convention(c) (OpaquePointer, UnsafePointer<UInt8>?, Int) -> Bool
+                let connect = try resolveSymbol(handle: api.handle, name: "pax_designtime_connect_local_server", as: Connect.self)
+                guard Array(address.utf8).withUnsafeBufferPointer({ connect(engine, $0.baseAddress, $0.count) }) else {
+                    throw NSError(domain: "PaxCartridgeRuntime", code: 11,
+                        userInfo: [NSLocalizedDescriptionKey: "Guest could not open its development session"])
+                }
+            } catch {
+                api.paxDeallocEngine(engine)
+                throw error
+            }
+        }
+        return engine
     }
 
     func request(_ engine: OpaquePointer, data: [UInt8], context: UnsafeMutableRawPointer?, reply: @escaping @convention(c) (UnsafeMutableRawPointer?, UInt32, UnsafePointer<UInt8>?, Int) -> Void) {
@@ -657,18 +682,6 @@ final class PaxCartridgeRuntime {
             return
         }
         api.paxDeallocMessageQueue(queue)
-    }
-}
-
-private func sendInterruptToEngine(data: Data) {
-    data.withUnsafeBytes { ptr in
-        var ffiContainer = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
-        guard let engineContainer = PaxViewMacos.PaxEngineContainer.paxEngineContainer else {
-            return
-        }
-        withUnsafePointer(to: &ffiContainer) { ffiContainerPtr in
-            PaxCartridgeRuntime.shared.interrupt(engineContainer, ffiContainerPtr)
-        }
     }
 }
 
@@ -886,26 +899,20 @@ private struct PendingPaxDevLookRequest {
 
 struct PaxViewMacos: View {
 
-    var canvasView : some View = PaxCanvasViewRepresentable()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    let session: PaxHostSession
 
     var body: some View {
         ZStack {
-            self.canvasView
-            NativeRenderingLayer()
+            PaxCanvasViewRepresentable(session: session)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            NativeRenderingLayer(state: session.nativeState)
         }
-        .onAppear {
-            registerFonts()
-            // SwiftUI can recreate the view tree independently of the backing NSView. Install the
-            // interrupt bridge here so native controls always have a live path back into pax_interrupt.
-            NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
-        }
-
+        .onAppear { registerFonts() }
     }
 
     func registerFonts() {
 
-        for resourceURL in PaxHostConfiguration.resourceDirectories {
+        for resourceURL in session.configuration.resourceDirectories {
         let fontFileExtensions: Set<String> = ["ttf", "otf"]
 
         let enumerator = FileManager.default.enumerator(
@@ -940,21 +947,11 @@ struct PaxViewMacos: View {
     }
 
 
-    class PaxEngineContainer {
-        static var paxEngineContainer : OpaquePointer? = nil
-    }
-
-    
-
     struct PaxCanvasViewRepresentable: NSViewRepresentable {
-        typealias NSViewType = PaxCanvasViewMacos
+        let session: PaxHostSession
 
         func makeNSView(context: Context) -> PaxCanvasViewMacos {
-            // Reinstall the dispatcher when the canvas NSView is rebuilt; dev tools and native
-            // widgets can outlive the previous SwiftUI wrapper instance.
-            NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
-            let view = PaxCanvasViewMacos()
-            return view
+            PaxCanvasViewMacos(session: session)
         }
 
         func updateNSView(_ canvas: PaxCanvasViewMacos, context: Context) { }
@@ -965,22 +962,11 @@ struct PaxViewMacos: View {
     }
 
 
-    class PaxCanvasViewMacos: PaxKeyboardView, NativeMessageHandling {
+    class PaxCanvasViewMacos: PaxKeyboardView, NativeMessageHandling, PaxNativeInputOwner {
 
-        let textElements = TextElements.singleton
-        let frameElements = FrameElements.singleton
-        let scrollerElements = ScrollerElements.singleton
-        let buttonElements = ButtonElements.singleton
-        let photoPickerElements = PhotoPickerElements.singleton
-        let checkboxElements = CheckboxElements.singleton
-        let nativeImageElements = NativeImageElements.singleton
-        let youtubeVideoElements = YoutubeVideoElements.singleton
-        let dropdownElements = DropdownElements.singleton
-        let radioListElements = RadioListElements.singleton
-        let sliderElements = SliderElements.singleton
-        let textboxElements = TextboxElements.singleton
-        let eventBlockerElements = EventBlockerElements.singleton
-        let glassSurfaceElements = GlassSurfaceElements.singleton
+        let nativeState: PaxNativeHostState
+        let runtime: PaxCartridgeRuntime
+        private weak var hostSession: PaxHostSession?
 
         private var displayLink: CVDisplayLink?
         private var displayObservers: [(NotificationCenter, NSObjectProtocol)] = []
@@ -991,7 +977,6 @@ struct PaxViewMacos: View {
         private static var propertyWakes: [UInt64: () -> Void] = [:]
         private var propertyWakeToken: UInt64?
         private var ownedEngine: OpaquePointer?
-        private weak var hostSession = PaxHostSession.active
 
         private func installPropertyWaker(_ engine: OpaquePointer) {
             if let token = propertyWakeToken { Self.propertyWakes.removeValue(forKey: token) }
@@ -1001,15 +986,15 @@ struct PaxViewMacos: View {
             propertyWakeToken = token
             Self.propertyWakes[token] = { [weak self] in
                 guard let self, !self.isShuttingDown, self.propertyWakeToken == token,
-                    PaxCartridgeRuntime.shared.hasPendingProperties(PaxEngineContainer.paxEngineContainer) else { return }
+                    self.runtime.hasPendingProperties(self.hostSession?.engine) else { return }
                 self.tick()
             }
-            PaxCartridgeRuntime.shared.setPropertyWaker(engine, token: token) { token in
+            self.runtime.setPropertyWaker(engine, token: token) { token in
                 // Resolve identity only on main; no worker owns an engine pointer.
                 DispatchQueue.main.async { PaxViewMacos.PaxCanvasViewMacos.propertyWakes[token]?() }
             }
-            PaxCartridgeRuntime.shared.activateApplication(engine)
-            PaxHostSession.canvasReady { [weak self] in self?.shutdown() }
+            self.runtime.activateApplication(engine)
+            hostSession?.markReady { [weak self] in self?.shutdown() }
             if hostSession?.isStandalone == true { focusForKeyboardInput() }
         }
         #if DEBUG
@@ -1017,14 +1002,10 @@ struct PaxViewMacos: View {
         #endif
         private let tickStateLock = NSLock()
         private var tickScheduled = false
-        private let surfaceManager = SurfaceManager()
+        private let surfaceManager: SurfaceManager
 
-        private let devSessionDir = ProcessInfo.processInfo.environment["PAX_DEV_SESSION_DIR"].map {
-            URL(fileURLWithPath: $0, isDirectory: true)
-        }
-        private let devRegistryFile = ProcessInfo.processInfo.environment["PAX_DEV_REGISTRY_FILE"].map {
-            URL(fileURLWithPath: $0, isDirectory: false)
-        }
+        private let devSessionDir: URL?
+        private let devRegistryFile: URL?
         private var pendingLookRequests: [String: PendingPaxDevLookRequest] = [:]
         private var lastDevPoll: Date = .distantPast
         private var lastDevHeartbeat: Date = .distantPast
@@ -1032,8 +1013,14 @@ struct PaxViewMacos: View {
         override var isFlipped: Bool { true }
         override var preservesContentDuringLiveResize: Bool { false }
 
-        override init(frame frameRect: NSRect) {
-            super.init(frame: frameRect)
+        init(session: PaxHostSession) {
+            self.devSessionDir = session.configuration.devSessionDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) }
+            self.devRegistryFile = session.configuration.devRegistryFile.map { URL(fileURLWithPath: $0) }
+            self.hostSession = session
+            self.nativeState = session.nativeState
+            self.runtime = session.runtime
+            self.surfaceManager = SurfaceManager(runtime: session.runtime, state: session.nativeState)
+            super.init(frame: .zero)
             configureLayerBacking()
             installDisplayObservers()
             installNativeInterruptDispatcher()
@@ -1071,11 +1058,7 @@ struct PaxViewMacos: View {
         }
 
         required init?(coder: NSCoder) {
-            super.init(coder: coder)
-            configureLayerBacking()
-            installDisplayObservers()
-            installNativeInterruptDispatcher()
-            refreshDevSessionRegistrationIfNeeded(now: Date(), allowThrottle: false)
+            fatalError("Use init(session:)")
         }
 
         private func configureLayerBacking() {
@@ -1089,18 +1072,18 @@ struct PaxViewMacos: View {
         }
 
         private func installNativeInterruptDispatcher() {
-            NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
-            NativeInterruptDispatcher.shared.requestKeyboardFocus = { [weak self] in self?.focusForKeyboardInput() }
+            nativeState.dispatcher.requestKeyboardFocus = { [weak self] in self?.focusForKeyboardInput() }
             keyboardInterrupt = { [weak self] data in
                 guard let self, !self.isShuttingDown, let engine = self.ownedEngine,
-                      PaxHostSession.active === self.hostSession else { return false }
+                      self.hostSession?.status == 2 else { return false }
                 return data.withUnsafeBytes { bytes in
                     var buffer = InterruptBuffer(data_ptr: bytes.baseAddress!, length: UInt64(bytes.count))
-                    return withUnsafePointer(to: &buffer) { PaxCartridgeRuntime.shared.interrupt(engine, $0) }
+                    return withUnsafePointer(to: &buffer) { self.runtime.interrupt(engine, $0) }
                 }
             }
-            NativeInterruptDispatcher.shared.wheelInterrupt = keyboardInterrupt
-            NativeInterruptDispatcher.shared.convertWindowPointToPax = { [weak self] point, window in
+            nativeState.dispatcher.sendData = { [weak self] data in _ = self?.keyboardInterrupt?(data) }
+            nativeState.dispatcher.wheelInterrupt = keyboardInterrupt
+            nativeState.dispatcher.convertWindowPointToPax = { [weak self] point, window in
                 guard let self else {
                     return nil
                 }
@@ -1223,14 +1206,14 @@ struct PaxViewMacos: View {
             #if DEBUG
             if let pending = pendingLogicReload {
                 if case .preflight = pending.phase {
-                    _ = PaxCartridgeRuntime.shared.cancelAppRevisionActivation(
+                    _ = self.runtime.cancelAppRevisionActivation(
                         pending.api,
                         engineContainer: pending.engine,
                         logicRevisionId: pending.request.revision.logic_revision_id
                     )
                 }
                 pending.api.paxDeallocEngine(pending.engine)
-                PaxCartridgeRuntime.shared.abandonPreparedAPI(pending.api)
+                self.runtime.abandonPreparedAPI(pending.api)
                 pendingLogicReload = nil
             }
             #endif
@@ -1271,7 +1254,7 @@ struct PaxViewMacos: View {
 
         private func tick() {
             guard !isShuttingDown, let hostSession,
-                PaxHostSession.active === hostSession, hostSession.status < 3 else { return }
+                hostSession.status < 3 else { return }
             #if DEBUG
             defer { pollPendingLogicReloadIfNeeded() }
             #endif
@@ -1280,7 +1263,7 @@ struct PaxViewMacos: View {
             let width = Float(bounds.width)
             let height = Float(bounds.height)
 
-            guard let engineContainer = PaxEngineContainer.paxEngineContainer else { return }
+            guard let engineContainer = self.hostSession?.engine else { return }
             ownedEngine = engineContainer
             if propertyWakeToken == nil { installPropertyWaker(engineContainer) }
 
@@ -1290,7 +1273,7 @@ struct PaxViewMacos: View {
             CATransaction.setDisableActions(true)
             defer { CATransaction.commit() }
 
-            let nativeMessageQueue = PaxCartridgeRuntime.shared.tick(
+            let nativeMessageQueue = self.runtime.tick(
                 engineContainer,
                 cgContext: nil,
                 width: width,
@@ -1303,7 +1286,7 @@ struct PaxViewMacos: View {
             let queue = nativeMessageQueue.pointee
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
             processNativeMessageQueueData(Data(buffer: buffer))
-            PaxCartridgeRuntime.shared.deallocMessageQueue(nativeMessageQueue)
+            self.runtime.deallocMessageQueue(nativeMessageQueue)
             // A collapsed region still delivers UI work and reaches Ready. It
             // has no drawable surface until its host gives it nonzero bounds.
             guard width > 0, height > 0 else { return }
@@ -1312,12 +1295,12 @@ struct PaxViewMacos: View {
                 rootView: self,
                 scale: scale
             )
-            PaxCartridgeRuntime.shared.render(engineContainer)
+            self.runtime.render(engineContainer)
             processDevRequestsIfNeeded()
         }
 
         func handleNavigate(patch: NavigationPatchMessage) {
-            if patch.target == "current", dispatchVirtualRouteNavigation(to: patch.url) {
+            if patch.target == "current", dispatchVirtualRouteNavigation(to: patch.url, dispatcher: nativeState.dispatcher) {
                 return
             }
             guard let url = URL(string: patch.url) else {
@@ -1336,7 +1319,7 @@ struct PaxViewMacos: View {
             } else {
                 attributed = AttributedString(textElement.content)
             }
-            guard PaxEngineContainer.paxEngineContainer != nil else {
+            guard self.hostSession?.engine != nil else {
                 return .zero
             }
 
@@ -1383,7 +1366,8 @@ struct PaxViewMacos: View {
                 id: textElement.id,
                 generation: generation,
                 width: Double(measuredSize.width),
-                height: Double(measuredSize.height)
+                height: Double(measuredSize.height),
+                dispatcher: nativeState.dispatcher
             )
         }
 
@@ -1419,7 +1403,7 @@ struct PaxViewMacos: View {
 
         func handleImageLoad(patch: ImageLoadPatch) {
             do {
-                guard let fullPatchPath = patch.path, let imageURL = PaxHostConfiguration.imageURL(fullPatchPath) else {
+                guard let engine = hostSession?.engine, let fullPatchPath = patch.path, let imageURL = hostSession?.configuration.imageURL(fullPatchPath) else {
                     throw NSError(domain: "PaxResources", code: 100,
                         userInfo: [NSLocalizedDescriptionKey: "Image file not found in Pax resources"])
                 }
@@ -1470,8 +1454,8 @@ struct PaxViewMacos: View {
                 buffer.data.withUnsafeBytes { ptr in
                     var ffi_container = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
                     withUnsafePointer(to: &ffi_container) { ffi_container_ptr in
-                        PaxCartridgeRuntime.shared.interrupt(
-                            PaxEngineContainer.paxEngineContainer!,
+                        self.runtime.interrupt(
+                            engine,
                             ffi_container_ptr
                         )
                     }
@@ -1683,17 +1667,17 @@ struct PaxViewMacos: View {
         }
 
         private func performInspectTree(request: PaxDevInspectTreeRequest, responseDir: URL) throws {
-            guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
+            guard let engineContainer = self.hostSession?.engine else {
                 throw NSError(domain: "", code: 208, userInfo: [NSLocalizedDescriptionKey: "Pax engine is not initialized"])
             }
 
-            guard let payloadQueue = PaxCartridgeRuntime.shared.designtimeInspectTree(
+            guard let payloadQueue = self.runtime.designtimeInspectTree(
                 engineContainer,
                 maxDepth: Int64(request.max_depth ?? -1)
             ) else {
                 throw NSError(domain: "", code: 209, userInfo: [NSLocalizedDescriptionKey: "inspect tree returned no payload"])
             }
-            defer { PaxCartridgeRuntime.shared.deallocMessageQueue(payloadQueue) }
+            defer { self.runtime.deallocMessageQueue(payloadQueue) }
 
             let queue = payloadQueue.pointee
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
@@ -1713,7 +1697,7 @@ struct PaxViewMacos: View {
         }
 
         private func performRayCast(request: PaxDevRayCastRequest, responseDir: URL) throws {
-            guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
+            guard let engineContainer = self.hostSession?.engine else {
                 throw NSError(domain: "", code: 213, userInfo: [NSLocalizedDescriptionKey: "Pax engine is not initialized"])
             }
 
@@ -1731,14 +1715,14 @@ struct PaxViewMacos: View {
                 }
                 var ffiBuffer = InterruptBuffer(data_ptr: baseAddress, length: UInt64(rawBuffer.count))
                 return withUnsafePointer(to: &ffiBuffer) { ffiBufferPtr in
-                    PaxCartridgeRuntime.shared.designtimeRayCast(engineContainer, request: ffiBufferPtr)
+                    self.runtime.designtimeRayCast(engineContainer, request: ffiBufferPtr)
                 }
             }
 
             guard let responseQueue else {
                 throw NSError(domain: "", code: 215, userInfo: [NSLocalizedDescriptionKey: "ray-cast returned no payload"])
             }
-            defer { PaxCartridgeRuntime.shared.deallocMessageQueue(responseQueue) }
+            defer { self.runtime.deallocMessageQueue(responseQueue) }
 
             let queue = responseQueue.pointee
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
@@ -1761,7 +1745,7 @@ struct PaxViewMacos: View {
         }
 
         private func performSelectorQuery(request: PaxDevSelectorQueryRequest, responseDir: URL) throws {
-            guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
+            guard let engineContainer = self.hostSession?.engine else {
                 throw NSError(domain: "", code: 216, userInfo: [NSLocalizedDescriptionKey: "Pax engine is not initialized"])
             }
 
@@ -1774,14 +1758,14 @@ struct PaxViewMacos: View {
                 }
                 var ffiBuffer = InterruptBuffer(data_ptr: baseAddress, length: UInt64(rawBuffer.count))
                 return withUnsafePointer(to: &ffiBuffer) { ffiBufferPtr in
-                    PaxCartridgeRuntime.shared.designtimeSelectorQuery(engineContainer, request: ffiBufferPtr)
+                    self.runtime.designtimeSelectorQuery(engineContainer, request: ffiBufferPtr)
                 }
             }
 
             guard let responseQueue else {
                 throw NSError(domain: "", code: 218, userInfo: [NSLocalizedDescriptionKey: "selector returned no payload"])
             }
-            defer { PaxCartridgeRuntime.shared.deallocMessageQueue(responseQueue) }
+            defer { self.runtime.deallocMessageQueue(responseQueue) }
 
             let queue = responseQueue.pointee
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
@@ -1802,7 +1786,7 @@ struct PaxViewMacos: View {
         }
 
         private func performReplaceNode(request: PaxDevReplaceNodeRequest, responseDir: URL) throws {
-            guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
+            guard let engineContainer = self.hostSession?.engine else {
                 throw NSError(domain: "", code: 210, userInfo: [NSLocalizedDescriptionKey: "Pax engine is not initialized"])
             }
 
@@ -1819,14 +1803,14 @@ struct PaxViewMacos: View {
                 }
                 var ffiBuffer = InterruptBuffer(data_ptr: baseAddress, length: UInt64(rawBuffer.count))
                 return withUnsafePointer(to: &ffiBuffer) { ffiBufferPtr in
-                    PaxCartridgeRuntime.shared.designtimeReplaceNode(engineContainer, request: ffiBufferPtr)
+                    self.runtime.designtimeReplaceNode(engineContainer, request: ffiBufferPtr)
                 }
             }
 
             guard let responseQueue else {
                 throw NSError(domain: "", code: 212, userInfo: [NSLocalizedDescriptionKey: "replace-node returned no payload"])
             }
-            defer { PaxCartridgeRuntime.shared.deallocMessageQueue(responseQueue) }
+            defer { self.runtime.deallocMessageQueue(responseQueue) }
 
             let queue = responseQueue.pointee
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
@@ -1851,7 +1835,7 @@ struct PaxViewMacos: View {
         #if DEBUG
         private func performReloadLogic(request: PaxDevReloadLogicRequest, responseDir: URL) {
             let logicRevisionId = request.revision.logic_revision_id
-            let runtime = PaxCartridgeRuntime.shared
+            let runtime = self.runtime
             var candidateAPI: LoadedPaxCartridgeAPI?
             var candidateEngine: OpaquePointer?
 
@@ -1949,7 +1933,7 @@ struct PaxViewMacos: View {
             guard var pending = pendingLogicReload else {
                 return
             }
-            let runtime = PaxCartridgeRuntime.shared
+            let runtime = self.runtime
             let logicRevisionId = pending.request.revision.logic_revision_id
             let rawStatus = runtime.pollAppRevisionActivation(
                 pending.api,
@@ -2015,11 +1999,11 @@ struct PaxViewMacos: View {
                 return
             }
             pendingLogicReload = nil
-            let runtime = PaxCartridgeRuntime.shared
-            let previousEngine = PaxEngineContainer.paxEngineContainer
-            PaxEngineContainer.paxEngineContainer = nil
+            let runtime = self.runtime
+            let previousEngine = self.hostSession?.engine
+            self.hostSession?.engine = nil
             surfaceManager.reset()
-            PaxNativeHostState.reset()
+            nativeState.clear()
 
             // Runtime still points at the old API, so deallocate the old engine
             // before making the already-committed candidate current.
@@ -2028,7 +2012,7 @@ struct PaxViewMacos: View {
                 runtime.deallocEngine(previousEngine)
             }
             runtime.activatePreparedAPI(pending.api)
-            PaxEngineContainer.paxEngineContainer = pending.engine
+            self.hostSession?.engine = pending.engine
             ownedEngine = pending.engine
             installPropertyWaker(pending.engine)
 
@@ -2046,7 +2030,7 @@ struct PaxViewMacos: View {
                 return
             }
             pendingLogicReload = nil
-            let runtime = PaxCartridgeRuntime.shared
+            let runtime = self.runtime
             let logicRevisionId = pending.request.revision.logic_revision_id
             if cancelPreflight {
                 _ = runtime.cancelAppRevisionActivation(
@@ -2111,11 +2095,11 @@ struct PaxViewMacos: View {
                     )
                     buffer.data.withUnsafeBytes { ptr in
                         var ffiContainer = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
-                        guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
+                        guard let engineContainer = self.hostSession?.engine else {
                             return
                         }
                         withUnsafePointer(to: &ffiContainer) { ffiContainerPtr in
-                            PaxCartridgeRuntime.shared.interrupt(engineContainer, ffiContainerPtr)
+                            self.runtime.interrupt(engineContainer, ffiContainerPtr)
                         }
                     }
                 }
@@ -2345,11 +2329,11 @@ struct PaxViewMacos: View {
 
             buffer.data.withUnsafeBytes { ptr in
                 var ffi_container = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
-                guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
+                guard let engineContainer = self.hostSession?.engine else {
                     return
                 }
                 withUnsafePointer(to: &ffi_container) { ffi_container_ptr in
-                    PaxCartridgeRuntime.shared.interrupt(engineContainer, ffi_container_ptr)
+                    self.runtime.interrupt(engineContainer, ffi_container_ptr)
                 }
             }
         }

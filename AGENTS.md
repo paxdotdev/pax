@@ -143,10 +143,16 @@ current chat and flag that filing is pending; do not create a local fallback.
 
 ## Hot reloading
 
-Debug `pax-cli run` sessions use `--hot-reload=pax` by default. `.pax` changes
-reload through the Pax lane on every supported target. Direct native `cargo run`
-does not start a development server; use the CLI for template reload. Rust application-logic
-changes require rebuilding and restarting (refresh the browser after rebuilding).
+On macOS, a development `pax-cli run` for Web or an Apple target attaches to Pax
+Portal Agent. Use `pax-cli run --bg` to leave a worktree preview running for
+review, and `pax-cli stop` from that worktree to stop it. Windows, Linux and
+explicit `--fg` runs use the direct foreground runner.
+
+Development sessions use `--hot-reload=pax` by default. `.pax` changes reload
+through the Pax lane on every supported target. Use the CLI for template reload.
+Rust application-logic changes require a rebuild. The managed server rebuilds
+active previews automatically. For a direct run, restart the app or refresh the
+browser after rebuilding.
 Rust logic replacement is no longer a supported workflow. `--hot-reload=all`
 migrates to `pax` with a notice; `--hot-reload=logic` reports an error.
 

@@ -519,6 +519,66 @@ impl Default for WindowOptions {
     }
 }
 impl PreparedApp {
+    /// Allow frames to mount CLI guest descriptors from a trusted, host-owned directory.
+    /// A frame named `preview-1` reads `preview-1.json` on mount. Give each live
+    /// guest its own name and keep its CLI session alive for the mount lifetime.
+    #[cfg(target_os = "macos")]
+    pub fn allow_inline_session_directory(&self, directory: &std::path::Path) -> Result<(), Error> {
+        let path = directory
+            .canonicalize()
+            .map_err(|error| Error(error.to_string()))?;
+        let path = path
+            .to_str()
+            .ok_or_else(|| Error("Expected a UTF-8 descriptor directory".into()))?;
+        type Allow = unsafe extern "C" fn(*mut c_void, *const u8, usize) -> i32;
+        let allow: Allow = unsafe {
+            symbol(
+                native_api()?._handle as *mut c_void,
+                b"pax_host_allow_inline_session_directory\0",
+            )
+        }
+        .map_err(Error)?;
+        if unsafe { allow(self.session.as_ptr(), path.as_ptr(), path.len()) } == 0 {
+            Ok(())
+        } else {
+            Err(last_error())
+        }
+    }
+
+    /// Register a trusted macOS Pax application bundle for a named InlineFrame.
+    #[cfg(target_os = "macos")]
+    pub fn register_inline_app(&self, name: &str, bundle: &std::path::Path) -> Result<(), Error> {
+        type Register =
+            unsafe extern "C" fn(*mut c_void, *const u8, usize, *const u8, usize) -> i32;
+        let path = bundle
+            .canonicalize()
+            .map_err(|error| Error(error.to_string()))?;
+        let path = path
+            .to_str()
+            .ok_or_else(|| Error("Expected a UTF-8 bundle path".into()))?;
+        let register: Register = unsafe {
+            symbol(
+                native_api()?._handle as *mut c_void,
+                b"pax_host_register_inline_app\0",
+            )
+        }
+        .map_err(Error)?;
+        let status = unsafe {
+            register(
+                self.session.as_ptr(),
+                name.as_ptr(),
+                name.len(),
+                path.as_ptr(),
+                path.len(),
+            )
+        };
+        if status == 0 {
+            Ok(())
+        } else {
+            Err(last_error())
+        }
+    }
+
     /// Enter the standalone desktop loop with an explicit window policy.
     #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
     pub fn run_with(self, options: WindowOptions) -> Result<(), Error> {

@@ -24,7 +24,7 @@
     <!-- This key specifies the required platform for the framework -->
     <key>CFBundleSupportedPlatforms</key>
     <array>
-        <string>iOS</string>
+        <string>iPhoneOS</string>
         <!-- Add any other platforms as necessary, like "macOS", "tvOS", etc. -->
     </array>
 

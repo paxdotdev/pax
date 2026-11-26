@@ -107,6 +107,60 @@ fn failure(output: Output, expected: &str) -> String {
 }
 
 #[test]
+fn servers_verifies_the_endpoint_without_a_runtime_registration() {
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::TcpListener;
+
+    let fixture = Fixture::new();
+    let registry = fixture.registry.with_file_name("servers");
+    fs::create_dir(&registry).unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let root = fixture.project.canonicalize().unwrap();
+    for (id, path) in [
+        ("live", &root),
+        ("old", &root),
+        ("elsewhere", &fixture.other_project()),
+    ] {
+        // Registrations predating supervisor IDs remain discoverable.
+        let descriptor = serde_json::json!({
+            "id": id, "project_root": path, "port": port,
+            "cartridge_abi": "test", "template_reload": true
+        });
+        fs::write(registry.join(format!("{id}.json")), descriptor.to_string()).unwrap();
+    }
+    std::thread::spawn(move || {
+        for stream in listener.incoming().take(2) {
+            let mut stream = stream.unwrap();
+            let mut reader = BufReader::new(&stream);
+            let mut line = String::new();
+            reader.read_line(&mut line).unwrap();
+            assert!(line.starts_with("GET /_pax/server-id "));
+            loop {
+                line.clear();
+                if reader.read_line(&mut line).unwrap() == 0 || line == "\r\n" {
+                    break;
+                }
+            }
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nlive")
+                .unwrap();
+        }
+    });
+    let output = fixture.run(&["servers", "--path", "."]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let result: Vec<dev_session::ProjectServer> = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].id, "live");
+    assert_eq!(result[0].project_root, root);
+    assert!(result[0].launch_id.is_none());
+}
+
+#[test]
 fn explicit_project_never_falls_back_to_unrelated_session() {
     let fixture = Fixture::new();
     fixture.register(&fixture.session("other-worktree", &fixture.other_project()));

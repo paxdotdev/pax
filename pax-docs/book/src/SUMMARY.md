@@ -62,6 +62,7 @@
       - [core::frame](api/pax-std/core/frame.md)
       - [core::group](api/pax-std/core/group.md)
       - [core::import_settings](api/pax-std/core/import_settings.md)
+      - [core::inline_frame](api/pax-std/core/inline_frame.md)
       - [core::link](api/pax-std/core/link.md)
       - [core::liquid_glass](api/pax-std/core/liquid_glass.md)
       - [core::mask](api/pax-std/core/mask.md)

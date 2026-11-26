@@ -640,6 +640,9 @@ pub struct AddedLayerArgs {
 /// Create/update patch for a native frame host.
 pub struct FramePatch {
     pub id: u32,
+    /// Host-registered guest session for an InlineFrame. An empty name detaches it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inline_session: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_frame: Option<Option<u32>>,
     #[serde(skip_serializing_if = "Option::is_none")]

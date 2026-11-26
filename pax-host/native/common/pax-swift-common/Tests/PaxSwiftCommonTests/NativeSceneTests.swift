@@ -6,6 +6,52 @@ import FlexBuffers
 
 #if os(macOS)
 final class NativeSceneTests: XCTestCase {
+    @MainActor
+    func testSameTextboxIdRoutesToTheOwningMountAfterSiblingTeardown() throws {
+        func textbox(in state: PaxNativeHostState, text: String) -> (NSWindow, NSTextField)? {
+            let model = TextboxElement.makeDefault(id: 7, parentFrame: nil, renderLayerId: 0)
+            model.text = text
+            model.size_x = 160
+            model.size_y = 32
+            state.textboxElements.add(element: model)
+            let view = NSHostingView(rootView: NativeRenderingLayer(state: state))
+            let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 200, height: 60),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = view
+            view.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+            func field(in view: NSView) -> NSTextField? {
+                if let field = view as? NSTextField, field.isEditable { return field }
+                return view.subviews.lazy.compactMap(field(in:)).first
+            }
+            return field(in: view).map { (window, $0) }
+        }
+
+        let shell = PaxNativeHostState()
+        let guest = PaxNativeHostState()
+        let (shellWindow, shellField) = try XCTUnwrap(textbox(in: shell, text: "shell"))
+        let (guestWindow, guestField) = try XCTUnwrap(textbox(in: guest, text: "guest"))
+        defer { shellWindow.close(); guestWindow.close() }
+        var shellEvents = 0
+        var guestEvents = 0
+        shell.dispatcher.sendData = { _ in shellEvents += 1 }
+        guest.dispatcher.sendData = { _ in guestEvents += 1 }
+        func edit(_ field: NSTextField) {
+            field.textDidChange(Notification(name: NSText.didChangeNotification, object: field))
+        }
+        XCTAssertEqual(shellField.stringValue, "shell")
+        XCTAssertEqual(guestField.stringValue, "guest")
+        edit(guestField)
+        XCTAssertEqual(guestEvents, 1)
+        XCTAssertEqual(shellEvents, 0)
+        guest.clear()
+        edit(shellField)
+        XCTAssertEqual(shellEvents, 1)
+        XCTAssertEqual(guestEvents, 1)
+        XCTAssertNotNil(shell.textboxElements.elements[7])
+    }
+
     // Exercise document fallback interaction and both label/document snapshot compositing.
     // NativeTextTests covers ordinary label interaction and representation changes.
     @MainActor
