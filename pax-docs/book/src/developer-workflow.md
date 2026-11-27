@@ -106,6 +106,9 @@ Debug `pax-cli run` sessions use **Pax-only hot reload** by default. Direct nati
 CLI session can update the mounted interface. Rust application changes require rebuilding
 and restarting on native targets, or rebuilding and reloading the browser page.
 The initializer runs once per application instance, including after a restart.
+On first connection, a preview keeps its mounted scene and running animations
+if the server's template already matches the cartridge. If you edited the
+template after the cartridge was built, the preview applies the server's version.
 
 | Mode | Saved `.pax` changes | Saved Rust changes in a direct run |
 | --- | --- | --- |

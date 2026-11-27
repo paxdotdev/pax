@@ -26,7 +26,9 @@ code_serialization = [
     "dep:tera",
 ]
 compiler = ["code_serialization", "json", "parsing", "server", "runnable"]
-designtime = ["compiler"]
+# Editable cartridges embed JSON; design-server snapshots carry binary f64s.
+# Both must decode the same literal exactly for first-connect scene reuse.
+designtime = ["compiler", "serde_json/float_roundtrip"]
 
 [lib]
 

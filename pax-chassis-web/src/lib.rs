@@ -1992,6 +1992,23 @@ impl PaxChassisWeb {
     pub fn service_startup(&mut self, budget_ms: f64) -> JsValue {
         self.drain_render_surface_updates();
         let start = Instant::now();
+        // The normal tick doesn't run while the loader owns presentation. Give
+        // the initial template handshake those existing turns, without making
+        // reveal wait for a server or applying a tree reload mid-mount.
+        #[cfg(feature = "designtime")]
+        let budget_ms = if self.startup_hold_input
+            && !self
+                .designtime_manager
+                .borrow()
+                .get_orm()
+                .manifest_loaded_from_server
+                .get()
+        {
+            self.handle_recv_designtime();
+            (budget_ms - start.elapsed().as_secs_f64() * 1000.0).max(0.0)
+        } else {
+            budget_ms
+        };
         let mut engine = self.engine.borrow_mut();
         let report = engine.service_startup(budget_ms, || start.elapsed().as_secs_f64() * 1000.0);
         let messages = engine.runtime_context.take_native_messages();

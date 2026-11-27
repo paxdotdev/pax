@@ -301,6 +301,36 @@ mod tests {
     }
 
     #[test]
+    fn first_snapshot_distinguishes_a_real_one_ulp_edit_from_a_codec_roundtrip() {
+        fn with_opacity(opacity: f64) -> PaxManifest {
+            let mut manifest = create_basic_manifest();
+            let component = manifest.components.values_mut().next().unwrap();
+            component.settings = Some(vec![SettingsBlockElement::SelectorBlock(
+                Token::new_without_location(".button".into()),
+                LiteralBlockDefinition::new(vec![pax_manifest::SettingElement::Setting(
+                    Token::new_without_location("opacity".into()),
+                    ValueDefinition::LiteralValue(PaxValue::Numeric(opacity.into())),
+                )]),
+            )]);
+            manifest
+        }
+
+        // The website has this exact gradient stop. The cartridge embeds JSON,
+        // whereas the design server sends the original f64 through MessagePack.
+        let value: f64 = 230.0 / 255.0;
+        let cartridge = serde_json::to_string(&with_opacity(value)).unwrap();
+        for (incoming, changed) in [(value, false), (f64::from_bits(value.to_bits() + 1), true)] {
+            let wire = rmp_serde::to_vec(&with_opacity(incoming)).unwrap();
+            let mut orm = PaxManifestORM::new(serde_json::from_str(&cartridge).unwrap());
+            orm.set_initial_server_manifest(rmp_serde::from_slice(&wire).unwrap())
+                .unwrap();
+            assert!(orm.manifest_loaded_from_server.get());
+            assert_eq!(orm.get_manifest_version().get(), usize::from(changed));
+            assert_eq!(orm.take_reload_queue().contains(&ReloadType::Tree), changed);
+        }
+    }
+
+    #[test]
     fn initial_server_manifest_changed_template_still_reloads() {
         for change_order in [false, true] {
             let manifest = manifest_with_template();
