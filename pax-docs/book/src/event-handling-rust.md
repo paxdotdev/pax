@@ -792,9 +792,11 @@ shared by cloned event wrappers and is independent of default prevention.
 This applies to bubbling pointer events (including both click and tap) and
 control events, including `@submit`.
 
-The route follows template ancestry. Projection and component composition
-can make that ancestry different from the visual container arrangement. Do
-not infer the entire event path from which rectangles overlap on screen.
+The route follows template ancestry. For example, if a component receives
+slotted children from a `for` loop or an `if` block, a press on one of those
+children still bubbles to the component's handler. The loop or conditional
+doesn't need a handler of its own. The visual container that draws the slot
+isn't necessarily on this event path.
 
 Not every event family bubbles. For example, `@mouse_over` and `@mouse_out`
 dispatch locally, while keyboard events use the global delivery described

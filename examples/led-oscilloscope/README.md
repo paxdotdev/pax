@@ -16,9 +16,9 @@ spacing at the midpoint, 1×. RATE adjusts wave motion and marquee speed togethe
 SATURATION beneath RATE defaults to zero (white) and blends the foreground to a vibrant
 rainbow at maximum. Each strip of text or drawing keeps its hue while scrolling;
 the rainbow repeats every 112 steps along the travel axis and does not change with time.
-Scroll in the direction that moves a webpage down/right
-to increase; scroll up/left to decrease. Drag up/right to increase and down/left
-to decrease. Values are bounded; reversing direction at a limit responds immediately.
+Drag a knob up/right to increase its value or down/left to decrease it. Mouse-wheel
+and trackpad scrolling over a knob scroll the surrounding page without adjusting
+the dial. Values are bounded; reversing direction at a limit responds immediately.
 Mouse and touch drags keep their original target through release/cancel,
 including outside the hit region and across other controls. Releasing a knob
 over the LED display does not open the editor. The cabinet fills its assigned

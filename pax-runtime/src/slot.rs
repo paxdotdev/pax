@@ -582,13 +582,11 @@ mod tests {
         }
     }
 
-    #[test]
-    fn conditional_forwarded_slot_releases_content_to_remainder() {
-        let visible = LocalProperty::new(true);
-        let selected: Rc<dyn InstanceNode> =
-            SlotInstance::instantiate(slot_args(Some(LocalProperty::new(Numeric::I64(0)))));
-        let mut args = container_args(vec![selected]);
-        let condition = visible.clone();
+    fn conditional_child(
+        condition: LocalProperty<bool>,
+        child: Rc<dyn InstanceNode>,
+    ) -> Rc<dyn InstanceNode> {
+        let mut args = container_args(vec![child]);
         args.prototypical_properties =
             crate::PropertiesInit::Factory(Box::new(move |_, expanded_node| {
                 expanded_node.is_none().then(|| {
@@ -601,7 +599,89 @@ mod tests {
                     ))
                 })
             }));
-        let conditional = crate::conditional::ConditionalInstance::instantiate(args);
+        crate::conditional::ConditionalInstance::instantiate(args)
+    }
+
+    #[test]
+    fn displayed_press_bubbles_through_a_conditional_in_a_forwarded_slot() {
+        use pax_runtime_api::{Event, MouseButton, MouseDown, MouseEventArgs};
+        let visible = LocalProperty::new(true);
+        let projected =
+            conditional_child(visible.clone(), TestLeaf::instantiate(leaf_args("face")));
+        let mut receiver = component_args(
+            Some(vec![forwarding_component(vec![SlotInstance::instantiate(
+                slot_args(None),
+            )])]),
+            Some(vec![projected]),
+        );
+        receiver.handler_registry = Some(Rc::new(RefCell::new(crate::HandlerRegistry {
+            handlers: [(
+                "mouse_down".into(),
+                vec![crate::Handler::new_component_handler(|_, _, args| {
+                    Event::<MouseDown>::from_pax_any(args.unwrap())
+                        .unwrap()
+                        .prevent_default()
+                })],
+            )]
+            .into_iter()
+            .collect(),
+        })));
+        let mut engine = crate::test_support::empty_engine(
+            (100., 100.),
+            Platform::Web,
+            OS::Mac,
+            Box::new(|| 0),
+            Default::default(),
+        );
+        let root = engine.mount_root_component(ComponentInstance::instantiate(component_args(
+            Some(vec![ComponentInstance::instantiate(receiver)]),
+            None,
+        )));
+        engine.tick();
+        let ctx = engine.runtime_context.clone();
+        let receiver = root.children.get()[0].clone();
+        let slot = active_slot_sites(&receiver).pop().unwrap();
+        let face = slot.children.get()[0].clone();
+        assert_eq!(face.render_parent_node().unwrap().id, slot.id);
+        assert_eq!(face.template_parent.upgrade().unwrap().attached.get(), 0);
+        let press = || {
+            face.dispatch_mouse_down(
+                Event::new(MouseDown {
+                    mouse: MouseEventArgs {
+                        x: 50.,
+                        y: 50.,
+                        button: MouseButton::Left,
+                        modifiers: vec![],
+                    },
+                }),
+                &ctx.globals(),
+                &ctx,
+            )
+        };
+        assert!(press(), "live routing reaches the receiver");
+        let front = crate::properties::input_capture::InputPublisher::default()
+            .capture(&ctx)
+            .unwrap();
+        {
+            let _displayed = front.enter(&ctx, &Default::default()).unwrap();
+            assert!(press(), "displayed routing must reach the same receiver");
+        }
+        visible.set(false);
+        engine.tick();
+        assert!(slot.children.get().is_empty());
+        let _displayed = front.enter(&ctx, &Default::default()).unwrap();
+        assert!(
+            !press(),
+            "the old displayed face can no longer activate its receiver"
+        );
+    }
+
+    #[test]
+    fn conditional_forwarded_slot_releases_content_to_remainder() {
+        let visible = LocalProperty::new(true);
+        let selected: Rc<dyn InstanceNode> =
+            SlotInstance::instantiate(slot_args(Some(LocalProperty::new(Numeric::I64(0)))));
+        let conditional = conditional_child(visible.clone(), selected);
         let forwarding = forwarding_component(vec![conditional]);
         let remainder: Rc<dyn InstanceNode> = SlotInstance::instantiate(slot_args(None));
         let (root, context) = projection_fixture(vec![forwarding, remainder]);

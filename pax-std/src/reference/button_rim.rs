@@ -27,9 +27,11 @@ pub struct ButtonRim {
     /// With both densities unset the face uses the 1 px contour.
     /// For cloud glass, project an opaque silhouette and supply the CPU fallback as its paint.
     pub cloud_density: Property<Option<f64>>,
-    /// Some(density) applies full-amplitude pool waves to the projected paint with a 2 px rim.
+    /// Some(density) applies pool waves to the projected paint with a 2 px rim.
     /// Takes precedence over cloud glass. The shared surface phase controls wave time.
     pub pool_density: Property<Option<f64>>,
+    /// Pool wave strength, from 0 (base paint) to 1 (default). Does not attenuate the rim.
+    pub pool_amplitude: Property<Option<f64>>,
     pub _phase: Property<f64>,
 }
 

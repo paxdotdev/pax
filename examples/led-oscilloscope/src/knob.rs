@@ -3,7 +3,7 @@ use pax_kit::math::Point2;
 use pax_kit::*;
 
 /// Reusable normalized instrument control. Share `value` with `bind:`.
-/// Drag up/right, or scroll down/right, to increase. Drags retain their input target.
+/// Drag up/right to increase. Mouse and touch drags retain their input target.
 #[pax]
 #[file("knob.pax")]
 pub struct InstrumentKnob {
@@ -142,11 +142,6 @@ impl InstrumentKnob {
     }
     pub fn cancel_touch(&mut self, ctx: &NodeContext, _: Event<TouchCancel>) {
         self.end(ctx);
-    }
-    pub fn wheel(&mut self, _: &NodeContext, e: Event<Wheel>) {
-        e.prevent_default();
-        self.value
-            .set((self.value.get() + (e.delta_y + e.delta_x) * 0.002).clamp(0., 1.));
     }
 }
 

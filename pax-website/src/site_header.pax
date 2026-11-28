@@ -46,7 +46,7 @@
             url="https://docs.pax.dev/getting-started/" target=Target::New>
             <Text class="nav_cta_label" width=100% height=100% selectable=false>Get Started</Text>
             <ButtonRim y=50% width=100% height={100% - (self.compact ? 8 : 4)px} enabled=true
-                pool_density={self.light_mode ? None : Some(1.5)}>
+                pool_density={SiteTheme::action_density(self.light_mode)} pool_amplitude={SiteTheme::action_amplitude(self.light_mode)}>
                 <Rectangle width=100% height=100% fill={SiteTheme::action_surface(self.light_mode, @gpu)} corner_radius=24/>
             </ButtonRim>
         </Link>

@@ -24,8 +24,13 @@ For cloud glass, project an opaque silhouette and supply the CPU fallback as its
 ##### `pool_density`
 Type: `Property`<`Option`<`f64`>>
 
-Some(density) applies full-amplitude pool waves to the projected paint with a 2 px rim.
+Some(density) applies pool waves to the projected paint with a 2 px rim.
 Takes precedence over cloud glass. The shared surface phase controls wave time.
+
+##### `pool_amplitude`
+Type: `Property`<`Option`<`f64`>>
+
+Pool wave strength, from 0 (base paint) to 1 (default). Does not attenuate the rim.
 
 ---
 

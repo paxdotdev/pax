@@ -2,7 +2,7 @@ if self.enabled && @gpu {
     if self.pool_density != None || self.cloud_density != None {
         <Group width=100% height=100% @viewport_proximity_change=self.cloud_visibility @unmount=self.pause_cloud>
             if self.pool_density != None {
-                <PoolFloorSurface width=100% height=100% density={self.pool_density ?? 1.0} amplitude=1.0 phase={self._phase} button_rim=true>
+                <PoolFloorSurface width=100% height=100% density={self.pool_density ?? 1.0} amplitude={self.pool_amplitude ?? 1.0} phase={self._phase} button_rim=true>
                     slot()
                 </PoolFloorSurface>
             } else {

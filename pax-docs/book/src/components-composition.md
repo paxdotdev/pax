@@ -391,8 +391,11 @@ You can also project a painted shape into `ButtonRim`.
 </ButtonRim>
 ```
 
-The pool uses the projected paint as the floor, full-amplitude waves, and a
-two-pixel scene-lit rim. Provide a `ButtonSurfacePhase` store on an ancestor
+The pool uses the projected paint as the floor, full-amplitude waves by default,
+and a two-pixel scene-lit rim. For a dark face with a white label, try a near-black
+fill with `pool_density={Some(0.95)}` and `pool_amplitude={Some(0.18)}`.
+Lowering amplitude softens the reflected light without dimming the rim or label.
+Provide a `ButtonSurfacePhase` store on an ancestor
 to animate visible faces from a shared phase in seconds. Holding the phase
 freezes the waves. `pool_density` takes precedence if cloud glass is also enabled.
 

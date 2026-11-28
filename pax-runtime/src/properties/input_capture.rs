@@ -71,6 +71,7 @@ struct Node {
     mounted: Weak<ExpandedNode>,
     parent: Option<usize>,
     template_parent: Option<usize>,
+    flattened_slot_controller: bool,
     layout: crate::TransformAndBounds<crate::node_interface::NodeLocal, pax_runtime_api::Window>,
     bounds_parent: (f64, f64),
     measured_size: Option<(f64, f64)>,
@@ -490,6 +491,12 @@ impl CapturedInputView {
                 view: self.view,
                 index,
             };
+            // Projected if/for controllers are lexical links, not mounted
+            // recipients. Like live dispatch, bubble through them. A recipient
+            // that *was* mounted in the displayed frame must still validate.
+            if record.flattened_slot_controller {
+                continue;
+            }
             let Some(node) = self.resolve_target(context, recipient) else {
                 break;
             };
@@ -1448,6 +1455,9 @@ impl RuntimeContext {
             mounted: Rc::downgrade(&node),
             parent: None,
             template_parent: None,
+            flattened_slot_controller: node.attached.get() == 0
+                && instance.base().flags().invisible_to_slot
+                && !node.is_render_source(),
             layout: node.transform_and_bounds.get(),
             bounds_parent,
             measured_size: node.measured_size.get(),

@@ -12,7 +12,8 @@
                 align_horizontal: TextAlignHorizontal::Center
             }>{self.label}</Text>
     </Group>
-    <ButtonRim width=100% height=100% enabled=true pool_density={self.primary != self.light_mode ? Some(1.5) : None}>
-        <Rectangle width=100% height=100% corner_radius=5.333 fill={self.primary != self.light_mode ? SiteTheme::action_surface(false, @gpu) : SiteTheme::glass_face(false)}/>
+    <ButtonRim width=100% height=100% enabled=true pool_density={SiteTheme::action_density(self.primary == self.light_mode)}
+        pool_amplitude={SiteTheme::action_amplitude(self.primary == self.light_mode)}>
+        <Rectangle width=100% height=100% corner_radius=5.333 fill={SiteTheme::action_surface(self.primary == self.light_mode, @gpu)}/>
     </ButtonRim>
 </Link>

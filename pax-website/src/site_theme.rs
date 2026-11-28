@@ -77,11 +77,23 @@ impl SiteTheme {
         Color::from_hex("EEEEEE")
     }
 
-    pub fn action_surface(light: bool, gpu: bool) -> Fill {
-        if !light && gpu && cfg!(feature = "app") {
-            Self::pool_paint().into()
+    pub fn action_density(dark_face: bool) -> Option<f64> {
+        Some(if dark_face { 0.95 } else { 1.5 })
+    }
+
+    pub fn action_amplitude(dark_face: bool) -> Option<f64> {
+        Some(if dark_face { 0.18 } else { 1.0 })
+    }
+
+    pub fn action_surface(dark_face: bool, gpu: bool) -> Fill {
+        if gpu && cfg!(feature = "app") {
+            if dark_face {
+                Color::from_hex("0C1116").into()
+            } else {
+                Self::pool_paint().into()
+            }
         } else {
-            Self::action_face(light)
+            Self::action_face(dark_face)
         }
     }
 
