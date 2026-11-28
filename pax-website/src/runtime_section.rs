@@ -82,7 +82,7 @@ mod tests {
         let runtime = include_str!("runtime_section.pax");
         let (content, background) = runtime.rsplit_once("</Stacker>").unwrap();
         let (intro, _) = content.split_once("<PaxflixShowcase").unwrap();
-        assert!(intro.contains(">An alternative to HTML, CSS, and JavaScript</Text>"));
+        assert!(intro.contains(">An alternative to HTML</Text>"));
         assert_eq!(runtime.matches("<RuntimeGlass ").count(), 1);
         assert!(background.contains("<RuntimeGlass "));
         assert!(!runtime.contains("<ModularityRain"));

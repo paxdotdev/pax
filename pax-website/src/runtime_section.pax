@@ -5,9 +5,9 @@
         <Group width=100% autosize=true>
             <Stacker class="runtime_copy" autosize=true gutter=24px>
                 ///#h2
-                <Text class="editorial_title" width=100%>An alternative to HTML, CSS, and JavaScript</Text>
-                <Text class="editorial_lead" width=100%>You can build a web app without writing it in HTML, CSS, or JavaScript. Describe the interface in Pax, write the logic in Rust, and take that same app to mobile and desktop.</Text>
-                <Text class="editorial_body" width=100% markdown=true>Try [Paxflix](/paxflix/) below. The movie shelves scroll natively, the layout adapts to the screen, and the whole interface comes from one codebase.</Text>
+                <Text class="editorial_title" width=100%>An alternative to HTML</Text>
+                <Text class="editorial_lead" width=100%>Pax aims to offer a portable, extensible, and open alternative to web technologies for building apps for any device—native or browser.</Text>
+                <Text class="editorial_body" width=100% markdown=true>Read more about [the language](https://docs.pax.dev/template-language.html), [accessibility](https://docs.pax.dev/accessibility-native-controls.html#accessibility-today), [crawlability](https://docs.pax.dev/routing.html#generated-entries-and-indexing), [scrolling](https://docs.pax.dev/scrolling-viewports.html), [routing and browser history](https://docs.pax.dev/routing.html#routes-and-history), [GPU rendering](https://docs.pax.dev/how-pax-runs.html#rendering-backends), and [native builds](https://docs.pax.dev/targets-build-deploy.html#run-build-and-release).</Text>
             </Stacker>
         </Group>
         ///#ignore

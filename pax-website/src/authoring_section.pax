@@ -6,7 +6,7 @@
             <Stacker class="authoring_copy" autosize=true gutter=24px>
                 ///#h2
                 <Text class="editorial_title" width=100%>A declarative language for interactive graphics</Text>
-                <Text class="editorial_lead" width=100%>Pax combines HTML-like markup with spreadsheet-like expressions. With this simple, declarative language, you can combine responsive layouts, rich text, UI controls, animations, 3D, lighting, materials, and shaders into coherent scenes.</Text>
+                <Text class="editorial_lead" width=100% markdown=true>Pax combines HTML-like markup with spreadsheet-like expressions. With this simple, declarative language, you can combine [responsive layouts](https://docs.pax.dev/layout-responsiveness.html#responsive-layout), [rich text](https://docs.pax.dev/text-fonts-images.html#markdown-content), [UI controls](https://docs.pax.dev/accessibility-native-controls.html#choose-a-control), [animations](https://docs.pax.dev/animation-motion.html#timelines), [3D](https://github.com/paxdotdev/pax/blob/main/examples/increment-cube/src/increment.pax), [lighting](https://docs.pax.dev/api/pax-std/drawing/lighting.html#lightsource), [materials](https://docs.pax.dev/drawing-styling.html#lighting-and-materials), and [shaders](https://docs.pax.dev/compositing-effects.html#experimental-shader-containers) into coherent scenes.</Text>
             </Stacker>
         </Group>
         ///#ignore

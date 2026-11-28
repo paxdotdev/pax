@@ -6,6 +6,8 @@
                 width=1px height=1px anchor=50% z=-52px radius={(self.wall_width * self.radius_fraction)px}
                 intensity=1.4 color={color}/>
         }
+        <Rectangle class="glass_edge_fade" y=50px/>
+        <Rectangle class="glass_edge_fade" y={100% - 50px} rotate=180deg/>
         <GlassBricks width=100% height=100% pitch={Math::max(82.0, Math::min(784.0, self.wall_width) / 7.0) * 1.75}
             thickness=0.70 roughness=0.31 inner_bezel=0.25 outer_bezel=0.40>
             <Rectangle width=100% height=100% _raycastable=false fill={self.light_mode ? WHITE : rgb(19,23,24)}/>
@@ -13,4 +15,21 @@
     }
 </LightFrame>
 
-@settings { @mount: mount }
+@settings {
+    @mount: mount
+    .glass_edge_fade {
+        x: 50%
+        anchor: 50%
+        width: 100%
+        height: 100px
+        _raycastable: false
+        fill: {
+            paint: @gradient {
+                linear: {start: [0%, 0%] end: [0%, 100%]}
+                0%: BLACK
+                100%: rgba(0, 0, 0, 0)
+            }
+            material: {Material::unlit()}
+        }
+    }
+}
